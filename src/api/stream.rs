@@ -1,9 +1,10 @@
 use super::logging::emit_sse_parse_error;
+use crate::runtime::json_handoff::RuntimeEnvelope;
 use crate::types::{
     ApiStreamError, ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData,
     StreamChunkMetadata, StreamEvent, StreamPromptProgress, StreamTimings, ToolUseMetadata,
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
 
 mod mappers;
@@ -23,6 +24,15 @@ const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 /// Indices beyond this cap are clamped to prevent unbounded Vec allocation
 /// from untrusted server data.
 const MAX_TOOL_CALL_INDEX: usize = 1_024;
+
+#[derive(Default)]
+pub struct RuntimeEnvelopeSseParser {
+    buffer: Vec<u8>,
+    bom_checked: bool,
+    overflowed: bool,
+    last_event_id: Option<String>,
+    reconnect_delay_ms: Option<u64>,
+}
 
 #[derive(Default)]
 pub struct StreamParser {
@@ -116,6 +126,152 @@ struct ChatCompatFunctionDelta {
     name: Option<String>,
     #[serde(default)]
     arguments: Option<String>,
+}
+
+impl RuntimeEnvelopeSseParser {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn process_sse_event(
+        &mut self,
+        event_type: &str,
+        data: &str,
+    ) -> Result<Vec<RuntimeEnvelope>> {
+        self.parse_event_payload((!event_type.is_empty()).then_some(event_type), data)
+    }
+
+    pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<RuntimeEnvelope>> {
+        if self.overflowed {
+            return Err(self.buffer_overflow_error());
+        }
+
+        if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
+            self.overflowed = true;
+            return Err(self.buffer_overflow_error());
+        }
+        self.buffer.extend_from_slice(chunk);
+        self.strip_utf8_bom_once();
+
+        let mut envelopes = Vec::new();
+
+        while let Some((pos, delim_len)) = self.find_delimiter() {
+            let end = pos + delim_len;
+            let frame_bytes = self.buffer[..pos].to_vec();
+            self.buffer.drain(..end);
+            envelopes.extend(self.parse_frame_bytes(frame_bytes)?);
+        }
+
+        Ok(envelopes)
+    }
+
+    pub fn last_event_id(&self) -> Option<&str> {
+        self.last_event_id.as_deref()
+    }
+
+    pub fn reconnect_delay_ms(&self) -> Option<u64> {
+        self.reconnect_delay_ms
+    }
+
+    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
+        let frame_text = String::from_utf8(frame_bytes)?;
+        let normalised_frame = normalise_sse_line_endings(&frame_text);
+        let mut event_type = None;
+        let mut data_lines = Vec::new();
+
+        for line in normalised_frame.split('\n') {
+            if line.is_empty() || line.starts_with(':') {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("event:") {
+                event_type = Some(strip_single_leading_space(rest).to_string());
+            } else if let Some(rest) = line.strip_prefix("data:") {
+                data_lines.push(strip_single_leading_space(rest).to_string());
+            } else if let Some(rest) = line.strip_prefix("id:") {
+                let value = strip_single_leading_space(rest);
+                if !value.contains('\0') {
+                    self.last_event_id = Some(value.to_string());
+                }
+            } else if line == "id" {
+                self.last_event_id = Some(String::new());
+            } else if let Some(rest) = line.strip_prefix("retry:")
+                && let Ok(milliseconds) = strip_single_leading_space(rest).parse::<u64>()
+            {
+                self.reconnect_delay_ms = Some(milliseconds);
+            }
+        }
+
+        if data_lines.is_empty() {
+            if frame_without_data_should_error(&normalised_frame) {
+                return Err(anyhow!(
+                    "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
+                ));
+            }
+            return Ok(Vec::new());
+        }
+
+        self.parse_event_payload(event_type.as_deref(), &data_lines.join("\n"))
+    }
+
+    fn parse_event_payload(
+        &mut self,
+        event_type: Option<&str>,
+        json_data: &str,
+    ) -> Result<Vec<RuntimeEnvelope>> {
+        if json_data.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        if matches!(event_type, Some(event_type) if event_type != "runtime") {
+            return Ok(Vec::new());
+        }
+
+        Ok(vec![serde_json::from_str::<RuntimeEnvelope>(json_data)?])
+    }
+
+    fn find_delimiter(&self) -> Option<(usize, usize)> {
+        let mut index = 0;
+        while index < self.buffer.len() {
+            let Some(first_len) = line_terminator_len(&self.buffer, index) else {
+                index += 1;
+                continue;
+            };
+            let next = index + first_len;
+            if let Some(second_len) = line_terminator_len(&self.buffer, next) {
+                return Some((index, first_len + second_len));
+            }
+            index = next;
+        }
+        None
+    }
+
+    fn strip_utf8_bom_once(&mut self) {
+        if self.bom_checked {
+            return;
+        }
+
+        const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
+        if self.buffer.starts_with(UTF8_BOM) {
+            self.buffer.drain(..UTF8_BOM.len());
+            self.bom_checked = true;
+            return;
+        }
+
+        if self.buffer.is_empty() {
+            return;
+        }
+
+        let prefix_len = self.buffer.len().min(UTF8_BOM.len());
+        if prefix_len == UTF8_BOM.len() || self.buffer[..prefix_len] != UTF8_BOM[..prefix_len] {
+            self.bom_checked = true;
+        }
+    }
+
+    fn buffer_overflow_error(&self) -> anyhow::Error {
+        anyhow!(
+            "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a frame delimiter; the upstream stream may be malformed"
+        )
+    }
 }
 
 impl StreamParser {

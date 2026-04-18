@@ -1,0 +1,174 @@
+# RuntimeEnvelope API SSE Normalization Plan
+
+## Goal
+
+Move the CLI onto one internal machine-readable stream contract:
+`RuntimeEnvelope`. The remaining compatibility stream paths stay only at the
+outbound provider edge, if they remain at all. Internal consumers should read a
+single canonical event stream, and the server SSE layer should operate as a
+transport wrapper around envelope JSON rather than as a second event schema.
+
+## Reference Basis
+
+- ADR-025 defines the runtime JSON handoff contract and already treats
+  `RuntimeEnvelope` and `RuntimeEvent` as the canonical internal stream.
+- ADR-028 reserves transport logic for `src/server/**` and argues against
+  secondary internal schemas leaking across boundaries.
+- ADR-045 and ADR-046 keep expanding `RuntimeEvent` coverage, which makes the
+  remaining block-delta and chat-chunk paths harder to justify as durable
+  internal contracts.
+- The current code already reflects the intended direction: `src/runtime/json_handoff.rs`
+  emits canonical envelopes, while `src/local_api.rs` already treats the
+  envelope stream as the reference local path.
+
+## Current Repository Facts
+
+- `src/runtime/json_handoff.rs` already defines the canonical contract and
+  emits explicit tool lifecycle events.
+- `src/server/sse.rs` still negotiates and emits block-delta and
+  choices-delta variants instead of serving envelope JSON exclusively.
+- `src/runtime/backend.rs` still types `EventStream` as `Result<StreamEvent>`.
+- `src/api/eventsource.rs`, `src/api/stream.rs`, and
+  `crates/vexcoder-api-types/src/lib.rs` still parse and expose compatibility
+  streaming types.
+- `src/state/conversation/send_message.rs` still reconstructs tool lifecycle
+  state from block-oriented deltas instead of consuming canonical tool events
+  directly.
+- `src/app/model_update.rs`, `src/runtime/context.rs`, and `src/batch_mode.rs`
+  still depend on projections shaped by the compatibility parser path.
+
+## Workstreams
+
+### 1. Contract And Schema
+
+- Keep `src/runtime/json_handoff.rs` as the only internal machine-readable
+  stream contract.
+- Treat `ToolCallStarted`, `ToolCallArgumentsDelta`,
+  `ToolCallStatusUpdated`, `ToolCallCompleted`, and `ToolCallFailed` as the
+  authoritative tool API.
+- Keep transcript block events as renderer projections rather than transport
+  or tool-contract semantics.
+- Align `schemas/runtime_envelope_v1.json` with the envelope-only SSE contract.
+- Update ADR follow-up text once the code lands so the architecture notes no
+  longer imply dual internal stream dialects.
+
+### 2. Server SSE Transport
+
+- Remove `TurnsSseMode::BlockDelta` and `TurnsSseMode::ChoicesDelta` from
+  `src/server/sse.rs`.
+- Remove `PendingToolBlock`, `ActiveToolBlock`, mapper dispatch, and related
+  argument re-serialization helpers.
+- Remove Accept-header negotiation for legacy stream modes in
+  `src/server/handlers/mod.rs`.
+- Keep only canonical envelope framing plus keepalive handling.
+- Rewrite server SSE tests so they assert envelope passthrough and heartbeat
+  behavior instead of mode conversion.
+
+### 3. API SSE Boundary
+
+- Change `src/runtime/backend.rs` so `EventStream` carries
+  `Result<RuntimeEnvelope>`.
+- Replace compatibility parsing in `src/api/eventsource.rs` with direct
+  envelope deserialization from SSE payloads.
+- Update `src/api/mock_client.rs` to emit envelope fixtures directly.
+- Remove provider-shaped streaming parser behavior from `src/api/stream.rs`.
+- Remove `src/api/stream/mappers.rs` entirely.
+- Remove inbound compatibility streaming types from
+  `crates/vexcoder-api-types/src/lib.rs`, while preserving any outbound
+  request/history types that still belong at the provider boundary.
+- Restrict `src/api/client/mod.rs` and
+  `src/api/client/protocol_discovery.rs` to request-shape concerns only.
+
+### 4. Runtime Event Parser And Tool Loop
+
+- Replace `StreamEvent` matching in `src/state/conversation/send_message.rs`
+  with direct `RuntimeEnvelope` and `RuntimeEvent` handling.
+- Remove `tool_input_buffers` and the block-stop JSON reparse path.
+- Remove tool lifecycle reconstruction from `ContentBlockStart`,
+  `ContentBlockDelta`, and `ContentBlockStop`.
+- Drive tool execution, round progression, and context enrichment from
+  canonical tool events.
+- Remove tagged or XML fallback parsing once no backend requires tagged tool
+  output.
+- Reduce `src/runtime/context.rs` and `src/runtime/update.rs` to canonical
+  projections for renderer and CLI updates.
+
+### 5. Consumer Surfaces
+
+- Update `src/app/model_update.rs` to project transcript and tool state from
+  canonical events instead of compatibility deltas.
+- Remove compatibility-only state in `src/app.rs`.
+- Confirm `src/batch_mode.rs` derives its output from canonical events only.
+- Keep `src/local_api.rs` as the reference envelope path and align the direct
+  runtime path with it.
+
+### 6. Tests And Fixtures
+
+- Replace compatibility SSE fixtures in conversation, runtime-context, API,
+  and renderer tests with envelope fixtures.
+- Remove chat-style and tagged fallback scenarios once the corresponding code
+  paths are retired.
+- Expand local API envelope contract tests because that path becomes the shared
+  reference behavior.
+
+### 7. Config And Defaults
+
+- Remove internal streaming-mode configuration that exists only for
+  block-delta and choices-delta compatibility.
+- Remove tagged-fallback defaults once canonical structured tool handling is
+  mandatory.
+- Update documentation and ADR follow-up notes after the refactor lands.
+
+## Files In Scope
+
+- `src/runtime/json_handoff.rs`
+- `schemas/runtime_envelope_v1.json`
+- `src/server/sse.rs`
+- `src/server/handlers/mod.rs`
+- `src/runtime/backend.rs`
+- `src/api/eventsource.rs`
+- `src/api/mock_client.rs`
+- `src/api/stream.rs`
+- `src/api/stream/mappers.rs`
+- `src/api/client/mod.rs`
+- `src/api/client/protocol_discovery.rs`
+- `crates/vexcoder-api-types/src/lib.rs`
+- `src/state/conversation/send_message.rs`
+- `src/state/conversation/streaming.rs`
+- `src/state/conversation/history.rs`
+- `src/state/conversation/tool_call_parser.rs`
+- `src/state/conversation/tools/formatting.rs`
+- `src/runtime/context.rs`
+- `src/runtime/update.rs`
+- `src/local_api.rs`
+- `src/app/model_update.rs`
+- `src/app.rs`
+- `src/batch_mode.rs`
+- conversation, runtime, renderer, API, and server test targets tied to the
+  compatibility stream path
+
+## Acceptance Gates
+
+- Downstream of the API boundary, only `RuntimeEnvelope` remains as the
+  machine-readable stream contract.
+- The server publishes canonical envelope JSON over SSE without legacy mode
+  negotiation.
+- The runtime event parser and deterministic tool loop consume explicit
+  `ToolCall*` events directly.
+- Compatibility parser code and compatibility stream mappers are retired.
+- The renderer, batch mode, local API, and task-document surfaces derive their
+  updates from the same canonical event stream.
+
+## Validation
+
+- `cargo fmt --check`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo nextest run -j 2`
+- `bash scripts/check_forbidden_names.sh`
+
+## Notes
+
+- Request-shape branching may remain temporarily where direct provider
+  integrations still exist, but it must terminate at the API boundary.
+- This lane does not preserve compatibility-only internal streaming surfaces.
+  It retires them in favour of the canonical envelope contract.

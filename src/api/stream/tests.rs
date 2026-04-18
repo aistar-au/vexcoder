@@ -1,5 +1,75 @@
-use super::{MAX_SSE_BUFFER_BYTES, StreamParser};
+use super::{MAX_SSE_BUFFER_BYTES, RuntimeEnvelopeSseParser, StreamParser};
+use crate::runtime::json_handoff::{RuntimeEnvelope, RuntimeEnvelopeSource, RuntimeEvent};
 use crate::types::{ContentBlock, StreamEvent};
+
+fn sample_runtime_envelope() -> RuntimeEnvelope {
+    RuntimeEnvelope {
+        version: 1,
+        task_id: "task-runtime-envelope".to_string(),
+        turn: 2,
+        seq: 7,
+        event_id: "evt_0007".to_string(),
+        emitted_at: "2026-04-18T12:34:56Z".to_string(),
+        source: RuntimeEnvelopeSource::Runtime,
+        request_id: Some("req-42".to_string()),
+        parent_event_id: None,
+        event: RuntimeEvent::TurnStart {
+            input: Some("inspect the runtime stream".to_string()),
+        },
+    }
+}
+
+#[test]
+fn test_runtime_envelope_sse_parser_processes_runtime_event_frames() {
+    let mut parser = RuntimeEnvelopeSseParser::new();
+    let envelope = sample_runtime_envelope();
+    let payload = serde_json::to_string(&envelope).unwrap();
+    let events = parser
+        .process(format!("event: runtime\ndata: {payload}\n\n").as_bytes())
+        .unwrap();
+
+    assert_eq!(events, vec![envelope]);
+}
+
+#[test]
+fn test_runtime_envelope_sse_parser_tracks_sse_resume_fields() {
+    let mut parser = RuntimeEnvelopeSseParser::new();
+    let payload = serde_json::to_string(&sample_runtime_envelope()).unwrap();
+    let events = parser
+        .process(
+            format!("\u{feff}id: runtime-17\nretry: 1750\nevent: runtime\ndata: {payload}\n\n")
+                .as_bytes(),
+        )
+        .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert_eq!(parser.last_event_id(), Some("runtime-17"));
+    assert_eq!(parser.reconnect_delay_ms(), Some(1750));
+}
+
+#[test]
+fn test_runtime_envelope_sse_parser_rejects_invalid_runtime_payloads() {
+    let mut parser = RuntimeEnvelopeSseParser::new();
+    let error = parser
+        .process(b"event: runtime\ndata: {\"version\":1,\"task_id\":\"missing-fields\"}\n\n")
+        .expect_err("invalid runtime envelope must error");
+
+    assert!(
+        error.to_string().contains("missing field"),
+        "unexpected parser error: {error}"
+    );
+}
+
+#[test]
+fn test_runtime_envelope_sse_parser_ignores_non_runtime_event_types() {
+    let mut parser = RuntimeEnvelopeSseParser::new();
+    let payload = serde_json::to_string(&sample_runtime_envelope()).unwrap();
+    let events = parser
+        .process(format!("event: ping\ndata: {payload}\n\n").as_bytes())
+        .unwrap();
+
+    assert!(events.is_empty());
+}
 
 #[test]
 fn test_process_emits_ping_for_ping_frame() {

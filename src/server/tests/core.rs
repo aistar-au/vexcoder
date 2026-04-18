@@ -1,7 +1,7 @@
 use super::*;
-use crate::api::stream::StreamParser;
+use crate::api::stream::{RuntimeEnvelopeSseParser, StreamParser};
 use crate::app::UiUpdate;
-use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
+use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ContentBlock, StreamEvent};
 use serde_json::json;
@@ -450,7 +450,7 @@ async fn test_runtime_sse_response_emits_keepalive_comment() {
 }
 
 #[tokio::test]
-async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists() {
+async fn test_runtime_sse_response_round_trips_runtime_envelopes_without_event_ids() {
     #[derive(Clone)]
     struct TestSseState {
         receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
@@ -513,6 +513,22 @@ async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists()
     assert!(
         !payload.starts_with("id:") && !payload.contains("\nid:") && !payload.contains("\r\nid:"),
         "runtime SSE must omit event ids until replay exists, got {payload:?}"
+    );
+
+    let mut parser = RuntimeEnvelopeSseParser::new();
+    let envelopes = parser.process(bytes.as_ref()).unwrap();
+    assert!(
+        matches!(
+            envelopes.first().map(|envelope| &envelope.event),
+            Some(RuntimeEvent::TurnStart { .. })
+        ),
+        "expected runtime SSE to begin with TurnStart, got {envelopes:?}"
+    );
+    assert!(
+        envelopes
+            .iter()
+            .any(|envelope| matches!(envelope.event, RuntimeEvent::TurnEnd { .. })),
+        "expected runtime SSE to contain TurnEnd, got {envelopes:?}"
     );
 
     server.abort();
