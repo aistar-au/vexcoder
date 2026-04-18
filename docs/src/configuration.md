@@ -561,7 +561,7 @@ export VEX_MODEL_TOKEN="your-token"
 ## API Client Configuration (ADR-047)
 
 The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
-connection path, `explicit_protocol` can pin the wire format for the session,
+connection path, `explicit_protocol` can pin the canonical request protocol for the session,
 `probe_timeout_ms` controls the discovery-request ceiling, and
 `delta_accumulator_memory_watermark_mb` bounds in-progress tool-call delta
 state.
@@ -569,7 +569,7 @@ state.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `base_url` | string | `""` | Optional scheme-and-host base URL (for example `http://127.0.0.1:8000`). When set, the client discovers or applies the protocol and adapts requests to `/v1/messages` or `/v1/chat/completions`. |
-| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Optional override that bypasses discovery and pins request routing plus SSE parsing to the selected format. |
+| `explicit_protocol` | `"messages-v1"` \| `"chat-compat"` | unset | Optional override that bypasses discovery and pins request routing to the selected protocol. Legacy `block_delta` and `choices_delta` aliases still parse for compatibility. |
 | `probe_timeout_ms` | integer | `2000` | Per-request timeout budget for each ADR-047 protocol-discovery probe (`/v1/messages`, then `/v1/chat/completions`). Raise this for slower local runtimes or remote tunnels. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-progress streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 
@@ -587,5 +587,5 @@ Pinned-protocol form:
 ```toml
 [api_client]
 base_url = "http://127.0.0.1:8000"
-explicit_protocol = "choices_delta"
+explicit_protocol = "chat-compat"
 ```

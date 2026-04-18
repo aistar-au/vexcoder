@@ -15,7 +15,7 @@ The current `messages/v1` endpoint emits full runtime envelopes. To enable small
 - Phase 0 foundations are merged.
 - Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
 - `/v1/turns` now negotiates runtime-envelope, Block-Delta, or Choices-Delta SSE via `Accept`, and HTTP-level tests assert `tx_` IDs over the wire for both mapper formats.
-- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass.
+- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass and now reusing canonical `ModelProtocol` names.
 - `LocalApiTaskShared::new()` now wires a bounded peer-event channel into the accumulator, and partial tool-argument truncation emits explicit peer diagnostics instead of failing silently.
 
 ## Why Backwards Compatibility Is Not Required
@@ -61,12 +61,12 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 - Users configure only `base_url` (e.g., `http://127.0.0.1:8000`)
 - `discover_protocol()` runs a one-time probe at connection time:
   1. Attempt `GET /v1/messages` with `Accept: application/vnd.block-delta+sse`
-  2. If `200 OK` + `text/event-stream` content-type → `ProtocolVariant::BlockDelta`
+  2. If `200 OK` + `text/event-stream` content-type → `ModelProtocol::MessagesV1`
   3. Else attempt `GET /v1/chat/completions` with `Accept: application/vnd.choices-delta+sse`
-  4. If `200 OK` + `text/event-stream` → `ProtocolVariant::ChoicesDelta`
+  4. If `200 OK` + `text/event-stream` → `ModelProtocol::ChatCompat`
   5. Else return `DiscoveryError::AllProbesFailed` with probe diagnostics
 - Discovery result cached for session duration
-- Optional override: `explicit_protocol = "block_delta"` or `"choices_delta"` bypasses discovery
+- Optional override: `explicit_protocol = "messages-v1"` or `"chat-compat"` bypasses discovery
 - Probe timeout: 500 ms per attempt, 1.5 s total max
 
 ## Resolution of Debug Points
@@ -91,7 +91,7 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 - `generate_tool_call_id(&AtomicU32, u16)` exported as public free function
 - `AccumulationError::MemoryPressure` added; `LocalApiTaskShared::new` constructor
 - `ApiClientConfig` struct in `src/config.rs` with `base_url`, `explicit_protocol`, `delta_accumulator_memory_watermark_mb`
-- `src/api/client/protocol_discovery.rs` with `discover_protocol()`, `ProtocolVariant`, `DiscoveryResult`, `DiscoveryError`
+- `src/api/client/protocol_discovery.rs` with `discover_protocol()`, `ModelProtocol`, `DiscoveryResult`, `DiscoveryError`
 - Legacy `legacy_messages_protocol_value` / `legacy_chat_protocol_value` migration functions removed
 
 ### Phase 1 — Protocol Mappers
@@ -106,7 +106,7 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 3 — Testing
 
-Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing.
+Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing via canonical protocol names.
 
 ### Phase 4 — Schema + Docs
 

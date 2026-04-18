@@ -2,7 +2,7 @@
 //!
 //! Users configure only `base_url` (e.g. `http://127.0.0.1:8000`).
 //! [`discover_protocol`] probes the server once at connection time and
-//! returns a cached [`ProtocolVariant`] for the session.
+//! returns a cached [`ModelProtocol`] for the session.
 //!
 //! Two probes are attempted in order:
 //! 1. `GET /v1/messages` with `Accept: text/event-stream`
@@ -14,15 +14,15 @@
 //!
 //! ADR-047 §6 — Client-Side Protocol Discovery.
 
-use crate::config::ProtocolVariant;
+use crate::runtime::backend::ModelProtocol;
 use crate::runtime::rewrite_url_for_logs;
 use std::time::{Duration, Instant};
 
 /// Result of a successful protocol probe.
 #[derive(Debug, Clone)]
 pub struct DiscoveryResult {
-    /// The protocol variant confirmed by the probe.
-    pub protocol: ProtocolVariant,
+    /// The canonical protocol confirmed by the probe.
+    pub protocol: ModelProtocol,
     /// The full endpoint URL that responded (e.g. `http://…/v1/messages`).
     pub endpoint: String,
     /// Round-trip latency of the winning probe in milliseconds.
@@ -50,13 +50,13 @@ pub struct ProbeAttempt {
 /// Errors returned by [`discover_protocol`].
 #[derive(Debug, thiserror::Error)]
 pub enum DiscoveryError {
-    /// Neither the Block-Delta nor the Choices-Delta probe succeeded.
+    /// Neither the messages-v1 nor the chat-compat probe succeeded.
     ///
     /// `attempts` contains one entry per probe with status and error details.
     #[error("all protocol probes failed; see attempts for details")]
     AllProbesFailed {
-        /// Ordered list of probe attempts (Block-Delta first, then
-        /// Choices-Delta).
+        /// Ordered list of probe attempts (messages-v1 first, then
+        /// chat-compat).
         attempts: Vec<ProbeAttempt>,
     },
     /// A network-level error prevented the probe from completing.
@@ -135,10 +135,10 @@ async fn probe_endpoint(
     }
 }
 
-/// Discover the streaming protocol variant supported by a local inference
+/// Discover the streaming protocol supported by a local inference
 /// server at `base_url`.
 ///
-/// Probes are performed in order: Block-Delta first, then Choices-Delta.
+/// Probes are performed in order: messages-v1 first, then chat-compat.
 /// The first successful probe terminates the sequence.
 ///
 /// # Errors
@@ -168,7 +168,7 @@ pub async fn discover_protocol(
 
     if block_ok {
         return Ok(DiscoveryResult {
-            protocol: ProtocolVariant::BlockDelta,
+            protocol: ModelProtocol::MessagesV1,
             endpoint: block_endpoint,
             probe_latency_ms: block_latency,
         });
@@ -189,7 +189,7 @@ pub async fn discover_protocol(
 
     if choices_ok {
         return Ok(DiscoveryResult {
-            protocol: ProtocolVariant::ChoicesDelta,
+            protocol: ModelProtocol::ChatCompat,
             endpoint: choices_endpoint,
             probe_latency_ms: choices_latency,
         });
@@ -203,9 +203,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn protocol_variant_eq() {
-        assert_eq!(ProtocolVariant::BlockDelta, ProtocolVariant::BlockDelta);
-        assert_ne!(ProtocolVariant::BlockDelta, ProtocolVariant::ChoicesDelta);
+    fn model_protocol_eq() {
+        assert_eq!(ModelProtocol::MessagesV1, ModelProtocol::MessagesV1);
+        assert_ne!(ModelProtocol::MessagesV1, ModelProtocol::ChatCompat);
     }
 
     #[test]

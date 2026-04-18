@@ -52,8 +52,8 @@ JSON rather than as a second event schema.
 - The deleted internal transport machinery does not appear in live source any
   longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
   dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
-  `ProtocolVariant::{BlockDelta, ChoicesDelta}` and `StreamEvent` remain as
-  ingress-only compatibility types before normalization.
+  `api_client.explicit_protocol` and `StreamEvent` remain as ingress-only
+  compatibility types before normalization.
 
 ## Implemented In This Branch
 
@@ -76,8 +76,9 @@ JSON rather than as a second event schema.
 
 - Keep non-workflow verification commands on `cargo nextest run` rather than
   parallel-count overrides.
-- Refine wording around future resumable replay support in `src/server/sse.rs`
-  and the tracked notes.
+- Keep the `src/server/sse.rs` module comment and the tracked notes on the
+  future-facing replay wording path rather than slipping back to
+  "until resumable replay is implemented" phrasing.
 - Keep the branch notes aligned with the current scope boundary and consumer
   inventory.
 
@@ -108,7 +109,7 @@ JSON rather than as a second event schema.
 - Introduce event IDs and replay semantics when the transport is ready to
   support resumable envelope delivery.
 
-## Successor Draft Lane
+## Follow-up Draft Lane
 
 - Branch: `work/vexcoder-runtime-envelope-client-api-direct-consumption`
 - Purpose: complete the whole-system cleanup after PR #402 by moving the
@@ -203,7 +204,7 @@ JSON rather than as a second event schema.
 - Replace compatibility SSE fixtures in conversation, runtime-context, API,
   and renderer tests with envelope fixtures.
 - Remove chat-style and tagged fallback scenarios once the corresponding code
-  paths are retired.
+  paths are no longer part of the active compatibility surface.
 - Expand local API envelope contract tests because that path becomes the shared
   reference behavior.
 
@@ -251,7 +252,8 @@ JSON rather than as a second event schema.
   negotiation.
 - The runtime event parser and deterministic tool loop consume explicit
   `ToolCall*` events directly.
-- Compatibility parser code and compatibility stream mappers are retired.
+- Compatibility parser code and compatibility stream mappers are removed from
+  the internal contract path.
 - The renderer, batch mode, local API, and task-document surfaces derive their
   updates from the same canonical event stream.
 

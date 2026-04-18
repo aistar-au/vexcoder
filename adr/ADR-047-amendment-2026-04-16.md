@@ -97,17 +97,17 @@ forget notifications remain distinct and do not expect a reply. Interrupt,
 cancel, and resume semantics must be modeled explicitly in the request schema
 instead of being implied by UI-only control flow.
 
-### 6. UI/Transport Branching Traits Are Retirement Targets
+### 6. UI/Transport Branching Traits Are Simplification Targets
 
 The interactive UI is a consumer of the runtime API, not a separate runtime flavor.
 After the envelope and request schemas are extended, the following traits are
-retirement targets:
+follow-up simplification targets:
 
 - `RuntimeMode`
 - `FrontendAdapter`
 
-`ToolCallParser` is also a retirement target once structured tool calls are the
-canonical path and the text-protocol fallback is removed.
+`ToolCallParser` is also a follow-up simplification target once structured tool
+calls are the canonical path and the text-protocol fallback is removed.
 
 ### 7. True External Boundary Traits Remain Acceptable
 
