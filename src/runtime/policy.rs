@@ -1,5 +1,5 @@
 pub trait RuntimeCorePolicy {
-    fn sanitize_assistant_text(&self, text: &str) -> String;
+    fn rewrite_assistant_text(&self, text: &str) -> String;
     fn request_requires_tool_evidence(&self, input: &str) -> bool;
     fn tool_retry_instruction(&self) -> &'static str;
     fn repeated_tool_round_instruction(&self) -> &'static str;
@@ -56,14 +56,14 @@ pub fn default_runtime_policy() -> DefaultRuntimeCorePolicy {
     DefaultRuntimeCorePolicy
 }
 
-pub fn sanitize_assistant_text(text: &str) -> String {
-    default_runtime_policy().sanitize_assistant_text(text)
+pub fn rewrite_assistant_text(text: &str) -> String {
+    default_runtime_policy().rewrite_assistant_text(text)
 }
 
 impl RuntimeCorePolicy for DefaultRuntimeCorePolicy {
-    fn sanitize_assistant_text(&self, text: &str) -> String {
+    fn rewrite_assistant_text(&self, text: &str) -> String {
         let stripped = strip_tagged_tool_markup(text);
-        super::secrets::sanitize_secrets(&stripped)
+        super::secrets::revise_secrets(&stripped)
     }
 
     fn request_requires_tool_evidence(&self, input: &str) -> bool {
@@ -139,30 +139,30 @@ fn collapse_blank_runs(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{RuntimeCorePolicy, default_runtime_policy, sanitize_assistant_text};
+    use super::{RuntimeCorePolicy, default_runtime_policy, rewrite_assistant_text};
 
     #[test]
-    fn test_sanitize_assistant_text_removes_tool_block() {
+    fn test_rewrite_assistant_text_removes_tool_block() {
         let text = "Checking.\n<function=git_status>\n</function>\nDone.";
-        assert_eq!(sanitize_assistant_text(text), "Checking.\n\nDone.");
+        assert_eq!(rewrite_assistant_text(text), "Checking.\n\nDone.");
     }
 
     #[test]
-    fn test_sanitize_assistant_text_removes_tool_call_wrapper() {
+    fn test_rewrite_assistant_text_removes_tool_call_wrapper() {
         let text = "Checking.\n<tool_call>\n<function=git_status>\n</function>\nDone.";
-        assert_eq!(sanitize_assistant_text(text), "Checking.\n\nDone.");
+        assert_eq!(rewrite_assistant_text(text), "Checking.\n\nDone.");
     }
 
     #[test]
-    fn test_sanitize_assistant_text_drops_incomplete_tag_suffix() {
+    fn test_rewrite_assistant_text_drops_incomplete_tag_suffix() {
         let text = "Checking.\n<function=git_status";
-        assert_eq!(sanitize_assistant_text(text), "Checking.\n");
+        assert_eq!(rewrite_assistant_text(text), "Checking.\n");
     }
 
     #[test]
-    fn test_sanitize_assistant_text_drops_incomplete_tool_call_wrapper_suffix() {
+    fn test_rewrite_assistant_text_drops_incomplete_tool_call_wrapper_suffix() {
         let text = "Checking.\n<tool_call";
-        assert_eq!(sanitize_assistant_text(text), "Checking.\n");
+        assert_eq!(rewrite_assistant_text(text), "Checking.\n");
     }
 
     #[test]

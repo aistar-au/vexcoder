@@ -175,7 +175,7 @@ None of these overlap with codebase search, RAG, or semantic indexing.
 The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
-- **`secrets.rs`** -- Output revision for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments. Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
+- **`secrets.rs`** -- Output rewriting for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments. Wired into `rewrite_assistant_text` so secrets never leak into the transcript or logs.
 - **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values (delta-seconds and HTTP-date forms) and error response body text ("try again in N seconds"). The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
@@ -210,12 +210,12 @@ All parsers live in `src/runtime/git_parse.rs` and are re-exported from
 timeout and cancellation support, using `parse_git_status` to produce
 structured rollups for context assembly.
 
-### Secret sanitization -- always on
+### Secret revision -- always on
 
-Secret sanitization runs on every assistant text output through
-`sanitize_assistant_text` in `src/runtime/policy.rs`. The following
-patterns are detected and replaced with stable `[SANITIZED]` markers or
-context-preserving equivalents:
+Assistant output passes through `rewrite_assistant_text` in
+`src/runtime/policy.rs`. The following patterns are rewritten with
+deterministic revised, edited, amended, emended, or rewritten markers where
+the surrounding context permits it:
 
 - Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)

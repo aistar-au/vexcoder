@@ -298,7 +298,7 @@ impl ConversationManager {
                 if !tagged_calls.is_empty() {
                     used_tagged_fallback = true;
                     assistant_text_for_history =
-                        core_policy.sanitize_assistant_text(&assistant_text);
+                        core_policy.rewrite_assistant_text(&assistant_text);
                     tool_use_blocks = tagged_calls
                         .into_iter()
                         .enumerate()
