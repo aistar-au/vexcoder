@@ -41,6 +41,10 @@ JSON rather than as a second event schema.
   incomplete because `src/api/stream.rs` and provider-facing API types still
   parse compatibility `StreamEvent` and `ContentBlock` shapes before
   normalization.
+- `src/runtime/json_handoff.rs` has now grown past one thousand lines and
+  `src/api/stream.rs` carries a similarly dense ingress-plus-normalization
+  surface, so a follow-up structural extraction batch is warranted even where
+  behavior stays unchanged.
 - `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
   `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` should
   still be audited for any remaining compatibility-shaped projections that this
@@ -63,8 +67,46 @@ JSON rather than as a second event schema.
 - Reworked conversation, server, API, runtime-handoff, and guard tests to
   assert canonical envelope behavior and canonical `tx_*` tool identifiers.
 - Validated the branch with `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
+  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
+
+## Follow-up Batches
+
+### Batch A. Repository And Wording Cleanup
+
+- Keep non-workflow verification commands on `cargo nextest run` rather than
+  parallel-count overrides.
+- Refine wording around future resumable replay support in `src/server/sse.rs`
+  and the tracked notes.
+- Keep the branch notes aligned with the current scope boundary and consumer
+  inventory.
+
+### Batch B. `src/runtime/json_handoff.rs` Structural Extraction
+
+- Split normalization helpers, source classification, and envelope emission
+  support into companion modules under `src/runtime/json_handoff/`.
+- Preserve `RuntimeEnvelope` and `RuntimeEvent` as the visible contract while
+  reducing the single-file maintenance burden.
+
+### Batch C. `src/api/stream.rs` Structural Extraction
+
+- Split provider-edge parsing, compatibility ingress handling, and normalized
+  envelope emission helpers into focused `src/api/stream/` modules.
+- Keep the provider-edge adapter boundary explicit so direct envelope
+  consumption remains easy to review.
+
+### Batch D. Whole-System Consumer Completion
+
+- Replace residual client/API-side `StreamEvent` and compatibility
+  `ContentBlock` parsing wherever those layers are acting as internal API
+  consumers.
+- Audit the CLI and ratatui/crossterm stack so it remains a consumer of the
+  normalized API rather than a parallel stream-building path.
+
+### Batch E. Resumable Replay Support
+
+- Introduce event IDs and replay semantics when the transport is ready to
+  support resumable envelope delivery.
 
 ## Workstreams
 
@@ -197,7 +239,7 @@ JSON rather than as a second event schema.
 
 - `cargo fmt --check`
 - `cargo clippy --all-targets -- -D warnings`
-- `cargo nextest run -j 2`
+- `cargo nextest run`
 - `bash scripts/check_forbidden_names.sh`
 
 ## Notes
@@ -205,4 +247,5 @@ JSON rather than as a second event schema.
 - Request-shape branching may remain temporarily where direct provider
   integrations still exist, but it must terminate at the API boundary.
 - This lane does not preserve compatibility-only internal streaming surfaces.
-  It retires them in favour of the canonical envelope contract.
+  It concentrates them at the provider edge while the internal path stays on
+  the canonical envelope contract.

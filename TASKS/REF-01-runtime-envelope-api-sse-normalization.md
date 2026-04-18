@@ -16,7 +16,7 @@ Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
   provider-edge `StreamEvent` and `ContentBlock` parsing before immediate
   normalization.
 - Validation is green with `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
+  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
 
 ## Goal
@@ -63,6 +63,12 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - [ ] Replace residual client/API-side `StreamEvent` and `ContentBlock`
   parsing as an internal consumer path with direct `RuntimeEnvelope`
   consumption wherever the normalized API contract should be observed.
+- [ ] Split `src/runtime/json_handoff.rs` into focused companion modules once
+  the canonical contract changes settle, so the file no longer concentrates
+  normalization, source classification, and envelope emission in one unit.
+- [ ] Split `src/api/stream.rs` into focused provider-ingress and
+  normalization helpers so the compatibility ingress path remains readable
+  while the normalized API seam stays explicit.
 - [ ] Audit the CLI and ratatui/crossterm consumer stack so it projects the
   normalized API contract rather than rebuilding stream semantics behind it.
 - [ ] Retire tagged or XML fallback parsing once no backend depends on it.
@@ -84,11 +90,29 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   projections, and task-document updates all derive from the same canonical
   event stream.
 - [x] Validation succeeds with `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
+  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
 
 ## Follow-up
 
+- Batch A: repository and wording cleanup.
+  Normalize non-workflow verification commands to `cargo nextest run`, refine
+  the server SSE replay wording, and keep the tracked notes aligned with the
+  present branch boundary.
+- Batch B: `src/runtime/json_handoff.rs` structural extraction.
+  Move event-source classification, normalization helpers, and envelope
+  emission support into companion modules under `src/runtime/json_handoff/`
+  so the canonical contract remains readable as it continues to grow.
+- Batch C: `src/api/stream.rs` structural extraction.
+  Move provider-edge parsing, compatibility ingress handling, and normalized
+  envelope emission helpers into focused `src/api/stream/` modules.
+- Batch D: client and API direct-envelope completion.
+  Complete the client/API-side migration from residual `StreamEvent` and
+  `ContentBlock` parsing to direct `RuntimeEnvelope` consumption wherever the
+  layer is acting as an internal API consumer.
+- Batch E: resumable replay support.
+  Introduce event IDs and replay semantics when the server transport is ready
+  to support resumable envelope delivery rather than only keepalive framing.
 - Decide whether tagged and XML fallback parsing can now be removed outright,
   or whether a narrower migration lane is still required for local endpoint
   compatibility.

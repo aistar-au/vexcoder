@@ -2,7 +2,7 @@
 //!
 //! The server emits canonical RuntimeEnvelope JSON as ordinary
 //! `text/event-stream` data frames. Event IDs remain intentionally omitted
-//! until resumable replay is implemented.
+//! pending future resumable replay support.
 
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::{Stream, StreamExt};
