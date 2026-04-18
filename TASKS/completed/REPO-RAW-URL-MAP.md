@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 384
+- Total tracked files: 383
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -157,7 +157,6 @@ Canonical raw URL index for every tracked file in this repository.
 | 146 | `src/api/logging.rs` | ~98 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 147 | `src/api/mock_client.rs` | ~69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | 148 | `src/api/stream.rs` | ~764 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
-| 149 | `src/api/stream/mappers.rs` | ~299 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream/mappers.rs> |
 | 150 | `src/api/stream/tests.rs` | ~795 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream/tests.rs> |
 | 151 | `src/api/stream/text_normaliser.rs` | ~459 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream/text_normaliser.rs> |
 | 152 | `src/app.rs` | ~536 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |

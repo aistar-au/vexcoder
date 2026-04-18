@@ -11,6 +11,10 @@ Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
   negotiation.
 - The conversation tool loop now consumes canonical `RuntimeEvent` values,
   including canonical tool-call IDs, metadata, and usage updates.
+- The branch closes the server-layer discrepancy, but it does not yet finish
+  the whole-system cleanup because the client/API ingress side still carries
+  provider-edge `StreamEvent` and `ContentBlock` parsing before immediate
+  normalization.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -34,7 +38,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - Runtime event parser and tool loop: `src/state/conversation/**`,
   `src/runtime/context.rs`, and `src/runtime/update.rs`
 - Consumer surfaces: `src/app.rs`, `src/app/model_update.rs`,
-  `src/batch_mode.rs`, and `src/local_api.rs`
+  `src/batch_mode.rs`, `src/local_api.rs`, `src/bin/vex/**`,
+  `src/tui_frontend.rs`, and the ratatui/crossterm-backed TUI stack that must
+  remain a downstream API consumer rather than a second internal stream core
 - Tests, fixtures, config, and ADR follow-up notes tied to the stream contract
 
 ## Checklist
@@ -54,6 +60,11 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   `src/server/sse.rs` and `src/server/handlers/mod.rs`.
 - [x] Convert `src/state/conversation/send_message.rs` to consume canonical
   tool events directly.
+- [ ] Replace residual client/API-side `StreamEvent` and `ContentBlock`
+  parsing as an internal consumer path with direct `RuntimeEnvelope`
+  consumption wherever the normalized API contract should be observed.
+- [ ] Audit the CLI and ratatui/crossterm consumer stack so it projects the
+  normalized API contract rather than rebuilding stream semantics behind it.
 - [ ] Retire tagged or XML fallback parsing once no backend depends on it.
 - [ ] Rework `src/runtime/context.rs`, `src/runtime/update.rs`, and
   `src/app/model_update.rs` into canonical projections.
@@ -69,8 +80,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - [x] The server SSE path publishes envelope JSON without legacy mode
   negotiation.
 - [x] The runtime event parser and tool loop use explicit `ToolCall*` events.
-- [ ] Local API, batch mode, renderer projections, and task-document updates
-  all derive from the same canonical event stream.
+- [ ] Local API, batch mode, CLI/TUI consumer projections, renderer
+  projections, and task-document updates all derive from the same canonical
+  event stream.
 - [x] Validation succeeds with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -81,9 +93,18 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   or whether a narrower migration lane is still required for local endpoint
   compatibility.
 - Audit `src/runtime/context.rs`, `src/runtime/update.rs`,
-  `src/app/model_update.rs`, `src/app.rs`, and `src/batch_mode.rs` for any
-  remaining compatibility-shaped projections that this branch did not need to
-  touch.
+  `src/app/model_update.rs`, `src/app.rs`, `src/batch_mode.rs`,
+  `src/bin/vex/**`, and `src/tui_frontend.rs` for any remaining
+  compatibility-shaped projections that this branch did not need to touch.
+- Distinguish removed internal duplication from residual ingress-only
+  compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
+  `ActiveToolBlock`, and `src/api/stream/mappers.rs` are gone, while
+  `ProtocolVariant::{BlockDelta, ChoicesDelta}` and `StreamEvent` remain only
+  at the provider/config edge before immediate normalization.
+- Complete the whole-system cleanup by migrating client/API-side
+  `StreamEvent` and `ContentBlock` parsing to direct `RuntimeEnvelope`
+  consumption wherever those layers are acting as API consumers rather than as
+  provider-edge adapters.
 - Remove or rewrite compatibility-only documentation and ADR follow-up text
   once the remaining consumer cleanup is complete.
 

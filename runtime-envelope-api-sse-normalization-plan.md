@@ -2,11 +2,12 @@
 
 ## Goal
 
-Move the CLI onto one internal machine-readable stream contract:
-`RuntimeEnvelope`. The remaining compatibility stream paths stay only at the
-outbound provider edge, if they remain at all. Internal consumers should read a
-single canonical event stream, and the server SSE layer should operate as a
-transport wrapper around envelope JSON rather than as a second event schema.
+Move the CLI and ratatui/crossterm-backed TUI stack onto one internal
+machine-readable stream contract: `RuntimeEnvelope`. The remaining
+compatibility stream paths stay only at the outbound provider edge, if they
+remain at all. Internal consumers should read a single canonical event stream,
+and the server SSE layer should operate as a transport wrapper around envelope
+JSON rather than as a second event schema.
 
 ## Reference Basis
 
@@ -36,9 +37,19 @@ transport wrapper around envelope JSON rather than as a second event schema.
   `RuntimeEvent` values directly, including canonical tool-call IDs.
 - `src/runtime/task_document/condenser.rs` now absorbs canonical metadata
   events for prompt-progress and timing propagation.
-- `src/app/model_update.rs`, `src/runtime/context.rs`, and `src/batch_mode.rs`
-  should still be audited for any remaining compatibility-shaped projections
-  that this branch did not need to touch.
+- The server-layer cleanup is in place, but the whole-system cleanup is still
+  incomplete because `src/api/stream.rs` and provider-facing API types still
+  parse compatibility `StreamEvent` and `ContentBlock` shapes before
+  normalization.
+- `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
+  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` should
+  still be audited for any remaining compatibility-shaped projections that this
+  branch did not need to touch.
+- The deleted internal transport machinery does not appear in live source any
+  longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
+  dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
+  `ProtocolVariant::{BlockDelta, ChoicesDelta}` and `StreamEvent` remain as
+  ingress-only compatibility types before normalization.
 
 ## Implemented In This Branch
 
@@ -96,6 +107,9 @@ transport wrapper around envelope JSON rather than as a second event schema.
   request/history types that still belong at the provider boundary.
 - Restrict `src/api/client/mod.rs` and
   `src/api/client/protocol_discovery.rs` to request-shape concerns only.
+- Finish the client/API-side migration by removing `StreamEvent` and
+  compatibility `ContentBlock` parsing from layers that should now consume the
+  normalized API contract directly.
 
 ### 4. Runtime Event Parser And Tool Loop
 
@@ -117,6 +131,8 @@ transport wrapper around envelope JSON rather than as a second event schema.
   canonical events instead of compatibility deltas.
 - Remove compatibility-only state in `src/app.rs`.
 - Confirm `src/batch_mode.rs` derives its output from canonical events only.
+- Confirm `src/bin/vex/**` and `src/tui_frontend.rs` remain downstream API
+  consumers rather than alternative stream-building layers.
 - Keep `src/local_api.rs` as the reference envelope path and align the direct
   runtime path with it.
 
