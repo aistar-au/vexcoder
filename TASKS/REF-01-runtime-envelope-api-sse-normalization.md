@@ -4,8 +4,10 @@
 
 Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
 
-Merged in PR #402. The follow-up lane for the remaining whole-system
-cleanup is `work/vexcoder-runtime-envelope-client-api-direct-consumption`.
+Merged in PR #402. The whole-system consumer cleanup follow-up landed on
+`work/vexcoder-runtime-envelope-client-api-direct-consumption` in PR #403,
+and the active structural-extraction follow-up is
+`work/vexcoder-api-stream-structural-extraction` in PR #404.
 
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into
@@ -14,9 +16,10 @@ cleanup is `work/vexcoder-runtime-envelope-client-api-direct-consumption`.
   negotiation.
 - The conversation tool loop now consumes accepted `RuntimeEvent` values,
   including runtime-owned tool-call IDs, metadata, and usage updates.
-- The follow-up lane closes the whole-system consumer cleanup from PR #402.
-  The remaining work is structural extraction in `src/runtime/json_handoff.rs`
-  and `src/api/stream.rs`, tagged/XML fallback evaluation, and final
+- The merged follow-up lane closes the whole-system consumer cleanup from
+  PR #402. The active remaining work is structural extraction in
+  `src/runtime/json_handoff.rs`, the now-implemented `src/api/stream.rs`
+  split in PR #404, tagged/XML fallback evaluation, and final
   compatibility-only documentation or config retirement.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
@@ -71,7 +74,7 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - [ ] Split `src/runtime/json_handoff.rs` into focused companion modules once
   the accepted contract changes settle, so the file no longer concentrates
   normalization, source classification, and envelope emission in one unit.
-- [ ] Split `src/api/stream.rs` into focused provider-ingress and
+- [x] Split `src/api/stream.rs` into focused provider-ingress and
   normalization helpers so the compatibility ingress path remains readable
   while the normalized API seam stays explicit.
 - [x] Audit the CLI and ratatui/crossterm consumer stack so it projects the
@@ -110,8 +113,10 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   emission support into companion modules under `src/runtime/json_handoff/`
   so the accepted contract remains readable as it continues to grow.
 - Batch C: `src/api/stream.rs` structural extraction.
-  Move provider-edge parsing, compatibility ingress handling, and normalized
-  envelope emission helpers into focused `src/api/stream/` modules.
+  Implemented in PR #404: provider-edge parsing, compatibility ingress
+  handling, and normalized envelope emission now live in focused
+  `src/api/stream/` modules while `src/api/stream.rs` remains the stable
+  public root.
 - Batch D: client and API direct-envelope completion.
   Completed in PR #403: residual `StreamEvent` and `ContentBlock` parsing no
   longer remains as an internal consumer path; the remaining provider grammar
@@ -126,8 +131,8 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
   `ActiveToolBlock`, and `src/api/stream/mappers.rs` are gone, while
   `api_client.explicit_protocol` and the parser-local provider stream dialect
-  in `src/api/stream.rs` remain only at the provider/config edge before
-  immediate normalization.
+  in `src/api/stream/{framing,chat_compat,provider}.rs` remain only at the
+  provider/config edge before immediate normalization.
 - Remove or rewrite compatibility-only documentation and ADR follow-up text
   once the remaining consumer cleanup is complete.
 
