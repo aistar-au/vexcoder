@@ -46,7 +46,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 35 | `TASKS/PR-347-ratatui-native-followup.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-347-ratatui-native-followup.md> |
 | 36 | `TASKS/PR-348-transcript-first-debug.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-348-transcript-first-debug.md> |
 | 37 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | ~33 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md> |
-| 38 | `TASKS/PR-399-ratatui-crossterm-terminal-compliance-plan.md` | ~90 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-399-ratatui-crossterm-terminal-compliance-plan.md> |
+| 38 | `TASKS/PR-400-ratatui-crossterm-tty-contract-plan.md` | ~90 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-400-ratatui-crossterm-tty-contract-plan.md> |
 | 39 | `TASKS/PR-4-renderer-simplification.md` | ~185 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-4-renderer-simplification.md> |
 | 40 | `TASKS/TASKS-DISPATCH-MAP.md` | ~110 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 41 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |

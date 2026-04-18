@@ -284,7 +284,7 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #399 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
+| Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
 | TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce canonical `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
 | Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 

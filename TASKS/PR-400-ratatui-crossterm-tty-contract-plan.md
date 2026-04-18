@@ -1,15 +1,15 @@
-# PR 399 Ratatui/Crossterm Terminal Compliance Plan
+# PR 400 Ratatui/Crossterm TTY Contract Plan
 
 ## Goal
 
-Codify and verify the terminal-control contract for the interactive CLI so the
-inline-viewport path remains correct across xterm-class terminals, Windows VT
-hosts, and non-TTY fallbacks. This is a compliance and correctness lane, not a
-widget redesign or renderer rewrite.
+Specify and verify the display-control contract for the interactive CLI so the
+inline-viewport path remains correct across xterm-class hosts, Windows VT
+hosts, and non-TTY fallbacks. This lane addresses compliance and correctness;
+it does not propose a widget redesign or renderer rewrite.
 
 ## Reference notes
 
-- [x] ECMA-48 is the baseline terminal-control standard, but it explicitly
+- [x] ECMA-48 is the baseline display-control standard, but it explicitly
   anticipates limited conformance rather than every device implementing every
   control function. References:
   <https://www.ecma-international.org/publications-and-standards/standards/ecma-48/>
@@ -23,46 +23,47 @@ widget redesign or renderer rewrite.
   dependency seam. Reference:
   <https://docs.rs/crate/ratatui/0.30.0/features>.
 - [x] crossterm 0.29 documents `EnableBracketedPaste` /
-  `DisableBracketedPaste`, and its terminal module documents alternate-screen
-  and raw-mode behavior. References:
+  `DisableBracketedPaste`, and its crate reference material documents
+  alternate-screen and raw-mode behavior. References:
   <https://docs.rs/crossterm/0.29.0/crossterm/event/struct.EnableBracketedPaste.html>
   <https://docs.rs/crossterm/0.29.0/crossterm/event/struct.DisableBracketedPaste.html>
-  and <https://docs.rs/crossterm/0.29.0/crossterm/terminal/index.html>.
+  and <https://docs.rs/crossterm/0.29.0/crossterm/>.
 - [x] Windows Console VT behavior requires
   `ENABLE_VIRTUAL_TERMINAL_PROCESSING` for output sequences and
   `ENABLE_VIRTUAL_TERMINAL_INPUT` for VT-style input sequences. Scrolling
   margins and alternate-screen state are per-buffer. Reference:
-  <https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences>.
+  <https://learn.microsoft.com/en-us/windows/console/>.
 - [x] xterm documents the private sequences this stack effectively relies on:
   scrolling margins (`CSI <t> ; <b> r` / DECSTBM), alternate screen
   (`CSI ? 1049 h` / `CSI ? 1049 l`), and bracketed paste
   (`CSI ? 2004 h` / `CSI ? 2004 l`). Reference:
   <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html>.
 
-## Current repo facts
+## Current repository facts
 
-- `src/ui/tui.rs` is the local seam for ratatui and crossterm API churn.
-- `src/tui_handle.rs` boots the TTY path with
+- `src/ui/tui.rs` is the local integration seam for ratatui and crossterm API
+  churn.
+- `src/tui_handle.rs` initializes the TTY path with
   `try_init_with_options(TerminalOptions { viewport: Viewport::Inline(..) })`,
   owns bracketed-paste enable/disable, and intentionally stays on the primary
   screen instead of entering `?1049` alternate-screen mode.
-- `src/tui_frontend.rs`, `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
-  and `src/app/scroll.rs` still own most viewport sizing, wrapped-row
-  expansion, and review-scroll math.
+- `src/tui_frontend.rs`, `src/ui/render/mod.rs`,
+  `src/ui/render/transcript.rs`, and `src/app/scroll.rs` still own most
+  viewport sizing, wrapped-row expansion, and review-scroll math.
 - The workspace already enables ratatui `scrolling-regions` and the unstable
   rendered-line / widget-ref / backend-writer features in `Cargo.toml`.
 
 ## Checklist
 
-- [ ] Batch A: write one explicit terminal-contract note that distinguishes the
+- [ ] Batch A: add one explicit display-control note that distinguishes the
   ECMA-48 baseline from xterm- and Windows-specific behavior. Update active
   docs only where the implementation contract is real today.
 - [ ] Batch B: harden bootstrap and restore in `src/tui_handle.rs` so
   bracketed paste, cursor cleanup, and line clearing are paired on normal exit,
   panic, and init failure without mutating the non-TTY path.
-- [ ] Batch C: add a small capability seam around "interactive TTY" versus
-  "VT-capable interactive host" so Windows VT requirements are documented and,
-  where possible, tested instead of being left implicit.
+- [ ] Batch C: add a small capability seam around interactive TTY versus
+  VT-capable interactive hosts so Windows VT requirements are documented and,
+  where possible, tested instead of remaining implicit.
 - [ ] Batch D: re-audit resize and scroll-region correctness across
   `src/tui_frontend.rs`, `src/ui/render/mod.rs`,
   `src/ui/render/transcript.rs`, and `src/app/scroll.rs`; preserve the current
@@ -86,6 +87,6 @@ widget redesign or renderer rewrite.
 - [ ] Resize and scroll math keep transcript ownership stable when host width
   or height changes.
 - [ ] Windows VT behavior is either explicitly supported through a capability
-  seam or explicitly documented as degraded, rather than being left implicit.
+  seam or explicitly documented as degraded, rather than remaining implicit.
 - [ ] The ratatui / crossterm dependency seam remains localized to
   `src/ui/tui.rs` and `src/tui_handle.rs`.
