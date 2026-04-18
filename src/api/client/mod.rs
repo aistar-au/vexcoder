@@ -175,6 +175,7 @@ For repository summaries or unfamiliar codebases, start with list_files at the w
 For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds.\n\
 For large files, prefer apply_patch or edit_file over write_file; if write_file warns or rejects due to line limits, switch tools instead of retrying the same call.\n\
 For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify), escalating to apply_patch when the change is too broad for edit_file.\n\
+For Rust edits, keep diffs rustfmt-canonical and avoid formatting-only churn: preserve surrounding style, make the smallest semantic change that solves the task, and do not hand-wrap argument lists or method chains against local conventions.\n\
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\

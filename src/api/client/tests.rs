@@ -673,6 +673,12 @@ fn test_system_prompt_includes_large_file_edit_guidance() {
 }
 
 #[test]
+fn test_system_prompt_discourages_non_rustfmt_rust_diffs() {
+    assert!(BASE_SYSTEM_PROMPT.contains("keep diffs rustfmt-canonical"));
+    assert!(BASE_SYSTEM_PROMPT.contains("do not hand-wrap argument lists or method chains"));
+}
+
+#[test]
 fn test_write_file_tool_description_uses_guard_names_instead_of_hardcoded_numbers() {
     let definitions = tool_definitions();
     let description = definitions
@@ -690,6 +696,32 @@ fn test_write_file_tool_description_uses_guard_names_instead_of_hardcoded_number
     assert!(description.contains("max line limit"));
     assert!(!description.contains("~200"));
     assert!(!description.contains("~500"));
+}
+
+#[test]
+fn test_edit_tools_discourage_non_rustfmt_rust_diffs() {
+    let definitions = tool_definitions();
+    let entries = definitions
+        .as_array()
+        .expect("tool definitions must be an array");
+
+    let apply_patch_description = entries
+        .iter()
+        .find(|entry| entry.get("name").and_then(|v| v.as_str()) == Some("apply_patch"))
+        .and_then(|entry| entry.get("description"))
+        .and_then(|value| value.as_str())
+        .expect("apply_patch description must be present");
+    assert!(apply_patch_description.contains("rustfmt-canonical"));
+    assert!(apply_patch_description.contains("formatting-only churn"));
+
+    let edit_file_description = entries
+        .iter()
+        .find(|entry| entry.get("name").and_then(|v| v.as_str()) == Some("edit_file"))
+        .and_then(|entry| entry.get("description"))
+        .and_then(|value| value.as_str())
+        .expect("edit_file description must be present");
+    assert!(edit_file_description.contains("rustfmt-canonical"));
+    assert!(edit_file_description.contains("preserve surrounding style"));
 }
 
 #[test]

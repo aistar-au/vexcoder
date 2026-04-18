@@ -674,9 +674,9 @@ fn tool_error_hint(name: &str) -> Option<&'static str> {
         "search_files" | "search" | "search_content" | "codebase_search" => Some(
             "Retry with a focused query or a concrete path scope so the next search result is easier to use.",
         ),
-        "write_file" | "apply_patch" | "edit_file" | "rename_file" => {
-            Some("Re-read the target path and retry with a streamlined file edit or patch.")
-        }
+        "write_file" | "apply_patch" | "edit_file" | "rename_file" => Some(
+            "Re-read the target path and retry with a streamlined file edit or patch that preserves local style; for Rust, keep the diff rustfmt-canonical.",
+        ),
         "git_status" | "git_diff" | "git_log" | "git_show" => {
             Some("Retry with a focused git target if the repository state is larger than expected.")
         }

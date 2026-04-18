@@ -169,16 +169,16 @@ pub fn default_unix_socket_path() -> std::path::PathBuf {
 }
 
 #[derive(Debug)]
-pub struct ProblemResponse {
+pub struct ProblemDetailsResponse {
     status: StatusCode,
-    problem: ProblemDetails,
+    details: ProblemDetails,
 }
 
-impl ProblemResponse {
-    pub fn new(status: StatusCode, reason: &'static str) -> Self {
+impl ProblemDetailsResponse {
+    pub fn from_reason(status: StatusCode, reason: &'static str) -> Self {
         Self {
             status,
-            problem: ProblemDetails {
+            details: ProblemDetails {
                 r#type: format!("https://aistar-au.github.io/vexcoder/problems/{reason}"),
                 title: reason.replace('_', " "),
                 status: status.as_u16(),
@@ -189,9 +189,9 @@ impl ProblemResponse {
     }
 }
 
-impl IntoResponse for ProblemResponse {
+impl IntoResponse for ProblemDetailsResponse {
     fn into_response(self) -> Response {
-        let mut response = (self.status, Json(self.problem)).into_response();
+        let mut response = (self.status, Json(self.details)).into_response();
         response.headers_mut().insert(
             crate::http_facade::header::CONTENT_TYPE,
             crate::http_facade::HeaderValue::from_static("application/problem+json"),
@@ -200,18 +200,18 @@ impl IntoResponse for ProblemResponse {
     }
 }
 
-pub fn bad_request(reason: &'static str) -> ProblemResponse {
-    ProblemResponse::new(StatusCode::BAD_REQUEST, reason)
+pub fn bad_request(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::BAD_REQUEST, reason)
 }
 
-pub fn not_found(reason: &'static str) -> ProblemResponse {
-    ProblemResponse::new(StatusCode::NOT_FOUND, reason)
+pub fn not_found(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::NOT_FOUND, reason)
 }
 
-pub fn conflict(reason: &'static str) -> ProblemResponse {
-    ProblemResponse::new(StatusCode::CONFLICT, reason)
+pub fn conflict(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::CONFLICT, reason)
 }
 
-pub fn internal_error(_: serde_json::Error) -> ProblemResponse {
-    ProblemResponse::new(StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
+pub fn internal_error(_: serde_json::Error) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
 }

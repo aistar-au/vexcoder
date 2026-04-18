@@ -67,7 +67,7 @@ pub(super) fn tool_definitions() -> &'static Value {
                 },
                 {
                     "name": "apply_patch",
-                    "description": "Apply the provided full-file content as a patch to an existing workspace path.",
+                    "description": "Apply the provided full-file content as a patch to an existing workspace path. Keep the resulting diff minimal, preserve surrounding style, and keep Rust edits rustfmt-canonical instead of introducing formatting-only churn.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
@@ -79,7 +79,7 @@ pub(super) fn tool_definitions() -> &'static Value {
                 },
                 {
                     "name": "edit_file",
-                    "description": "Edit existing file by replacing one exact, unique snippet (old_str -> new_str). Do not send entire-file replacements via this tool.",
+                    "description": "Edit existing file by replacing one exact, unique snippet (old_str -> new_str). Keep edits tightly scoped, preserve surrounding style, and keep Rust replacements rustfmt-canonical. Do not send entire-file replacements via this tool.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
