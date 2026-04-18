@@ -61,7 +61,7 @@ pub use sandbox::{
     ConfiguredSandbox, PassthroughSandbox, SandboxConfig, SandboxDriver, SandboxKind,
     resolve_configured_sandbox,
 };
-pub use secrets::{contains_secret, sanitize_secrets, sanitize_url_for_logs};
+pub use secrets::{contains_secret, revise_secrets, rewrite_url_for_logs};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_document::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,

@@ -4,7 +4,6 @@ use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_document::{AssistantPhase, TurnEntry};
 use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
-use std::collections::BTreeSet;
 
 impl ConversationManager {
     pub(super) fn record_tool_call_started_at(
@@ -72,10 +71,6 @@ impl ConversationManager {
 
     /// Insert or update a stream block in the active turn and emit a
     /// `BlockStart` update to the TUI channel.
-    ///
-    /// For deferred text blocks (tx is None) only the condenser state is updated;
-    /// the stream update is withheld until `flush_deferred_thinking_blocks` is
-    /// called.
     pub(super) fn upsert_turn_block(
         &mut self,
         index: usize,
@@ -230,7 +225,6 @@ impl ConversationManager {
     }
 
     /// Update the status of a ToolCall entry and re-emit a BlockStart update.
-    /// Update the status of a ToolCall entry and re-emit a BlockStart update.
     ///
     /// ADR-045 Invariant A: the status mutation is routed through the condenser
     /// via `apply_doc_event(RuntimeEvent::ToolCallStatusUpdated)` so the
@@ -344,55 +338,6 @@ impl ConversationManager {
         );
     }
 
-    /// Emit deferred Thinking blocks whose stream updates were withheld.
-    pub(super) fn flush_deferred_thinking_blocks(
-        &self,
-        deferred_text_block_indices: &mut BTreeSet<usize>,
-        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
-    ) {
-        let pending_indices: Vec<usize> = deferred_text_block_indices.iter().copied().collect();
-
-        for index in pending_indices {
-            let Some(doc) = self.task_doc.as_ref() else {
-                continue;
-            };
-            let Some(active) = doc.active_turn.as_ref() else {
-                continue;
-            };
-            let Some(block_entry) = active.entries.iter().rev().find_map(|e| {
-                if let TurnEntry::AssistantBlock { block, .. } = e
-                    && block.block_index == index
-                {
-                    return Some(block);
-                }
-                None
-            }) else {
-                continue;
-            };
-
-            emit_stream_update(
-                stream_delta_tx,
-                ConversationStreamUpdate::BlockStart {
-                    index,
-                    block: StreamBlock::Thinking {
-                        content: String::new(),
-                        collapsed: block_entry.collapsed,
-                    },
-                },
-            );
-            if !block_entry.content.is_empty() {
-                emit_stream_update(
-                    stream_delta_tx,
-                    ConversationStreamUpdate::BlockDelta {
-                        index,
-                        delta: block_entry.content.clone(),
-                    },
-                );
-            }
-            deferred_text_block_indices.remove(&index);
-        }
-    }
-
     /// At the end of the final API round, change remaining Thinking entries
     /// from this round to FinalText and emit stream updates.
     ///
@@ -402,13 +347,12 @@ impl ConversationManager {
     /// block indices and content needed for the stream updates.
     pub(super) fn promote_thinking_blocks_to_final_text(
         &mut self,
-        deferred_text_block_indices: &BTreeSet<usize>,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
         let round_start = self.current_round_entry_start;
 
-        // Read-only pass: collect block index + content for each Thinking block.
-        let promotions: Vec<(usize, String)> = {
+        // Read-only pass: collect block indices for each Thinking block.
+        let promotions: Vec<usize> = {
             let Some(doc) = self.task_doc.as_ref() else {
                 return;
             };
@@ -421,13 +365,7 @@ impl ConversationManager {
                     if let TurnEntry::AssistantBlock { block, .. } = entry
                         && block.phase == AssistantPhase::Thinking
                     {
-                        let emit_content =
-                            if deferred_text_block_indices.contains(&block.block_index) {
-                                block.content.clone()
-                            } else {
-                                String::new()
-                            };
-                        return Some((block.block_index, emit_content));
+                        return Some(block.block_index);
                     }
                     None
                 })
@@ -435,7 +373,7 @@ impl ConversationManager {
         };
 
         // Write via condenser + emit stream updates (ADR-045 sole-writer).
-        for (block_index, emit_content) in promotions {
+        for block_index in promotions {
             self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
                 index: block_index,
                 phase: AssistantPhase::Final,
@@ -447,7 +385,7 @@ impl ConversationManager {
                 ConversationStreamUpdate::BlockStart {
                     index: block_index,
                     block: StreamBlock::FinalText {
-                        content: emit_content,
+                        content: String::new(),
                     },
                 },
             );

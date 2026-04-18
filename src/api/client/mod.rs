@@ -953,7 +953,7 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                     }
                     ContentBlock::ToolResult { .. }
                     | ContentBlock::Thinking { .. }
-                    | ContentBlock::WithheldThinking { .. }
+                    | ContentBlock::ThinkingData { .. }
                     | ContentBlock::ServerToolUse { .. }
                     | ContentBlock::WebSearchToolResult { .. } => {}
                 }
@@ -996,7 +996,7 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                     }
                     ContentBlock::ToolUse { .. }
                     | ContentBlock::Thinking { .. }
-                    | ContentBlock::WithheldThinking { .. }
+                    | ContentBlock::ThinkingData { .. }
                     | ContentBlock::ServerToolUse { .. }
                     | ContentBlock::WebSearchToolResult { .. } => {}
                 }

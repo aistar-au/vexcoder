@@ -257,7 +257,7 @@ arbitrary chunk boundaries.
 
 ### D14: Strip wrapper-only remnants from the assistant text fallback
 
-`sanitize_assistant_text()` now removes `<tool_call>` wrappers and
+`rewrite_assistant_text()` now removes `<tool_call>` wrappers and
 their incomplete suffixes in addition to the existing
 `<function=...>`/`<parameter=...>` cleanup. The fallback assistant
 history therefore preserves the tagged tool-call protocol where

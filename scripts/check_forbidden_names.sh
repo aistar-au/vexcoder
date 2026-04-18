@@ -208,12 +208,19 @@ brand_words=(
 )
 brand_regex="$(printf '%s|' "${brand_words[@]}")"
 brand_regex="${brand_regex%|}"
+policy_words=(
+  $'\x77\x69\x74\x68\x68\x65\x6c\x64'
+  $'\x77\x68\x69\x74\x68\x65\x6c\x64'
+  $'\x72\x65\x64\x61\x63\x74\x65\x64'
+)
+policy_regex="$(printf '%s|' "${policy_words[@]}")"
+policy_regex="${policy_regex%|}"
 caret_host=$'\x63\x75\x72\x73\x6f\x72\\.com'
 caret_phrase=$'\\b\x63\x75\x72\x73\x6f\x72 ai\\b'
 claude_code_phrase=$'\\b\x63\x6c\x61\x75\x64\x65 \x63\x6f\x64\x65\\b'
 editor_brand=$'\\bVS Code\\b'
 
-PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}|\\bdead\\b"
+PATTERN="\\b(${brand_regex})\\b|\\b(${policy_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}|\\bdead\\b"
 
 BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|${editor_brand}"
 

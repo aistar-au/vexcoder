@@ -11,7 +11,6 @@ use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
 use crate::usage::TurnTokens;
 use anyhow::Result;
 use futures::StreamExt;
-use std::collections::BTreeSet;
 use tokio::sync::mpsc;
 
 impl ConversationManager {
@@ -142,8 +141,6 @@ impl ConversationManager {
             let mut assistant_text = String::new();
             let mut tool_use_blocks = Vec::new();
             let mut tool_input_buffers: Vec<Option<String>> = Vec::new();
-            let mut deferred_text_block_indices = BTreeSet::new();
-
             while let Some(event_result) = stream.next().await {
                 let event = event_result?;
 
@@ -167,17 +164,12 @@ impl ConversationManager {
                                         content: String::new(),
                                         collapsed: false,
                                     },
-                                    None,
+                                    stream_delta_tx,
                                 );
-                                deferred_text_block_indices.insert(index);
                             }
                             ContentBlock::ToolUse {
                                 id, name, input, ..
                             } => {
-                                self.flush_deferred_thinking_blocks(
-                                    &mut deferred_text_block_indices,
-                                    stream_delta_tx,
-                                );
                                 self.upsert_turn_block(
                                     index,
                                     StreamBlock::ToolCall {
@@ -190,8 +182,7 @@ impl ConversationManager {
                                 );
                             }
                             ContentBlock::ToolResult { .. } => {}
-                            ContentBlock::Thinking { .. }
-                            | ContentBlock::WithheldThinking { .. } => {}
+                            ContentBlock::Thinking { .. } | ContentBlock::ThinkingData { .. } => {}
                             ContentBlock::ServerToolUse { .. }
                             | ContentBlock::WebSearchToolResult { .. } => {}
                         }
@@ -212,12 +203,7 @@ impl ConversationManager {
                     }
                     StreamEvent::ContentBlockDelta { index, delta } => {
                         if let Some(text) = delta.text {
-                            let delta_tx = if deferred_text_block_indices.contains(&index) {
-                                None
-                            } else {
-                                stream_delta_tx
-                            };
-                            let appended = self.append_text_delta(index, &text, delta_tx);
+                            let appended = self.append_text_delta(index, &text, stream_delta_tx);
                             assistant_text.push_str(&appended);
                         }
 
@@ -299,7 +285,7 @@ impl ConversationManager {
                 if !tagged_calls.is_empty() {
                     used_tagged_fallback = true;
                     assistant_text_for_history =
-                        core_policy.sanitize_assistant_text(&assistant_text);
+                        core_policy.rewrite_assistant_text(&assistant_text);
                     tool_use_blocks = tagged_calls
                         .into_iter()
                         .enumerate()
@@ -493,10 +479,7 @@ impl ConversationManager {
                     self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
                     return Ok(msg);
                 }
-                self.promote_thinking_blocks_to_final_text(
-                    &deferred_text_block_indices,
-                    stream_delta_tx,
-                );
+                self.promote_thinking_blocks_to_final_text(stream_delta_tx);
                 self.last_turn_tokens = turn_tokens;
                 self.finish_turn_doc(TurnOutcome::Completed, turn_tokens);
                 return Ok(assistant_text_for_history);
