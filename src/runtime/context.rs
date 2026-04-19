@@ -541,6 +541,17 @@ fn forward_conversation_update(
                 let _ = tx.send(UiUpdate::StreamBlockDelta { index, delta });
             }
         }
+        ConversationStreamUpdate::ToolCallArgumentsUpdated {
+            tool_call_id,
+            tool_name,
+            arguments,
+        } => {
+            let _ = tx.send(UiUpdate::ToolCallArgumentsUpdated {
+                tool_call_id,
+                tool_name,
+                arguments,
+            });
+        }
         ConversationStreamUpdate::BlockComplete { index } => {
             if let Some(mut block_normaliser) = textual_block_by_index.remove(&index) {
                 flush_normalised_block_text(&mut block_normaliser, index, tx);

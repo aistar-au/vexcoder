@@ -305,6 +305,7 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
                 | UiUpdate::ServerMetadata(_)
                 | UiUpdate::StreamBlockStart { .. }
                 | UiUpdate::StreamBlockDelta { .. }
+                | UiUpdate::ToolCallArgumentsUpdated { .. }
                 | UiUpdate::StreamBlockComplete { .. }
                 | UiUpdate::CommandSessionStarted { .. }
                 | UiUpdate::CommandSessionAttached { .. }

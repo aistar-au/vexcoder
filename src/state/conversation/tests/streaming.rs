@@ -116,6 +116,112 @@ data: {"type": "message_stop"}"#.to_string(),
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_tool_call_argument_delta_emits_typed_stream_update() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type": "message_start", "message": {"id": "msg_mock_args_01", "type": "message", "role": "assistant", "model": "mock-model", "content": [], "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 10, "output_tokens": 1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type": "content_block_start", "index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type": "content_block_delta", "index":0,"delta":{"type":"text_delta","text":"Okay, I can help with that. "}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type": "content_block_start", "index":1,"content_block":{"type":"tool_use","id":"toolu_mock_01", "name":"read_file","input":{}}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type": "content_block_delta", "index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\": \"file.txt\"}"}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type": "content_block_stop", "index":1}"#.to_string(),
+        r#"event: message_delta
+data: {"type": "message_delta", "delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":6}}"#.to_string(),
+        r#"event: message_stop
+data: {"type": "message_stop"}"#.to_string(),
+    ];
+
+    let second_response_sse = vec![
+        r#"event: message_start
+data: {"type": "message_start", "message": {"id": "msg_mock_args_02", "type": "message", "role": "assistant", "model": "mock-model", "content": [], "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 10, "output_tokens": 1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type": "content_block_start", "index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type": "content_block_delta", "index":0,"delta":{"type":"text_delta","text":"The content of file.txt is 'Hello from file.txt'"}}"#.to_string(),
+        r#"event: message_delta
+data: {"type": "message_delta", "delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":10}}"#.to_string(),
+        r#"event: message_stop
+data: {"type": "message_stop"}"#.to_string(),
+    ];
+
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])))
+        .with_structured_tool_protocol(false);
+
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
+
+    let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let tx_for_send = tx.clone();
+    let mut send_future = std::pin::pin!(
+        manager.send_message("What is in file.txt?".to_string(), Some(&tx_for_send))
+    );
+
+    let mut saw_block_delta = false;
+    let mut saw_typed_update = false;
+
+    let final_text = loop {
+        tokio::select! {
+            result = &mut send_future => break result?,
+            maybe_update = rx.recv() => {
+                let Some(update) = maybe_update else { continue; };
+                match update {
+                    ConversationStreamUpdate::BlockDelta { index, delta } => {
+                        if index == 1 && delta.contains("file.txt") {
+                            saw_block_delta = true;
+                        }
+                    }
+                    ConversationStreamUpdate::ToolCallArgumentsUpdated {
+                        tool_call_id,
+                        tool_name: _,
+                        arguments,
+                    } => {
+                        if !tool_call_id.is_empty() && arguments == json!({"path": "file.txt"}) {
+                            saw_typed_update = true;
+                        }
+                    }
+                    ConversationStreamUpdate::ToolApprovalRequest(request) => {
+                        let _ = request.response_tx.send(true);
+                    }
+                    ConversationStreamUpdate::Delta(_)
+                    | ConversationStreamUpdate::BlockStart { .. }
+                    | ConversationStreamUpdate::BlockComplete { .. }
+                    | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::ServerMetadata(_)
+                    | ConversationStreamUpdate::CommandSessionStarted { .. }
+                    | ConversationStreamUpdate::CommandSessionAttached { .. }
+                    | ConversationStreamUpdate::CommandSessionFinished { .. }
+                    | ConversationStreamUpdate::ContextCompacted { .. }
+                    | ConversationStreamUpdate::StreamError(_) => {}
+                }
+            }
+        }
+    };
+
+    assert!(
+        saw_block_delta,
+        "expected raw block delta for envelope projection"
+    );
+    assert!(
+        saw_typed_update,
+        "expected typed tool-call arguments update for downstream consumers"
+    );
+    assert!(final_text.contains("Hello from file.txt"));
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_structured_text_only_round_streams_final_text_block() -> Result<()> {
     let response_sse = vec![
@@ -231,6 +337,7 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
+                    | ConversationStreamUpdate::ToolCallArgumentsUpdated { .. }
                     | ConversationStreamUpdate::BlockComplete { .. }
                     | ConversationStreamUpdate::TranscriptLine(_)
                     | ConversationStreamUpdate::ServerMetadata(_)
@@ -385,6 +492,7 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
+                    | ConversationStreamUpdate::ToolCallArgumentsUpdated { .. }
                     | ConversationStreamUpdate::BlockComplete { .. }
                     | ConversationStreamUpdate::TranscriptLine(_)
                     | ConversationStreamUpdate::ServerMetadata(_)

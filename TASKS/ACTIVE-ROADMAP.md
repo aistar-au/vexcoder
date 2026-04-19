@@ -295,7 +295,7 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| REF-01 follow-up | `work/vexcoder-api-stream-structural-extraction` | #404 | **In Progress** | PR #403 completed the whole-system client/API consumer cleanup after PR #402; PR #404 now narrows the remaining work to splitting `src/api/stream.rs` into focused provider-edge ingress modules while the CLI and ratatui/crossterm stack remain downstream `RuntimeEnvelope` consumers |
+| REF-01 consumer hardening | `work/vexcoder-cli-tui-envelope-consumer-audit` | -- | **In Progress** | Post-PR #404 follow-up that removes ratatui-side tool-call JSON reassembly, emits runtime-owned typed tool-argument updates for downstream CLI/TUI consumers, and preserves raw block deltas only for envelope and local-API projection |
 | Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
 | TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce the shared `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
 | Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
@@ -304,6 +304,7 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| REF-01 follow-up | `work/vexcoder-api-stream-structural-extraction` | #404 | **Merged** | Provider-edge parsing, compatibility ingress handling, and normalized envelope emission now live in focused `src/api/stream/` modules while direct internal consumers stay downstream of `RuntimeEnvelope` |
 | Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
 | Tier13-crate | `work/vexcoder-tier13-crate-expansion` | #344 | **Merged** | Tier 13 crate expansion: 11 crates wired, unused-code suppression removed, seam functions wired into production |
 | EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | ~~Closed~~ | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |

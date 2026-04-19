@@ -5,7 +5,6 @@ impl TuiMode {
     pub(super) fn reset_conversation_window(&mut self, ctx: &RuntimeContext) {
         ctx.clear_conversation();
         self.pre_session_notices.clear();
-        self.streaming_tool_input_buffers.clear();
         if let Some(t) = self.task_doc.active_turn.as_mut() {
             t.command_sessions.clear();
         }
@@ -38,7 +37,6 @@ impl TuiMode {
 
     pub(super) fn reset_turn_capture(&mut self) {
         self.task_doc.active_turn = None;
-        self.streaming_tool_input_buffers.clear();
         self.stream_uses_structured_final_output = false;
         self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
@@ -169,7 +167,6 @@ impl TuiMode {
         self.last_error_message = None;
         self.resolve_pending_approval(false, ctx);
         self.resolve_pending_patch_approval(false);
-        self.streaming_tool_input_buffers.clear();
         self.commit_completed_turn(ctx);
         self.append_turn_timing_line();
         self.maybe_extract_auto_memory();

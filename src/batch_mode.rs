@@ -373,7 +373,9 @@ impl RuntimeMode for BatchMode {
                 }
                 StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
             },
-            UiUpdate::StreamBlockDelta { .. } | UiUpdate::StreamBlockComplete { .. } => {}
+            UiUpdate::StreamBlockDelta { .. }
+            | UiUpdate::ToolCallArgumentsUpdated { .. }
+            | UiUpdate::StreamBlockComplete { .. } => {}
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest { response_tx, .. }) => {
                 let approved = self.approval_decision();
                 let _ = response_tx.send(approved);

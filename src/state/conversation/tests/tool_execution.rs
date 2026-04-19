@@ -605,6 +605,7 @@ async fn test_execute_tool_run_command_streams_managed_session_updates() -> Resu
             ConversationStreamUpdate::Delta(_)
             | ConversationStreamUpdate::BlockStart { .. }
             | ConversationStreamUpdate::BlockDelta { .. }
+            | ConversationStreamUpdate::ToolCallArgumentsUpdated { .. }
             | ConversationStreamUpdate::BlockComplete { .. }
             | ConversationStreamUpdate::ToolApprovalRequest(_)
             | ConversationStreamUpdate::ServerMetadata(_)

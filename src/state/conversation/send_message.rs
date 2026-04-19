@@ -244,6 +244,8 @@ impl ConversationManager {
                         delta,
                         ..
                     } => {
+                        let tool_name_for_ui = tool_name.clone();
+
                         if let Some(position) = tool_use_positions.get(&tool_call_id).copied()
                             && let Some(ContentBlock::ToolUse { name, .. }) =
                                 tool_use_blocks.get_mut(position)
@@ -252,15 +254,36 @@ impl ConversationManager {
                             *name = tool_name;
                         }
 
-                        tool_input_buffers
-                            .entry(tool_call_id.clone())
-                            .or_default()
-                            .push_str(&delta);
+                        let current_arguments = {
+                            let raw = tool_input_buffers.entry(tool_call_id.clone()).or_default();
+                            raw.push_str(&delta);
+                            serde_json::from_str::<serde_json::Value>(raw)
+                                .or_else(|_| serde_json::from_str(raw.trim()))
+                                .ok()
+                        };
+
+                        if let Some(arguments) = current_arguments.clone()
+                            && let Some(position) = tool_use_positions.get(&tool_call_id).copied()
+                            && let Some(ContentBlock::ToolUse { input, .. }) =
+                                tool_use_blocks.get_mut(position)
+                        {
+                            *input = arguments;
+                        }
 
                         if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::BlockDelta { index, delta },
+                            );
+                        }
+                        if let Some(arguments) = current_arguments {
+                            emit_stream_update(
+                                stream_delta_tx,
+                                ConversationStreamUpdate::ToolCallArgumentsUpdated {
+                                    tool_call_id,
+                                    tool_name: tool_name_for_ui,
+                                    arguments,
+                                },
                             );
                         }
                         self.apply_doc_event(event);
