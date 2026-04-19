@@ -295,7 +295,7 @@ fn test_invalid_model_backend_error_lists_remote_alias() {
 }
 
 #[test]
-fn test_invalid_tool_call_mode_error_lists_fallback_alias() {
+fn test_invalid_tool_call_mode_error_lists_supported_aliases() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_TOOL_CALL_MODE", "legacy-value");
 
@@ -303,8 +303,8 @@ fn test_invalid_tool_call_mode_error_lists_fallback_alias() {
     let msg = format!("{err:#}");
 
     assert!(
-        msg.contains("fallback"),
-        "expected fallback alias in error: {msg}"
+        msg.contains("structured_tool_calls"),
+        "expected structured aliases in error: {msg}"
     );
     crate::test_support::test_remove_var(&_lock, "VEX_TOOL_CALL_MODE");
 }
@@ -596,7 +596,7 @@ fn test_migrate_maps_structured_tool_protocol_on() {
 fn test_migrate_maps_structured_tool_protocol_off() {
     let out = super::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "off")]);
     assert!(
-        out.contains("tool_call_mode = \"tagged-fallback\""),
+        out.contains("structured tool transport is always enabled"),
         "{out}"
     );
 }
@@ -1211,10 +1211,10 @@ fn test_default_model_backend_api_for_remote_url() {
 }
 
 #[test]
-fn test_default_tool_call_mode_tagged_for_local() {
+fn test_default_tool_call_mode_structured_for_local() {
     assert_eq!(
         super::default_tool_call_mode("http://127.0.0.1:8080/v1"),
-        crate::runtime::ToolCallMode::TaggedFallback
+        crate::runtime::ToolCallMode::Structured
     );
 }
 

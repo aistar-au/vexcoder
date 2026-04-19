@@ -209,7 +209,7 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
 ## Completion Verification
 
 ### [PE-01 / PE-02] - BatchMode + vex exec
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
 - Files changed:
   - `Makefile` (+5 -3)

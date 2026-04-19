@@ -199,25 +199,31 @@ fn test_chat_compat_tool_call_stream_maps_to_runtime_events() {
     let events2 = parser
         .process(chunk2)
         .expect("chat-compat tool call delta should parse");
-    assert_eq!(events2.len(), 6);
+    assert_eq!(events2.len(), 7);
     assert!(matches!(
         &events2[0].event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.object.as_deref() == Some("chat.completion.chunk")
+                && metadata.choice_index.is_none()
+    ));
+    assert!(matches!(
+        &events2[1].event,
         RuntimeEvent::TranscriptBlockStart {
             index: 1,
             block: StreamBlock::ToolCall { id, name, .. }
         } if id == "call_abc" && name == "read_file"
     ));
     assert!(matches!(
-        &events2[1].event,
+        &events2[2].event,
         RuntimeEvent::ToolCallStarted { tool_name, .. } if tool_name == "read_file"
     ));
     assert!(matches!(
-        &events2[2].event,
+        &events2[3].event,
         RuntimeEvent::TranscriptBlockDelta { index: 1, delta }
             if delta == "{\"path\":\"cal.rs\"}"
     ));
     assert!(matches!(
-        &events2[3].event,
+        &events2[4].event,
         RuntimeEvent::ToolCallArgumentsDelta { delta, .. }
             if delta == "{\"path\":\"cal.rs\"}"
     ));

@@ -43,7 +43,7 @@ fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
         working_dir: std::path::PathBuf::from("."),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
@@ -80,7 +80,7 @@ fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
         working_dir: std::path::PathBuf::from("."),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
@@ -117,7 +117,7 @@ fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
         working_dir: std::path::PathBuf::from("."),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::ChatCompat,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
@@ -483,7 +483,7 @@ fn test_tool_definitions_cover_execute_tool_dispatch_names() {
 }
 
 #[test]
-fn test_structured_tool_protocol_env_off_disables_protocol() {
+fn test_structured_tool_protocol_env_off_does_not_disable_direct_client_config() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_env_lock, "VEX_STRUCTURED_TOOL_PROTOCOL", "off");
     let config = crate::config::Config {
@@ -494,7 +494,7 @@ fn test_structured_tool_protocol_env_off_disables_protocol() {
         working_dir: std::path::PathBuf::from("."),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
@@ -516,12 +516,12 @@ fn test_structured_tool_protocol_env_off_disables_protocol() {
     };
 
     let client = ApiClient::new(&config).expect("client should build");
-    assert!(!client.supports_structured_tool_protocol());
+    assert!(client.supports_structured_tool_protocol());
     crate::test_support::test_remove_var(&_env_lock, "VEX_STRUCTURED_TOOL_PROTOCOL");
 }
 
 #[test]
-fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
+fn test_structured_tool_protocol_defaults_on_for_local_endpoint() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_remove_var(&_env_lock, "VEX_STRUCTURED_TOOL_PROTOCOL");
     let config = crate::config::Config {
@@ -532,7 +532,7 @@ fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
         working_dir: std::path::PathBuf::from("."),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
@@ -554,7 +554,7 @@ fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
     };
 
     let client = ApiClient::new(&config).expect("client should build");
-    assert!(!client.supports_structured_tool_protocol());
+    assert!(client.supports_structured_tool_protocol());
 }
 
 #[test]

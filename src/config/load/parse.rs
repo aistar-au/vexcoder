@@ -23,9 +23,7 @@ pub(crate) fn parse_model_protocol(value: String) -> Option<ModelProtocol> {
 pub(crate) fn parse_tool_call_mode(value: String) -> Option<ToolCallMode> {
     match value.trim().to_ascii_lowercase().as_str() {
         "structured" => Some(ToolCallMode::Structured),
-        "tagged-fallback" | "tagged_fallback" | "fallback" | "tagged" => {
-            Some(ToolCallMode::TaggedFallback)
-        }
+        "structured-tool-calls" | "structured_tool_calls" => Some(ToolCallMode::Structured),
         _ => None,
     }
 }

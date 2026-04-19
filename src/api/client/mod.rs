@@ -162,10 +162,6 @@ When a user asks for repository facts, command output, file content, or code edi
 After each tool_result, reassess the task and either call the next needed tool or provide the final answer.\n\
 Repeat this loop until the task is complete; do not stop early after a single tool result when more evidence is required.\n\
 For requests that mention specific files/paths or code edits, do not answer with planning text; emit a tool call first.\n\
-If native tool calls are unavailable, emit tagged tool syntax exactly:\n\
-<function=tool_name>\n\
-<parameter=arg>value</parameter>\n\
-</function>\n\
 Never claim a file was read/written/renamed/searched unless the corresponding tool call succeeded.\n\
 Do not narrate intended actions without executing the tool call.\n\
 Use codebase_search to find functions, types, and code patterns before reading files. Only use read_file with offset/limit when you know the exact location.\n\
@@ -473,12 +469,8 @@ impl ApiClient {
     }
 
     #[cfg(test)]
-    pub fn with_structured_tool_protocol(mut self, enabled: bool) -> Self {
-        self.tool_call_mode = if enabled {
-            ToolCallMode::Structured
-        } else {
-            ToolCallMode::TaggedFallback
-        };
+    pub fn with_structured_tool_protocol(mut self) -> Self {
+        self.tool_call_mode = ToolCallMode::Structured;
         self
     }
 

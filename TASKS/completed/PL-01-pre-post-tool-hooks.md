@@ -125,7 +125,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ### [PL-01] - Pre/post-tool-call hooks
 
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `c289cac`
 - Files changed:
   - `TASKS/PJ-03-memory-notes-injection.md`
@@ -145,7 +145,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ### [PL-01] - Pre/post-tool-call hooks
 
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `0e87859af38186f70fa2802c25d9dc83ac20550d`
 - Files changed:
   - `src/config.rs` (+47 -0)

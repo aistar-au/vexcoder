@@ -84,7 +84,7 @@ fn build_chat_compat_config(base_url: &str, model_name: &str) -> Config {
         working_dir: std::env::temp_dir(),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::ChatCompat,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile {
             max_tokens: 256,
@@ -117,7 +117,7 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
         working_dir: std::env::temp_dir(),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile {
             max_tokens: 256,

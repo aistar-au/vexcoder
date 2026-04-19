@@ -23,7 +23,6 @@ pub enum ModelProtocol {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolCallMode {
     Structured,
-    TaggedFallback,
 }
 
 /// Controls which tools are exposed to the model for a session.

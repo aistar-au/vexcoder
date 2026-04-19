@@ -138,11 +138,7 @@ pub(super) fn resolve_config(
         merged
             .tool_call_mode
             .and_then(parse_tool_call_mode)
-            .unwrap_or(if is_local {
-                ToolCallMode::TaggedFallback
-            } else {
-                ToolCallMode::Structured
-            })
+            .unwrap_or(ToolCallMode::Structured)
     };
     let max_project_instructions_tokens = merged.max_project_instructions_tokens.unwrap_or(4096);
     let max_memory_tokens = merged.max_memory_tokens.unwrap_or(2048);
@@ -218,11 +214,8 @@ pub(crate) fn default_model_backend(model_url: &str) -> ModelBackendKind {
 }
 
 pub(crate) fn default_tool_call_mode(model_url: &str) -> ToolCallMode {
-    if model_url.trim().is_empty() || is_local_endpoint_url(model_url) {
-        ToolCallMode::TaggedFallback
-    } else {
-        ToolCallMode::Structured
-    }
+    let _ = model_url;
+    ToolCallMode::Structured
 }
 
 pub(super) fn resolve_api_config(layer: Option<ApiConfigLayer>) -> Result<ApiConfig> {
@@ -443,9 +436,9 @@ pub(crate) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
     if let Some(value) = get("VEX_STRUCTURED_TOOL_PROTOCOL") {
         match value.trim().to_ascii_lowercase().as_str() {
             "on" | "true" | "1" => lines.push(r#"tool_call_mode = "structured""#.to_string()),
-            "off" | "false" | "0" => {
-                lines.push(r#"tool_call_mode = "tagged-fallback""#.to_string())
-            }
+            "off" | "false" | "0" => lines.push(
+                "# VEX_STRUCTURED_TOOL_PROTOCOL=off is obsolete; structured tool transport is always enabled".to_string(),
+            ),
             other => lines.push(format!(
                 "# WARNING: unknown VEX_STRUCTURED_TOOL_PROTOCOL value {other:?}; no mapping generated"
             )),

@@ -1,6 +1,5 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::core::{CompletedToolCall, emit_server_metadata_update};
-use super::tool_call_parser::{ToolCallParser, ToolParserMode, parser_for_mode};
 use super::{
     ConversationManager, ConversationStreamUpdate, TurnToolPolicy, history::*, streaming::*,
     tools::*,
@@ -144,13 +143,6 @@ impl ConversationManager {
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
         let mut compacted_this_turn = false;
-        let default_tool_parser_mode = if self.client.is_local_endpoint() {
-            ToolParserMode::Hybrid
-        } else {
-            ToolParserMode::Tagged
-        };
-        let tool_parser: Box<dyn ToolCallParser> =
-            parser_for_mode(ToolParserMode::from_env_or(None, default_tool_parser_mode));
         // Condense once per user turn, not per API round, to stay idempotent.
         self.condense_old_tool_results(history_keep_turns);
 
@@ -466,61 +458,8 @@ impl ConversationManager {
                 }
             });
 
-            let mut assistant_text_for_history = assistant_text.clone();
-            let mut used_tagged_fallback = false;
-            if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
-                let tagged_calls = dedupe_tagged_tool_calls(tool_parser.parse(&assistant_text));
-                if !tagged_calls.is_empty() {
-                    used_tagged_fallback = true;
-                    assistant_text_for_history =
-                        core_policy.rewrite_assistant_text(&assistant_text);
-                    tool_use_blocks = tagged_calls
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, call)| ContentBlock::ToolUse {
-                            id: format!("toolu_tagged_{rounds}_{index}"),
-                            name: call.name,
-                            input: call.input,
-                            metadata: None,
-                        })
-                        .collect();
-                    {
-                        let fallback_start_index = self.current_round_entry_count();
-                        for (offset, block) in tool_use_blocks.iter().enumerate() {
-                            if let ContentBlock::ToolUse {
-                                id, name, input, ..
-                            } = block
-                            {
-                                self.upsert_turn_block(
-                                    fallback_start_index + offset,
-                                    StreamBlock::ToolCall {
-                                        id: id.clone(),
-                                        name: name.clone(),
-                                        input: input.clone(),
-                                        status: ToolStatus::Pending,
-                                    },
-                                    stream_delta_tx,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
-            let use_structured_round = use_structured_tool_protocol && !used_tagged_fallback;
-
-            let assistant_history_source = if !tool_use_blocks.is_empty() && !use_structured_round {
-                let rendered_tool_calls = render_tool_calls_for_text_protocol(&tool_use_blocks);
-                if assistant_text_for_history.is_empty() {
-                    rendered_tool_calls
-                } else {
-                    format!("{assistant_text_for_history}\n{rendered_tool_calls}")
-                }
-            } else if assistant_text_for_history.is_empty() && !tool_use_blocks.is_empty() {
-                render_tool_calls_for_text_protocol(&tool_use_blocks)
-            } else {
-                assistant_text_for_history.clone()
-            };
+            let assistant_text_for_history = assistant_text.clone();
+            let use_structured_round = use_structured_tool_protocol;
 
             let mut inject_repeated_round_nudge = false;
             if !tool_use_blocks.is_empty() {
@@ -601,7 +540,7 @@ impl ConversationManager {
                 repeated_mutating_rounds = 0;
             }
 
-            let assistant_history_text = assistant_history_source;
+            let assistant_history_text = assistant_text_for_history.clone();
             let assistant_history_text =
                 truncate_for_history(&assistant_history_text, limits.max_assistant_history_chars);
 

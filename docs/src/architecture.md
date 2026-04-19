@@ -17,7 +17,8 @@ Direct third-party version requirements are centralized in the root
 `Cargo.toml` `[workspace.dependencies]` table. Workspace members inherit those
 entries with `workspace = true`, and version-sensitive API churn is kept behind
 local seam files such as `src/ui/tui.rs`,
-`src/state/conversation/tool_call_parser.rs`, `src/tools/index.rs`, and
+`src/api/stream/{framing,chat_compat,provider}.rs`,
+`src/runtime/json_handoff.rs`, `src/tools/index.rs`, and
 `src/ui/render/markdown.rs`.
 
 - `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, compatibility helpers, and other CLI paths.
@@ -89,21 +90,16 @@ Not every metadata field is rendered in the interactive transcript today, but
 the parser keeps those values in the normalized event surface instead of
 dropping them during protocol conversion.
 
-A `StreamTextNormaliser` layer at the `forward_conversation_update` boundary
-intercepts embedded tool call markup (XML-like tags from local inference
-servers) and converts them into structured `[tool]`/`[detail]` transcript
-lines before they reach the TUI. This prevents raw SSE event data from leaking
-to the display and ensures all tool invocations render as paragraph blocks in
-the scrolling transcript pane. The local API handoff in
-`src/runtime/json_handoff.rs` and `src/local_api.rs` preserves those transcript
-rows plus transcript block start/delta/complete updates as accepted
-`RuntimeEnvelope` JSON events, so downstream clients can stay transcript-first
-over SSE without reparsing a flattened assistant text stream. The
-normaliser buffers chunk-split `<tool_call>`, `<function=...>`, and
-`<parameter=...>` fragments until they are complete enough to classify,
-so transcript-first consumers follow the backend's JSON delta stream
-without showing raw wrapper or partial tag text when the server breaks
-markup across arbitrary chunk boundaries.
+A minimal `StreamTextNormaliser` layer remains at the
+`forward_conversation_update` boundary, but it now preserves text boundaries
+rather than interpreting embedded tool markup. Provider- and chat-compat
+framing is decoded in `src/api/stream/{framing,chat_compat,provider}.rs`, and
+`src/runtime/json_handoff.rs` immediately normalizes those payloads into
+accepted `RuntimeEnvelope` / `RuntimeEvent` values. Non-canonical provider
+content blocks surface recoverable `RuntimeEvent::Error` envelopes at ingress
+instead of being rewritten into accepted shapes, so downstream clients receive
+either canonical runtime events or explicit protocol failures rather than a
+hidden compatibility repair.
 
 The current ratatui surface sizes the output pane to the visible content rows
 and keeps the composer immediately below them inside the reserved inline task surface,
@@ -112,16 +108,17 @@ but the live turn state is still assembled from three sources: `history_state.li
 remaining complexity boundary for the tool-call cutover. The current repair
 work keeps scroll ownership on the ratatui transcript, fixes net-growth
 preservation when pending tool paragraphs are replaced by completed results,
-and defaults local text-protocol parsing to the hybrid tagged-plus-XML chain.
-The larger single-document cutover plan is recorded in
-`docs/src/tool-call-cutover.md`.
+and keeps raw block deltas only as renderer/envelope-projection material.
+Semantic tool-call assembly and compatibility decisions now live exclusively in
+the runtime/conversation layer at or before API normalization. The larger
+single-document cutover plan is recorded in `docs/src/tool-call-cutover.md`.
 
-The live parser path for interactive turns remains the shared stream parser,
-the tool-call parser selected by the conversation loop, and the
-`StreamTextNormaliser` boundary that converts malformed inline tool markup into
-transcript-safe rows. The `structured_parser` module is present in tree as an
-optional framework and does not replace the live runtime parser path unless the
-ADR-043 adoption gates are satisfied.
+The live parser path for interactive turns is the shared ingress parser plus
+the `RuntimeEnvelopeNormalizer` boundary that emits accepted runtime events.
+The `structured_parser` module is present in tree as an optional framework and
+does not replace the live runtime parser path unless the ADR-043 adoption
+gates are satisfied; those gates also forbid reintroducing downstream
+compatibility repair once the canonical API-level schema is fixed.
 
 A transcript buffering foundation (`src/state/transcript_delta.rs`) provides
 `StreamingBlockBuffer` plus `TranscriptBlockKind` for active structured-stream

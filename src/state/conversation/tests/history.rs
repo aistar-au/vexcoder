@@ -36,45 +36,6 @@ fn test_tool_result_event_uses_recorded_start_time_for_streaming_calls() {
 
     assert!(!manager.tool_call_started_at.contains_key("toolu_timing_01"));
 }
-
-#[test]
-fn test_parse_tagged_tool_calls() {
-    let text = r#"I can do this.
-<function=write_file>
-<parameter=path>
-cal.rs
-</parameter>
-<parameter=content>
-fn main() {}
-</parameter>
-</function>"#;
-
-    let calls = parse_tagged_tool_calls(text);
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].name, "write_file");
-    assert_eq!(calls[0].input["path"], "cal.rs");
-    assert_eq!(calls[0].input["content"], "fn main() {}");
-}
-#[test]
-fn test_parse_tagged_tool_calls_without_parameters() {
-    let text = "Checking files.\n<function=list_files></function>";
-    let calls = parse_tagged_tool_calls(text);
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].name, "list_files");
-    assert_eq!(calls[0].input, json!({}));
-}
-#[test]
-fn test_parse_tagged_tool_calls_with_missing_closing_tags() {
-    let text = r#"I'll check it.
-<function=read_file>
-<parameter=path>
-cal.js
-"#;
-    let calls = parse_tagged_tool_calls(text);
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].name, "read_file");
-    assert_eq!(calls[0].input["path"], "cal.js");
-}
 #[test]
 fn test_truncate_for_history() {
     let text = "abcdefghij";

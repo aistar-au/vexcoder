@@ -217,6 +217,13 @@ This ADR explicitly makes the following distinction normative:
 - **Serialization layer:** JSON object, JSONL line, SSE `data:` payload, future WebSocket message
 - **Provider layer:** upstream/vendor stream formats, which must be normalized before they reach the shared layer
 
+Provider compatibility rule: once a canonical block/tag schema is accepted,
+provider adapters may decode upstream framing but must not rewrite removed
+legacy content-block tags or preserve a second semantic repair path behind the
+API boundary. If an upstream payload cannot be decoded into the canonical
+schema, the API boundary must surface a recoverable error rather than mutate
+the payload into an internal compatibility variant.
+
 JSONL is therefore **not** the runtime's source of truth. It is one output mode derived from the shared envelope model.
 
 ### 4. Trait-level handoff uses envelopeable events
@@ -498,7 +505,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 ---
 
 ### [PI-09] - Accepted runtime handoff types and grammar
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
 - Files changed:
   - `src/runtime.rs` (+4 -0)
@@ -515,7 +522,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Keeps `ToolCall.id` ownership in the runtime contract while leaving provider-id discard and event projection work dependency-sequenced for PI-10.
 
 ### [PI-11] - Runtime envelope and request schemas
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
 - Files changed:
   - `schemas/runtime_envelope_v1.json` (+193 -0)
@@ -531,7 +538,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Leaves PI-12 schema/serde/grammar parity enforcement and BatchMode-derivation coverage sequenced behind PI-10.
 
 ### [PI-10] - Runtime envelope normalization layer
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
 - Files changed:
   - `src/runtime/json_handoff.rs` (+810 -0)
@@ -547,7 +554,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Runtime-generated `ToolCall.id` values now discard provider ids, approval requests normalize into accepted capability/scope fields, and runtime approval decisions project into `ApprovalResolved` events.
 
 ### [PI-12] - Runtime handoff parity and BatchMode replay tests
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
 - Files changed:
   - `src/runtime/json_handoff.rs` (+810 -0)

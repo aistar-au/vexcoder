@@ -318,8 +318,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             if parse_tool_call_mode(v.clone()).is_none() {
                 bail!(
                     "Invalid VEX_TOOL_CALL_MODE '{}': expected one of \
-                     structured, structured-tool-calls, structured_tool_calls, \
-                     tagged-fallback, tagged_fallback, fallback, tagged",
+                     structured, structured-tool-calls, structured_tool_calls",
                     v
                 );
             }
@@ -523,8 +522,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     {
         bail!(
             "config file '{}': invalid tool_call_mode '{}': expected one of \
-                 structured, structured-tool-calls, structured_tool_calls, \
-                 tagged-fallback, tagged_fallback, fallback, tagged",
+                  structured, structured-tool-calls, structured_tool_calls",
             path.display(),
             s
         );
