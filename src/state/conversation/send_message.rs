@@ -246,12 +246,12 @@ impl ConversationManager {
                             *name = tool_name;
                         }
 
-                        if let Some(arguments) = arguments.clone()
+                        if let Some(arguments) = arguments.as_ref()
                             && let Some(position) = tool_use_positions.get(&tool_call_id).copied()
                             && let Some(ContentBlock::ToolUse { input, .. }) =
                                 tool_use_blocks.get_mut(position)
                         {
-                            *input = arguments;
+                            *input = arguments.clone();
                         }
 
                         if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
