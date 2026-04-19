@@ -3,7 +3,7 @@ use std::ops::Range;
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 use crate::ui::tui::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-/// Hard upper bound on the editor buffer size (bytes).  Large pastes or
+/// Strict upper bound on the editor buffer size (bytes).  Large pastes or
 /// runaway inserts are silently capped at this limit.  1 MiB is comfortably
 /// above any realistic interactive prompt while preventing unbounded growth.
 /// ADR-021 Item 18.

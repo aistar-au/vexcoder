@@ -97,7 +97,7 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
 
-            // Phase 3 hard guard: reject writes above VEX_WRITE_FILE_MAX_LINES.
+            // Phase 3 strict guard: reject writes above VEX_WRITE_FILE_MAX_LINES.
             let max_lines = write_file_max_lines();
             if lines > max_lines {
                 bail!(
@@ -350,12 +350,12 @@ pub(crate) fn first_tool_usize(input: &serde_json::Value, keys: &[&str]) -> Opti
 pub(crate) fn required_tool_string_any<'a>(
     input: &'a serde_json::Value,
     tool: &str,
-    canonical_key: &str,
+    accepted_key: &str,
     keys: &[&str],
 ) -> Result<&'a str> {
     let value = first_tool_string(input, keys).map(str::trim).unwrap_or("");
     if value.is_empty() {
-        bail!("{tool} requires a non-empty '{canonical_key}' string argument");
+        bail!("{tool} requires a non-empty '{accepted_key}' string argument");
     }
     Ok(value)
 }
@@ -363,12 +363,12 @@ pub(crate) fn required_tool_string_any<'a>(
 pub(crate) fn required_tool_string_any_preserve<'a>(
     input: &'a serde_json::Value,
     tool: &str,
-    canonical_key: &str,
+    accepted_key: &str,
     keys: &[&str],
 ) -> Result<&'a str> {
     let value = first_tool_string(input, keys).unwrap_or("");
     if value.is_empty() {
-        bail!("{tool} requires a non-empty '{canonical_key}' string argument");
+        bail!("{tool} requires a non-empty '{accepted_key}' string argument");
     }
     Ok(value)
 }

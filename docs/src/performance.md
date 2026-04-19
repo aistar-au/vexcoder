@@ -62,7 +62,7 @@ latency or scale profile:
   code that is harder to evolve and test than the current typed header.
 - A dedicated sidecar index could persist the header projection separately and
   avoid parsing the full JSON document during cold start, but it must also
-  solve invalidation and crash-consistency so the sidecar cannot drift from the
+  solve invalidation and crash-consistency so the sidecar cannot diverge from the
   task-state JSON.
 - Directory sharding by time slice or prefix can reduce `read_dir` and
   metadata pressure when the task-state surface grows large enough that one

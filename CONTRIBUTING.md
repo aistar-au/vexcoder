@@ -189,7 +189,7 @@ bash scripts/check_forbidden_names.sh
 
 ## Release Packaging
 
-Package release changes on a review branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
+Package release changes on a review branch first, verify them on the operator workstation, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
 git switch -c work/v<current-version>-packaging
@@ -211,7 +211,7 @@ git push -u origin work/v<current-version>-packaging
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so review branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so review branches do not duplicate the main PR checks. After the branch gates are green and the workstation packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
@@ -220,7 +220,7 @@ git tag -a v<current-version> -m "Release v<current-version>"
 git push origin v<current-version>
 ```
 
-The tag push is a local post-merge release step. Do not open a second PR patch
+The tag push is an operator-workstation post-merge release step. Do not open a second PR patch
 just to publish the matching `v<current-version>` tag.
 
 For semver and short-SHA tags, the pushed tag drives the rest of the release
@@ -254,7 +254,7 @@ depend on the private `vexdraft` skill tree. Use the checked-in background
 session contract under `.github/instructions/` and the repository-hosted agent
 instructions file under `.github/`.
 
-- In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
+- In `AGENTS.md`, hosted sessions must ignore the `Operator-workstation bootstrap only`
   section and every `../vexdraft` reference.
 - Hosted sessions must not read any `SKILL.md` file.
 - Hosted sessions must use English only in agent-authored output.
@@ -303,12 +303,12 @@ instructions file under `.github/`.
   final PR to `main`. Parallel hosted shard PRs are allowed only when each
   shard has an explicit disjoint write set and all accepted commits are
   promoted onto the shared integration branch before merge.
-- For any remote code-bearing branch, create or reuse the draft PR before the
+- For any remote code-bearing branch, create or reuse the pre-review PR before the
   first code-bearing push. Do not wait for a later merge prompt to open the
   PR.
 - After every code-bearing commit or patch set, push immediately, fetch
   `origin`, and verify `HEAD` matches `origin/<branch>`. Do not continue from
-  unpublished local-only branch state.
+  unpublished workstation-only branch state.
 - Once the remote branch/PR exists, treat the remote branch head and PR state as
   authoritative for commit-debug, CI watch, PR body updates, review cleanup,
   and merge readiness.
@@ -462,7 +462,7 @@ order.
    Inspect the hosted PR first with
    `gh pr view <pr> --json headRefName,commits,statusCheckRollup`.
    If the hosted PR has only a planning commit or no file diff, treat it as
-   draft-only evidence and do not present the change as implemented.
+  planning-only evidence and do not present the change as implemented.
    For parallel shards, cherry-pick them onto one shared integration branch in
    a deterministic order, then resolve cross-shard conflicts there rather than
    reopening multiple competing PRs to `main`.

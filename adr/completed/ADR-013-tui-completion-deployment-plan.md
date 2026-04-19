@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer
 **Related tasks:** CORE-07 through CORE-14, FEAT-10 through FEAT-16
 **ADR chain:** Implements ADR-012 deployment gate; governed by ADR-007, ADR-008, ADR-009, ADR-010, ADR-011
-**Supersedes operationally:** nothing
+**Deprecates operationally:** nothing
 
 ---
 

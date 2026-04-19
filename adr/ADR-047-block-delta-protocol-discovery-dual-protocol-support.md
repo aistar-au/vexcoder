@@ -131,4 +131,4 @@ Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper f
 5. Add protocol mapper tests — **done; HTTP-level mapper assertions and client discovery tests are merged**
 6. Update docs + CHANGELOG — **in progress**
 
-This ADR supersedes all previous versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified local discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.
+This ADR deprecates all previous versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified workstation-discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.

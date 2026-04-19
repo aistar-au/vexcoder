@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer  
 **Related tasks:** `TASKS/REF-02-runtime-mode-contract.md`, `TASKS/REF-03-tui-mode-implement.md`, `TASKS/REF-04-runtime-context-start-turn.md`, `TASKS/REF-05-runtime-loop.md`, `TASKS/REF-06-tui-frontend-adapter.md`  
 **Amendment:** 2026-02-19 signature sections synchronized with accepted ADR-008 typed poll/interrupt contracts (`UserInputEvent`, `on_interrupt`)  
-**Supersedes:** Nothing. Extends `ADR-004` with concrete type contracts.
+**Deprecates:** Nothing. Extends `ADR-004` with concrete type contracts.
 
 ---
 

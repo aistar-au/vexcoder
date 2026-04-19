@@ -4,8 +4,8 @@
 - **Date:** 2026-03-22
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-031, ADR-015
-- **Supersedes:** None
-- **Superseded by:** None
+- **Deprecates:** None
+- **Deprecated by:** None
 
 ## Context
 

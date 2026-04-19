@@ -42,7 +42,7 @@ pub(super) fn write_file_diff_preferred_above_lines() -> usize {
         .unwrap_or(200)
 }
 
-/// Hard line limit for `write_file`. Calls on files exceeding this are
+/// Strict line limit for `write_file`. Calls on files exceeding this are
 /// rejected outright. Default 500. Minimum 10.
 pub(super) fn write_file_max_lines() -> usize {
     std::env::var("VEX_WRITE_FILE_MAX_LINES")

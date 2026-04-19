@@ -4,7 +4,7 @@
 **Status:** Accepted
 **Deciders:** Core maintainer
 **Related tasks:** Runtime-core TUI feature track (follow-up manifests)
-**Supersedes operationally:** none (complements ADR-006 through ADR-009)
+**Deprecates operationally:** none (complements ADR-006 through ADR-009)
 
 ## Context
 

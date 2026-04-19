@@ -3,7 +3,7 @@
 **Date:** 2026-03-13
 **Status:** Amended
 **Related:** ADR-018, ADR-019, ADR-027, ADR-030
-**Supersedes:** Previous ADR-022 command execution section
+**Deprecates:** Previous ADR-022 command execution section
 
 ## Command Execution (AMENDED 2026-03-13)
 

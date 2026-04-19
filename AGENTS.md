@@ -6,8 +6,8 @@ Read this file first.
 
 If this is a repository-hosted background session:
 
-- Stop here before reading any local bootstrap instruction below.
-- Ignore every `../vexdraft` reference in this file. Those lines are for local
+- Stop here before reading any operator-workstation bootstrap instruction below.
+- Ignore every `../vexdraft` reference in this file. Those lines are for operator-workstation
   operator sessions only.
 - Do not bootstrap, clone, sync, fetch, inspect, or depend on private skills,
   adjacent repos, or setup-workflow copies of the private skill tree.
@@ -23,11 +23,11 @@ If this is a repository-hosted background session:
 - Continue with the repository-hosted agent instructions file under `.github/`,
   `.github/instructions/repository.instructions.md`, and `CONTRIBUTING.md`.
 
-## Local bootstrap only
+## Operator-workstation bootstrap only
 
 Ignore this section in repository-hosted background sessions.
 
-- Only local operator sessions bootstrap private skills.
+- Only operator-workstation sessions bootstrap private skills.
 - Load `../vexdraft/.agents/skills/vex-local-bash/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` for Rust changes.
@@ -53,8 +53,8 @@ Ignore this section in repository-hosted background sessions.
   same lane across multiple overlapping draft branches or PRs unless the lane
   is intentionally sharded for repository-hosted sessions with explicit
   disjoint file ownership and one shared integration branch.
-- Reuse or consolidate existing related draft PRs before starting a new one.
-- For any remote code-bearing lane, create or reuse the draft PR before the
+- Reuse or consolidate existing related pre-review PRs before starting a new one.
+- For any remote code-bearing lane, create or reuse the pre-review PR before the
   first code-bearing push and keep the branch pushed after every code-bearing
   commit or patch set.
 - Once remote work begins, treat `origin/<branch>` as authoritative. Do not
@@ -76,9 +76,9 @@ Ignore this section in repository-hosted background sessions.
   explicitly instructs the agent to merge in the current conversation, execute
   `gh pr merge --merge --delete-branch` immediately without re-asking. The
   user's instruction is the confirmation.
-- Release tags are a local operator step after the reviewed merge commit lands
+- Release tags are an operator-workstation step after the reviewed merge commit lands
   on `main`. Do not open a separate PR patch just to publish `v<version>`; sync
-  `main`, create the annotated tag locally with `git` or `gh`, and push the tag
+  `main`, create the annotated tag on the workstation with `git` or `gh`, and push the tag
   from that local checkout.
 
 ## Before committing
@@ -90,7 +90,7 @@ cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```
 
-Keep `.git/hooks/pre-push` installed so the local push path re-runs
+Keep `.git/hooks/pre-push` installed so the workstation push path re-runs
 `cargo nextest run` automatically.
 
 The `ci` workflow runs 8 parallel jobs (lint, clippy, nextest, doctest,
@@ -125,9 +125,9 @@ repository's centralized workflow.
 
 Use five sections: Summary, Motivation, Approach, Validation, Risks.
 
-## For local operator sessions
+## For operator-workstation sessions
 
-Local operator workflows use private skills from `../vexdraft/.agents/skills/`.
+Operator-workstation workflows use private skills from `../vexdraft/.agents/skills/`.
 See `CONTRIBUTING.md` for the full local workflow, session commands, and the
 A–H post-session checklist.
 
@@ -135,7 +135,7 @@ A–H post-session checklist.
 
 - Stay self-contained within this repository.
 - Do not fetch or load private skills.
-- Ignore the `Local bootstrap only` section above and every `../vexdraft`
+- Ignore the `Operator-workstation bootstrap only` section above and every `../vexdraft`
   reference in this file.
 - Use the repository-hosted agent instructions file under `.github/`,
   `.github/instructions/`, and the checked-in agent profiles as the
@@ -168,7 +168,7 @@ A–H post-session checklist.
   file reads and continue.
 - Promote remote agent output onto a `work/<topic>` branch before
   commit-debug, CI watch, and PR preparation.
-- Create or reuse the draft PR for that review branch before the first
+- Create or reuse the pre-review PR for that review branch before the first
   code-bearing push, then keep `HEAD` in sync with `origin/<branch>` after
   every code-bearing fix.
 - Before every feature-branch push, refresh from `origin` and rebase onto the
@@ -178,7 +178,7 @@ A–H post-session checklist.
   disjoint write set. Keep the final merge path to `main` on the shared
   integration branch only.
 - If the hosted run opens a non-review branch or ends with only a planning
-  commit and no file diff, treat it as draft-only evidence. Do not present the
+  commit and no file diff, treat it as planning-only evidence. Do not present the
   change as implemented until code-bearing commits are promoted onto a
   review branch.
 - If `main` moves while hosted shards are running, do not force the running

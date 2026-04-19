@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer
 **Related tasks:** `TASKS/completed/REF-08-full-runtime-cutover.md`,
 `TASKS/completed/REF-08-deltas/`
-**Supersedes operationally:** none (complements ADR-007)
+**Deprecates operationally:** none (complements ADR-007)
 
 ## Context
 
