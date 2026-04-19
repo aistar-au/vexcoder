@@ -603,11 +603,9 @@ fn forward_conversation_update(
 
 /// Route standalone text through the normaliser before sending it to the UI.
 ///
-/// Embedded tool call markup is intercepted and converted to structured
-/// `TranscriptLine` entries. Clean text passes through as `StreamDelta` for
-/// unindexed updates and `StreamBlockDelta` for textual block streams. This is
-/// the single authoritative boundary between streamed model text and the TUI's
-/// task-state projection.
+/// The normaliser preserves streamed text boundaries but does not interpret
+/// tool-call markup. Tool lifecycle semantics are normalized upstream into
+/// runtime envelopes before the TUI sees them.
 fn emit_normalised_text(
     normaliser: &mut crate::api::stream::StreamTextNormaliser,
     text: &str,
@@ -654,9 +652,6 @@ fn emit_normalised_chunks(
                 } else {
                     let _ = tx.send(UiUpdate::StreamDelta(text));
                 }
-            }
-            NormalisedChunk::TranscriptLine(line) => {
-                let _ = tx.send(UiUpdate::TranscriptLine(line));
             }
         }
     }

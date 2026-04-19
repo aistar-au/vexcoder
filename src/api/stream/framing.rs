@@ -1,5 +1,6 @@
+use super::chat_compat::parse_chat_compat_chunk;
 use super::provider::{ProviderApiStreamError, ProviderStreamEvent};
-use super::{MAX_SSE_BUFFER_BYTES, StreamParser, StreamProtocolMode};
+use super::{LegacyStreamPayload, MAX_SSE_BUFFER_BYTES, StreamParser, StreamProtocolMode};
 use crate::runtime::RuntimeEnvelope;
 use anyhow::Result;
 
@@ -94,36 +95,36 @@ impl StreamParser {
             return Ok(vec![envelope]);
         }
 
-        let events = self.parse_legacy_event_payload(event_type, json_data);
-        Ok(self.normalize_provider_events(events))
+        let payload = self.parse_legacy_event_payload(event_type, json_data);
+        Ok(self.normalize_legacy_stream_payload(payload))
     }
 
     fn parse_legacy_event_payload(
         &mut self,
         event_type: Option<&str>,
         json_data: &str,
-    ) -> Vec<ProviderStreamEvent> {
+    ) -> LegacyStreamPayload {
         if event_type == Some("ping") {
-            return vec![ProviderStreamEvent::Ping];
+            return LegacyStreamPayload::Provider(Box::new(ProviderStreamEvent::Ping));
         }
 
         match serde_json::from_str::<ProviderStreamEvent>(json_data) {
-            Ok(evt) => vec![evt],
+            Ok(evt) => LegacyStreamPayload::Provider(Box::new(evt)),
             Err(messages_v1_error) => {
-                if let Some(chat_compat_events) = self.parse_chat_compat_chunk(json_data) {
-                    chat_compat_events
+                if let Some(chat_compat_payload) = parse_chat_compat_chunk(json_data) {
+                    LegacyStreamPayload::ChatCompat(chat_compat_payload)
                 } else {
                     super::super::logging::emit_sse_parse_error(
                         event_type,
                         json_data,
                         &messages_v1_error,
                     );
-                    vec![ProviderStreamEvent::Error {
+                    LegacyStreamPayload::Provider(Box::new(ProviderStreamEvent::Error {
                         error: ProviderApiStreamError {
                             error_type: "sse_parse_error".to_string(),
                             message: messages_v1_error.to_string(),
                         },
-                    }]
+                    }))
                 }
             }
         }

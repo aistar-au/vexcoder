@@ -1,15 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-const THINKING_DATA_TAG: &str = "thinking_data";
-
-fn legacy_external_thinking_tag() -> &'static str {
-    concat!("re", "dacted_thinking")
-}
-
-fn transitional_internal_thinking_tag() -> &'static str {
-    concat!("su", "ppressed_thinking")
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiMessage {
     pub role: String,
@@ -23,7 +13,7 @@ pub enum Content {
     Blocks(Vec<ContentBlock>),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     Text {
@@ -63,121 +53,6 @@ pub enum ContentBlock {
         #[serde(default)]
         content: serde_json::Value,
     },
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ContentBlockCompat {
-    Text {
-        text: String,
-        #[serde(default)]
-        citations: Option<Vec<serde_json::Value>>,
-    },
-    ToolUse {
-        id: String,
-        name: String,
-        #[serde(default = "default_json_object")]
-        input: serde_json::Value,
-        #[serde(default)]
-        metadata: Option<ToolUseMetadata>,
-    },
-    ToolResult {
-        tool_use_id: String,
-        content: String,
-        #[serde(default)]
-        is_error: bool,
-    },
-    Thinking {
-        thinking: String,
-        signature: String,
-    },
-    ThinkingData {
-        data: String,
-    },
-    ServerToolUse {
-        id: String,
-        name: String,
-        #[serde(default = "default_json_object")]
-        input: serde_json::Value,
-    },
-    WebSearchToolResult {
-        tool_use_id: String,
-        #[serde(default)]
-        content: serde_json::Value,
-    },
-}
-
-impl From<ContentBlockCompat> for ContentBlock {
-    fn from(value: ContentBlockCompat) -> Self {
-        match value {
-            ContentBlockCompat::Text { text, citations } => Self::Text { text, citations },
-            ContentBlockCompat::ToolUse {
-                id,
-                name,
-                input,
-                metadata,
-            } => Self::ToolUse {
-                id,
-                name,
-                input,
-                metadata,
-            },
-            ContentBlockCompat::ToolResult {
-                tool_use_id,
-                content,
-                is_error,
-            } => Self::ToolResult {
-                tool_use_id,
-                content,
-                is_error,
-            },
-            ContentBlockCompat::Thinking {
-                thinking,
-                signature,
-            } => Self::Thinking {
-                thinking,
-                signature,
-            },
-            ContentBlockCompat::ThinkingData { data } => Self::ThinkingData { data },
-            ContentBlockCompat::ServerToolUse { id, name, input } => {
-                Self::ServerToolUse { id, name, input }
-            }
-            ContentBlockCompat::WebSearchToolResult {
-                tool_use_id,
-                content,
-            } => Self::WebSearchToolResult {
-                tool_use_id,
-                content,
-            },
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ContentBlock {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut value = serde_json::Value::deserialize(deserializer)?;
-        if let Some(object) = value.as_object_mut()
-            && object
-                .get("type")
-                .and_then(serde_json::Value::as_str)
-                .is_some_and(|tag| {
-                    tag == legacy_external_thinking_tag()
-                        || tag == transitional_internal_thinking_tag()
-                })
-        {
-            object.insert(
-                "type".to_string(),
-                serde_json::Value::String(THINKING_DATA_TAG.to_string()),
-            );
-        }
-
-        serde_json::from_value::<ContentBlockCompat>(value)
-            .map(Into::into)
-            .map_err(serde::de::Error::custom)
-    }
 }
 
 fn default_json_object() -> serde_json::Value {
@@ -335,23 +210,15 @@ mod tests {
     }
 
     #[test]
-    fn test_content_block_thinking_data_accepts_legacy_external_tag() {
-        let json = format!(
-            r#"{{"type":"{}","data":"opaque"}}"#,
-            legacy_external_thinking_tag()
-        );
-        let block: ContentBlock = serde_json::from_str(&json).unwrap();
-        assert!(matches!(block, ContentBlock::ThinkingData { .. }));
+    fn test_content_block_legacy_external_thinking_tag_is_rejected() {
+        let json = r#"{"type":"redacted_thinking","data":"opaque"}"#;
+        assert!(serde_json::from_str::<ContentBlock>(json).is_err());
     }
 
     #[test]
-    fn test_content_block_thinking_data_accepts_transitional_internal_tag() {
-        let json = format!(
-            r#"{{"type":"{}","data":"opaque"}}"#,
-            transitional_internal_thinking_tag()
-        );
-        let block: ContentBlock = serde_json::from_str(&json).unwrap();
-        assert!(matches!(block, ContentBlock::ThinkingData { .. }));
+    fn test_content_block_transitional_internal_thinking_tag_is_rejected() {
+        let json = r#"{"type":"suppressed_thinking","data":"opaque"}"#;
+        assert!(serde_json::from_str::<ContentBlock>(json).is_err());
     }
 
     #[test]
@@ -362,7 +229,7 @@ mod tests {
         let value = serde_json::to_value(&block).unwrap();
         assert_eq!(
             value.get("type").and_then(serde_json::Value::as_str),
-            Some(THINKING_DATA_TAG)
+            Some("thinking_data")
         );
     }
 

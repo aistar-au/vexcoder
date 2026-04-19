@@ -495,7 +495,7 @@ impl Config {
             working_dir: cwd,
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
-            tool_call_mode: ToolCallMode::TaggedFallback,
+            tool_call_mode: ToolCallMode::Structured,
             tool_policy: ToolPolicy::Full,
             model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             max_project_instructions_tokens: 4096,

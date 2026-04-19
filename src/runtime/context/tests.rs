@@ -539,17 +539,19 @@ async fn test_ref_08_cancel_path_emits_single_terminal_event() {
 }
 
 #[tokio::test]
-async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
+async fn test_text_block_markup_is_forwarded_verbatim() {
     let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut textual_block_by_index = std::collections::HashMap::new();
     let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
+
+    let content = "<function=read_file>\n<parameter=path>\nsrc/main.rs\n</parameter>\n</function>"
+        .to_string();
 
     forward_conversation_update(
         ConversationStreamUpdate::BlockStart {
             index: 0,
             block: StreamBlock::FinalText {
-                content: "function=runshellcommand>\nparameter=command>\nls\nparameter>\nfunction>"
-                    .to_string(),
+                content: content.clone(),
             },
         },
         &mut textual_block_by_index,
@@ -557,47 +559,26 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
         &tx,
     );
 
-    let mut saw_transcript_line = false;
-    let mut leaked_markup = false;
+    let mut saw_block_start = false;
+    let mut saw_verbatim_delta = false;
     while let Ok(update) = rx.try_recv() {
         match update {
-            UiUpdate::TranscriptLine(line)
-                if line.contains("[tool]") && line.contains("runshellcommand") =>
-            {
-                saw_transcript_line = true;
-            }
             UiUpdate::StreamBlockStart {
                 block: StreamBlock::FinalText { content },
                 ..
+            } => {
+                saw_block_start = true;
+                assert!(content.is_empty());
             }
-            | UiUpdate::StreamBlockStart {
-                block: StreamBlock::Thinking { content, .. },
-                ..
-            } if content.contains("function=") || content.contains("parameter=") => {
-                leaked_markup = true;
-            }
-            UiUpdate::StreamBlockDelta { delta, .. }
-                if delta.contains("function=") || delta.contains("parameter=") =>
-            {
-                leaked_markup = true;
-            }
-            UiUpdate::StreamDelta(text)
-                if text.contains("function=") || text.contains("parameter=") =>
-            {
-                leaked_markup = true;
+            UiUpdate::StreamBlockDelta { delta, .. } if delta == content => {
+                saw_verbatim_delta = true;
             }
             _ => {}
         }
     }
 
-    assert!(
-        saw_transcript_line,
-        "normaliser should convert embedded tool markup to transcript lines"
-    );
-    assert!(
-        !leaked_markup,
-        "raw tool markup must not leak through any UI text channel"
-    );
+    assert!(saw_block_start, "expected block-start event");
+    assert!(saw_verbatim_delta, "expected verbatim block delta");
 }
 
 #[tokio::test]
@@ -622,55 +603,22 @@ async fn test_normaliser_passes_clean_text_through_delta() {
 }
 
 #[tokio::test]
-async fn test_normaliser_flushes_stale_tool_markup_before_follow_up_text_block() {
+async fn test_normaliser_passes_markup_through_delta() {
     let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut textual_block_by_index = std::collections::HashMap::new();
     let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
+    let markup = "function=read_file>\nparameter=path>\nsrc/main.rs".to_string();
 
     forward_conversation_update(
-        ConversationStreamUpdate::Delta(
-            "function=read_file>\nparameter=path>\nsrc/main.rs".to_string(),
-        ),
-        &mut textual_block_by_index,
-        &mut normaliser,
-        &tx,
-    );
-    forward_conversation_update(
-        ConversationStreamUpdate::BlockStart {
-            index: 0,
-            block: StreamBlock::FinalText {
-                content: "Recovered answer.".to_string(),
-            },
-        },
+        ConversationStreamUpdate::Delta(markup.clone()),
         &mut textual_block_by_index,
         &mut normaliser,
         &tx,
     );
 
-    let mut transcript_lines = Vec::new();
-    let mut block_deltas = Vec::new();
-    while let Ok(update) = rx.try_recv() {
-        match update {
-            UiUpdate::TranscriptLine(line) => transcript_lines.push(line),
-            UiUpdate::StreamBlockDelta { delta, .. } => block_deltas.push(delta),
-            _ => {}
-        }
+    match rx.try_recv() {
+        Ok(UiUpdate::StreamDelta(text)) => assert_eq!(text, markup),
+        Ok(_) => panic!("expected StreamDelta with verbatim markup"),
+        Err(_) => panic!("expected StreamDelta with verbatim markup"),
     }
-
-    assert!(
-        transcript_lines
-            .iter()
-            .any(|line| line == "[detail] path: src/main.rs"),
-        "flush should preserve the orphaned parameter detail: {transcript_lines:?}"
-    );
-    assert!(
-        transcript_lines
-            .iter()
-            .any(|line| line == "[tool] read_file · dispatched"),
-        "flush should close the orphaned tool block: {transcript_lines:?}"
-    );
-    assert!(
-        block_deltas.iter().any(|text| text == "Recovered answer."),
-        "follow-up text must be forwarded after the flush: {block_deltas:?}"
-    );
 }

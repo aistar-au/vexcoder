@@ -238,7 +238,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         working_dir: temp.path().to_path_buf(),
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
-        tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_call_mode: crate::runtime::ToolCallMode::Structured,
         tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,

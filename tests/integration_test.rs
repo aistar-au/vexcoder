@@ -185,7 +185,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         working_dir: std::env::current_dir().expect("cwd"),
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_call_mode: ToolCallMode::Structured,
         tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
         max_project_instructions_tokens: 4096,
@@ -523,7 +523,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
         working_dir: temp.path().to_path_buf(),
         model_backend: vexcoder::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: vexcoder::runtime::ModelProtocol::MessagesV1,
-        tool_call_mode: vexcoder::runtime::ToolCallMode::TaggedFallback,
+        tool_call_mode: vexcoder::runtime::ToolCallMode::Structured,
         tool_policy: vexcoder::runtime::ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(
             vexcoder::runtime::ModelBackendKind::LocalRuntime,

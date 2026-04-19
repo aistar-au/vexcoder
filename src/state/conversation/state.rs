@@ -408,17 +408,6 @@ impl ConversationManager {
         self.current_round_stream_block_count = 0;
     }
 
-    /// Number of entries in the active turn at or after `current_round_entry_start`.
-    pub(super) fn current_round_entry_count(&self) -> usize {
-        let total = self
-            .task_doc
-            .as_ref()
-            .and_then(|d| d.active_turn.as_ref())
-            .map(|t| t.entries.len())
-            .unwrap_or(0);
-        total.saturating_sub(self.current_round_entry_start)
-    }
-
     /// Push a checkpoint onto the undo stack, evicting the oldest if at capacity.
     pub fn push_undo_checkpoint(&mut self, checkpoint: UndoCheckpoint) {
         if self.max_undo_checkpoints == 0 {
