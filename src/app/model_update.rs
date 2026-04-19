@@ -371,6 +371,7 @@ impl TuiMode {
                 tool_name,
                 arguments,
             } => {
+                let previous_output_len = self.expanded_output_row_count();
                 if let Some(active) = self.task_doc.active_turn.as_mut() {
                     for entry in active.entries.iter_mut().rev() {
                         if let TurnEntry::ToolCall {
@@ -387,6 +388,7 @@ impl TuiMode {
                     }
                 }
                 self.clamp_transcript_after_mutation();
+                self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
 
             UiUpdate::StreamBlockComplete { index } => {

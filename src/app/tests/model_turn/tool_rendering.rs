@@ -327,6 +327,61 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
 // -- scroll preservation -----------------------------------------------------
 
 #[test]
+fn test_tool_call_arguments_updated_preserves_scroll_by_net_growth() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    for index in 0..18 {
+        mode.push_document_notice(
+            format!("history row {index}"),
+            crate::runtime::NoticeSeverity::Info,
+        );
+    }
+    mode.begin_turn_capture("test".to_string());
+    mode.transcript_scroll_offset = 4;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-args-scroll".to_string(),
+                name: "search_files".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    let previous_output_len = mode.expanded_output_row_count();
+    let previous_scroll_offset = mode.transcript_scroll_offset;
+
+    mode.on_model_update(
+        UiUpdate::ToolCallArgumentsUpdated {
+            tool_call_id: "tc-args-scroll".to_string(),
+            tool_name: Some("search_files".to_string()),
+            arguments: serde_json::json!({
+                "query": "needle",
+                "path": "src",
+                "max_results": 30
+            }),
+        },
+        &mut ctx,
+    );
+
+    let new_output_len = mode.expanded_output_row_count();
+    assert!(
+        new_output_len > previous_output_len,
+        "typed argument updates should grow the pending tool paragraph when additional preview rows appear"
+    );
+    assert_eq!(
+        mode.transcript_scroll_offset,
+        previous_scroll_offset + (new_output_len - previous_output_len),
+        "scroll preservation must use the net growth introduced by typed argument updates"
+    );
+}
+
+#[test]
 fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
