@@ -17,7 +17,7 @@ REF-02 created compilable stubs and intentionally used a minimal borrowed
 `RuntimeContext<'a>` shape. REF-03 wired `TuiMode` as the first
 `RuntimeMode` implementation against that stub. This ADR locks the
 **stage-by-stage contract sequence** and the end-state so implementers know
-which shape is canonical at each REF step.
+which shape is accepted at each REF step.
 
 The core problem this solves: `App` in `src/app/mod.rs` currently owns everything — the event loop, conversation dispatch, tool approval, and all rendering. The TUI skeleton exists in `src/ui/` but is not the active renderer. Making the architecture extensible requires splitting ownership along three lines:
 
@@ -62,7 +62,7 @@ Design constraints:
 
 Located in `src/runtime/context.rs`. The **capability surface** a `RuntimeMode` can use to interact with the model/tool layer. Modes never reach directly into `ConversationManager` or `ApiClient`.
 
-Canonical shape by task stage:
+Accepted shape by task stage:
 
 - **REF-02 and REF-03 (stub/call-site phase):**
 
@@ -77,7 +77,7 @@ impl<'a> RuntimeContext<'a> {
 }
 ```
 
-- **REF-04 onward (dispatch/cancellation phase; canonical end-state):**
+- **REF-04 onward (dispatch/cancellation phase; accepted end-state):**
 
 ```rust
 pub struct RuntimeContext {

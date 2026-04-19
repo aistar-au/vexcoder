@@ -13,10 +13,10 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
         state.output_rows[0],
         TranscriptRow::UserInput("check the build status".to_string())
     );
-    // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
+    // The second row is the ADR-039 accepted waiting phrase with elapsed suffix.
     assert!(
         matches!(&state.output_rows[1], TranscriptRow::WaitingPlaceholder(s) if s.starts_with("[thinking] Mapping adjacent sectors...")),
-        "expected canonical ADR-039 waiting row, got: {:?}",
+        "expected accepted ADR-039 waiting row, got: {:?}",
         state.output_rows[1]
     );
 }

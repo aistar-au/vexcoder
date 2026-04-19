@@ -24,7 +24,7 @@ convergence.
 
 At the same time, local-model output can still arrive with malformed JSON,
 partial tags, or mixed inline markup that may justify a broader structured
-parser lane in future work. That lane must not displace the canonical live
+parser lane in future work. That lane must not displace the accepted live
 parser path until it proves runtime value against the real transcript and
 tool-call flow.
 
@@ -32,7 +32,7 @@ tool-call flow.
 
 Track any future structured parser work behind explicit adoption gates.
 
-The canonical live parser path remains the shared stream parser, the current
+The primary live parser path remains the shared stream parser, the current
 tool-call parser selection in the conversation loop, and the runtime
 normalisation boundary that feeds transcript-safe rows into task state.
 
@@ -43,7 +43,7 @@ gates below are satisfied.
 ### Gate 1 — Live runtime wiring gate
 
 At least one production runtime path must route structured-parser decisions
-through the active conversation and normalisation pipeline and into canonical
+through the active conversation and normalisation pipeline and into accepted
 runtime updates without creating parser-local UI truth.
 
 ### Gate 2 — Parity coverage gate

@@ -11,7 +11,7 @@
 
 ## Context
 
-ADR-006 established the runtime seam around `RuntimeMode`, `RuntimeContext`, `UiUpdate`, and `FrontendAdapter`. That seam is correct for in-process Rust execution, but it does not yet define a **canonical machine-readable handoff** for the same events.
+ADR-006 established the runtime seam around `RuntimeMode`, `RuntimeContext`, `UiUpdate`, and `FrontendAdapter`. That seam is correct for in-process Rust execution, but it does not yet define a **accepted machine-readable handoff** for the same events.
 
 Today the codebase has two JSON-shaped surfaces, but no shared contract between them:
 
@@ -29,11 +29,11 @@ The missing decision is therefore not "SSE first" or "JSONL first." The missing 
 
 > what JSON contract exists between runtime traits so the same runtime can later be projected as a local API without duplicating logic or inventing a second event model.
 
-That seam is broader than a future HTTP server. In phase 1 it must already support CLI/TUI execution and BatchMode evidence output, and later it must support `LocalApiServer`, task handoff, and other JSON-capable adapters without introducing a second contract. Browser-specific origin policy, web-UI behavior, and multi-agent queue ownership rules remain separate concerns; this ADR defines only the canonical request/event seam they would consume.
+That seam is broader than a future HTTP server. In phase 1 it must already support CLI/TUI execution and BatchMode evidence output, and later it must support `LocalApiServer`, task handoff, and other JSON-capable adapters without introducing a second contract. Browser-specific origin policy, web-UI behavior, and multi-agent queue ownership rules remain separate concerns; this ADR defines only the shared request/event seam they would consume.
 
 **Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work (`/permissions`, `/allow`, `/deny`, `/new`, `/resume`, `/mcp list`, `/mcp show`, `/plan`/`/context`). **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. This ADR extends the Phase I checklist from PI-09 through PI-12. ADR-026 continues from PI-13 through PI-16. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
 
-**Current codebase naming note:** the current repository contains both provider-facing `ContentBlock::ToolUse { id }` / `ToolResult { tool_use_id, content, is_error }` types in `src/types/api_types.rs` and runtime-facing tool event names such as `StreamBlock::ToolCall` / `ToolResult { tool_call_id, output, is_error }` in the internal streaming path. This ADR does not require those existing names to unify immediately. PI-10 is the normalization layer that maps both existing shapes into one canonical runtime JSON contract.
+**Current codebase naming note:** the current repository contains both provider-facing `ContentBlock::ToolUse { id }` / `ToolResult { tool_use_id, content, is_error }` types in `src/types/api_types.rs` and runtime-facing tool event names such as `StreamBlock::ToolCall` / `ToolResult { tool_call_id, output, is_error }` in the internal streaming path. This ADR does not require those existing names to unify immediately. PI-10 is the normalization layer that maps both existing shapes into one shared runtime JSON contract.
 
 ---
 
@@ -44,15 +44,15 @@ This ADR satisfies ADR-024's Phase I specification requirement, but implementati
 1. Phase H (macOS packaging and distribution) is complete, and
 2. phase-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-No implementation lane may begin canonical JSON handoff implementation before that gate is green.
+No implementation lane may begin accepted JSON handoff implementation before that gate is green.
 
 ---
 
 ## Decision
 
-Introduce a canonical, transport-neutral, serde-backed JSON handoff layer for the runtime seam.
+Introduce a accepted, transport-neutral, serde-backed JSON handoff layer for the runtime seam.
 
-### 1. Canonical machine-readable contract
+### 1. Accepted machine-readable contract
 
 Add a new runtime-level envelope model:
 
@@ -168,26 +168,26 @@ This envelope model is the **single source of truth** for machine-readable runti
 
 **Tool ID ownership rule (normative):** The model backend emits `name` and `arguments` only. The runtime normalization layer (PI-10) injects a unique `id` in the format `call_<utc-ms>_<4_hex_random>` (for example `call_1741700123456_9a2f`). No model backend or provider adapter may generate or assume the value of `ToolCall.id`; id generation is exclusively a runtime responsibility. The id must be unique within a session.
 
-This rule resolves the ambiguity that existed when provider-facing types (e.g. `ContentBlock::ToolUse { id }`) appeared to carry a model-originated id. Those ids are provider-protocol artifacts; PI-10 normalization replaces them with a runtime-generated id before the event reaches the canonical layer.
+This rule resolves the ambiguity that existed when provider-facing types (e.g. `ContentBlock::ToolUse { id }`) appeared to carry a model-originated id. Those ids are provider-protocol artifacts; PI-10 normalization replaces them with a runtime-generated id before the event reaches the shared layer.
 
-**`MaxTurnsReached` event:** emitted as the final event for a turn when `BatchMode` or `LocalApiServer` exhausts `--max-turns`. A `TurnEnd { status: "failed" }` follows immediately. This allows clients to distinguish normal completion from limit-triggered termination without inspecting exit codes. `MaxTurnsReached` is a first-class event in the canonical layer, not a transport side-channel.
+**`MaxTurnsReached` event:** emitted as the final event for a turn when `BatchMode` or `LocalApiServer` exhausts `--max-turns`. A `TurnEnd { status: "failed" }` follows immediately. This allows clients to distinguish normal completion from limit-triggered termination without inspecting exit codes. `MaxTurnsReached` is a first-class event in the shared layer, not a transport side-channel.
 
 **Usage deferral note:** `TurnEnd.usage` remains optional until ADR-024 Gap 28 / PL-03 lands. Before that point, omission is valid and expected. This ADR defines the JSON slot now so later transport/API work does not need a schema-breaking change.
 
 ### 2. Normalization mapping is explicit
 
-PI-10 is the canonical normalization layer. It must map provider-facing and current runtime-facing shapes into the envelope model above.
+PI-10 is the accepted normalization layer. It must map provider-facing and current runtime-facing shapes into the envelope model above.
 
 **Normalization mapping (PI-10):**
 
-| Source shape | Canonical envelope | Mapping rule |
+| Source shape | Accepted envelope | Mapping rule |
 |--------------|--------------------|--------------|
 | `ContentBlock::ToolUse { id, name, input }` | `ToolCall { id, name, arguments }` | **Runtime discards provider id and generates a new `call_<utc-ms>_<4-hex>` id**; `input` becomes `arguments` |
 | `ContentBlock::ToolResult { tool_use_id, content, is_error }` | `ToolResult { tool_call_id, tool_name, is_error, output }` | `tool_use_id` is looked up in the pending-call table to find the runtime-generated `call_*` id; that runtime id becomes `tool_call_id`; `content -> output`; `is_error` pass-through; `tool_name` resolved from the pending-call table when available |
 | `StreamBlock::ToolCall { id, name, input }` | `ToolCall { id, name, arguments }` | **Runtime discards any provider id and generates a new `call_<utc-ms>_<4-hex>` id**; `input` becomes `arguments` |
 | `StreamBlock::ToolResult { tool_call_id, output, is_error }` | `ToolResult { tool_call_id, tool_name, is_error, output }` | `tool_call_id` is re-keyed to the runtime-generated id for the matching call; `output` and `is_error` pass-through; `tool_name` resolved from the pending-call table when available |
 | `UiUpdate::TranscriptLine(line)` | `TranscriptLine { line }` | direct pass-through for transcript-row updates emitted by the runtime |
-| `UiUpdate::StreamBlockStart { index, block }` | `TranscriptBlockStart { index, block }` plus `ToolCall` or `ToolResult` when the block variant carries those semantics | preserves transcript-first block lifecycle for downstream clients while keeping canonical tool execution events intact |
+| `UiUpdate::StreamBlockStart { index, block }` | `TranscriptBlockStart { index, block }` plus `ToolCall` or `ToolResult` when the block variant carries those semantics | preserves transcript-first block lifecycle for downstream clients while keeping accepted tool execution events intact |
 | `UiUpdate::StreamBlockDelta { index, delta }` | `TranscriptBlockDelta { index, delta }` | direct pass-through for transcript-first incremental rendering |
 | `UiUpdate::StreamBlockComplete { index }` | `TranscriptBlockComplete { index }` | direct pass-through for transcript-first block completion |
 | `UiUpdate::StreamDelta(text)` | `AssistantDelta { text }` | direct pass-through |
@@ -205,19 +205,19 @@ PI-10 is the canonical normalization layer. It must map provider-facing and curr
 
 **Validation integration note:** `ValidationOutputEnvelope` is the API-facing projection of ADR-023 `ValidationSuite` output. Its `label` field corresponds to validation command names such as `cargo test`, `cargo clippy`, or `npm test`. This gives API clients structured validation data without coupling them to ADR-023's internal Rust types.
 
-**Implementation note (PF-01 / PF-02 dependency):** `ToolResult.tool_name` remains `Option<String>` because ADR-024 PF-01 / PF-02 (`McpRegistry` and `Capability::McpTool` approval wiring) are not yet green in the current roadmap. The PI-10 normalization layer must resolve `tool_name` from the pending-call table when that name is available. When it is not available — especially for future MCP-originated tool results before registry wiring is complete — the canonical envelope must emit `tool_name = null` rather than inventing a placeholder string.
+**Implementation note (PF-01 / PF-02 dependency):** `ToolResult.tool_name` remains `Option<String>` because ADR-024 PF-01 / PF-02 (`McpRegistry` and `Capability::McpTool` approval wiring) are not yet green in the current roadmap. The PI-10 normalization layer must resolve `tool_name` from the pending-call table when that name is available. When it is not available — especially for future MCP-originated tool results before registry wiring is complete — the shared envelope must emit `tool_name = null` rather than inventing a placeholder string.
 
 ### 3. Transport neutrality is mandatory
 
-`RuntimeEnvelope` is the canonical contract. JSONL, SSE, Unix-socket streams, files, and tests are all **serializations or projections** of that contract.
+`RuntimeEnvelope` is the accepted contract. JSONL, SSE, Unix-socket streams, files, and tests are all **serializations or projections** of that contract.
 
 This ADR explicitly makes the following distinction normative:
 
-- **Canonical layer:** typed Rust structs/enums + serde JSON shape
+- **Accepted layer:** typed Rust structs/enums + serde JSON shape
 - **Serialization layer:** JSON object, JSONL line, SSE `data:` payload, future WebSocket message
-- **Provider layer:** upstream/vendor stream formats, which must be normalized before they reach the canonical layer
+- **Provider layer:** upstream/vendor stream formats, which must be normalized before they reach the shared layer
 
-JSONL is therefore **not** the runtime's source of truth. It is one output mode derived from the canonical envelope model.
+JSONL is therefore **not** the runtime's source of truth. It is one output mode derived from the shared envelope model.
 
 ### 4. Trait-level handoff uses envelopeable events
 
@@ -263,7 +263,7 @@ This makes the runtime seam bidirectional in JSON terms:
 - client/adapters send `RuntimeRequest`
 - runtime emits `RuntimeEnvelope`
 
-Approval scope vocabulary is fixed across the canonical seam: `ApprovalRequest.scope`, `ApprovalResolved.scope`, and `RuntimeRequest::ApproveCapability.scope` use the same `"once"` / `"session"` value set.
+Approval scope vocabulary is fixed across the shared seam: `ApprovalRequest.scope`, `ApprovalResolved.scope`, and `RuntimeRequest::ApproveCapability.scope` use the same `"once"` / `"session"` value set.
 
 ### 5. Tool-call grammar is part of the contract surface
 
@@ -296,7 +296,7 @@ Existing `vex exec --format jsonl` output remains unchanged for compatibility.
 
 However, ADR-025 imposes a new internal rule:
 
-- BatchMode JSONL must be derivable from the canonical `RuntimeEnvelope` stream without inventing hidden fields or semantics.
+- BatchMode JSONL must be derivable from the accepted `RuntimeEnvelope` stream without inventing hidden fields or semantics.
 
 **BatchMode derivation rules:**
 
@@ -305,7 +305,7 @@ However, ADR-025 imposes a new internal rule:
 - `TurnRecord.changed_files` is copied from `TurnEnd.changed_files`.
 - `SummaryRecord.status` is copied from the final `TurnEnd.status`.
 - `SummaryRecord.total_turns` equals the count of completed turns.
-- command-history evidence recorded in BatchMode must be traceable to the canonical tool/validation event stream for that turn; PI-12 tests must prove that replaying canonical envelopes reconstructs the existing summarized JSONL shape.
+- command-history evidence recorded in BatchMode must be traceable to the accepted tool/validation event stream for that turn; PI-12 tests must prove that replaying shared envelopes reconstructs the existing summarized JSONL shape.
 - When `MaxTurnsReached` is emitted, `SummaryRecord.status` is `"failed"` and a `max_turns_reached: true` field is added to the summary record. This is additive and does not break existing tooling that reads only `status`.
 
 A future additive format such as `--format json-events` may emit one `RuntimeEnvelope` per line, but this ADR does not require that option to exist now.
@@ -332,7 +332,7 @@ The full envelope schema is included in Appendix B of this ADR. A compact reques
 
 ### 8. Correlation, ordering, and recovery rules
 
-The canonical envelope model must obey these rules:
+The shared envelope model must obey these rules:
 
 - `task_id` is present on every envelope;
 - `turn` is present on every envelope;
@@ -364,7 +364,7 @@ Those belong to ADR-026, the transport-binding ADR that follows this one.
 
 ---
 
-## Example canonical envelopes
+## Example shared envelopes
 
 ```json
 {"version":1,"task_id":"task-1741700000000","turn":1,"seq":1,"event":{"type":"turn_start","input":"review src/app.rs"}}
@@ -381,9 +381,9 @@ Those belong to ADR-026, the transport-binding ADR that follows this one.
 
 | Existing ADR item | ADR-025 decision |
 |-------------------|------------------|
-| ADR-006 runtime seam | Adds canonical JSON projection for the seam without replacing in-process Rust trait signatures immediately |
+| ADR-006 runtime seam | Adds accepted JSON projection for the seam without replacing in-process Rust trait signatures immediately |
 | ADR-023 deterministic edit loop | Makes edit-loop, validation, and tool events serializable for later API adapters |
-| ADR-024 Gap 2 (BatchMode) | Preserves current BatchMode JSONL compatibility while making it derivable from canonical envelopes |
+| ADR-024 Gap 2 (BatchMode) | Preserves current BatchMode JSONL compatibility while making it derivable from shared envelopes |
 | ADR-024 Gap 5 (MCP) | `ToolCall.name` supports and validates the `mcp.<server>.<tool>` namespace |
 | ADR-024 Gap 28 (Token counter) | `TurnEnd.usage` carries optional `TokenUsageEnvelope` with `estimated`, but remains optional until PL-03 is green |
 | ADR-024 Phase I reservation | Supplies the missing transport-neutral contract that Phase I needs before a wire protocol can be bound |
@@ -400,13 +400,13 @@ Provider-facing `ContentBlock::ToolUse { id }` carries a provider-assigned id. T
 - unique within a session by construction;
 - stable for `ToolResult.tool_call_id` correlation regardless of which provider or model is active.
 
-Provider ids remain available inside the provider adapter for protocol-level correlation, but they do not cross the canonical layer.
+Provider ids remain available inside the provider adapter for protocol-level correlation, but they do not cross the shared layer.
 
-### Why not make JSONL the canonical contract?
+### Why not make JSONL the accepted contract?
 
 JSONL is excellent for append-only logs, file exports, and line-oriented streaming. It is not the correct abstraction for trait boundaries because traits exchange **typed values**, not lines.
 
-The runtime needs a canonical event model that can be serialized as:
+The runtime needs a accepted event model that can be serialized as:
 
 - an in-memory JSON value
 - a JSONL line
@@ -415,7 +415,7 @@ The runtime needs a canonical event model that can be serialized as:
 
 If JSONL were made the source of truth, every in-process consumer would be forced to think in terms of string framing rather than structured events.
 
-### Why not reuse `src/types/api_types.rs` as the canonical contract?
+### Why not reuse `src/types/api_types.rs` as the accepted contract?
 
 Those types are backend/protocol-facing. They are appropriate for API adapters that speak a specific upstream protocol, but they are the wrong abstraction for the runtime seam because they would leak provider semantics into BatchMode, tests, and future LocalApiServer adapters.
 
@@ -423,15 +423,15 @@ The normalization layer exists precisely so that provider-native types can remai
 
 ### Why keep `task_id` schema-constrained only as a non-empty string?
 
-Current code paths already use multiple task-id formats (`task-...` and `batch-...`). The canonical contract therefore validates only that `task_id` is a non-empty string. A stricter pattern would be inaccurate against current code and would create a false incompatibility between existing runtime surfaces.
+Current code paths already use multiple task-id formats (`task-...` and `batch-...`). The accepted contract therefore validates only that `task_id` is a non-empty string. A stricter pattern would be inaccurate against current code and would create a false incompatibility between existing runtime surfaces.
 
 ### Why include the grammar appendix in the contract ADR?
 
-The grammar constrains the **shape of the runtime tool-call JSON contract** at the model boundary. It is not a transport decision. The HTTP/SSE/socket binding ADR should stay thin and should not become the place where canonical event shapes are defined.
+The grammar constrains the **shape of the runtime tool-call JSON contract** at the model boundary. It is not a transport decision. The HTTP/SSE/socket binding ADR should stay thin and should not become the place where accepted event shapes are defined.
 
 ### Why include `ApproveCapability` and `DenyCapability` in `RuntimeRequest`?
 
-`ApprovalResolved` is a first-class event in `RuntimeEvent`. For the canonical seam to be complete and bidirectional, the request side must include the signals that drive that event. A `RuntimeRequest` that can only submit input and interrupt turns cannot drive the approval flow from an external client. `ApproveCapability` and `DenyCapability` are therefore included in the canonical request schema even though approval in Phase I is primarily driven from the TUI. External clients that need to automate approval decisions have a defined path; TUI-driven approval continues to work identically via the existing `UiUpdate::ToolApprovalRequest` path.
+`ApprovalResolved` is a first-class event in `RuntimeEvent`. For the shared seam to be complete and bidirectional, the request side must include the signals that drive that event. A `RuntimeRequest` that can only submit input and interrupt turns cannot drive the approval flow from an external client. `ApproveCapability` and `DenyCapability` are therefore included in the accepted request schema even though approval in Phase I is primarily driven from the TUI. External clients that need to automate approval decisions have a defined path; TUI-driven approval continues to work identically via the existing `UiUpdate::ToolApprovalRequest` path.
 
 ---
 
@@ -446,9 +446,9 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 
 **Harder or more complex:**
 
-- New runtime events now need a canonical envelope mapping and schema update.
+- New runtime events now need a shared envelope mapping and schema update.
 - Provider adapters must perform explicit normalization rather than leaking native chunks forward.
-- BatchMode compatibility tests must now assert that its JSONL remains derivable from the canonical event stream.
+- BatchMode compatibility tests must now assert that its JSONL remains derivable from the accepted event stream.
 - Model backends that support constrained decoding need a maintained grammar file that stays in sync with tool-call shapes.
 
 **Constraints imposed on future work:**
@@ -471,9 +471,9 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 | ID | Task | Status |
 |----|------|--------|
 | **PI-09** | Add `src/runtime/json_handoff.rs` with `RuntimeRequest` (including `ApproveCapability` and `DenyCapability`), `RuntimeEnvelope`, `RuntimeEvent` (including `MaxTurnsReached`), `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
-| **PI-10** | Add normalization layer from provider/native stream updates into canonical runtime envelopes; runtime injects `ToolCall.id`; provider ids are discarded at normalization boundary; include `UiUpdate::ToolApprovalRequest` → `ApprovalRequest` mapping; include `ApproveCapability`/`DenyCapability` → `ApprovalResolved` mapping; include `StreamBlockStart/Delta/Complete` explicit no-project rule | [x] |
+| **PI-10** | Add normalization layer from provider/native stream updates into shared runtime envelopes; runtime injects `ToolCall.id`; provider ids are discarded at normalization boundary; include `UiUpdate::ToolApprovalRequest` → `ApprovalRequest` mapping; include `ApproveCapability`/`DenyCapability` → `ApprovalResolved` mapping; include `StreamBlockStart/Delta/Complete` explicit no-project rule | [x] |
 | **PI-11** | Add `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including `MaxTurnsReached` event, `ApproveCapability`/`DenyCapability` request variants, `tool_name` via `$ref` in `tool_result` (not inlined), and MCP namespace validation for `ToolCall.name` | [x] |
-| **PI-12** | Add serde round-trip tests, schema parity tests, grammar parity tests, and BatchMode derivation tests. Tests must prove: first envelope of every turn has `seq == 1`; `TurnRecord` + `SummaryRecord` replay from canonical envelopes matches the existing JSONL shape modulo JSON field ordering; `TurnRecord.response` uses `AssistantMessage.content` when present and falls back to concatenated `AssistantDelta.text`; `TurnRecord.changed_files` matches `turn_end.changed_files`; `SummaryRecord.status` matches final `turn_end.status`; recoverable vs non-recoverable `error` envelopes follow the ordering rules in this ADR; `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }` | [x] |
+| **PI-12** | Add serde round-trip tests, schema parity tests, grammar parity tests, and BatchMode derivation tests. Tests must prove: first envelope of every turn has `seq == 1`; `TurnRecord` + `SummaryRecord` replay from shared envelopes matches the existing JSONL shape modulo JSON field ordering; `TurnRecord.response` uses `AssistantMessage.content` when present and falls back to concatenated `AssistantDelta.text`; `TurnRecord.changed_files` matches `turn_end.changed_files`; `SummaryRecord.status` matches final `turn_end.status`; recoverable vs non-recoverable `error` envelopes follow the ordering rules in this ADR; `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }` | [x] |
 
 ---
 
@@ -497,7 +497,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 
 ---
 
-### [PI-09] - Canonical runtime handoff types and grammar
+### [PI-09] - Accepted runtime handoff types and grammar
 - Historical branch name: omitted
 - Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
 - Files changed:
@@ -511,7 +511,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - `bash scripts/check_forbidden_imports.sh` : pass
   - `bash scripts/check_forbidden_names.sh` : pass
 - Notes:
-  - Added the canonical ADR-025 Rust handoff surface and the normative tool-call grammar without starting the PI-10 normalization layer.
+  - Added the accepted ADR-025 Rust handoff surface and the normative tool-call grammar without starting the PI-10 normalization layer.
   - Keeps `ToolCall.id` ownership in the runtime contract while leaving provider-id discard and event projection work dependency-sequenced for PI-10.
 
 ### [PI-11] - Runtime envelope and request schemas
@@ -527,7 +527,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - `bash scripts/check_forbidden_imports.sh` : pass
   - `bash scripts/check_forbidden_names.sh` : pass
 - Notes:
-  - Added the versioned ADR-025 schema assets, including `MaxTurnsReached`, approval request variants, and MCP namespace validation for canonical tool names.
+  - Added the versioned ADR-025 schema assets, including `MaxTurnsReached`, approval request variants, and MCP namespace validation for accepted tool names.
   - Leaves PI-12 schema/serde/grammar parity enforcement and BatchMode-derivation coverage sequenced behind PI-10.
 
 ### [PI-10] - Runtime envelope normalization layer
@@ -543,8 +543,8 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - `cargo test --all-targets` : fail on local Windows shell due existing forbidden-name integration tests invoking missing `python` alias
   - `make gate-fast` : unavailable in local PowerShell shell (`make` missing)
 - Notes:
-  - Added a reusable normalization state machine that maps provider-native `ContentBlock` and runtime-native `StreamBlock` updates into canonical `RuntimeEnvelope` events.
-  - Runtime-generated `ToolCall.id` values now discard provider ids, approval requests normalize into canonical capability/scope fields, and runtime approval decisions project into `ApprovalResolved` events.
+  - Added a reusable normalization state machine that maps provider-native `ContentBlock` and runtime-native `StreamBlock` updates into accepted `RuntimeEnvelope` events.
+  - Runtime-generated `ToolCall.id` values now discard provider ids, approval requests normalize into accepted capability/scope fields, and runtime approval decisions project into `ApprovalResolved` events.
 
 ### [PI-12] - Runtime handoff parity and BatchMode replay tests
 - Historical branch name: omitted
@@ -559,7 +559,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - `cargo test --all-targets` : fail on local Windows shell due existing forbidden-name integration tests invoking missing `python` alias
   - `make gate-fast` : unavailable in local PowerShell shell (`make` missing)
 - Notes:
-  - Added serde round-trip, error-ordering, max-turn final-sequence, and BatchMode-derivation coverage for the canonical runtime handoff layer.
+  - Added serde round-trip, error-ordering, max-turn final-sequence, and BatchMode-derivation coverage for the accepted runtime handoff layer.
   - The new derivation helper proves `AssistantMessage` precedence, `AssistantDelta` fallback, turn-level `seq` reset, and summary/status parity against the existing JSONL evidence shape.
 
 ## Compliance notes for agents
@@ -573,7 +573,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 
 | Rule | Enforcement |
 |------|-------------|
-| Do not make JSONL the canonical trait contract | `RuntimeEnvelope` / `RuntimeRequest` are the canonical layer; JSONL is a serialization |
+| Do not make JSONL the accepted trait contract | `RuntimeEnvelope` / `RuntimeRequest` are the shared layer; JSONL is a serialization |
 | Do not expose provider-native stream chunks past the normalization layer | Required by PI-10 |
 | Do not break existing `vex exec --format jsonl` output under this ADR | BatchMode compatibility rule |
 | Every machine-readable runtime seam must map to `RuntimeEnvelope` or `RuntimeRequest` | Mandatory for new adapters |

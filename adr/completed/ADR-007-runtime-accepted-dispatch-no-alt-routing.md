@@ -1,4 +1,4 @@
-# ADR-007: Runtime-core canonical dispatch — no alternate routing
+# ADR-007: Runtime-core accepted dispatch — no alternate routing
 
 **Date:** 2026-02-19
 **Status:** Accepted

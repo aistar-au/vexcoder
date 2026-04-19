@@ -8,7 +8,7 @@
 
 ## Context
 
-REF-08 established canonical runtime dispatch and baseline TUI behavior. To ship a
+REF-08 established accepted runtime dispatch and baseline TUI behavior. To ship a
 fully featured, conventional ratatui TUI, interaction semantics must be explicit
 and testable.
 

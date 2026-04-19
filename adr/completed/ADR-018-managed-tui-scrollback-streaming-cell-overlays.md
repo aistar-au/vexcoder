@@ -9,7 +9,7 @@
 
 ## Context
 
-Current runtime canonical path is append-cli (`src/bin/vex.rs`). It is
+Current runtime accepted path is append-cli (`src/bin/vex.rs`). It is
 simple and stable, but it does not provide managed in-app scrollback or a
 viewport model that supports transcript navigation while composing input.
 
@@ -20,20 +20,20 @@ This aligns with common open-source Rust TUI patterns (`ratatui`,
 
 ## Decision
 
-1. Move canonical runtime interaction to managed TUI with three panes
+1. Move primary runtime interaction to managed TUI with three panes
    (status/transcript/input).
 2. Keep transcript state in one widget (`ChatWidget`) with
    `cells + active + scroll_offset + auto_follow`.
 3. Use one active streaming cell; commit on `TurnComplete`.
 4. Route keyboard/mouse navigation into widget scrolling APIs.
 5. Keep overlays lifecycle-managed (enter/leave paired, panic-safe).
-6. The canonical cli surface must preserve operator access to pre-session
+6. The primary cli surface must preserve operator access to pre-session
    shell history. Managed TUI rendering therefore targets the primary cli
    session rather than treating the cli as a disposable full-screen
    surface. Operators must be able to inspect shell output that existed before
    `vex` started using ordinary cli scrollback, while the runtime-owned
    transcript begins at the start boundary.
-7. Overlay prompts are the canonical operator-input surface for bounded
+7. Overlay prompts are the accepted operator-input surface for bounded
    mid-task decisions. Approval, confirmation, resume-selection, credential
    retry, and similar handoff prompts must render in-cli without tearing
    down the active task view. Resolving an overlay must preserve transcript

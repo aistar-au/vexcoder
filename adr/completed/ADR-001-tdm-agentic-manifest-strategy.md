@@ -26,7 +26,7 @@ The conventional ADR + issue tracker workflow assumes a stateful human contribut
 
 ## Decision
 
-Adopt the **Test-Driven Manifest (TDM)** as the canonical workflow for all bug fixes, features, and refactors:
+Adopt the **Test-Driven Manifest (TDM)** as the accepted workflow for all bug fixes, features, and refactors:
 
 1. **Every task is kept in a single file** in `TASKS/` no larger than ~2 KB (approximately 500 tokens). This is the *maximum effective context payload* for a single agentic dispatch.
 

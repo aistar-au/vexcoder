@@ -21,7 +21,7 @@ too important to leave implicit:
 The current tree already contains the foundations that a multi-agent lane must
 consume instead of replacing:
 
-- ADR-025 defines canonical runtime request and event envelopes;
+- ADR-025 defines shared runtime request and event envelopes;
 - ADR-026 defines the local transport surface for those envelopes;
 - ADR-030 defines task-state-owned orchestration invariants;
 - ADR-033 reduces context pressure enough that more focused sub-task prompts and
@@ -144,7 +144,7 @@ The initial operator command surface for this ADR is:
 These commands observe and request orchestrator actions. They do not directly
 rewrite task state or bypass approval/sandbox policy.
 
-### 6. Handoff, export, and transport reuse existing canonical contracts
+### 6. Handoff, export, and transport reuse existing accepted contracts
 
 Subtask handoff and resume payloads MUST build on ADR-025 runtime envelopes
 and ADR-030 task-state ownership.
@@ -153,7 +153,7 @@ Implications:
 
 - exported task graphs must serialize parent/subtask relationships explicitly;
 - background session-task progress exposed via `LocalApiServer` must be projected
-  from canonical runtime/task state rather than provider-native wire values;
+  from accepted runtime/task state rather than provider-native wire values;
 - resume must restore session-task metadata before replaying any current status to
   the UI or transport surface.
 

@@ -32,6 +32,7 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | ADR-043 | Proposed | 3 adoption gates | Future structured parser lane remains optional until live runtime wiring, parity coverage, and defect-reduction gates land |
 | ADR-045 | Proposed (Batch 1 merged) | Batches 2+ pending | Batch 1: sole-writer enforcement in streaming.rs, tool-call dedup in projection, messages-v1 default (PR #359); remaining: promote_thinking_blocks phase events, model_update.rs TUI-layer violations, full RuntimeEvent coverage, checkpoints, rollback markers |
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeEvent stub reserved for ADR-045 follow-up |
+| ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -46,7 +47,7 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 
 ---
 
-## Remaining Work: 1 Proposed In-Tree ADR + 1 External Dependency (next batch planned)
+## Remaining Work: 2 Proposed In-Tree ADRs + 1 External Dependency (next batch planned)
 
 ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
 for human-facing transcript text, status copy, ANSI semantic roles, and the
@@ -61,6 +62,10 @@ stream. ADR-038 is Accepted and
 complete: context cache, disk-policy classifier, config cache, module
 decompositions (config/load, operator, context_assembler, task_state), strict
 policy CI gate, and operator-level durable access assertions are all in-tree.
+ADR-048 now records the separate permissions-overlay lane: mode precedence,
+protected-path guarantees, untrusted-workspace demotion, and fail-closed
+non-interactive behavior at the operator-policy boundary before enforcement
+code lands.
 The only external item in the next batch is ADR-024 PG-03 tap auto-dispatch,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
 
@@ -218,6 +223,12 @@ Concrete targets (6 display-facing strings across 3 files):
 Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
 contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 `parent directory` -> `containing directory` (`src/server/socket.rs`, `src/util.rs`).
+
+### Tier 13 -- Permissions Overlay Invariants (ADR-048) -- 1 item
+
+- Record the operator-policy evaluation order, protected-path guarantees,
+  untrusted-workspace demotion, interactive inspection surface, and
+  non-interactive fail-closed behavior before enforcement code lands.
 
 **Batch C -- active indicator affordance**
 - Add the single pulsing-star active indicator where the renderer supports it.

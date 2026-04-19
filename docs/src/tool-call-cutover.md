@@ -26,7 +26,7 @@ Today the transcript is assembled from three mutable sources:
 That split means paragraph replacement has to keep multiple structures in sync
 whenever a pending tool preview turns into a completed tool-result paragraph.
 It also means the renderer has to infer one live transcript from several
-buffers instead of reading one canonical document.
+buffers instead of reading one accepted document.
 
 ## Research summary
 
@@ -116,7 +116,7 @@ viewport path so the UI, parser, and API route move in the same direction.
 ## Next cutover
 
 The next architecture step is to replace the split transcript state with one
-canonical task document. The API route has already cut over to the
+accepted task document. The API route has already cut over to the
 transcript-first shape; the remaining work is to make the in-process task
 state match that same model.
 

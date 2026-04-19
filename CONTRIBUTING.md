@@ -22,7 +22,7 @@
 4. **Verification** — Success is `cargo test <anchor_name>` passing, `cargo nextest run` staying green for the branch, plus `cargo test --all-targets` showing no regressions.
 
 Runtime mode additions and naming-policy changes require explicit confirmation before implementation or documentation. See ADR-007.
-Canonical production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
+Primary production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
 Alternate app-owned dispatch channels are forbidden in production paths.
 Runtime-core ratatui TUI behavior must conform to ADR-009, ADR-010, and ADR-011 before merge.
 Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item is unmet.
@@ -153,7 +153,7 @@ when they are used only to split oversized test suites.
 ## Runtime-core Status
 
 REF-08 full cutover is complete and merged (2026-02-19).
-Canonical dispatch and layering rules are now governed by ADR-007 and ADR-008.
+Accepted dispatch and layering rules are now governed by ADR-007 and ADR-008.
 
 ---
 
@@ -564,7 +564,7 @@ vexcoder/ (standalone view)
 | `src/runtime/context_assembler/mod.rs` | Context assembly orchestration for model turns (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/mod.rs> |
 | `src/runtime/context_assembler/reads.rs` | Candidate-path extraction, snapshot conversion, and related-path inference for context assembly. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/reads.rs> |
 | `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input event types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
-| `src/runtime/json_handoff.rs` | ADR-025 canonical runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeEvent`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
+| `src/runtime/json_handoff.rs` | ADR-025 shared runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeEvent`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
 | `src/runtime/loop.rs` | Runtime event loop orchestration between mode, frontend, and context. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
 | `src/runtime/edit_loop.rs` | Task-completion edit loop: assemble→model→apply→validate→retry cycle. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop.rs> |
 | `src/runtime/mode.rs` | Runtime mode trait defining input/update hooks. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/mode.rs> |

@@ -49,7 +49,7 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is cli-agent-first for the first release. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the opening stage and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is cli-agent-first for the first release. The cli runtime is the primary execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the opening stage and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
 3. The first iteration supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
@@ -61,7 +61,7 @@ This ADR locks the following decisions:
 8. Existing-file mutations become diff-native and approval-gated.
 9. Command execution becomes a first-class built-in capability.
 10. Approval is capability-based and remains separate from `RuntimeCorePolicy`.
-11. Native application packaging and additional runtime surfaces are reserved for a subsequent stage. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The unsupported case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
+11. Native application packaging and additional runtime surfaces are reserved for a subsequent stage. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a valid example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The unsupported case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
 
 ## Normative Config and Interface Changes
 
@@ -209,6 +209,11 @@ the task remains active.
 `ApprovalPolicy` is separate from `RuntimeCorePolicy`. `RuntimeCorePolicy`
 continues to govern prompt-shaping and evidence-shaping concerns; it does not
 become the approval mechanism.
+
+ADR-048 records the later permissions-overlay mode engine at the operator
+policy boundary. That lane extends this approval-first model with protected-path
+precedence, mode defaults, untrusted-workspace demotion, and non-interactive
+fail-closed behavior while remaining distinct from `RuntimeCorePolicy`.
 
 A representative policy file shape is:
 

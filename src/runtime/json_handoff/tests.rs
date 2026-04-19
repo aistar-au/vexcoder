@@ -254,7 +254,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEnvelopeSource::Model
     );
 
-    // TranscriptBlockDelta is emitted first (canonical protocol event),
+    // TranscriptBlockDelta is emitted first (accepted protocol event),
     // followed by ToolCallArgumentsDelta for tool blocks.
     let block_delta_envelopes = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockDelta {

@@ -1,6 +1,6 @@
 //! SSE framing for the local API server.
 //!
-//! The server emits canonical RuntimeEnvelope JSON as ordinary
+//! The server emits accepted RuntimeEnvelope JSON as ordinary
 //! `text/event-stream` data frames. Event IDs remain intentionally omitted
 //! pending future resumable replay support.
 

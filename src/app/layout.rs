@@ -58,7 +58,7 @@ struct TaskStepView {
 }
 
 impl TuiMode {
-    /// Derive structured timeline entries from canonical task state.
+    /// Derive structured timeline entries from accepted task state.
     ///
     /// Implements ADR-031 Batch B by deriving both the structured timeline
     /// and the legacy activity summary from the same task-owned step views.
@@ -299,7 +299,7 @@ impl TuiMode {
         // stays in the top transcript + prompt + status-bar arrangement
         // between tool calls and after turn completion instead of yielding back
         // to a separate transcript-only layout.
-        // This follows ADR-031: the operator surface derives from canonical
+        // This follows ADR-031: the operator surface derives from accepted
         // task state and remains visible at all times.
 
         let pending_approval = if self.overlay_state.pending_patch_approval.is_some() {

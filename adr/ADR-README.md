@@ -38,12 +38,14 @@ All ADR files are stored under `adr/`.
 | [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; Batch D corrected 2026-04-09 to keep paragraph progress on the owned transcript surface; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
 | [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed (operator-surface contract corrected 2026-04-09) | Telemetry labels updated to arrow notation in ADR-041; operator-surface items 22-23 keep committed and live telemetry on the owned transcript surface |
 | [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted (2026-04-08 host-scrollback amendment superseded 2026-04-09) | Normaliser flush, compact tool paragraphs, arrow telemetry labels; D17-D22 are retained as rejected design history, not an active cutover target |
+| [ADR-042](ADR-042-tool-registration-and-approval-layer.md) | Tool registration and approval layer | Accepted (amended 2026-04-07) | Tool schema registration, alias-based shell approval, and session-level ToolPolicy are in effect |
 | [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Active, with open adoption gates | Present in tree but not the default runtime parser path; 3 gates: live wiring, parity, defect reduction |
 | [ADR-044](ADR-044-test-suite-scalability-and-fixture-patterns.md) | Test suite scalability and fixture patterns | Proposed | 3-phase implementation roadmap; Phase 1: aggregator + RAII helpers; Phase 2: builder API + async; Phase 3: parameterization + coverage |
-| [ADR-045](ADR-045-replay-first-task-document-and-single-writer-state.md) | Replay-first task document and single-writer state | Proposed | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as canonical persisted history, full event coverage requirement, full-fidelity checkpoints, and session rollback markers; supersedes lossy `persistable_snapshot` as canonical resume source |
+| [ADR-045](ADR-045-replay-first-task-document-and-single-writer-state.md) | Replay-first task document and single-writer state | Proposed | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as accepted persisted history, full event coverage requirement, full-fidelity checkpoints, and session rollback markers; supersedes lossy `persistable_snapshot` as accepted resume source |
 | [ADR-046](ADR-046-agent-peer-message-channel.md) | Agent peer message channel | Accepted | Async append-only peer correction channel is accepted; dependency-direction constraints continue to govern any cross-process bridge |
 | [ADR-047 amendment](ADR-047-amendment-2026-04-16.md) | API-first runtime event envelope and trait reduction | Amended | Phase A targets `json_handoff.rs` envelope metadata and explicit tool lifecycle events before retiring legacy runtime loop traits |
 | [ADR-047](ADR-047-block-delta-protocol-discovery-dual-protocol-support.md) | Block-delta default, discovery, and dual-protocol support | Accepted | `tx_` IDs, negotiated `/v1/turns`, mapper SSE coverage, and unified local discovery are merged; docs and broader parity follow-through remain |
+| [ADR-048](ADR-048-operator-permissions-overlay-and-mode-precedence.md) | Operator permissions overlay and mode precedence | Proposed | Records the pre-implementation permissions-overlay invariants, protected-path precedence, untrusted-workspace demotion, and fail-closed non-interactive behavior |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -73,14 +75,16 @@ owned-surface review rather than host scrollback.
 
 ADR-039 Batch A is merged on main (PR #292); remaining batches B-D cover
 vocabulary, active indicator, and paragraph progress stream. ADR-038 is
-accepted and complete. The only external prerequisite in the next batch
-remains ADR-024 PG-03 tap auto-dispatch, which stays blocked until the
-separate tap repository exists. Full history and ADR status detail are
-located in `TASKS/ACTIVE-ROADMAP.md`.
+accepted and complete. ADR-048 now records the later permissions-overlay lane
+at the operator-policy boundary before enforcement code lands. The only
+external prerequisite in the next batch remains ADR-024 PG-03 tap
+auto-dispatch, which stays blocked until the separate tap repository exists.
+Full history and ADR status detail are located in `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
 | 11 | ADR-039 | 3 | Remaining batches: broader vocabulary pass, active indicator, paragraph progress stream |
+| 13 | ADR-048 | 1 | Pre-implementation permissions-overlay invariants recorded before enforcement work |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Next batch planned external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records
@@ -93,7 +97,7 @@ located in `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-004](completed/ADR-004-runtime-seam-headless-first.md) | Runtime seam headless-first | Superseded by ADR-006/007 |
 | [ADR-005](completed/ADR-005-cfg-test-mock-injection.md) | cfg-test mock injection | Accepted |
 | [ADR-006](completed/ADR-006-runtime-mode-contracts.md) | Runtime mode contracts | Accepted |
-| [ADR-007](completed/ADR-007-runtime-canonical-dispatch-no-alt-routing.md) | Canonical dispatch no-alt-routing | Accepted |
+| [ADR-007](completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md) | Accepted dispatch no-alt-routing | Accepted |
 | [ADR-008](completed/ADR-008-runtime-cutover-parity-guardrails.md) | Runtime cutover parity guardrails | Accepted |
 | [ADR-009](completed/ADR-009-runtime-core-tui-interaction-contract.md) | TUI interaction contract | Accepted |
 | [ADR-010](completed/ADR-010-runtime-core-tui-viewport-and-transcript.md) | TUI viewport and transcript | Accepted |

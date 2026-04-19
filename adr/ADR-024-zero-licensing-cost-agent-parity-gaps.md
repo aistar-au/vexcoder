@@ -93,10 +93,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 **Phases G and H (distribution and macOS packaging) follow the first-release stage** and must not block initial correctness work (ADR-022 phases 1-8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any implementation lane that begins Phase G or H work before those gates are green must be considered out of scope.
 
-**Phase I (local API server)** is specified by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (LocalApiServer transport binding); the implementation spans the runtime-mode bridge in `src/local_api.rs` and the transport layer in `src/server/` (HTTP, SSE, Unix socket).
+**Phase I (local API server)** is specified by ADR-025 (shared runtime JSON handoff contract) and ADR-026 (LocalApiServer transport binding); the implementation spans the runtime-mode bridge in `src/local_api.rs` and the transport layer in `src/server/` (HTTP, SSE, Unix socket).
 
 The dedicated ADRs for the Phase I machine-readable and transport surfaces are
-ADR-025 (canonical runtime JSON handoff contract) and ADR-026
+ADR-025 (shared runtime JSON handoff contract) and ADR-026
 (LocalApiServer transport binding). ADR-028 (application facade and transport
 boundaries) is the boundary ADR that Phase I CLI and LocalApiServer work must respect.
 
@@ -334,11 +334,11 @@ This constraint applies to Phase H specifically. It does not rule out a future n
 
 Specified in ADR-026, with the runtime-mode bridge in `src/local_api.rs` and transport implementation in `src/server/`. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with future adapters (native macOS application, IDE/editor surface, local automation, and any later browser-based client) without duplicating any Rust logic in those adapters. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
 
-For the first release, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `LocalApiServer` exists to carry the ADR-025 JSON handoff seam across a transport boundary so later task handoff, worker, and agent surfaces can reuse the same canonical envelopes. Browser-specific behavior, origin policy, and any future web UI remain deferred.
+For the first release, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `LocalApiServer` exists to carry the ADR-025 JSON handoff seam across a transport boundary so later task handoff, worker, and agent surfaces can reuse the same shared envelopes. Browser-specific behavior, origin policy, and any future web UI remain deferred.
 
 The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (private IPC, LAN, or internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
-`LocalApiServer` implementation is in `src/local_api.rs`. The specification is covered by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules).
+`LocalApiServer` implementation is in `src/local_api.rs`. The specification is covered by ADR-025 (shared runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules).
 
 **`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the TLS-scoped `LocalApiServer` design.
 
@@ -401,7 +401,7 @@ Add a `vex migrate config` sub-command that reads the environment for legacy var
 
 These are vexcoder's own pre-ADR-022 variable names. No third-party SDK variable names are mapped. Any migration from third-party tooling is the operator's responsibility and is documented in `docs/src/migration.md` but not automated.
 
-`docs/src/migration.md` must include the complete legacy-to-current variable mapping table, the `vex migrate config` usage guide, and a command alias reference (`/help` → `/commands`, etc.). The migration doc is the canonical source of truth; `vex migrate config` is a convenience generator that must match it exactly.
+`docs/src/migration.md` must include the complete legacy-to-current variable mapping table, the `vex migrate config` usage guide, and a command alias reference (`/help` → `/commands`, etc.). The migration doc is the authoritative source of truth; `vex migrate config` is a convenience generator that must match it exactly.
 
 ---
 
@@ -445,6 +445,11 @@ Reference CLIs expose runtime commands that let operators inspect and mutate the
 - Capability names in the command surface must be derived from the `Capability` enum's variant list at compile time. No hardcoded string list is permitted — the kebab-case conversion must be a function that iterates the enum to prevent silent drift.
 - `/allow session` does not persist to `.vex/state/`. Session grants expire when the process exits. Persistence of capability policy belongs to `.vex/config.toml` (ADR-024 Gap 3 layered config), not to interactive grants.
 - `/permissions` renders the current `active_grants` from `TuiMode`'s task-state reference, not a cached snapshot.
+
+ADR-048 defines the later permissions-overlay mode engine. Gap 13 remains the
+interactive command surface over active grants; it does not by itself define
+protected-path precedence, untrusted-workspace demotion, or non-interactive
+fail-closed behavior.
 
 **Anchor tests:** `test_tui_permissions_renders_empty_grants`; `test_tui_allow_grants_capability_once`; `test_tui_allow_defaults_to_once_scope`; `test_tui_deny_removes_grant`; `test_tui_allow_unknown_capability_emits_error`; `test_tui_allow_does_not_call_start_turn`.
 
@@ -578,7 +583,7 @@ Reference agents expose a user-level notes surface that persists across sessions
 per-session plan, checklist, or handoff note for operator inspection, the
 artifact is stored under `~/.config/vex/session-state/<session-id>/` (XDG path) or
 `~/.vex/session-state/<session-id>/` as fallback. Plain UTF-8 Markdown is the
-required format. `plan.md` is the canonical filename for turn-local planning
+required format. `plan.md` is the preferred filename for turn-local planning
 state. These files are operator-local scratch artifacts: they may be read back
 into the cli runtime or local API surface for the same session, but they
 do not replace ADR-022's structured durable `TaskState` and must never be
@@ -637,7 +642,7 @@ vex init [--dir <path>]
 **Actions (non-destructive — skips files that already exist):**
 
 1. Create `.vex/` directory in the current working directory (or `--dir`).
-2. Write `.vex/config.toml` with all keys present but commented out, matching the canonical key names from the ADR-024 normative additions table.
+2. Write `.vex/config.toml` with all keys present but commented out, matching the accepted key names from the ADR-024 normative additions table.
 3. Write `AGENTS.md` at the repo root with a minimal template instructing the operator to fill in project-specific guidance.
 4. Write `.vex/validate.toml` with an empty `[[commands]]` table and comments explaining the format.
 5. Print a summary of created and skipped files to stdout.
@@ -1207,7 +1212,7 @@ enum Capability {
 }
 ```
 
-### Config TOML canonical keys (additions)
+### Config TOML accepted keys (additions)
 
 ```toml
 # .vex/config.toml (repo-local) or ~/.config/vex/config.toml (user)
@@ -1540,7 +1545,7 @@ Rejected. Skills are workflow documents. A package manager adds lockfiles, depen
 
 ### Make the macOS wrapper a full native UI replacing the TUI
 
-Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in the native layer indefinitely. Any change to the Rust TUI would require a corresponding native change. Wrapping the cli surface preserves the single canonical implementation and eliminates that maintenance surface.
+Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in the native layer indefinitely. Any change to the Rust TUI would require a corresponding native change. Wrapping the cli surface preserves the single shared implementation and eliminates that maintenance surface.
 
 ### Use `x86_64-pc-windows-msvc` as the Windows build target from the start
 
@@ -1617,10 +1622,10 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [x] |
 | **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [x] |
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [x] |
-| **PI-09** | Canonical runtime JSON handoff types in `src/runtime/json_handoff.rs`, including `RuntimeRequest`, `RuntimeEnvelope`, `RuntimeEvent`, `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
-| **PI-10** | Normalization layer from provider/native stream updates into canonical runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the canonical boundary | [x] |
+| **PI-09** | Accepted runtime JSON handoff types in `src/runtime/json_handoff.rs`, including `RuntimeRequest`, `RuntimeEnvelope`, `RuntimeEvent`, `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
+| **PI-10** | Normalization layer from provider/native stream updates into shared runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the shared boundary | [x] |
 | **PI-11** | `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including MCP tool-name namespace validation and approval request variants | [x] |
-| **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [x] |
+| **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the shared envelope stream | [x] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [x] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [x] |
 | **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [x] |
@@ -1952,7 +1957,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - Implementation was merged as part of an earlier batch but not added to the ADR checklist.
   - Maps only vexcoder's own pre-ADR-022 variable names; no third-party SDK mappings.
-  - docs/src/migration.md is the canonical source of truth; vex migrate config output matches it exactly.
+  - docs/src/migration.md is the authoritative source of truth; vex migrate config output matches it exactly.
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
 
 ### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /compact, /fork

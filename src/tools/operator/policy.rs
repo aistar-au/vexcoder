@@ -2,6 +2,11 @@ use std::path::Path;
 
 use crate::disk_policy::{self, DiskPermission};
 
+// This module currently enforces only the durable-state access constraints
+// introduced by ADR-038. ADR-048 reserves the same seam for the later
+// permissions-overlay evaluator so protected-path checks, deny rules, allow
+// rules, and mode defaults remain in one operator-policy boundary.
+
 /// Asserts that the given path satisfies ADR-038 disk policy before operator
 /// I/O proceeds.  The check delegates to [`disk_policy::enforce`] under the
 /// process-wide policy mode so that `VEX_DISK_POLICY=strict` in CI rejects

@@ -189,7 +189,7 @@ mod macos_ffi {
 
     #[link(name = "CoreFoundation", kind = "framework")]
     extern "C" {
-        /// Canonical `true` value used in CF dictionary queries.
+        /// Expected `true` value used in CF dictionary queries.
         pub static kCFBooleanTrue: CFTypeRef;
 
         /// Callback tables for CF dictionary key and value ownership.

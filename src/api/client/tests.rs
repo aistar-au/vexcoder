@@ -674,7 +674,7 @@ fn test_system_prompt_includes_large_file_edit_guidance() {
 
 #[test]
 fn test_system_prompt_discourages_non_rustfmt_rust_diffs() {
-    assert!(BASE_SYSTEM_PROMPT.contains("keep diffs rustfmt-canonical"));
+    assert!(BASE_SYSTEM_PROMPT.contains("keep diffs rustfmt-consistent"));
     assert!(BASE_SYSTEM_PROMPT.contains("do not hand-wrap argument lists or method chains"));
 }
 
@@ -711,7 +711,7 @@ fn test_edit_tools_discourage_non_rustfmt_rust_diffs() {
         .and_then(|entry| entry.get("description"))
         .and_then(|value| value.as_str())
         .expect("apply_patch description must be present");
-    assert!(apply_patch_description.contains("rustfmt-canonical"));
+    assert!(apply_patch_description.contains("rustfmt-consistent"));
     assert!(apply_patch_description.contains("formatting-only churn"));
 
     let edit_file_description = entries
@@ -720,7 +720,7 @@ fn test_edit_tools_discourage_non_rustfmt_rust_diffs() {
         .and_then(|entry| entry.get("description"))
         .and_then(|value| value.as_str())
         .expect("edit_file description must be present");
-    assert!(edit_file_description.contains("rustfmt-canonical"));
+    assert!(edit_file_description.contains("rustfmt-consistent"));
     assert!(edit_file_description.contains("preserve surrounding style"));
 }
 

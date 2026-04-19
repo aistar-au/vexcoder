@@ -9,7 +9,7 @@ The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13
 
 The initial validation passed on 2026-03-15 and is recorded in
 `adr/ADR-022-free-open-coding-agent-roadmap.md`. The ADR-025 Phase I kickoff
-(PI-09 and PI-11) merged in PR #99 and established the canonical runtime
+(PI-09 and PI-11) merged in PR #99 and established the accepted runtime
 handoff types, normative tool-call grammar, and versioned schema assets.
 
 The next work batch is the ADR-025 Phase I continuation. The dependency
@@ -59,7 +59,7 @@ If running on GitHub.com, resolve the same files from:
 
 ### PI-10 — Normalization layer (start first)
 
-Add normalization layer from provider/native stream updates into canonical
+Add normalization layer from provider/native stream updates into accepted
 runtime envelopes.
 
 Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
@@ -96,7 +96,7 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
 - `ToolResult.tool_name` remains `Option<String>` until ADR-024 PF-01/PF-02
   (McpRegistry and approval wiring) are complete.
 - `StreamBlockStart/Delta/Complete` explicit no-project rule: these are TUI
-  render bookkeeping only and must not appear in the canonical envelope stream.
+  render bookkeeping only and must not appear in the shared envelope stream.
 
 Target files (expected):
 
@@ -113,11 +113,11 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
 - Schema parity tests (CI verifies schema-generation parity and round-trip
   stability)
 - Grammar parity tests (GBNF grammar consistency with schema)
-- BatchMode derivation tests (replaying canonical envelopes reconstructs the
+- BatchMode derivation tests (replaying shared envelopes reconstructs the
   existing summarized JSONL shape)
 - Required assertions:
   - First envelope of every turn has `seq == 1`
-  - `TurnRecord` + `SummaryRecord` replay from canonical envelopes matches the
+  - `TurnRecord` + `SummaryRecord` replay from shared envelopes matches the
     existing JSONL shape modulo JSON field ordering
   - `TurnRecord.response` uses `AssistantMessage.content` when present and
     falls back to concatenated `AssistantDelta.text`
@@ -171,7 +171,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 - This batch continues the post-gate Phase I track in documented dependency
   order.
 - PI-10 adds the normalization layer that maps provider/native stream updates
-  into canonical runtime envelopes.
+  into shared runtime envelopes.
 - PI-12 adds serde round-trip, schema parity, grammar parity, and BatchMode
   derivation test coverage.
 - ADR-026, ADR-028, ADR-029, and ADR-030 remain active but dependency-sequenced
@@ -180,7 +180,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 ## Expected deliverables
 
 - PI-10 implementation: normalization functions in `src/runtime/json_handoff.rs`
-  mapping provider-native types to canonical envelopes
+  mapping provider-native types to shared envelopes
 - PI-12 test coverage: round-trip, schema parity, grammar parity, and BatchMode
   derivation tests
 - Evidence blocks in `adr/ADR-025-runtime-json-handoff-contract.md` for PI-10

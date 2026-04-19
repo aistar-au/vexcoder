@@ -110,7 +110,7 @@ impl ConversationManager {
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        // Apply the canonical block-start event to the condenser.
+        // Apply the accepted block-start event to the condenser.
         let event = match &block {
             StreamBlock::Thinking { content, collapsed } => {
                 Some(RuntimeEvent::TranscriptBlockStart {
