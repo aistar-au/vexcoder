@@ -51,7 +51,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 40 | `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | ~144 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-runtime-envelope-api-sse-normalization.md> |
 | 41 | `TASKS/TASKS-DISPATCH-MAP.md` | ~110 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 42 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 43 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~53 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 43 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~399 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 44 | `TASKS/transcript-first-task-state.md` | ~175 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/transcript-first-task-state.md> |
 | 45 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~424 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 46 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
