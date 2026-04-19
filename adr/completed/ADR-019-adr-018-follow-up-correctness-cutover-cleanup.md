@@ -261,7 +261,7 @@ for the exact commit that closes the checklist item.
 
 ## Architecture Boundary Note (2026-03-15)
 
-ADR-028 clarifies the outer-layer split that this superseded cutover ADR left implicit. `src/bin/vex.rs` is the CLI entrypoint, but it is not the long-term home of reusable application semantics, transport framing, or machine-readable runtime contracts. Future CLI and LocalApiServer work must route through the application facade defined by ADR-028 rather than extending the binary or `src/app.rs` as permanent convergence points.
+ADR-028 clarifies the outer-layer split that this deprecated cutover ADR left implicit. `src/bin/vex.rs` is the CLI entrypoint, but it is not the long-term home of reusable application semantics, transport framing, or machine-readable runtime contracts. Future CLI and LocalApiServer work must route through the application facade defined by ADR-028 rather than extending the binary or `src/app.rs` as permanent convergence points.
 
 ---
 
@@ -269,7 +269,7 @@ ADR-028 clarifies the outer-layer split that this superseded cutover ADR left im
 
 ADR-027 replaces the follow-up execution contract recorded here for the
 interactive cli surface. The checklist and evidence in this file remain the
-superseded record of the managed-TUI cutover work, but new operator-facing TUI
+deprecated record of the managed-TUI cutover work, but new operator-facing TUI
 and passthrough changes must follow ADR-027.
 
 ### API Logging Follow-up - Canonicalize debug path env contract
