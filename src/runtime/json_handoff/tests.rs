@@ -218,7 +218,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             block: StreamBlock::ToolCall {
                 id: "provider-call-1".to_string(),
                 name: "read_file".to_string(),
-                input: json!({"path":"src/lib.rs"}),
+                input: json!({}),
                 status: crate::state::ToolStatus::Pending,
             },
         },
@@ -235,7 +235,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
                 status: crate::state::ToolStatus::Pending,
                 ..
             }
-        } if name == "read_file" && input["path"] == "src/lib.rs"
+        } if name == "read_file" && input == &json!({})
     ));
     assert!(matches!(
         transcript_block_start[1].event,
@@ -243,7 +243,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             ref tool_name,
             ref arguments,
             ..
-        } if tool_name == "read_file" && arguments["path"] == "src/lib.rs"
+        } if tool_name == "read_file" && arguments == &json!({})
     ));
     assert_eq!(
         transcript_block_start[0].source,
@@ -279,9 +279,11 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEvent::ToolCallArgumentsDelta {
             ref tool_name,
             ref delta,
+            arguments: Some(ref arguments),
             ..
         } if tool_name.as_deref() == Some("read_file")
             && delta == "{\"path\":\"src/lib.rs\"}"
+            && arguments["path"] == "src/lib.rs"
     ));
 
     let transcript_block_complete = normalizer
@@ -392,14 +394,14 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
         other => panic!("expected tool_call_started event, got {other:?}"),
     };
 
-    normalizer.normalize_ui_update(
+    let first_delta = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockDelta {
             index: 0,
             delta: r#"{"path":"src/"#.to_string(),
         },
         None,
     );
-    normalizer.normalize_ui_update(
+    let second_delta = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockDelta {
             index: 0,
             delta: r#"lib.rs"}"#.to_string(),
@@ -411,6 +413,22 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
     let snapshot = accumulator.snapshot();
     let map = snapshot.lock().unwrap_or_else(|e| e.into_inner());
     let tool_state = map.get(&runtime_call_id).expect("tool state present");
+    assert!(matches!(
+        first_delta[1].event,
+        RuntimeEvent::ToolCallArgumentsDelta {
+            arguments: None,
+            ref delta,
+            ..
+        } if delta == r#"{"path":"src/"#
+    ));
+    assert!(matches!(
+        second_delta[1].event,
+        RuntimeEvent::ToolCallArgumentsDelta {
+            arguments: Some(ref arguments),
+            ref delta,
+            ..
+        } if delta == r#"lib.rs"}"# && arguments["path"] == "src/lib.rs"
+    ));
     assert_eq!(tool_state.partial_args, r#"{"path":"src/lib.rs"}"#);
     assert_eq!(
         tool_state.delta_queue.iter().cloned().collect::<Vec<_>>(),

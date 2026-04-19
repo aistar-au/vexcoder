@@ -85,6 +85,11 @@ struct EventStreamState {
     request_url: String,
 }
 
+fn finish_pending_events(state: &mut EventStreamState) -> Option<RuntimeEnvelope> {
+    state.pending.extend(state.parser.finish());
+    state.pending.pop_front()
+}
+
 async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<RuntimeEnvelope>> {
     loop {
         if let Some(event) = state.pending.pop_front() {
@@ -92,8 +97,7 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
         }
 
         let Some(item) = state.upstream.next().await else {
-            state.pending.extend(state.parser.finish());
-            if let Some(event) = state.pending.pop_front() {
+            if let Some(event) = finish_pending_events(state) {
                 return Ok(Some(event));
             }
             return Ok(None);
@@ -108,7 +112,12 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
                         .process_sse_event(event.event_type.as_str(), event.data.as_str())?,
                 );
             }
-            Err(eventsource_client::Error::Eof) => return Ok(None),
+            Err(eventsource_client::Error::Eof) => {
+                if let Some(event) = finish_pending_events(state) {
+                    return Ok(Some(event));
+                }
+                return Ok(None);
+            }
             Err(eventsource_client::Error::UnexpectedResponse(response, body)) => {
                 let retry_after = response
                     .get_header_value("retry-after")
@@ -221,5 +230,34 @@ impl HttpTransport for ReqwestEventSourceTransport {
 
             response_builder.body(body).map_err(TransportError::new)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::RuntimeEvent;
+    use futures::stream;
+
+    #[tokio::test]
+    async fn eof_still_flushes_provider_normalized_turn_end() {
+        let mut parser = StreamParser::new();
+        let _ = parser
+            .process(
+                b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
+            )
+            .unwrap();
+
+        let mut state = EventStreamState {
+            upstream: Box::pin(stream::iter(vec![Err(eventsource_client::Error::Eof)])),
+            parser,
+            pending: VecDeque::new(),
+            request_url: "https://example.test/sse".to_string(),
+        };
+
+        let event = next_stream_event(&mut state).await.unwrap().unwrap();
+
+        assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
+        assert!(next_stream_event(&mut state).await.unwrap().is_none());
     }
 }

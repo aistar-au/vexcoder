@@ -539,7 +539,7 @@ mod tests {
                 block: StreamBlock::ToolCall {
                     id: "provider-call-1".to_string(),
                     name: "read_file".to_string(),
-                    input: json!({"path":"src/local_api.rs"}),
+                    input: json!({}),
                     status: crate::state::ToolStatus::Pending,
                 },
             },
@@ -584,7 +584,7 @@ mod tests {
                     status: crate::state::ToolStatus::Pending,
                     ..
                 }
-            } if name == "read_file" && input["path"] == "src/local_api.rs"
+            } if name == "read_file" && input == &json!({})
         ));
         assert!(matches!(
             tool_call.event,
@@ -592,16 +592,18 @@ mod tests {
                 ref tool_name,
                 ref arguments,
                 ..
-            } if tool_name == "read_file" && arguments["path"] == "src/local_api.rs"
+            } if tool_name == "read_file" && arguments == &json!({})
         ));
         assert!(matches!(
             tool_call_arguments_delta.event,
             RuntimeEvent::ToolCallArgumentsDelta {
                 ref tool_name,
                 ref delta,
+                arguments: Some(ref arguments),
                 ..
             } if tool_name.as_deref() == Some("read_file")
                 && delta == "{\"path\":\"src/local_api.rs\"}"
+                && arguments["path"] == "src/local_api.rs"
         ));
         assert!(matches!(
             transcript_block_delta.event,
