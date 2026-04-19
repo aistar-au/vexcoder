@@ -25,7 +25,7 @@ replacement. The higher-priority gaps are live state visibility, footer
 budgeting, overlay-based detail surfaces, and active or fallback fullscreen
 convergence.
 
-At the same time, local-model output can still arrive with malformed JSON,
+At the same time, upstream local-endpoint output can still arrive with malformed JSON,
 partial provider deltas, or other non-canonical blocks that may justify a
 broader structured parser lane in future work. That lane must remain at
 provider ingress and must not displace the accepted live parser path or
@@ -60,7 +60,7 @@ isolated parser unit tests.
 
 ### Gate 3 — Defect-reduction gate
 
-Before any default cutover, captured malformed local-model fixtures or
+Before any default cutover, captured malformed local-endpoint fixtures or
 equivalent regression tests must show a measurable reduction in transcript
 loss, provider decode ambiguity, or malformed-structure recovery failures
 relative to the current parser path.
@@ -77,7 +77,7 @@ relative to the current parser path.
 - The framework provides optional structured-output support code, but it does
   not by itself authorize parser cutover or removal of the existing live
   parser path. Shadow validation, targeted recovery experiments, or opt-in
-  local-model paths are permitted; default cutover requires all three gates.
+  local-endpoint paths are permitted; default cutover requires all three gates.
 
 ## Validation targets
 

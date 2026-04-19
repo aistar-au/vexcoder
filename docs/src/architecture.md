@@ -56,7 +56,7 @@ protocol surface implemented in-tree.
    strips a single leading space per WHATWG rules, handles BOM-prefixed streams,
    and recognises `\n`, `\r\n`, and `\r` line terminators.
 - Raw JSON chunk streams without SSE framing are unsupported. Providers and
-   local model runtimes are expected to emit valid SSE frames.
+   upstream local model servers are expected to emit valid SSE frames.
 
 Intentional deviations are documented and focused in scope:
 

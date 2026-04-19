@@ -39,7 +39,7 @@ These keys are read by the current runtime from config files:
 | `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
-| `model_profile` | Path to a repo-tracked profile under `models/` | default profile for the selected model runtime |
+| `model_profile` | Path to a repo-tracked profile under `models/` | default profile for the selected API backend |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
 | `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, `container`, or `bubblewrap` | `passthrough` |
@@ -58,12 +58,12 @@ working directory.
 ## Tool-call formats
 
 `tool_call_mode` controls how the runtime expects tool invocations to arrive
-from the model layer.
+from the upstream API stream.
 
 | Mode | Meaning | Current parser boundary |
 | :--- | :--- | :--- |
-| `structured` | Prefer native structured tool calls from the model runtime | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
-| `tagged-fallback` | Accept XML-like fallback tags from local runtimes that do not emit native structured deltas | Tagged `<function=...>` scanning remains the fast path, and the local-runtime fallback now defaults to a tagged-plus-XML parser chain that also accepts generic `<tool_call>` and `<invoke>` wrappers before normalizing them into the tagged text protocol |
+| `structured` | Prefer native structured tool calls from the upstream endpoint | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
+| `tagged-fallback` | Accept XML-like fallback tags from local endpoints that do not emit native structured deltas | Tagged `<function=...>` scanning remains the fast path, and the local-runtime fallback now defaults to a tagged-plus-XML parser chain that also accepts generic `<tool_call>` and `<invoke>` wrappers before normalizing them into the tagged text protocol |
 
 The runtime currently documents three structured tool-call shapes:
 
@@ -258,7 +258,7 @@ Overrides protocol inference. Accepted values: `messages-v1`, `chat-compat`.
 
 ### `VEX_MODEL_BACKEND`
 
-Overrides model-runtime inference. Accepted values: `local-runtime`, `api-server`.
+Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
 
 ### `VEX_TOOL_CALL_MODE`
 
@@ -276,7 +276,7 @@ Overrides the local text-protocol parser chain. Accepted values:
   generic `<tool_call>`, `<invoke>`, and `<tool_use>` wrappers.
 
 Local endpoints default to `hybrid` so XML-style tool wrappers still execute
-when the model runtime does not emit native structured tool deltas.
+when the local endpoint does not emit native structured tool deltas.
 
 Example:
 

@@ -33,10 +33,10 @@ The operator-facing problem was not one bug but one broken feedback loop:
 3. The TUI therefore had no transport-level signal to show during prompt
    evaluation beyond a client-side elapsed timer.
 4. That made long local turns look indistinguishable from a stalled client,
-   even when the model runtime was actively evaluating prompt tokens.
+   even when the local model server was actively evaluating prompt tokens.
 
 This is especially visible on local CPU-bound runs with large system prompts,
-where the model runtime can be healthy and progressing while no visible text token
+where the local model server can be healthy and progressing while no visible text token
 has been produced yet.
 
 ## Decision
@@ -56,7 +56,7 @@ streaming protocols.
 ### Request contract — chat-compatible protocol
 
 5. Local chat-compatible streaming requests must ask for prompt progress and
-  per-token timing metadata when the model runtime supports it.
+  per-token timing metadata when the local model server supports it.
 6. The request contract for that local path includes `return_progress = true`
    and `timings_per_token = true` as extra body parameters.
 7. Remote API-server payloads remain unchanged unless a separate ADR expands
@@ -66,7 +66,7 @@ streaming protocols.
 
 8. Messages/v1 streaming requests do not require opt-in options for telemetry.
   Prompt progress and timing data arrive as metadata on standard stream
-  events when the model runtime supports them.
+  events when the local model server supports them.
 9. The system prompt is passed as a top-level `system` field, not embedded in
    messages.
 10. Tool choice uses structured format (`{"type": "auto"}`), and stop
@@ -164,13 +164,13 @@ streaming protocols.
 
 ### Negative
 
-- The local chat-compatible path now knowingly depends on model-runtime-specific
+- The local chat-compatible path now knowingly depends on local-endpoint-specific
   progress fields and opt-in request options.
 - The messages/v1 path carries telemetry natively but depends on per-runtime
   support for populating `prompt_progress` and `timings` metadata.
 - Tests must cover metadata-only chunks because they are now semantically
   meaningful.
-- Telemetry availability still depends on model-runtime support; unsupported servers
+- Telemetry availability still depends on local-endpoint support; unsupported servers
   fall back to elapsed-only waiting state on either protocol.
 
 ## Implementation notes
