@@ -49,6 +49,12 @@ pub(crate) struct ChatCompatDelta {
     pub(crate) role: Option<String>,
     #[serde(default)]
     pub(crate) content: Option<String>,
+    // Several chat-compatible servers emit a `reasoning_content` field
+    // alongside `content` when mixed reasoning + tool-call streams are
+    // requested. The runtime treats it as a transcript-text delta so the
+    // downstream consumer observes no protocol-specific variation.
+    #[serde(default)]
+    pub(crate) reasoning_content: Option<String>,
     #[serde(default)]
     pub(crate) refusal: Option<String>,
     #[serde(default)]
