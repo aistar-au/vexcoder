@@ -26,15 +26,6 @@ use self::derived::{DerivedTurnState, empty_json_object, turn_tokens_from_usage}
 pub use self::derived::{runtime_approval_request_event, token_usage_from_turn_tokens};
 
 const SYNTHETIC_FINAL_TEXT_BLOCK_START: usize = 1_000_000;
-const THINKING_DATA_TAG: &str = "thinking_data";
-
-fn legacy_external_thinking_tag() -> &'static str {
-    concat!("re", "dacted_thinking")
-}
-
-fn transitional_internal_thinking_tag() -> &'static str {
-    concat!("su", "ppressed_thinking")
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeEnvelope {
@@ -315,9 +306,6 @@ enum ProviderContentBlockCompat {
         thinking: String,
         signature: String,
     },
-    ThinkingData {
-        data: String,
-    },
     ServerToolUse {
         id: String,
         name: String,
@@ -344,9 +332,6 @@ enum ProviderContentBlock {
     ToolResult,
     Thinking {
         thinking: String,
-    },
-    ThinkingData {
-        data: String,
     },
     ServerToolUse {
         id: String,
@@ -656,11 +641,18 @@ impl RuntimeEnvelopeNormalizer {
             ProviderStreamEvent::ContentBlockStart {
                 index,
                 content_block,
-            } => decode_provider_content_block(content_block)
-                .map(|content_block| {
+            } => match decode_provider_content_block(content_block) {
+                Ok(content_block) => {
                     self.normalize_provider_content_block_start(index, content_block)
-                })
-                .unwrap_or_default(),
+                }
+                Err(err) => vec![self.emit_event(RuntimeEvent::Error {
+                    code: "provider_content_block_start_decode".to_string(),
+                    message: format!(
+                        "failed to decode provider content_block_start event at index {index}: {err}"
+                    ),
+                    recoverable: true,
+                })],
+            },
             ProviderStreamEvent::ContentBlockDelta { index, delta } => provider_block_delta(&delta)
                 .map(|delta| self.normalize_provider_block_delta(index, delta))
                 .unwrap_or_default(),
@@ -1405,25 +1397,16 @@ impl RuntimeEnvelopeNormalizer {
     }
 }
 
-fn decode_provider_content_block(value: serde_json::Value) -> Option<ProviderContentBlock> {
-    let mut value = value;
-    if let Some(object) = value.as_object_mut()
-        && object
-            .get("type")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|tag| {
-                tag == legacy_external_thinking_tag() || tag == transitional_internal_thinking_tag()
-            })
-    {
-        object.insert(
-            "type".to_string(),
-            serde_json::Value::String(THINKING_DATA_TAG.to_string()),
-        );
-    }
+fn decode_provider_content_block(value: serde_json::Value) -> Result<ProviderContentBlock, String> {
+    let block_type = value
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("<missing>")
+        .to_string();
 
     serde_json::from_value::<ProviderContentBlockCompat>(value)
-        .ok()
         .map(Into::into)
+        .map_err(|err| format!("type={block_type}: {err}"))
 }
 
 impl From<ProviderContentBlockCompat> for ProviderContentBlock {
@@ -1457,7 +1440,6 @@ impl From<ProviderContentBlockCompat> for ProviderContentBlock {
                 let _ = signature;
                 Self::Thinking { thinking }
             }
-            ProviderContentBlockCompat::ThinkingData { data } => Self::ThinkingData { data },
             ProviderContentBlockCompat::ServerToolUse { id, name, input } => {
                 Self::ServerToolUse { id, name, input }
             }
@@ -1489,13 +1471,6 @@ fn provider_stream_block(
                 collapsed: false,
             },
             Some(thinking.clone()),
-        )),
-        ProviderContentBlock::ThinkingData { data } => Some((
-            StreamBlock::Thinking {
-                content: String::new(),
-                collapsed: false,
-            },
-            Some(data.clone()),
         )),
         ProviderContentBlock::ToolUse { id, name, input }
         | ProviderContentBlock::ServerToolUse { id, name, input } => Some((

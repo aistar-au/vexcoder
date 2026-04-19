@@ -469,8 +469,7 @@ impl ApiClient {
     }
 
     #[cfg(test)]
-    pub fn with_structured_tool_protocol(mut self, enabled: bool) -> Self {
-        let _ = enabled;
+    pub fn with_structured_tool_protocol(mut self) -> Self {
         self.tool_call_mode = ToolCallMode::Structured;
         self
     }

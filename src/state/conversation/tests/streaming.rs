@@ -49,7 +49,7 @@ data: {"type": "message_stop"}"#.to_string(),
             first_response_sse,
             second_response_sse,
         ])))
-        .with_structured_tool_protocol(false);
+        .with_structured_tool_protocol();
 
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
@@ -156,7 +156,7 @@ data: {"type": "message_stop"}"#.to_string(),
             first_response_sse,
             second_response_sse,
         ])))
-        .with_structured_tool_protocol(false);
+        .with_structured_tool_protocol();
 
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
@@ -170,44 +170,49 @@ data: {"type": "message_stop"}"#.to_string(),
 
     let mut saw_block_delta = false;
     let mut saw_typed_update = false;
+    let mut handle_update = |update| match update {
+        ConversationStreamUpdate::BlockDelta { index, delta } => {
+            if index == 1 && delta.contains("file.txt") {
+                saw_block_delta = true;
+            }
+        }
+        ConversationStreamUpdate::ToolCallArgumentsUpdated {
+            tool_call_id,
+            tool_name: _,
+            arguments,
+        } => {
+            if !tool_call_id.is_empty() && arguments == json!({"path": "file.txt"}) {
+                saw_typed_update = true;
+            }
+        }
+        ConversationStreamUpdate::ToolApprovalRequest(request) => {
+            let _ = request.response_tx.send(true);
+        }
+        ConversationStreamUpdate::Delta(_)
+        | ConversationStreamUpdate::BlockStart { .. }
+        | ConversationStreamUpdate::BlockComplete { .. }
+        | ConversationStreamUpdate::TranscriptLine(_)
+        | ConversationStreamUpdate::ServerMetadata(_)
+        | ConversationStreamUpdate::CommandSessionStarted { .. }
+        | ConversationStreamUpdate::CommandSessionAttached { .. }
+        | ConversationStreamUpdate::CommandSessionFinished { .. }
+        | ConversationStreamUpdate::ContextCompacted { .. }
+        | ConversationStreamUpdate::StreamError(_) => {}
+    };
 
     let final_text = loop {
         tokio::select! {
             result = &mut send_future => break result?,
             maybe_update = rx.recv() => {
                 let Some(update) = maybe_update else { continue; };
-                match update {
-                    ConversationStreamUpdate::BlockDelta { index, delta } => {
-                        if index == 1 && delta.contains("file.txt") {
-                            saw_block_delta = true;
-                        }
-                    }
-                    ConversationStreamUpdate::ToolCallArgumentsUpdated {
-                        tool_call_id,
-                        tool_name: _,
-                        arguments,
-                    } => {
-                        if !tool_call_id.is_empty() && arguments == json!({"path": "file.txt"}) {
-                            saw_typed_update = true;
-                        }
-                    }
-                    ConversationStreamUpdate::ToolApprovalRequest(request) => {
-                        let _ = request.response_tx.send(true);
-                    }
-                    ConversationStreamUpdate::Delta(_)
-                    | ConversationStreamUpdate::BlockStart { .. }
-                    | ConversationStreamUpdate::BlockComplete { .. }
-                    | ConversationStreamUpdate::TranscriptLine(_)
-                    | ConversationStreamUpdate::ServerMetadata(_)
-                    | ConversationStreamUpdate::CommandSessionStarted { .. }
-                    | ConversationStreamUpdate::CommandSessionAttached { .. }
-                    | ConversationStreamUpdate::CommandSessionFinished { .. }
-                    | ConversationStreamUpdate::ContextCompacted { .. }
-                    | ConversationStreamUpdate::StreamError(_) => {}
-                }
+                handle_update(update);
             }
         }
     };
+
+    while let Ok(update) = rx.try_recv() {
+        handle_update(update);
+    }
 
     assert!(
         saw_block_delta,
