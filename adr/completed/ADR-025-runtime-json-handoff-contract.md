@@ -217,6 +217,13 @@ This ADR explicitly makes the following distinction normative:
 - **Serialization layer:** JSON object, JSONL line, SSE `data:` payload, future WebSocket message
 - **Provider layer:** upstream/vendor stream formats, which must be normalized before they reach the shared layer
 
+Provider compatibility rule: once a canonical block/tag schema is accepted,
+provider adapters may decode upstream framing but must not rewrite removed
+legacy content-block tags or preserve a second semantic repair path behind the
+API boundary. If an upstream payload cannot be decoded into the canonical
+schema, the API boundary must surface a recoverable error rather than mutate
+the payload into an internal compatibility variant.
+
 JSONL is therefore **not** the runtime's source of truth. It is one output mode derived from the shared envelope model.
 
 ### 4. Trait-level handoff uses envelopeable events

@@ -19,11 +19,10 @@ consumer-boundary hardening follow-up is
 - The conversation tool loop now consumes accepted `RuntimeEvent` values,
   including runtime-owned tool-call IDs, metadata, and usage updates.
 - The merged follow-up lane closes the whole-system consumer cleanup from
-  PR #402. The active remaining work is structural extraction in
-  `src/runtime/json_handoff.rs`, the now-implemented `src/api/stream.rs`
-  split in PR #404, the remaining CLI/TUI tool-argument projection cleanup,
-  tagged/XML fallback evaluation, and final compatibility-only documentation
-  or config rewrite.
+  PR #402. Tagged/XML fallback parsing is now gone, legacy thinking-tag
+  rewrites no longer survive behind the API boundary, and the governing
+  ADR/task/docs set now states that provider ingress is the only
+  normalization seam.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -33,6 +32,11 @@ consumer-boundary hardening follow-up is
 Track the staged removal of compatibility-only internal streaming paths so the
 runtime, server SSE path, CLI update surfaces, and tool loop all consume one
 accepted `RuntimeEnvelope` stream.
+
+This lane exists to prevent the same architectural regression from recurring:
+once provider ingress and downstream runtime code both repair legacy dialects,
+the repository is again maintaining two semantic assembly paths for one
+accepted contract.
 
 Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 
@@ -87,11 +91,15 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   `src/runtime/update.rs`, and `src/app/model_update.rs` with runtime-owned
   typed updates, while preserving raw block deltas for renderer and envelope
   projection duties.
-- [ ] Remove tagged or XML fallback parsing once no backend depends on it.
+- [x] Remove tagged or XML fallback parsing and the remaining legacy
+  thinking-tag compatibility rewrite once canonical structured blocks are the
+  only accepted API shape.
 - [x] Replace compatibility fixtures in conversation, runtime, API, and server
   tests with envelope-oriented assertions where this lane changed behavior.
-- [ ] Remove compatibility-only config and documentation after the code path is
-  fully replaced.
+- [x] Surface provider block-decode failures as recoverable API-boundary
+  errors rather than silently normalizing them downstream.
+- [x] Remove or rewrite compatibility-only config and documentation after the
+  code path is fully replaced.
 
 ## Acceptance Gates
 
@@ -103,6 +111,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - [x] Local API, batch mode, CLI/TUI consumer projections, renderer
   projections, and task-document updates all derive from the same accepted
   event stream.
+- [x] Non-canonical provider block tags are rejected or surfaced as
+  recoverable API-boundary errors rather than rewritten into accepted runtime
+  content.
 - [x] Validation succeeds with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -134,17 +145,21 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   `streaming_tool_input_buffers` path, emits typed tool-call argument updates
   from the runtime/conversation layer, and retains raw block deltas only where
   envelope projection or block-oriented rendering still requires them.
-- Decide whether tagged and XML fallback parsing can now be removed outright,
-  or whether a narrower migration lane is still required for local endpoint
-  compatibility.
+- Completed in PR #408: tagged/XML fallback parsing and legacy thinking-tag
+  rewrites were removed because preserving them beside API-level
+  normalization recreated a second semantic repair path for the same runtime
+  contract.
 - Distinguish removed internal duplication from residual ingress-only
   compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
-  `ActiveToolBlock`, and `src/api/stream/mappers.rs` are gone, while
+  `ActiveToolBlock`, `src/api/stream/mappers.rs`,
+  `src/state/conversation/tool_call_parser.rs`, tagged/XML fallback parsing,
+  and legacy thinking-tag rewrites are gone, while
   `api_client.explicit_protocol` and the parser-local provider stream dialect
   in `src/api/stream/{framing,chat_compat,provider}.rs` remain only at the
   provider/config edge before immediate normalization.
-- Remove or rewrite compatibility-only documentation and ADR follow-up text
-  once the remaining consumer cleanup is complete.
+- Keep future ADR/task/docs updates aligned with the API-boundary rule: once a
+  canonical schema exists, downstream runtime code must not reintroduce a
+  compatibility rewrite for the same semantic job.
 
 ## Non-goals
 

@@ -10,6 +10,12 @@ tool-call argument JSON in `src/app/model_update.rs`. That behavior kept a
 second semantic assembly path behind the normalized API boundary even though
 `RuntimeEnvelope` already served as the accepted internal stream contract.
 
+The same branch now closes the residual compatibility-repair seam that had
+survived behind that boundary: tagged/XML fallback parsing and the remaining
+legacy thinking-tag rewrite have been removed from the runtime normalization
+path so provider ingress must emit canonical structured blocks or surface a
+recoverable decode error.
+
 ## Objective
 
 Keep the CLI and ratatui/crossterm stack as downstream consumers of runtime-
@@ -64,6 +70,9 @@ they still serve renderer or envelope-projection duties.
   `src/app.rs`, `src/app/turn.rs`, and `src/app/model_update.rs`.
 - [x] Keep raw `StreamBlockDelta` updates available for local envelope
   projection and renderer-oriented block handling.
+- [x] Remove tagged/XML fallback parsing and the remaining legacy thinking-tag
+  compatibility rewrite so no downstream compatibility parser remains behind
+  the accepted API boundary.
 - [x] Update focused tests so they assert the typed downstream update path
   directly.
 - [ ] Re-run full repository validation after the documentation and roadmap
@@ -77,13 +86,16 @@ they still serve renderer or envelope-projection duties.
   conversation layer and flow through typed runtime update messages.
 - [x] Raw block deltas still remain available where envelope projection or
   block-oriented rendering requires them.
+- [x] No downstream runtime or UI consumer rewrites legacy provider
+  tool/thinking tags into accepted runtime shapes.
 - [x] Focused tests cover conversation emission, runtime forwarding, and TUI
   projection of the typed update.
 
 ## Notes
 
-- This branch does not remove tagged or XML fallback parsing. Those remain a
-  separate REF-01 follow-up decision.
-- This branch does not alter local API envelope normalization semantics.
-  `src/local_api.rs` still ignores the typed UI update and relies on raw block
-  deltas for envelope derivation where required.
+- This branch removes tagged/XML fallback parsing and the last legacy
+  thinking-tag rewrite behind `RuntimeEnvelope` normalization. The hard cutover
+  exists to prevent the repository from maintaining two semantic assembly
+  paths for the same tool-call and transcript job.
+- `src/local_api.rs` still relies on raw block deltas only where envelope
+  projection requires them; that projection is not a second semantic parser.

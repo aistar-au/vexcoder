@@ -20,9 +20,10 @@ The repository still exposes three gaps that matter for that pivot:
 2. Tool-call lifecycle is still split between explicit tool events and
    transcript-block events, which forces downstream consumers to infer tool
    state from renderer-oriented deltas.
-3. Legacy runtime loop traits such as `RuntimeMode`, `FrontendAdapter`, and
-    `ToolCallParser` still exist even though the intended direction is one
-    accepted API/event surface with the interactive UI acting as a consumer.
+3. Legacy runtime loop traits such as `RuntimeMode` and `FrontendAdapter`
+  still exist, and the repository has historically carried compatibility
+  seams such as `ToolCallParser`, even though the intended direction is one
+  accepted API/event surface with the interactive UI acting as a consumer.
 
 ## External Precedent Summary
 
@@ -90,6 +91,13 @@ valid renderer-facing content events, but they are not the primary public
 expression of tool lifecycle. Tool state must be understandable without
 re-parsing transcript deltas.
 
+Provider-specific decoding belongs at immediate ingress. Once a payload is
+translated into the accepted runtime event stream, no downstream component may
+preserve removed text-protocol fallback paths, rewrite removed legacy
+tool/thinking tags, or silently repair non-canonical provider blocks into
+accepted shapes. Non-canonical provider payloads must instead surface as
+explicit recoverable API-boundary errors.
+
 ### 5. Runtime Requests Also Follow an API Contract
 
 Requests that expect a result carry a client-generated `request_id`. Fire-and-
@@ -106,8 +114,10 @@ follow-up simplification targets:
 - `RuntimeMode`
 - `FrontendAdapter`
 
-`ToolCallParser` is also a follow-up simplification target once structured tool
-calls are the accepted path and the text-protocol fallback is removed.
+`ToolCallParser` and the text-protocol fallback are retirement targets because
+the accepted path is structured tool calling normalized at the API boundary;
+reintroducing downstream fallback logic would recreate the duplicate semantic
+assembly this amendment is intended to remove.
 
 ### 7. True External Boundary Traits Remain Acceptable
 
@@ -147,9 +157,15 @@ consumer.
 
 ### Phase E — Structured Tools Hard Cutover
 
-If structured tools remain the supported direction, remove
-`src/state/conversation/tool_call_parser.rs` and the text-protocol fallback
-path rather than preserving them as indefinite compatibility seams.
+Structured tools are the supported direction. Remove
+`src/state/conversation/tool_call_parser.rs`, the text-protocol fallback path,
+and any legacy provider-tag rewrite that attempts to repair non-canonical
+payloads after API ingress rather than preserving them as indefinite
+compatibility seams.
+
+This hard cutover exists specifically to prevent the repository from
+maintaining parallel semantic assembly paths for the same tool-call and
+transcript job.
 
 ## Consequences
 
