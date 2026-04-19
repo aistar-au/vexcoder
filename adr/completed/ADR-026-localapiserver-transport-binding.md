@@ -624,7 +624,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 | **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, `vpn_trust=true` rejection until a dedicated ADR exists, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [x] |
 
 ### [PI-13] - HTTP transport adapter
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `67e248ba6564eecf16223cd6a9cf04bb202ebf3b`
 - Files changed:
   - `src/local_api.rs` (+683 -0)
@@ -641,7 +641,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added a `vex serve` entrypoint so the transport adapter can be launched without extending the TUI path.
 
 ### [PI-14] - Schema bundle endpoint
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `67e248ba6564eecf16223cd6a9cf04bb202ebf3b`
 - Files changed:
   - `src/local_api.rs` (+683 -0)
@@ -657,7 +657,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added focused local API tests covering health, schema, approval projection, and interrupt-to-cancelled turn behavior.
 
 ### [PI-15] - Transport security and Unix socket binding
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `039148d1e5edef373661a0b89ea642f285388c40`
 - Files changed:
   - `src/local_api.rs` (+527 -11)
@@ -680,7 +680,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added Unix-socket transport with stale-socket cleanup, `0600` permissions, and clean-shutdown removal while keeping HTTP and Unix auth rules split under `transport = "both"`.
 
 ### [PI-16] - Transport validation coverage
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `962ed933d8e0ab3b705ad14f9902db9654d28117`
 - Files changed:
   - `src/local_api.rs` (+269 -10)

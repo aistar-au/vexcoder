@@ -269,7 +269,7 @@ ADR-028 clarifies the outer-layer split that this superseded cutover ADR left im
 
 ADR-027 replaces the follow-up execution contract recorded here for the
 interactive cli surface. The checklist and evidence in this file remain the
-historical record of the managed-TUI cutover work, but new operator-facing TUI
+superseded record of the managed-TUI cutover work, but new operator-facing TUI
 and passthrough changes must follow ADR-027.
 
 ### API Logging Follow-up - Canonicalize debug path env contract

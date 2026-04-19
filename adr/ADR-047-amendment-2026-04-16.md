@@ -21,7 +21,8 @@ The repository still exposes three gaps that matter for that pivot:
    transcript-block events, which forces downstream consumers to infer tool
    state from renderer-oriented deltas.
 3. Legacy runtime loop traits such as `RuntimeMode` and `FrontendAdapter`
-  still exist, and the repository has historically carried compatibility
+  still exist, and the repository has continued to carry now-deprecated
+  compatibility
   seams such as `ToolCallParser`, even though the intended direction is one
   accepted API/event surface with the interactive UI acting as a consumer.
 

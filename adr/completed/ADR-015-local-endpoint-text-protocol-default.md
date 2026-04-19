@@ -5,12 +5,12 @@
 **Deciders:** Core maintainer
 **Related tasks:** `TASKS/completed/CRIT-18-local-tool-loop-enrichment-consistency.md`
 
-> Historical note: the text-protocol fallback default described here has been
-> superseded by the API-boundary normalization rule captured in ADR-025,
-> ADR-043, and the ADR-047 amendment. Structured tool payloads are now the
-> only accepted downstream contract, and non-canonical provider payloads must
-> fail or surface recoverable ingress errors rather than being repaired behind
-> the runtime API.
+> Deprecated-default notice: the text-protocol fallback default described here
+> no longer governs downstream handling. ADR-025, ADR-043, and the ADR-047
+> amendment now require structured tool payloads as the only accepted
+> downstream contract, with non-canonical provider payloads failing or
+> surfacing recoverable ingress errors instead of being repaired behind the
+> runtime API.
 
 ## Context
 

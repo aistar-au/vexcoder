@@ -168,7 +168,7 @@ current tree.
   - `main` constructs runtime/context via `build_runtime(config)?`.
   - `runtime.run(&mut frontend, &mut ctx).await` is executed.
 - **Note**:
-  - This was a historical issue reflected in older review text, now resolved.
+  - This reflected an obsolete concern in older review text and is now resolved.
 
 ### 17) Unconditional redraw loop / hot idle rendering
 - **Status**: **Completed (2026-02-22)**

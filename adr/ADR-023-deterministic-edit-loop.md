@@ -823,7 +823,7 @@ When checking a box above, append an evidence block under this section:
 
 ### Phase-1 validation gate - ADR-023 command-surface regression pass
 - Operator: coding agent
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
 - Scope:
     - validate the completed ADR-023 command surface against the ADR-022 first-release gate

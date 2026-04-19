@@ -1745,7 +1745,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - `.agents/skills/registry.toml` — skills registry manifest
 
 ### [PB-01 / PB-02 / PB-03] - completions, hooks, and skills CLI surface
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `1aaea9211c5387b3283a20e77b3a123939380477`
 - Files changed:
   - `CONTRIBUTING.md` (+3 -0)
@@ -1768,7 +1768,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Hook installation remains worktree-aware and repo-root anchoring stays in place for `.vex/state` and `.agents/skills/registry.toml`.
 
 ### [PA-01] - Layered config resolution chain
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `39d7ab385f5e8c53eac5b1e15a651eeb61c36dcc`
 - Files changed:
   - `src/config.rs` (+323 -72)
@@ -1784,7 +1784,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The commit-debug gate reached quorum with no blocking findings after a clean rerun.
 
 ### [PJ-03] - User persistent notes (`/memory`)
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
 - Files changed:
   - `src/app.rs` (+354 -6)
@@ -1803,7 +1803,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The same merge path also carried the base `PE-01`/`PE-02` implementation that was closed out later on a dedicated integration branch.
 
 ### [PE-01 / PE-02] - BatchMode + vex exec
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
 - Files changed:
   - `Makefile` (+5 -3): extend `check-boundary` to cover `src/batch_mode.rs`
@@ -1837,7 +1837,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `tokens` remain deferred to `PL-03` per ADR-024 Gap 28.
 
 ### [PL-01] - Pre/post-tool-call hooks
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `0e87859af38186f70fa2802c25d9dc83ac20550d`
 - Files changed:
   - `src/config.rs` (+47 -0)
@@ -1961,7 +1961,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
 
 ### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /compact, /fork
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
   - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label revision; task-layout now reads from the running `current_task` state
@@ -1996,7 +1996,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `Capability` enum confirmed: `McpTool` variant merged in Phase F (this branch); PI-06/PI-07 (`/mcp list`/`/mcp tools`) merged in the same batch.
 
 ### [PK-01 / PK-02] - /quit, /exit, /about
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Files changed:
   - `build.rs` (new) — compile-time injection of `GIT_COMMIT_SHORT` and `BUILD_DATE`
   - `src/app.rs` — `/quit`, `/exit`, `/about` slash commands
@@ -2020,7 +2020,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
     `env!()` macros with `"unknown"` fallback.
 
 ### [PI-01 / PI-02 / PI-03 / PM-01 / PM-03] - permissions, resume, and print surfaces
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `aa4ba77d91525391a7773b16998eba464a04d610`
 - Files changed:
   - `src/app.rs` (+398 -20)
@@ -2039,7 +2039,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR added the command surface earlier than the ADR checklist update; this block updates the checklist to match the existing source tree.
 
 ### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `336708b7805b39159135c863b0a31eddb64a6c36`
 - Files changed:
   - `src/app.rs` (+352 -0)
@@ -2060,7 +2060,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `/diff` renders truncated git diff output without starting a model turn.
 
 ### [PK-03 / PK-04] - inline path injection and shell passthrough
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `8a329754582b024b50a0988f144717eb20d0b470`
 - Files changed:
   - `src/app.rs` (+551 -21)
@@ -2079,7 +2079,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR added this surface earlier than the ADR checklist update; this block updates the checklist to match the existing source tree.
 
 ### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `07dd065c8adae9bec71f86f0986314c5c1dc7a2a`
 - Files changed:
   - `src/app.rs` (+619 -0)
@@ -2103,7 +2103,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - This batch also refreshed the tracked-file map for the new custom command module.
 
 ### [PL-02 / PL-03 / PL-04] - doctor, usage accounting, and export
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `796c54d4caf91136249a43c27a94e4d3902dd48c`
 - Files changed:
   - `src/doctor.rs` (+369 -0)
@@ -2131,7 +2131,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR also refreshed turn evidence persistence so export uses the same saved turn schema as `BatchMode`.
 
 ### [PK-08] - git branch wrapper and PR summary draft
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Files changed:
   - `src/bin/vex.rs` — adds `vex branch <name>` and `vex pr-summary`
   - `src/runtime/task_state.rs` — records the most recent saved branch name

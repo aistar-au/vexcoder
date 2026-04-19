@@ -25,7 +25,7 @@ The transcript-first cutover is already in place for the API/runtime envelope:
   must read transcript block events only.
 
 The alternate-route removal is therefore complete in code and schema. Any
-remaining references are historical notes or task-planning text, not live
+remaining references are superseded notes or task-planning text, not live
 runtime behavior.
 
 ---

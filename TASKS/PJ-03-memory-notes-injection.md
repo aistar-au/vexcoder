@@ -121,7 +121,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `c289cac`
 - Files changed:
   - `TASKS/PJ-03-memory-notes-injection.md` (this file)
@@ -141,7 +141,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
-- Historical branch name: omitted
+- Deprecated branch name: omitted
 - Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
 - Files changed:
   - `src/app.rs` (+`354` -`6`)

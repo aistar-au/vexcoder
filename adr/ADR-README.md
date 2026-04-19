@@ -64,7 +64,7 @@ the top-level `adr/` directory pending a housekeeping move.
 ## Remaining Work Summary (current transcript surface + 1 external dependency)
 
 ADR-031 and ADR-041 still retain the 2026-04-08 host-owned scrollback text as
-historical context, but that direction is superseded by the 2026-04-09
+superseded context, but that direction is displaced by the 2026-04-09
 owned-transcript correction. The operator surface keeps one app-owned
 transcript, review stays in-surface or via explicit overlays, and no ratatui
 inline viewport insertion or `HostScrollbackSink` cutover is an active merge
