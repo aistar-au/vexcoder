@@ -45,10 +45,15 @@ JSON rather than as a second event schema.
   the `src/api/stream.rs` extraction is in place under
   `src/api/stream/{framing,chat_compat,provider}.rs`, so the next structural
   follow-up is the runtime handoff split even where behavior stays unchanged.
-- `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
-  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` were
-  audited for residual compatibility-shaped projections; no additional
-  internal consumer path remained beyond the provider-edge adapter.
+- A post-PR #404 consumer-boundary hardening pass now routes structured
+  tool-call arguments through `src/state/conversation/send_message.rs`,
+  `src/runtime/context.rs`, and `src/runtime/update.rs`, so
+  `src/app/model_update.rs` no longer reparses raw JSON tool-call deltas in
+  the ratatui app layer.
+- `src/local_api.rs`, `src/bin/vex/**`, `src/tui_frontend.rs`, and
+  `src/batch_mode.rs` remain downstream projections of the accepted contract;
+  raw block deltas are preserved only where envelope projection or renderer-
+  oriented block handling still requires them.
 - The deleted internal transport machinery does not appear in live source any
   longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
   dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
@@ -106,6 +111,16 @@ CLI plus ratatui/crossterm stack remain downstream of the normalized API.
 
 - Introduce event IDs and replay semantics when the transport is ready to
   support resumable envelope delivery.
+
+### Batch F. CLI/TUI Consumer-Boundary Hardening
+
+- Remove the residual ratatui-side tool-call JSON buffer from
+  `src/app/model_update.rs`.
+- Emit a typed runtime/UI update for tool-call argument changes so the
+  terminal consumer observes structured state rather than reparsing transport
+  fragments.
+- Preserve raw block deltas only for envelope projection and block-oriented
+  renderer duties.
 
 ## Follow-up Lane
 

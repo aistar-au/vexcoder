@@ -7,7 +7,9 @@ Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
 Merged in PR #402. The whole-system consumer cleanup follow-up landed on
 `work/vexcoder-runtime-envelope-client-api-direct-consumption` in PR #403,
 and the active structural-extraction follow-up is
-`work/vexcoder-api-stream-structural-extraction` in PR #404.
+`work/vexcoder-api-stream-structural-extraction` in PR #404. The current
+consumer-boundary hardening follow-up is
+`work/vexcoder-cli-tui-envelope-consumer-audit`.
 
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into
@@ -19,8 +21,9 @@ and the active structural-extraction follow-up is
 - The merged follow-up lane closes the whole-system consumer cleanup from
   PR #402. The active remaining work is structural extraction in
   `src/runtime/json_handoff.rs`, the now-implemented `src/api/stream.rs`
-  split in PR #404, tagged/XML fallback evaluation, and final
-  compatibility-only documentation or config rewrite.
+  split in PR #404, the remaining CLI/TUI tool-argument projection cleanup,
+  tagged/XML fallback evaluation, and final compatibility-only documentation
+  or config rewrite.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -79,10 +82,12 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   while the normalized API seam stays explicit.
 - [x] Audit the CLI and ratatui/crossterm consumer stack so it projects the
   normalized API contract rather than rebuilding stream semantics behind it.
+- [x] Replace the remaining ratatui-side tool-call argument reassembly in
+  `src/state/conversation/send_message.rs`, `src/runtime/context.rs`,
+  `src/runtime/update.rs`, and `src/app/model_update.rs` with runtime-owned
+  typed updates, while preserving raw block deltas for renderer and envelope
+  projection duties.
 - [ ] Remove tagged or XML fallback parsing once no backend depends on it.
-- [x] Confirm `src/runtime/context.rs`, `src/runtime/update.rs`, and
-  `src/app/model_update.rs` already operate as accepted projections; keep only
-  naming cleanup where compatibility-era wording remained.
 - [x] Replace compatibility fixtures in conversation, runtime, API, and server
   tests with envelope-oriented assertions where this lane changed behavior.
 - [ ] Remove compatibility-only config and documentation after the code path is
@@ -124,6 +129,11 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - Batch E: resumable replay support.
   Introduce event IDs and replay semantics when the server transport is ready
   to support resumable envelope delivery rather than only keepalive framing.
+- Batch F: CLI/TUI consumer-boundary hardening.
+  The current follow-up branch removes the residual ratatui-side
+  `streaming_tool_input_buffers` path, emits typed tool-call argument updates
+  from the runtime/conversation layer, and retains raw block deltas only where
+  envelope projection or block-oriented rendering still requires them.
 - Decide whether tagged and XML fallback parsing can now be removed outright,
   or whether a narrower migration lane is still required for local endpoint
   compatibility.

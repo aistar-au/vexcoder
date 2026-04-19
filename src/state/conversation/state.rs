@@ -44,6 +44,11 @@ pub enum ConversationStreamUpdate {
         index: usize,
         delta: String,
     },
+    ToolCallArgumentsUpdated {
+        tool_call_id: String,
+        tool_name: Option<String>,
+        arguments: serde_json::Value,
+    },
     BlockComplete {
         index: usize,
     },

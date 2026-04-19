@@ -481,6 +481,7 @@ impl RuntimeEnvelopeNormalizer {
             UiUpdate::CommandSessionStarted { .. }
             | UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::CommandSessionFinished { .. }
+            | UiUpdate::ToolCallArgumentsUpdated { .. }
             | UiUpdate::EditLoopComplete { .. }
             | UiUpdate::ContextCompacted { .. } => Vec::new(),
         }

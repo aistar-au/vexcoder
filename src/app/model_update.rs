@@ -285,8 +285,6 @@ impl TuiMode {
                                 input,
                                 status: crate::state::ToolStatus::Pending,
                             });
-                            self.streaming_tool_input_buffers
-                                .insert(index, String::new());
                             if self.timeline_follow_mode {
                                 let total = self.timeline_entry_count();
                                 self.selected_timeline_index = total.saturating_sub(1);
@@ -353,7 +351,7 @@ impl TuiMode {
             }
 
             UiUpdate::StreamBlockDelta { index, delta } => {
-                let updated_text = if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_turn.as_mut() {
                     active.entries.iter_mut().rev().any(|e| {
                         if let TurnEntry::AssistantBlock { block, .. } = e
                             && block.block_index == index
@@ -363,27 +361,34 @@ impl TuiMode {
                             return true;
                         }
                         false
-                    })
-                } else {
-                    false
-                };
-                if !updated_text
-                    && let Some(raw) = self.streaming_tool_input_buffers.get_mut(&index)
-                {
-                    raw.push_str(&delta);
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(raw)
-                        && let Some(active) = self.task_doc.active_turn.as_mut()
-                    {
-                        // Update the last ToolCall entry's input.
-                        for entry in active.entries.iter_mut().rev() {
-                            if let TurnEntry::ToolCall { input, .. } = entry {
-                                *input = parsed;
-                                break;
+                    });
+                }
+                self.clamp_transcript_after_mutation();
+            }
+
+            UiUpdate::ToolCallArgumentsUpdated {
+                tool_call_id,
+                tool_name,
+                arguments,
+            } => {
+                let previous_output_len = self.expanded_output_row_count();
+                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                    for entry in active.entries.iter_mut().rev() {
+                        if let TurnEntry::ToolCall {
+                            id, name, input, ..
+                        } = entry
+                            && *id == tool_call_id
+                        {
+                            if let Some(updated_name) = tool_name {
+                                *name = updated_name;
                             }
+                            *input = arguments;
+                            break;
                         }
                     }
                 }
                 self.clamp_transcript_after_mutation();
+                self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
 
             UiUpdate::StreamBlockComplete { index } => {
@@ -397,7 +402,6 @@ impl TuiMode {
                         }
                     }
                 }
-                self.streaming_tool_input_buffers.remove(&index);
             }
 
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
@@ -496,7 +500,6 @@ impl TuiMode {
                 }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
-                self.streaming_tool_input_buffers.clear();
                 if let Some(active) = self.task_doc.active_turn.as_mut() {
                     active.cancel_pending = false;
                 }
@@ -618,7 +621,6 @@ impl TuiMode {
                 }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
-                self.streaming_tool_input_buffers.clear();
                 self.last_turn_duration = self.turn_started_at.map(|s| s.elapsed());
                 self.last_error_message = Some(msg.clone());
                 self.push_document_notice(format!("[error] {msg}"), NoticeSeverity::Error);

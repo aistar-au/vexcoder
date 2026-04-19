@@ -424,9 +424,6 @@ pub struct TuiMode {
     /// System notices that arrived before the first turn opened (e.g. notes
     /// warnings, sandbox state).  Shown at the top of the transcript.
     pre_session_notices: Vec<String>,
-    /// Raw partial-JSON accumulator for streaming tool-call input fragments,
-    /// keyed by block index.  Cleared when the block completes or turn ends.
-    streaming_tool_input_buffers: std::collections::HashMap<usize, String>,
     /// Set to `true` once structured final-block updates have supplied the
     /// visible assistant text, so that flat `StreamDelta` events are skipped
     /// and the same content is not counted twice.

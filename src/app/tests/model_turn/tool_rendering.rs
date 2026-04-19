@@ -233,7 +233,7 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
 // -- streaming deltas --------------------------------------------------------
 
 #[test]
-fn test_stream_block_delta_updates_pending_tool_call_input() {
+fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -266,7 +266,8 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
         "StreamBlockStart must register pending tool call in active turn entries"
     );
 
-    // First partial delta — not yet valid JSON.
+    // Raw block deltas should no longer mutate the pending tool call input in
+    // the TUI layer.
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -291,14 +292,15 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
         "partial delta must not update pending tool call input"
     );
 
-    // Second delta completes the JSON.
     mode.on_model_update(
-        UiUpdate::StreamBlockDelta {
-            index: 0,
-            delta: r#""foo.rs"}"#.to_string(),
+        UiUpdate::ToolCallArgumentsUpdated {
+            tool_call_id: "tc1".to_string(),
+            tool_name: Some("read_file".to_string()),
+            arguments: serde_json::json!({"path": "foo.rs"}),
         },
         &mut ctx,
     );
+    mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
     let tc1_input_complete = mode.task_doc.active_turn.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
             if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
@@ -312,17 +314,72 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
     assert_eq!(
         tc1_input_complete,
         Some(serde_json::json!({"path": "foo.rs"})),
-        "complete delta must update pending tool call input with parsed value"
+        "typed updates must replace pending tool call input with parsed value"
     );
     assert!(
         mode.history_lines()
             .iter()
             .any(|line| line == "[detail] Input: path: foo.rs"),
-        "complete delta must replace the pending transcript rows with the parsed preview"
+        "typed updates must replace the pending transcript rows with the parsed preview"
     );
 }
 
 // -- scroll preservation -----------------------------------------------------
+
+#[test]
+fn test_tool_call_arguments_updated_preserves_scroll_by_net_growth() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    for index in 0..18 {
+        mode.push_document_notice(
+            format!("history row {index}"),
+            crate::runtime::NoticeSeverity::Info,
+        );
+    }
+    mode.begin_turn_capture("test".to_string());
+    mode.transcript_scroll_offset = 4;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-args-scroll".to_string(),
+                name: "search_files".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    let previous_output_len = mode.expanded_output_row_count();
+    let previous_scroll_offset = mode.transcript_scroll_offset;
+
+    mode.on_model_update(
+        UiUpdate::ToolCallArgumentsUpdated {
+            tool_call_id: "tc-args-scroll".to_string(),
+            tool_name: Some("search_files".to_string()),
+            arguments: serde_json::json!({
+                "query": "needle",
+                "path": "src",
+                "max_results": 30
+            }),
+        },
+        &mut ctx,
+    );
+
+    let new_output_len = mode.expanded_output_row_count();
+    assert!(
+        new_output_len > previous_output_len,
+        "typed argument updates should grow the pending tool paragraph when additional preview rows appear"
+    );
+    assert_eq!(
+        mode.transcript_scroll_offset,
+        previous_scroll_offset + (new_output_len - previous_output_len),
+        "scroll preservation must use the net growth introduced by typed argument updates"
+    );
+}
 
 #[test]
 fn test_tool_result_replacement_preserves_scroll_by_net_growth() {

@@ -322,12 +322,33 @@ async fn test_ref_08_block_delta_partial_json_not_mirrored_to_stream_delta() {
         &tx,
     );
 
+    forward_conversation_update(
+        ConversationStreamUpdate::ToolCallArgumentsUpdated {
+            tool_call_id: "toolu_1".to_string(),
+            tool_name: Some("read_file".to_string()),
+            arguments: serde_json::json!({"path": "file.txt"}),
+        },
+        &mut textual_block_by_index,
+        &mut normaliser,
+        &tx,
+    );
+
     let mut saw_block_delta = false;
+    let mut saw_tool_arguments = false;
     let mut leaked_stream_delta = false;
-    for _ in 0..4 {
+    for _ in 0..5 {
         match rx.try_recv() {
             Ok(UiUpdate::StreamBlockDelta { delta, .. }) if delta.contains("path") => {
                 saw_block_delta = true
+            }
+            Ok(UiUpdate::ToolCallArgumentsUpdated {
+                tool_call_id,
+                tool_name,
+                arguments,
+            }) => {
+                saw_tool_arguments = tool_call_id == "toolu_1"
+                    && tool_name.as_deref() == Some("read_file")
+                    && arguments == serde_json::json!({"path": "file.txt"});
             }
             Ok(UiUpdate::StreamDelta(text)) if text.contains("path") => leaked_stream_delta = true,
             Ok(_) => {}
@@ -338,6 +359,10 @@ async fn test_ref_08_block_delta_partial_json_not_mirrored_to_stream_delta() {
     assert!(
         saw_block_delta,
         "expected StreamBlockDelta from partial_json"
+    );
+    assert!(
+        saw_tool_arguments,
+        "expected ToolCallArgumentsUpdated when structured arguments are available"
     );
     assert!(
         !leaked_stream_delta,

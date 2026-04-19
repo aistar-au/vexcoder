@@ -296,6 +296,7 @@ impl RuntimeMode for LocalApiMode {
                 shared.active_command_sessions.insert(session_id);
             }
             UiUpdate::CommandSessionAttached { .. }
+            | UiUpdate::ToolCallArgumentsUpdated { .. }
             | UiUpdate::EditLoopComplete { .. }
             | UiUpdate::ContextCompacted { .. } => {}
             UiUpdate::CommandSessionFinished { session_id } => {
