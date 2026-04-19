@@ -4,7 +4,7 @@
 
 - [x] Review a clean-room reference CLI pattern for context handling and tool loops.
 - [x] Confirm the session-log symptom: repeated read-only tool calls are more likely when large or low-context tool results are echoed back raw.
-- [x] Confirm the ratatui surface should keep status, transcript, and composer on one canonical render path.
+- [x] Confirm the ratatui surface should keep status, transcript, and composer on one shared render path.
 
 ## Checklist
 

@@ -13,7 +13,7 @@
 
 REF-08 merged on 2026-02-19 and added:
 
-- Canonical runtime dispatch: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`
+- Accepted runtime dispatch: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`
 - `TuiMode` with overlay state, approval handling, `InputEditor` with undo/redo and
   UTF-8 boundary safety, typed `UserInputEvent::Interrupt` routing
 - Architecture contract CI: `check_no_alternate_routing.sh`, `check_forbidden_imports.sh`

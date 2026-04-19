@@ -20,7 +20,7 @@ Format: `MAJOR.MINOR.PATCH[-PRERELEASE]`
 Numeric pre-release identifiers must not contain leading zeros. Use `rc.1`,
 not `rc.01`.
 
-The canonical version lives in `Cargo.toml` under `[package] version`. All
+The current version lives in `Cargo.toml` under `[package] version`. All
 tags, archive names, and release artifacts derive from this single source.
 
 Dependency maintenance is separate from the release version bump. Direct crate

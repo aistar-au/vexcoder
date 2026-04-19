@@ -87,7 +87,7 @@ impl ConversationManager {
         tool_timeout: Duration,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
-        // Normalize commonly-hallucinated shell tool aliases to the canonical
+        // Normalize commonly-hallucinated shell tool aliases to the accepted
         // run_command name so they all route through the approval gate (ADR-042 D5/D6).
         let name = normalize_shell_tool_alias(name);
 
@@ -407,7 +407,7 @@ async fn execute_mcp_tool(
     }
 }
 
-/// Normalize commonly-hallucinated shell tool aliases to the canonical `run_command`
+/// Normalize commonly-hallucinated shell tool aliases to the accepted `run_command`
 /// name so they all pass through the defense-in-depth approval overlay (ADR-042 D5/D6).
 ///
 /// Names covered: `bash`, `run_shell_command`, `execute_command`, `execute_bash`.

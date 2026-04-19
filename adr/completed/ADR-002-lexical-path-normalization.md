@@ -12,7 +12,7 @@
 
 `vexcoder` gives an LLM direct `write_file` and `edit_file` access to the working directory. The tool executor must prevent the model from writing outside the workspace — whether through `..` traversal, absolute paths, or symlink escapes.
 
-The naive solution is to call `std::fs::canonicalize()` on the resolved path and verify it starts with the canonical working directory. This is a well-known pattern and is correct for existing files.
+The naive solution is to call `std::fs::canonicalize()` on the resolved path and verify it starts with the resolved working directory. This is a well-known pattern and is correct for existing files.
 
 However, the tool executor must also handle `write_file` calls that target files that **do not yet exist**. An agent creating a new file at `src/new_module.rs` cannot have that path canonicalized because there is nothing on disk to resolve. `canonicalize()` on a non-existent path returns `Err(NotFound)`.
 
@@ -33,7 +33,7 @@ The full validation sequence in `resolve_path()`:
 1. Reject absolute paths and backslash paths immediately.
 2. Walk components; reject any `ParentDir` (`..`) component.
 3. Join with working directory and lexically normalize via `normalize_path()`.
-4. Call `ensure_path_is_within_workspace()`, which canonicalizes only the nearest existing ancestor and verifies it is within the canonical working directory.
+4. Call `ensure_path_is_within_workspace()`, which canonicalizes only the nearest existing ancestor and verifies it is within the resolved working directory.
 
 ---
 

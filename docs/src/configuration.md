@@ -561,7 +561,7 @@ export VEX_MODEL_TOKEN="your-token"
 ## API Client Configuration (ADR-047)
 
 The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
-connection path, `explicit_protocol` can pin the canonical request protocol for the session,
+connection path, `explicit_protocol` can pin the accepted request protocol for the session,
 `probe_timeout_ms` controls the discovery-request ceiling, and
 `delta_accumulator_memory_watermark_mb` bounds in-progress tool-call delta
 state.

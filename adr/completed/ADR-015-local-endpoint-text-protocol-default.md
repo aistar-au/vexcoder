@@ -24,7 +24,7 @@ rounds. Local endpoints need a safer default that preserves this loop.
 2. Keep remote endpoints defaulting to structured tool protocol (`true`).
 3. Keep explicit env override support:
    - `VEX_STRUCTURED_TOOL_PROTOCOL=on|off` always wins.
-4. Preserve text-protocol fallback loop behavior as the canonical local reliability
+4. Preserve text-protocol fallback loop behavior as the preferred local reliability
    path:
    - assistant tool calls persisted as rendered tagged text
    - tool results appended as user text payload for next-round enrichment
@@ -43,7 +43,7 @@ rounds. Local endpoints need a safer default that preserves this loop.
 2. Disable structured protocol globally
    - Rejected: weakens remote tool-call quality.
 3. Add UI-layer retries only
-   - Rejected: violates runtime-core canonical loop ownership.
+   - Rejected: violates runtime-core accepted loop ownership.
 
 ## Consequences
 

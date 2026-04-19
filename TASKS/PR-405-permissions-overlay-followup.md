@@ -1,6 +1,6 @@
 # PR 405 Follow-Up -- Permissions Overlay Policy
 
-Branch: `work/vexcoder-privacy-policy-surface`
+Branch: `work/vexcoder-permissions-overlay-followup`
 
 This note records the remaining operator-policy work adjacent to PR #405.
 PR #405 adds a privacy disclosure surface. It does not add a new
@@ -22,11 +22,11 @@ permissions-mode enforcement layer, and it should not be read as doing so.
 
 ## Follow-Up Scope
 
-1. Draft a dedicated ADR before implementation. The ADR should extend the
+1. Draft ADR-048 before implementation. The ADR should extend the
    approval-first model recorded in `ADR-022`, the parity-gap tracking recorded
    in `ADR-024`, and the current approval-overlay baseline recorded in
    `ADR-042`.
-2. Extend `src/tools/operator/policy.rs` into the canonical evaluation boundary
+2. Extend `src/tools/operator/policy.rs` into the shared evaluation boundary
    for overlay-permission decisions rather than introducing a parallel operator
    policy surface.
 3. Introduce a documented evaluation pipeline with fixed order:

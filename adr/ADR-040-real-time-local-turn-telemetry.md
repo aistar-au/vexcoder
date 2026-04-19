@@ -48,10 +48,10 @@ streaming protocols.
 
 1. This ADR applies to local streaming requests on both protocols and their
    operator-facing transcript/status surfaces.
-2. This ADR does **not** change canonical persisted task-state machine fields.
+2. This ADR does **not** change accepted persisted task-state machine fields.
 3. This ADR does **not** add provider-specific telemetry to remote API-server
    payloads by default.
-4. This ADR does **not** replace the ADR-039 canonical waiting phrase.
+4. This ADR does **not** replace the ADR-039 accepted waiting phrase.
 
 ### Request contract — chat-compatible protocol
 
@@ -114,7 +114,7 @@ streaming protocols.
 
 ### Operator-surface contract
 
-21. The waiting lane keeps the ADR-039 canonical phrase
+21. The waiting lane keeps the ADR-039 accepted phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
 22. Under the 2026-04-09 owned-transcript correction, committed transcript and

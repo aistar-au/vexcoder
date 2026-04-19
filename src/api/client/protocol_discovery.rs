@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 /// Result of a successful protocol probe.
 #[derive(Debug, Clone)]
 pub struct DiscoveryResult {
-    /// The canonical protocol confirmed by the probe.
+    /// The accepted protocol confirmed by the probe.
     pub protocol: ModelProtocol,
     /// The full endpoint URL that responded (e.g. `http://…/v1/messages`).
     pub endpoint: String,

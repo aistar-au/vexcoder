@@ -91,7 +91,7 @@ path. The following sub-decisions are adopted:
 
 The circulated "ADR-038 Extension" spec contained three errors that would
 produce compile failures or silent policy violations. All three are corrected
-here as the canonical pre-implementation record.
+here as the accepted pre-implementation record.
 
 ### Error 1 — `serde_json` early-stop claim
 
@@ -221,7 +221,7 @@ If ADR-045 changes the ID format, this predicate must be updated.
 
 ### Relationship to ADR-045
 
-ADR-045 (Proposed) introduces `RuntimeEventLog` as the canonical persisted
+ADR-045 (Proposed) introduces `RuntimeEventLog` as the accepted persisted
 truth and reclassifies `persistable_snapshot` as a compatibility export. If
 ADR-045 lands before this amendment is implemented:
 

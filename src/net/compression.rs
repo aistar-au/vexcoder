@@ -49,7 +49,7 @@ impl Encoding {
         }
     }
 
-    /// Returns the canonical token string for use in HTTP headers.
+    /// Returns the normalized token string for use in HTTP headers.
     pub fn as_token(self) -> &'static str {
         match self {
             Self::Identity => "identity",

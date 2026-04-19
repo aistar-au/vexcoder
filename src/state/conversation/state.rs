@@ -94,7 +94,7 @@ pub struct ConversationManager {
     pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
-    /// Canonical in-process task document. Owned by the condenser; replaces the
+    /// Accepted in-process task document. Owned by the condenser; replaces the
     /// former `current_turn_blocks` parallel live-turn model.
     pub(super) task_doc: Option<TaskDocument>,
     pub(super) condenser: TaskDocumentCondenser,
@@ -318,7 +318,7 @@ impl ConversationManager {
         })
     }
 
-    /// Expose the canonical task document for read-only callers (local API,
+    /// Expose the accepted task document for read-only callers (local API,
     /// batch mode, snapshot adapters).
     pub fn task_doc(&self) -> Option<&TaskDocument> {
         self.task_doc.as_ref()

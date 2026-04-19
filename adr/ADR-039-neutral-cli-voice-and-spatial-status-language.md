@@ -17,7 +17,7 @@ Current issues are small in isolation and noisy in aggregate:
 
 1. Progress copy, completion copy, and long-running orchestration updates use a
    mix of generic helper phrasing rather than one display contract.
-2. The runtime has canonical machine states such as `completed`, `failed`, and
+2. The runtime has accepted machine states such as `completed`, `failed`, and
    `cancelled`, but those protocol values are not the same problem as the
    human-facing transcript copy shown during long-running tasks.
 3. ANSI color already carries operational meaning for diffs, yet tool progress,
@@ -48,7 +48,7 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 1. This ADR applies to human-facing transcript copy, status text, progress
    indicators, and CLI wording.
-2. This ADR does **not** rename canonical machine states, persisted task-state
+2. This ADR does **not** rename accepted machine states, persisted task-state
    fields, JSON API payloads, or protocol values such as `completed`.
 3. This ADR does **not** change standard diff semantics: insertions remain
    green and deletions remain red.
@@ -193,6 +193,6 @@ Candidate implementation areas:
 ## References
 
 - [ADR-023](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-023-deterministic-edit-loop.md) — prompt and operator-surface command contract
-- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — canonical runtime state and task lifecycle
+- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — shared runtime state and task lifecycle
 - [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator rendering surface and timeline behavior
 - [ADR-034](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-034-multi-agent-parallel-task-execution.md) — multi-agent progress and watch surfaces

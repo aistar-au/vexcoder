@@ -432,7 +432,7 @@ impl RuntimeEnvelopeNormalizer {
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
                 let mut envelopes = Vec::new();
-                // TranscriptBlockDelta is the canonical protocol event and is
+                // TranscriptBlockDelta is the accepted protocol event and is
                 // emitted first so consumers see the raw stream before the
                 // derived ToolCallArgumentsDelta that follows for tool blocks.
                 envelopes.push(self.next_envelope_with_source(

@@ -11,7 +11,7 @@ use crate::state::{ToolStatus, TurnToolPolicy};
 use crate::types::{StreamPromptProgress, StreamTimings};
 use crate::usage::TurnTokens;
 
-/// Canonical in-process task document. All turn data are kept here; the renderer,
+/// Accepted in-process task document. All turn data are kept here; the renderer,
 /// local API, and batch mode each project from this type rather than
 /// maintaining a second copy.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

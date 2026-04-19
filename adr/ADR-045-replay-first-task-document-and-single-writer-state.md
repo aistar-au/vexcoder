@@ -9,7 +9,7 @@
 
 ## Context
 
-The repository already has the right foundation: a canonical `TaskDocument`, a
+The repository already has the right foundation: a shared `TaskDocument`, a
 typed `RuntimeEvent` vocabulary, a `TaskDocumentCondenser` over those events,
 and a `ConversationManager` that wraps condenser turn lifecycle. That foundation
 is better structured than many comparable tools manage to build.
@@ -130,7 +130,7 @@ decision. When in doubt, the field is replay-relevant.
 
 ### TaskDocument
 
-**Responsibility: canonical in-memory runtime state.**
+**Responsibility: accepted in-memory runtime state.**
 
 `TaskDocument` is the exclusive in-memory source of truth for:
 
@@ -212,7 +212,7 @@ Projections do NOT:
 - make orchestration decisions
 - have their own persistent state
 
-If a projection needs information not available in the canonical state, the
+If a projection needs information not available in the accepted state, the
 solution is to add a `RuntimeEvent` and a condenser handler, not to store
 state in the projection.
 
@@ -253,11 +253,11 @@ reporting surfaces or older code that cannot yet consume a full checkpoint.
 A compatibility export:
 
 - MAY be lossy
-- MUST NOT be used as the canonical resume source
+- MUST NOT be used as the accepted resume source
 - MUST be clearly identified as non-authoritative in its producing code with
   an explicit comment
 
-If a compatibility export is expected at any point to serve as the canonical
+If a compatibility export is expected at any point to serve as the accepted
 resume source, it is no longer a compatibility export. It must be upgraded to
 satisfy all `TaskDocumentCheckpoint` requirements.
 
@@ -298,7 +298,7 @@ No module may directly assign or mutate replay-relevant `TaskDocument` fields
 by any other path: not via struct field access, not via interior mutability,
 not via a helper function that bypasses the condenser entry points.
 
-### Invariant B — Event log is canonical persisted truth
+### Invariant B — Event log is accepted persisted truth
 
 `RuntimeEventLog` is the authoritative persisted record.
 
@@ -326,9 +326,9 @@ A `TaskDocumentCheckpoint` MUST capture all replay-relevant document fields.
 
 A snapshot that exits restore with `active_turn: None`, with zeroed timings, or
 with cleared model metadata is not a checkpoint. It is a compatibility export
-and MUST be labeled as one. It MUST NOT be used as the canonical resume source.
+and MUST be labeled as one. It MUST NOT be used as the accepted resume source.
 
-### Invariant E — Projections derive from canonical state only
+### Invariant E — Projections derive from accepted state only
 
 All projections build exclusively from `TaskDocument` or `RuntimeEventLog`.
 
@@ -440,7 +440,7 @@ bodies.
 ### No lossy resume authority
 
 `persistable_snapshot` and `restore_from_snapshot` in `task_state_bridge.rs`
-MUST NOT be the canonical resume path. They are a compatibility export.
+MUST NOT be the accepted resume path. They are a compatibility export.
 
 ### No replay-dark fields
 
@@ -518,7 +518,7 @@ This ADR does not:
 
 ### ADR-025
 
-Remains the canonical `RuntimeEnvelope` contract. This ADR additionally
+Remains the accepted `RuntimeEnvelope` contract. This ADR additionally
 requires that the envelope sequence is the authoritative persisted history,
 not only a transport handoff artifact.
 
@@ -527,7 +527,7 @@ not only a transport handoff artifact.
 Remains correct on stream parser completeness and additive `TaskState` coverage.
 The `persistable_snapshot` / `restore_from_snapshot` path defined in ADR-029
 is reclassified here as a compatibility export. It MUST NOT serve as the
-canonical resume mechanism once full-fidelity checkpoints are available.
+accepted resume mechanism once full-fidelity checkpoints are available.
 
 ### ADR-030
 

@@ -21,11 +21,11 @@ ADR-025 now defines the missing transport-neutral machine-readable contract: `Ru
 
 This ADR therefore does **not** need to invent a new event schema. Its job is more focused and more precise:
 
-> bind ADR-025's canonical runtime JSON contract to a concrete local transport so the runtime can be driven through a local API without duplicating runtime logic.
+> bind ADR-025's shared runtime JSON contract to a concrete local transport so the runtime can be driven through a local API without duplicating runtime logic.
 
-For phase 1, CLI/TUI remains the primary operator surface. `LocalApiServer` exists to project ADR-025 envelopes across HTTP or socket boundaries without duplicating runtime behavior, so later adapters can hand off tasks and events as canonical JSON. Browser-specific origin policy, headers, and any in-tree web UI remain deferred.
+For phase 1, CLI/TUI remains the primary operator surface. `LocalApiServer` exists to project ADR-025 envelopes across HTTP or socket boundaries without duplicating runtime behavior, so later adapters can hand off tasks and events as accepted JSON. Browser-specific origin policy, headers, and any in-tree web UI remain deferred.
 
-**Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work. **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. ADR-025 continues the LocalApiServer track from PI-09 through PI-12 for the canonical JSON handoff contract. This ADR continues from PI-13 through PI-16 for transport binding. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
+**Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work. **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. ADR-025 continues the LocalApiServer track from PI-09 through PI-12 for the accepted JSON handoff contract. This ADR continues from PI-13 through PI-16 for transport binding. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
 
 ---
 
@@ -42,7 +42,7 @@ No implementation lane may begin LocalApiServer implementation before that gate 
 
 ## Decision
 
-Introduce `LocalApiServer` as a transport adapter over the canonical ADR-025 contract.
+Introduce `LocalApiServer` as a transport adapter over the accepted ADR-025 contract.
 
 ### 1. Architectural role
 
@@ -54,13 +54,13 @@ Normative rule:
 
 - runtime logic remains in Rust core/runtime code;
 - transport parsing, auth checks, and stream framing are located in the server adapter;
-- native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same canonical event model over a scoped transport surface.
+- native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same shared event model over a scoped transport surface.
 
 This ADR defines a JSON transport adapter, not a browser frontend contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
 
-### 2. Canonical request and event payloads
+### 2. Accepted request and event payloads
 
-All request bodies and all streamed server payloads use ADR-025's canonical JSON contract:
+All request bodies and all streamed server payloads use ADR-025's accepted JSON contract:
 
 - inbound: `RuntimeRequest`
 - outbound: `RuntimeEnvelope`
@@ -159,7 +159,7 @@ The JSON below is an abbreviated extract showing the bundle shape only; it is no
 }
 ```
 
-This is the canonical client codegen and validation endpoint for LocalApiServer.
+This is the accepted client codegen and validation endpoint for LocalApiServer.
 
 **Schema endpoint validation note:** The `/v1/schema` response is pre-flight metadata, not a `RuntimeEnvelope`. It is explicitly exempt from the outbound envelope validation rule in §9. Clients must not attempt to validate the schema bundle response against `runtime_envelope_v1.json`.
 
@@ -264,7 +264,7 @@ For Unix-domain socket transport, the payload format is line-delimited JSON:
 - one inbound `RuntimeRequest` per line
 - one outbound `RuntimeEnvelope` per line
 
-This is a transport framing rule only. The canonical contract remains ADR-025.
+This is a transport framing rule only. The accepted contract remains ADR-025.
 
 The Unix-socket transport is intended for local native clients that prefer a socket over HTTP.
 
@@ -317,7 +317,7 @@ This avoids the contradiction of an HTTP API that claims authenticated sessions 
 
 ### 8. Configuration keys
 
-Add the following canonical config keys:
+Add the following accepted config keys:
 
 ```toml
 # ~/.config/vex/config.toml — user config layer only for secrets
@@ -360,11 +360,11 @@ vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedi
 
 **Certificate lifecycle note:** certificate hot-reload is deferred in Phase I. `tls_cert`, `tls_key`, and `tls_ca_cert` are loaded and validated at startup only; rotating them requires a server restart.
 
-**ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML canonical keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I implementation checklist from PI-09 through PI-16.
+**ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML accepted keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I implementation checklist from PI-09 through PI-16.
 
 **Pre-merge checklist:**
 
-- [x] Apply the `[api]` config-key block to ADR-024's `Config TOML canonical keys` section (in-place amendment; ADR-024 is Proposed).
+- [x] Apply the `[api]` config-key block to ADR-024's `Config TOML accepted keys` section (in-place amendment; ADR-024 is Proposed).
 - [x] Extend ADR-024's Phase I implementation checklist from PI-09 through PI-16. ADR-025 owns PI-09–12; this ADR owns PI-13–16. The reconciliation PR is owned by the ADR-025 operator (PI-09 closeout) and must be merged before PI-13 begins.
 - [x] Verify all JSON, GBNF, and schema examples in ADR-025 and ADR-026 remain syntax-clean after reconciliation.
 
@@ -490,9 +490,9 @@ data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":6,"event":{"typ
 
 | ADR-024 item | How ADR-026 satisfies it |
 |--------------|--------------------------|
-| ADR-024 Phase I reservation | Binds ADR-025's canonical JSON contract to concrete local transports |
+| ADR-024 Phase I reservation | Binds ADR-025's accepted JSON contract to concrete local transports |
 | ADR-024 Gap 2 (BatchMode) | Preserves existing `vex exec --format jsonl` and keeps BatchMode as a separate summarized surface |
-| ADR-024 Gap 5 (MCP) | Carries canonical `mcp.<server>.<tool>` tool names unchanged over HTTP and Unix-socket transports |
+| ADR-024 Gap 5 (MCP) | Carries accepted `mcp.<server>.<tool>` tool names unchanged over HTTP and Unix-socket transports |
 | ADR-024 Gap 28 (Token counter) | Transports optional `TurnEnd.usage` without making PL-03 a prerequisite for transport work |
 | Phase I wire protocol | Defines HTTP and Unix-socket bindings over ADR-025 JSON |
 | Streaming response format | Defines SSE binding for HTTP and line-delimited JSON for Unix socket |
@@ -542,7 +542,7 @@ They solve different local-client needs:
 - HTTP + SSE is convenient for browser views, editor panels, and general local tooling
 - Unix socket is convenient for native local clients that want direct process-to-process communication without HTTP framing
 
-Both transports carry the same canonical ADR-025 payloads, so supporting both does not fragment the event model.
+Both transports carry the same accepted ADR-025 payloads, so supporting both does not fragment the event model.
 
 ### Why not add WebSocket now?
 
@@ -564,7 +564,7 @@ ADR-024 is `Proposed`, not `Locked`. The project convention (established by ADR-
 
 ### Bind LocalApiServer directly to BatchMode JSONL
 
-Rejected. BatchMode JSONL is summarized output, not a canonical live event stream.
+Rejected. BatchMode JSONL is summarized output, not the live event stream used for runtime contracts.
 
 ### Invent a server-specific `StreamChunk` schema separate from ADR-025
 
@@ -637,7 +637,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - Added a loopback HTTP `LocalApiServer` with `GET /v1/health`, `POST /v1/turns`, `POST /v1/interrupt`, and `POST /v1/approve`, backed by ADR-025 canonical envelopes and a dedicated runtime mode.
+  - Added a loopback HTTP `LocalApiServer` with `GET /v1/health`, `POST /v1/turns`, `POST /v1/interrupt`, and `POST /v1/approve`, backed by ADR-025 shared envelopes and a dedicated runtime mode.
   - Added a `vex serve` entrypoint so the transport adapter can be launched without extending the TUI path.
 
 ### [PI-14] - Schema bundle endpoint
@@ -767,7 +767,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 
 ## References
 
-- `adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
+- `adr/ADR-025-runtime-json-handoff-contract.md` — shared runtime JSON contract
 - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — Phase I reservation and sequencing gate
 - `adr/ADR-023-deterministic-edit-loop.md` — edit-loop and validation behaviors
 - `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam contracts

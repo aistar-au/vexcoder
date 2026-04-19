@@ -28,7 +28,7 @@ registered in the schema.
 Research across agent CLI tools confirms the following patterns for shell
 tool registration:
 
-- Frontier-model systems register a single canonical name in the schema.
+- Frontier-model systems register a single registered name in the schema.
   The model calls that exact name.
 - Local/open-weight models are not fine-tuned to the same fidelity. They
   extrapolate from training data patterns where `run_shell_command`, `bash`,
@@ -108,13 +108,13 @@ aliases routing to the same executor:
 
 | Name                | Registered in schema | Dispatch action          |
 |---------------------|----------------------|--------------------------|
-| `run_command`       | Yes (canonical)      | `execute_run_command_tool` |
+| `run_command`       | Yes (registered)      | `execute_run_command_tool` |
 | `run_shell_command` | No (dispatch alias)  | `execute_run_command_tool` |
 | `bash`              | No (dispatch alias)  | `execute_run_command_tool` |
 | `execute_command`   | No (dispatch alias)  | `execute_run_command_tool` |
 | `execute_bash`      | No (dispatch alias)  | `execute_run_command_tool` |
 
-The schema exposes only `run_command` (the canonical name). This keeps the
+The schema exposes only `run_command` (the registered name). This keeps the
 schema compact while ensuring that any of the commonly-hallucinated aliases
 still routes through the approval gate rather than returning "Unknown tool".
 
@@ -183,6 +183,11 @@ The policy flows through `Config.tool_policy` → `ApiClient.tool_policy` →
 `tool_definitions_for_policy()` which filters the tool schema, and a
 defense-in-depth guard in `execute_tool_with_timeout_with_updates()` that
 rejects mutating tools even if the model hallucinates them.
+
+ADR-048 keeps this `ToolPolicy` lane separate from the later permissions
+overlay mode engine. `ToolPolicy` remains responsible for schema visibility and
+dispatch filtering; the operator-policy seam will later evaluate protected
+paths, explicit deny or allow rules, and mode defaults.
 
 ## Consequences
 

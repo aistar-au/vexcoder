@@ -39,11 +39,11 @@ scope is the post-derivation alignment pass:
   derives structured header fields from flattened status text.
 
 This work must preserve the runtime ownership model defined by ADR-030: the
-operator surface is a consumer of canonical runtime events and task-derived
+operator surface is a consumer of shared runtime events and task-derived
 state only. It must not become the source of truth for execution.
 
 The ADR-030 verification suite completed on 2026-03-25, so ADR-031 now depends
-on an accepted runtime control-flow contract rather than an unverified active
+on a shared runtime control-flow contract rather than an unverified active
 draft. ADR-030 is also the semantic correctness guarantee for multi-agent
 handoffs (Invariants 1, 4, 5); the operator surface inherits that guarantee by
 consuming only task-derived state. The remaining merge gate is therefore
@@ -54,7 +54,7 @@ coverage.
 
 Adopt a batched, task-state-first implementation strategy for the operator
 surface overhaul. The UI target is a task-derived fullscreen CLI/app view where
-every visible paragraph is derived from canonical task state, selection
+every visible paragraph is derived from accepted task state, selection
 identity remains runtime-visible, the transcript/composer/status regions scale
 with current display rows and columns, and status or composer content stays
 human-readable.
@@ -82,7 +82,7 @@ Key changes from the current implementation:
 1. The scrolling transcript becomes the authoritative visible stream for
    waiting status, tool activity, approvals, orchestrator updates, and
    assistant output.
-2. Structured timeline entries remain derived from canonical task-state step
+2. Structured timeline entries remain derived from accepted task-state step
    lifecycle, but the direct ANSI surface no longer reserves a separate
    activity strip for them.
 3. Scroll ownership moves to the task surface: the transcript redraws from the
@@ -108,7 +108,7 @@ Key changes from the current implementation:
 Any implementation batch that requires one of the following is task-state-first
 work and must land before dependent UI batches:
 
-- a new canonical runtime event category
+- a new shared runtime event category
 - a new task-state field or invariant
 - a new pending/running/completed step lifecycle
 - a new managed command-session lifecycle state
@@ -156,7 +156,7 @@ provider event
 -> normalize to runtime event
 -> update task state
 -> orchestrator decides next action
--> UI reflects canonical task-derived state
+-> UI reflects accepted task-derived state
 ```
 
 Branch topology is therefore an implementation convenience, not a source of
@@ -176,7 +176,7 @@ In other words:
 
 ### Why this rule exists
 
-The operator surface defined by this ADR is a consumer of canonical runtime
+The operator surface defined by this ADR is a consumer of accepted runtime
 events and task-derived state. It is not allowed to become the source of truth
 for execution.
 
@@ -190,7 +190,7 @@ assumptions that have not been merged into `main`, such as:
 - temporary approval state derived only in the UI layer
 
 If such state is required for the UI, it must first exist in the runtime or
-task-state contract already merged into `main`, or be derived from canonical
+task-state contract already merged into `main`, or be derived from accepted
 runtime events already merged into `main`.
 
 ### Batch classes
@@ -206,14 +206,14 @@ These depend on another branch or pending merge. They may be pushed and
 reviewed in parallel, but they are merge-gated by the prerequisite batch.
 
 **State-first prerequisite batches**
-These introduce or modify canonical runtime events, task-state fields,
+These introduce or modify shared runtime events, task-state fields,
 orchestrator transitions, command-session lifecycle state, approval state, or
 other execution truth. These batches must land before dependent renderer or
 layout batches.
 
 ### Merge-gated dependency rule
 
-When Batch B depends on Batch A, and Batch A changes canonical state or
+When Batch B depends on Batch A, and Batch A changes accepted state or
 orchestrator behavior, the repository treats Batch B as:
 
 - parallel-dispatchable
@@ -229,7 +229,7 @@ merge.
 Every merged batch must leave main in a coherent state in which:
 
 - task truth still remains in runtime/task state, not in UI-local heuristics;
-- canonical runtime events still drive downstream behavior;
+- shared runtime events still drive downstream behavior;
 - the orchestrator remains the owner of continuation and completion;
 - the UI can render the current truth without depending on unmerged branches.
 
@@ -300,7 +300,7 @@ below does exactly that for the host-owned scrollback cutover.
 
 ## Batch descriptions
 
-**Batch A — Canonical timeline/task-state extension**
+**Batch A — Accepted timeline/task-state extension**
 Adds the state the new UI needs: selected step identity, runtime-visible step
 lifecycle, command-session row identity, and follow-mode ownership for timeline
 selection. In the current implementation track this means:
@@ -316,11 +316,11 @@ selection. In the current implementation track this means:
 This is merge-gating.
 
 **Batch B — Derivation layer**
-Maps canonical runtime/task state into UI timeline rows and inspector content.
+Maps accepted runtime/task state into UI timeline rows and inspector content.
 This batch is merged into `main`.
 
 Batch B implementation on main includes stable timeline entries, selected step
-focus, inspector/transcript routing from canonical task state, and unified
+focus, inspector/transcript routing from accepted task state, and unified
 derivation for structured timeline rows so command-session rows remain
 visible alongside other in-progress task steps. The legacy `activity_rows`
 derivation was removed in Batch E.

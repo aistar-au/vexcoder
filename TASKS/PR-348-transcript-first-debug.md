@@ -58,7 +58,7 @@ Required behavior for this branch:
 This keeps the downstream text path aligned with the transcript-first
 normalization boundary while the larger task-document refactor is still pending.
 
-### B. Canonical next step is still task-state unification
+### B. Accepted next step is still task-state unification
 
 **File:** `TASKS/transcript-first-task-state.md`
 
@@ -69,7 +69,7 @@ the in-process ratatui task state:
 - `current_turn_stream_segments`
 - `active_stream_blocks`
 
-The next focused PR should replace that three-buffer model with one canonical
+The next focused PR should replace that three-buffer model with one accepted
 task document that both rendering and scroll math consume directly.
 
 ### C. Raw URL map header is still the current CI breakage

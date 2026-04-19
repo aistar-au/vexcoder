@@ -7,7 +7,7 @@ pub enum StatusTone {
 }
 
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
-/// Canonical completed-status label shown after the model finishes a turn.
+/// Accepted completed-status label shown after the model finishes a turn.
 pub const RESPONSE_COMPLETE: &str = "Response complete.";
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 

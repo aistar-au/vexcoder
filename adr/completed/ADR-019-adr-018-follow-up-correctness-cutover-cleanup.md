@@ -286,7 +286,7 @@ and passthrough changes must follow ADR-027.
   - `cargo clippy --all-targets -- -D warnings` : pass
 - Notes:
   - Removed the legacy `VEX_DEBUG_PAYLOAD_PATH` fallback to eliminate overlapping path env resolution.
-  - Logging path configuration now has one canonical env override: `VEX_API_LOG_PATH`.
+  - Logging path configuration now has one accepted env override: `VEX_API_LOG_PATH`.
 
 ### Search Policy Follow-up - Literal matching only (no regex)
 - Operator: automation-agent
@@ -454,7 +454,7 @@ and passthrough changes must follow ADR-027.
 
 1. Phase 2 cannot start before U4 + D1 are merged and green.
 2. Every step must keep `cargo test --all-targets` green.
-3. Runtime-core contracts from ADR-006/ADR-007 must remain canonical.
+3. Runtime-core contracts from ADR-006/ADR-007 must remain accepted.
 4. Interrupt and control routing must stay typed (ADR-008 parity rule).
 5. No new text sentinel control commands may be introduced.
 6. No regex-based matching is allowed; use literal substring matching only.

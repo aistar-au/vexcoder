@@ -20,7 +20,7 @@
 
 ## Context
 
-`src/app.rs` and `src/bin/vex.rs` currently sit close to several concerns at once: TUI command handling, runtime coordination, startup wiring, and user-facing entrypoint behavior. The repository already reserves a `LocalApiServer` path in ADR-024 and, through ADR-025 and ADR-026, now has a canonical runtime JSON contract plus a transport-binding ADR for that local API surface.
+`src/app.rs` and `src/bin/vex.rs` currently sit close to several concerns at once: TUI command handling, runtime coordination, startup wiring, and user-facing entrypoint behavior. The repository already reserves a `LocalApiServer` path in ADR-024 and, through ADR-025 and ADR-026, now has a shared runtime JSON contract plus a transport-binding ADR for that local API surface.
 
 What is still missing is the explicit boundary that says:
 
@@ -29,7 +29,7 @@ What is still missing is the explicit boundary that says:
 - what the CLI binary owns,
 - and how those outer layers are prevented from reaching directly into runtime internals.
 
-Without that boundary, `src/app.rs` risks remaining the convergence point for unrelated concerns, and future transports could bypass the same canonical seam that ADR-025 and ADR-026 were introduced to protect.
+Without that boundary, `src/app.rs` risks remaining the convergence point for unrelated concerns, and future transports could bypass the same shared seam that ADR-025 and ADR-026 were introduced to protect.
 
 ---
 
@@ -37,11 +37,11 @@ Without that boundary, `src/app.rs` risks remaining the convergence point for un
 
 ADR-028 does not replace ADR-025 or ADR-026.
 
-- **ADR-025** remains the canonical machine-readable runtime contract (`RuntimeRequest`, `RuntimeEnvelope`, normalization, schema, grammar).
+- **ADR-025** remains the shared machine-readable runtime contract (`RuntimeRequest`, `RuntimeEnvelope`, normalization, schema, grammar).
 - **ADR-026** remains the LocalApiServer transport-binding ADR (HTTP, SSE, Unix socket, auth, `/v1/schema`).
-- **ADR-028** defines the module boundaries and dependency direction by which CLI and transport layers reach that canonical runtime contract through an explicit application facade.
+- **ADR-028** defines the module boundaries and dependency direction by which CLI and transport layers reach that accepted runtime contract through an explicit application facade.
 
-The facade must not invent a second canonical event schema. Where the facade needs machine-readable output, it uses ADR-025 `RuntimeEnvelope` directly or wraps it only in transport-local framing.
+The facade must not invent a second accepted event schema. Where the facade needs machine-readable output, it uses ADR-025 `RuntimeEnvelope` directly or wraps it only in transport-local framing.
 
 ---
 
@@ -72,7 +72,7 @@ Adopt a layered boundary model with strict inward dependency direction.
 **Non-responsibilities**
 
 - no runtime logic, tool semantics, task orchestration, or provider protocol parsing;
-- no alternate canonical event schema;
+- no alternate accepted event schema;
 - no direct dependency on runtime internals bypassing the facade.
 
 **Scope note**
@@ -96,7 +96,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 - expose a stable, transport-agnostic application API for CLI and server callers;
 - receive high-level commands from outer layers and route them into runtime entrypoints;
 - centralize command semantics and validation that should be shared across CLI and server;
-- shape application output into ADR-025 canonical runtime JSON where a machine-readable seam is required;
+- shape application output into ADR-025 shared runtime JSON where a machine-readable seam is required;
 - provide a focused coordination boundary above runtime and below CLI or transport.
 
 **Non-responsibilities**
@@ -104,7 +104,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 - no HTTP, SSE, or socket implementation;
 - no cli rendering;
 - no provider wire parsing;
-- no second canonical event-envelope model separate from ADR-025.
+- no second accepted event-envelope model separate from ADR-025.
 
 **Facade API sketch**
 
@@ -148,7 +148,7 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 
 - run the iterative agent loop;
 - advance turns deterministically;
-- normalize provider and runtime-native events into canonical runtime events as required by ADR-025;
+- normalize provider and runtime-native events into shared runtime events as required by ADR-025;
 - expose runtime entrypoints consumed by the facade.
 
 **Non-responsibilities**
@@ -224,17 +224,17 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 
 ---
 
-## Canonical event rule
+## Accepted event rule
 
-ADR-025 `RuntimeEnvelope` is the canonical runtime event contract.
+ADR-025 `RuntimeEnvelope` is the shared runtime event contract.
 
 ADR-028 therefore imposes the following rule:
 
 - the facade may expose Rust-native application result types for local in-process use;
 - the facade may expose ADR-025 `RuntimeEnvelope` for machine-readable event streams;
-- neither the facade nor any transport layer may invent a second canonical event envelope that competes with ADR-025.
+- neither the facade nor any transport layer may invent a second accepted event envelope that competes with ADR-025.
 
-This prevents duplication between provider-native events, facade-local ad hoc events, transport-local chunks, and canonical runtime JSON.
+This prevents duplication between provider-native events, facade-local ad hoc events, transport-local chunks, and shared runtime JSON.
 
 ---
 
@@ -274,7 +274,7 @@ Those remain follow-up implementation or transport decisions.
 
 Use the following order to minimize breakage.
 
-1. **Create the application facade skeleton** under `src/app/` while keeping `src/app.rs` as the module root during transition. Define facade entrypoints plus the shared error and command types. Reuse ADR-025 `RuntimeEnvelope` for machine-readable event streaming rather than introducing a new canonical envelope.
+1. **Create the application facade skeleton** under `src/app/` while keeping `src/app.rs` as the module root during transition. Define facade entrypoints plus the shared error and command types. Reuse ADR-025 `RuntimeEnvelope` for machine-readable event streaming rather than introducing a new shared envelope.
 2. **Refactor `src/app.rs`** by moving shared application coordination and command semantics into facade modules. Keep behavior identical. Use compatibility shims while the cutover is in progress.
 3. **Reduce `src/bin/vex.rs`** to CLI parsing, config loading, startup routing, and facade calls. Do not remove legitimate startup-routing responsibilities, but do remove reusable application semantics from the binary.
 4. **Introduce `src/server/` submodules** only for the ADR-026-authorized local transports. Server modules consume facade output and frame ADR-025 envelopes for transport. *(Completed 2026-03-25: `src/server/mod.rs`, `http.rs`, `sse.rs`, `socket.rs`, `handlers.rs`, `util.rs` extracted from `src/local_api.rs`.)*
@@ -311,7 +311,7 @@ Update the following ADRs to reflect the explicit facade and transport split.
 Where older ADRs blur distinctions, update them to reflect:
 
 - application facade vs transport,
-- canonical runtime envelopes vs transport frames,
+- shared runtime envelopes vs transport frames,
 - CLI wrapper vs frontend implementation,
 - and facade-mediated access to runtime.
 
@@ -387,7 +387,7 @@ monochrome `Line::from` strings with no structured prefix styling.
 > **Implementation note (ADR-031 Batch E):** The `task_activity_rows()` function
 > and the `activity_rows` field described above were removed in ADR-031 Batch E.
 > The structured timeline renderer now derives all step rows directly from
-> canonical task state, superseding the legacy activity-row derivation.
+> accepted task state, superseding the legacy activity-row derivation.
 
 ---
 
@@ -458,7 +458,7 @@ PR `#256` extends the ADR-028 enforcement surface in three ways.
 
 - `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam contracts
 - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — LocalApiServer reservation and Phase I sequencing guard
-- `adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
+- `adr/ADR-025-runtime-json-handoff-contract.md` — shared runtime JSON contract
 - `adr/ADR-026-localapiserver-transport-binding.md` — LocalApiServer transport binding
 - `adr/ADR-027-full-screen-tui-command-session-capture.md` — current full-screen TUI and command-session capture behavior
 - `../vexdraft/scripts/commit-debug.py` — authoritative cross-repo debug commit script

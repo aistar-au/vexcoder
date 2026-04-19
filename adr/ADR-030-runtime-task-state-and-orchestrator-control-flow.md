@@ -15,7 +15,7 @@ gaining:
 - a deterministic edit loop
 - managed tool execution and command sessions
 - provider stream parsing across multiple protocol shapes
-- canonical runtime handoff types and schemas
+- accepted runtime handoff types and schemas
 - batch/export/evidence consumers that should not depend on provider-native
   wire values
 
@@ -29,7 +29,7 @@ a single normative execution model that answers all of the following clearly:
 4. How do managed command sessions fit into the task loop?
 5. Which downstream surfaces are allowed to observe provider-native event
    names?
-6. What is the canonical control flow from streamed provider output to task
+6. What is the accepted control flow from streamed provider output to task
    completion?
 
 ADR-031, ADR-032, ADR-033, batch/export derivations, and task handoff/resume
@@ -54,7 +54,7 @@ patterns such as:
 
 The runtime SHALL be defined as a **task-state-owned orchestrator**.
 
-The canonical runtime execution model is:
+The accepted runtime execution model is:
 
 ```text
 provider event arrives
@@ -88,7 +88,7 @@ truth and do not directly control task completion.
 
 ### Runtime event
 
-A runtime event is a canonical, runtime-owned event emitted after
+A runtime event is a runtime-owned event emitted after
 provider-native input has been normalized into the repository's internal
 execution model.
 
@@ -141,7 +141,7 @@ This layer does not own:
 
 This layer owns:
 
-- mapping provider-native events into canonical runtime events
+- mapping provider-native events into shared runtime events
 - runtime-owned sequencing and envelope emission
 - removal of provider-native event leakage from downstream consumers
 
@@ -185,13 +185,13 @@ stream lifecycle.
 
 ### UI / batch / export / evidence
 
-These surfaces MUST consume canonical runtime events and task-derived state
+These surfaces MUST consume shared runtime events and task-derived state
 only.
 
 They MUST NOT depend on provider-native event names or provider-specific stream
 semantics.
 
-## Canonical control flow
+## Accepted control flow
 
 The runtime SHALL operate according to the following logical sequence:
 
@@ -199,7 +199,7 @@ The runtime SHALL operate according to the following logical sequence:
 2. Build current turn context from task state.
 3. Call the provider through a transport adapter.
 4. Parse incoming provider-native events.
-5. Normalize them into canonical runtime events.
+5. Normalize them into shared runtime events.
 6. Apply those runtime events to task state.
 7. Ask the orchestrator what action is required next.
 8. If the next action is tool execution, execute the tool and write the result
@@ -245,7 +245,7 @@ context for the next turn.
 ### Invariant 6: downstream consumers do not inspect provider-native event names
 
 UI, batch mode, export, evidence, and similar consumers MUST depend on
-canonical runtime events or task-derived summaries only.
+shared runtime events or task-derived summaries only.
 
 ### Invariant 7: application facade is not the orchestrator
 
@@ -355,7 +355,7 @@ undefined behaviour at handoff points. The two invariant patches from
 This ADR does not:
 
 - redefine provider-specific parsing formats
-- replace the canonical runtime schema work of ADR-025
+- replace the accepted runtime schema work of ADR-025
 - replace the deterministic edit-loop policy details of ADR-023
 - replace the managed command-session mechanics of ADR-027
 - define the local API server transport binding of ADR-026
@@ -371,7 +371,7 @@ provider-native events.
 
 ### ADR-025 — runtime JSON handoff contract
 
-ADR-025 defines canonical runtime events and envelopes. This ADR defines where
+ADR-025 defines shared runtime events and envelopes. This ADR defines where
 those events sit in the control flow and forbids provider-event leakage
 downstream.
 
@@ -398,7 +398,7 @@ make multi-agent task resume lossless.
 
 The active implementation sequence remains:
 
-- canonical handoff types and schemas
+- accepted handoff types and schemas
 - normalization layer
 - task-state-consistent derivation and testing
 - transport binding on top of runtime-owned semantics
@@ -427,7 +427,7 @@ Coverage should prove at least:
 1. provider-native stream end does not automatically complete the task
 2. tool results are written back into task state before the next turn
 3. managed command sessions remain active until subprocess exit or interruption
-4. downstream derivations operate on canonical runtime events rather than
+4. downstream derivations operate on shared runtime events rather than
    provider-native names
 5. no-op turns and failed validations cause orchestrator-driven continuation
    where policy requires it
@@ -448,7 +448,7 @@ tests in the current tree:
 3. managed command sessions remain active until subprocess exit or interruption:
    `src/state/conversation/tests/tool_execution.rs::test_execute_tool_run_command_streams_managed_session_updates`
    and `src/app/tests/model_turn.rs::test_turn_complete_waits_for_last_command_session_to_finish`
-4. downstream derivations operate on canonical runtime events rather than
+4. downstream derivations operate on shared runtime events rather than
    provider-native names:
    `src/runtime/json_handoff.rs::test_pi_10_normalization_projects_ui_updates_and_approval_events`
    and
@@ -482,7 +482,7 @@ of the principle that provider-native values must not determine runtime truth.
 The fix limits the heuristic to bare `/v1` base URLs only.  Explicit `/messages`
 path suffixes are treated as authoritative MessagesV1 declarations.
 
-### Invariant 6 violation — UI did not observe canonical task state for in-progress steps
+### Invariant 6 violation — UI did not observe accepted task state for in-progress steps
 
 `task_activity_rows()` derived its display from `current_turn_tool_invocations`
 (completed tool results) but ignored `pending_turn_tool_calls` (pending tool
@@ -497,7 +497,7 @@ display stability.
 
 > **Implementation note (ADR-031 Batch E):** `task_activity_rows()` and the
 > `activity_rows` field were removed in ADR-031 Batch E.  The structured
-> timeline renderer now derives step rows directly from canonical task state,
+> timeline renderer now derives step rows directly from accepted task state,
 > resolving this invariant violation at the source.
 
 ---

@@ -9,7 +9,7 @@
 
 ## Context
 
-ADR-007 enforced the canonical dispatch path. Final REF-08 review identified
+ADR-007 enforced the accepted dispatch path. Final REF-08 review identified
 additional parity/safety rules that must stay true after the cutover:
 
 1. assistant stream text must not merge into user prompt lines,

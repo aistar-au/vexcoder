@@ -13,7 +13,7 @@ state/render wiring and inconsistent prompt behavior.
 
 ## Decision
 
-1. Use append-only cli session as the canonical runtime path for
+1. Use append-only cli session as the primary runtime path for
    `cargo run`.
 2. Remove parallel window-buffer app/frontend wrappers from runtime execution.
 3. Keep runtime dispatch on `Runtime::run` with `FrontendAdapter<TuiMode>`.
@@ -26,4 +26,4 @@ state/render wiring and inconsistent prompt behavior.
 ## Supersession Note
 
 ADR-018 supersedes this direction by defining a managed-scrollback TUI as the
-canonical runtime path once migration gates are complete.
+primary runtime path once migration gates are complete.

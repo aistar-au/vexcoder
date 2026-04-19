@@ -2,7 +2,7 @@
 
 Descriptive index for repo-local dispatch sources, active task manifests, and tracked-file map dependencies.
 
-Canonical active ADR summary: `TASKS/ACTIVE-ROADMAP.md`.
+Current active ADR summary: `TASKS/ACTIVE-ROADMAP.md`.
 Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 
 ## Current Repo-Local Task Manifests
@@ -16,7 +16,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
 | `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `architecture.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
-| `TASKS/PR-405-permissions-overlay-followup.md` | PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task manifest covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
+| `TASKS/PR-405-permissions-overlay-followup.md` | `ADR-048`, PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task manifest covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | PR #390 replacement follow-up | `AGENTS.md`, `CONTRIBUTING.md` | Local-session detached-worktree skill-bootstrap audit and repo-root anchoring. Branch only. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 
@@ -40,6 +40,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix merged in PR #284 |
 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
+| `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | Proposed | Pre-implementation invariants only |
 
 ### Moved to completed/ (2026-03-27)
 
