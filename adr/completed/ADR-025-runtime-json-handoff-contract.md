@@ -203,6 +203,13 @@ PI-10 is the accepted normalization layer. It must map provider-facing and curre
 
 **Transcript-first note:** transcript rows and block lifecycle updates are now part of the machine-readable seam. Local API and other JSON-capable adapters must preserve `TranscriptLine` and `TranscriptBlock*` envelopes in order, rather than forcing downstream clients to reconstruct the transcript from `AssistantDelta` text or rendered line prefixes.
 
+**Ordered-block note (normative):** provider content-block indices are
+positions in JSON arrays. RFC 8259 defines arrays as ordered sequences and
+objects as unordered collections. PI-10 normalization therefore must preserve
+ascending numeric block-index order when it emits turn-final
+`TranscriptBlockComplete` envelopes; hash iteration order or delta-arrival
+order is not a valid substitute for that contract.
+
 **Validation integration note:** `ValidationOutputEnvelope` is the API-facing projection of ADR-023 `ValidationSuite` output. Its `label` field corresponds to validation command names such as `cargo test`, `cargo clippy`, or `npm test`. This gives API clients structured validation data without coupling them to ADR-023's internal Rust types.
 
 **Implementation note (PF-01 / PF-02 dependency):** `ToolResult.tool_name` remains `Option<String>` because ADR-024 PF-01 / PF-02 (`McpRegistry` and `Capability::McpTool` approval wiring) are not yet green in the current roadmap. The PI-10 normalization layer must resolve `tool_name` from the pending-call table when that name is available. When it is not available — especially for future MCP-originated tool results before registry wiring is complete — the shared envelope must emit `tool_name = null` rather than inventing a placeholder string.

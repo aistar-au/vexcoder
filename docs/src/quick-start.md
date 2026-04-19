@@ -18,7 +18,7 @@ The binary will be at `target/release/vex`.
 ./target/release/vex init
 ```
 
-This scaffolds:
+This creates:
 
 - `.vex/config.toml`
 - `.vex/validate.toml`

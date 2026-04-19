@@ -18,7 +18,7 @@ Three problems stem from this architecture:
 
 2. **Headless execution**: Running `vex` in CI, in a pipe, or via `COMMAND_TO_AGENT.txt` dispatch requires TTY detection hacks scattered across `src/app/mod.rs`. There is no clean headless mode.
 
-3. **Future TUI**: The `ratatui` scaffolding exists but cannot be activated without gutting `App`. Any attempt to add a proper TUI will conflict with the current stdout renderer.
+3. **Future TUI**: The `ratatui` support code exists but cannot be activated without gutting `App`. Any attempt to add a proper TUI will conflict with the current stdout renderer.
 
 The dependency graph currently looks like this:
 
@@ -35,7 +35,7 @@ App (owns everything)
 
 ## Decision
 
-Introduce a **runtime seam**: a thin abstraction layer between the conversation loop and the frontend (stdout renderer or TUI). This is a pure refactor — no new user-visible behaviour is added until the seam is established.
+Introduce a **runtime seam**: a thin abstraction layer between the conversation loop and the interaction surface (stdout renderer or TUI). This is a pure refactor — no new user-visible behaviour is added until the seam is established.
 
 ### Module ownership after refactor
 

@@ -56,7 +56,7 @@ Normative rule:
 - transport parsing, auth checks, and stream framing are located in the server adapter;
 - native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same shared event model over a scoped transport surface.
 
-This ADR defines a JSON transport adapter, not a browser frontend contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
+This ADR defines a JSON transport adapter, not a browser UI contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
 
 ### 2. Accepted request and event payloads
 

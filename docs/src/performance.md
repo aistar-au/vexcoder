@@ -19,7 +19,7 @@ skipping the large turn-history, approval, and command-evidence collections.
 Production cold-start paths currently use header-only scans plus direct
 candidate loads. The process-global header cache is keyed by full path so the
 workspace directory and legacy fallback directory do not alias when they carry
-the same task id. `LazyTaskHandle` remains test-only scaffolding rather than a
+the same task id. `LazyTaskHandle` remains test-only support code rather than a
 shipped runtime abstraction.
 
 ## Why the projection helps

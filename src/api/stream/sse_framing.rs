@@ -1,6 +1,6 @@
 use super::chat_compat::parse_chat_compat_chunk;
 use super::provider::{ProviderApiStreamError, ProviderStreamEvent};
-use super::{LegacyStreamPayload, MAX_SSE_BUFFER_BYTES, StreamParser, StreamProtocolMode};
+use super::{IngressPayload, MAX_SSE_BUFFER_BYTES, StreamParser};
 use crate::runtime::RuntimeEnvelope;
 use anyhow::Result;
 
@@ -15,29 +15,29 @@ impl StreamParser {
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<RuntimeEnvelope>> {
         if self.overflowed {
-            return Ok(vec![self.buffer_overflow_event()]);
+            return Ok(vec![self.sse_buffer_overflow_event()]);
         }
 
         if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
             self.overflowed = true;
-            return Ok(vec![self.buffer_overflow_event()]);
+            return Ok(vec![self.sse_buffer_overflow_event()]);
         }
         self.buffer.extend_from_slice(chunk);
         self.strip_utf8_bom_once();
 
         let mut events = Vec::new();
 
-        while let Some((pos, delim_len)) = self.find_delimiter() {
+        while let Some((pos, delim_len)) = self.find_sse_frame_delimiter() {
             let end = pos + delim_len;
             let frame_bytes = self.buffer[..pos].to_vec();
             self.buffer.drain(..end);
-            events.extend(self.parse_frame_bytes(frame_bytes)?);
+            events.extend(self.parse_sse_frame_bytes(frame_bytes)?);
         }
 
         Ok(events)
     }
 
-    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
+    fn parse_sse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
         let frame_text = String::from_utf8(frame_bytes)?;
         let normalised_frame = normalise_sse_line_endings(&frame_text);
         let mut event_type = None;
@@ -66,8 +66,8 @@ impl StreamParser {
         }
 
         if data_lines.is_empty() {
-            if frame_without_data_should_error(&normalised_frame) {
-                return Ok(vec![self.provider_error_envelope(
+            if sse_frame_without_data_should_error(&normalised_frame) {
+                return Ok(vec![self.protocol_stream_error_envelope(
                     "sse_parse_error",
                     "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
                         .to_string(),
@@ -91,35 +91,34 @@ impl StreamParser {
         }
 
         if let Ok(envelope) = serde_json::from_str::<RuntimeEnvelope>(json_data) {
-            self.protocol_mode = StreamProtocolMode::RuntimeEnvelope;
-            return Ok(vec![envelope]);
+            return Ok(self.enter_runtime_envelope_mode(envelope));
         }
 
-        let payload = self.parse_legacy_event_payload(event_type, json_data);
-        Ok(self.normalize_legacy_stream_payload(payload))
+        let payload = self.parse_protocol_event_payload(event_type, json_data);
+        Ok(self.adapt_protocol_payload(payload))
     }
 
-    fn parse_legacy_event_payload(
+    fn parse_protocol_event_payload(
         &mut self,
         event_type: Option<&str>,
         json_data: &str,
-    ) -> LegacyStreamPayload {
+    ) -> IngressPayload {
         if event_type == Some("ping") {
-            return LegacyStreamPayload::Provider(Box::new(ProviderStreamEvent::Ping));
+            return IngressPayload::Provider(Box::new(ProviderStreamEvent::Ping));
         }
 
         match serde_json::from_str::<ProviderStreamEvent>(json_data) {
-            Ok(evt) => LegacyStreamPayload::Provider(Box::new(evt)),
+            Ok(evt) => IngressPayload::Provider(Box::new(evt)),
             Err(messages_v1_error) => {
                 if let Some(chat_compat_payload) = parse_chat_compat_chunk(json_data) {
-                    LegacyStreamPayload::ChatCompat(chat_compat_payload)
+                    IngressPayload::ChatCompat(chat_compat_payload)
                 } else {
                     super::super::logging::emit_sse_parse_error(
                         event_type,
                         json_data,
                         &messages_v1_error,
                     );
-                    LegacyStreamPayload::Provider(Box::new(ProviderStreamEvent::Error {
+                    IngressPayload::Provider(Box::new(ProviderStreamEvent::Error {
                         error: ProviderApiStreamError {
                             error_type: "sse_parse_error".to_string(),
                             message: messages_v1_error.to_string(),
@@ -130,15 +129,15 @@ impl StreamParser {
         }
     }
 
-    fn find_delimiter(&self) -> Option<(usize, usize)> {
+    fn find_sse_frame_delimiter(&self) -> Option<(usize, usize)> {
         let mut index = 0;
         while index < self.buffer.len() {
-            let Some(first_len) = line_terminator_len(&self.buffer, index) else {
+            let Some(first_len) = sse_line_terminator_len(&self.buffer, index) else {
                 index += 1;
                 continue;
             };
             let next = index + first_len;
-            if let Some(second_len) = line_terminator_len(&self.buffer, next) {
+            if let Some(second_len) = sse_line_terminator_len(&self.buffer, next) {
                 return Some((index, first_len + second_len));
             }
             index = next;
@@ -168,8 +167,8 @@ impl StreamParser {
         }
     }
 
-    fn buffer_overflow_event(&mut self) -> RuntimeEnvelope {
-        self.provider_error_envelope(
+    fn sse_buffer_overflow_event(&mut self) -> RuntimeEnvelope {
+        self.protocol_stream_error_envelope(
             "sse_buffer_overflow",
             format!(
                 "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
@@ -203,7 +202,7 @@ fn normalise_sse_line_endings(frame: &str) -> String {
     frame.replace("\r\n", "\n").replace('\r', "\n")
 }
 
-fn frame_without_data_should_error(frame: &str) -> bool {
+fn sse_frame_without_data_should_error(frame: &str) -> bool {
     frame
         .split('\n')
         .map(str::trim)
@@ -219,7 +218,7 @@ fn looks_like_raw_json_payload(text: &str) -> bool {
                 && serde_json::from_str::<serde_json::Value>(trimmed).is_ok()))
 }
 
-fn line_terminator_len(buffer: &[u8], index: usize) -> Option<usize> {
+fn sse_line_terminator_len(buffer: &[u8], index: usize) -> Option<usize> {
     match buffer.get(index) {
         Some(b'\n') => Some(1),
         Some(b'\r') => {

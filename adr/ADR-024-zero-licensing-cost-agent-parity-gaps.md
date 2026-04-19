@@ -633,7 +633,7 @@ committed to the repo.
 
 ### Gap 17 — Project Bootstrapping (`vex init`)
 
-Operators starting a new project must currently create the `.vex/` directory and config files manually. `vex init` is a one-shot CLI sub-command (not a TUI slash command) that scaffolds the standard project structure.
+Operators starting a new project must currently create the `.vex/` directory and config files manually. `vex init` is a one-shot CLI sub-command (not a TUI slash command) that writes the standard starter files.
 
 ```bash
 vex init [--dir <path>]
@@ -1635,7 +1635,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-01** | `/compact` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
-| **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
+| **PJ-04** | `vex init` — writes `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
 | **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring completed in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [x] |
@@ -1705,7 +1705,7 @@ When checking a box above, append an evidence block under this section:
 | `/fork` must not copy conversation history to the fork | The fork begins with an empty conversation window and inherited grants only |
 | `/memory` notes file must be resolved from the user config layer only | Notes are operator-personal; repo-local config must not be able to set the notes file path |
 | `/memory clear` must require a confirmation prompt in `TuiMode`; must treat confirmation as denied in `BatchMode` unless `--auto-approve` is passed | Non-interactive clear without explicit operator confirmation is not allowed |
-| `vex init` must not overwrite existing files | Non-destructive scaffolding only; skip and report any file that already exists |
+| `vex init` must not overwrite existing files | Non-destructive file generation only; skip and report any file that already exists |
 | `vex init` generated `.vex/config.toml` must contain all normative config keys from this ADR, commented out | Enforced by `test_vex_init_config_keys_match_normative_list` |
 | `/quit` and `/exit` must call `TaskState::save` before exiting; cancel any active `EditLoop` via `CancellationToken` | Never force-exit while `active_edit_loop` is `Some` |
 | `@<path>` expansion must use `ToolOperator`'s workspace-root confinement | Reject out-of-workspace paths with inline annotation; do not abort the turn |
@@ -2010,7 +2010,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `/quit` and `/exit` set `quit_requested` for immediate frontend exit.
+  - `/quit` and `/exit` set `quit_requested` for immediate interaction-surface exit.
   - `TaskState::save` integration deferred to PI-04 when task state persistence
     is wired into the TUI lifecycle. Current exit path is the same as the
     existing Ctrl+C double-press.
@@ -2056,7 +2056,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
   - `/model` performs name-only switching and rejects backend changes mid-session.
-  - `vex init` writes non-destructive workspace scaffolding for `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md`.
+  - `vex init` writes non-destructive starter workspace files for `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md`.
   - `/diff` renders truncated git diff output without starting a model turn.
 
 ### [PK-03 / PK-04] - inline path injection and shell passthrough

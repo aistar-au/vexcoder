@@ -200,7 +200,7 @@ introducing a second renderer for assistant text.
 `append_incremental_suffix()` through
 `crate::state::transcript_delta::bounded_incremental_suffix()`.
 
-This keeps cumulative backend text updates on the same bounded
+This keeps cumulative API-stream text updates on the same bounded
 O(new_text) suffix path used by the structured transcript delta
 accumulators, avoiding repeated scans across the full accumulated
 buffer on every chunk.
@@ -250,9 +250,9 @@ when they arrive as standalone deltas without trailing newlines, and a
 new function opener encountered mid-parameter auto-closes the previous
 tool block before entering the new one.
 
-This keeps the transcript-first live path aligned with the backend's
+This keeps the transcript-first live path aligned with the upstream
 JSON delta stream instead of leaking raw line fragments into the
-operator surface when the model server splits tool markup across
+operator surface when the upstream server splits tool markup across
 arbitrary chunk boundaries.
 
 ### D14: Strip wrapper-only remnants from the assistant text fallback
@@ -401,7 +401,7 @@ Because `src/tui_handle.rs` does not enter the alternate screen today, host
 scrollback remains available to own committed history. Batch F must preserve
 that property.
 
-The managed frontend draw loop in `src/tui_frontend.rs` is the integration
+The managed interaction-surface draw loop in `src/tui_frontend.rs` is the integration
 point for this change because it currently owns host setup, viewport
 sizing, and the `render_task_layout` / `render_messages` dispatch.
 
@@ -413,7 +413,7 @@ when the host width changes after a flush.
 
 ### D18: Split committed transcript rows from live viewport rows
 
-The cutover splits the managed frontend and renderer in
+The cutover splits the managed interaction surface and renderer in
 `src/tui_frontend.rs` and `src/ui/render/mod.rs` into three explicit
 responsibilities:
 

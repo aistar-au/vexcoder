@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::stream::provider::{ProviderDelta, ProviderStreamEvent};
 use crate::runtime::delta_accumulator::DeltaAccumulator;
 use crate::state::ToolApprovalRequest;
 use serde_json::json;
@@ -654,6 +655,49 @@ fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
     assert!(matches!(
         max_turns[1].event,
         RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
+    ));
+}
+
+#[test]
+fn test_pi_12_finish_protocol_ingress_turn_closes_blocks_in_index_order() {
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-order");
+
+    normalizer.normalize_provider_stream_event(ProviderStreamEvent::ContentBlockDelta {
+        index: 3,
+        delta: ProviderDelta {
+            _delta_type: None,
+            text: Some("later".to_string()),
+            partial_json: None,
+            thinking: None,
+            _signature: None,
+            _choice_index: None,
+        },
+    });
+    normalizer.normalize_provider_stream_event(ProviderStreamEvent::ContentBlockDelta {
+        index: 1,
+        delta: ProviderDelta {
+            _delta_type: None,
+            text: None,
+            partial_json: None,
+            thinking: Some("earlier".to_string()),
+            _signature: None,
+            _choice_index: None,
+        },
+    });
+
+    let finish = normalizer.finish_protocol_ingress_turn();
+    let closed_indices = finish
+        .iter()
+        .filter_map(|envelope| match envelope.event {
+            RuntimeEvent::TranscriptBlockComplete { index } => Some(index),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(closed_indices, vec![1, 3]);
+    assert!(matches!(
+        finish.last().map(|envelope| &envelope.event),
+        Some(RuntimeEvent::TurnEnd { status, .. }) if status == "completed"
     ));
 }
 

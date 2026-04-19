@@ -449,7 +449,7 @@ pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::Diff => "git diff preview without starting a model turn",
         SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model turn",
         SlashCommandId::Delegate => "create a persisted session task for a configured agent",
-        SlashCommandId::Init => "write .vex scaffolding in the current workspace",
+        SlashCommandId::Init => "write starter .vex files in the current workspace",
         SlashCommandId::Model => "show or switch the active model name",
         SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
             "inspect or change capability grants"
