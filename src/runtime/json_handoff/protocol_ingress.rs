@@ -14,8 +14,10 @@ use std::collections::BTreeSet;
 #[derive(Default)]
 pub(super) struct ProtocolIngressState {
     turn_started: bool,
-    // Provider block indices come from ordered content arrays, so turn-final
-    // completion must follow ascending index order even if deltas arrive out of order.
+    // Provider block indices come from ordered JSON arrays. RFC 8259 treats
+    // arrays as ordered sequences and objects as unordered collections, so
+    // turn-final completion must follow ascending index order even if deltas
+    // arrive out of order.
     open_blocks: BTreeSet<usize>,
     turn_tokens: TurnTokens,
     chat_compat_message_started: bool,

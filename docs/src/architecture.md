@@ -17,8 +17,9 @@ Direct third-party version requirements are centralized in the root
 `Cargo.toml` `[workspace.dependencies]` table. Workspace members inherit those
 entries with `workspace = true`, and version-sensitive API churn is kept behind
 local seam files such as `src/ui/tui.rs`,
-`src/api/stream/{framing,chat_compat,provider}.rs`,
-`src/runtime/json_handoff.rs`, `src/tools/index.rs`, and
+`src/api/stream/{sse_framing,chat_compat,provider,ingress_adapter}.rs`,
+`src/runtime/json_handoff/{protocol_ingress,tool_calls}.rs`,
+`src/tools/index.rs`, and
 `src/ui/render/markdown.rs`.
 
 - `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, compatibility helpers, and other CLI paths.
@@ -93,13 +94,19 @@ dropping them during protocol conversion.
 A minimal `StreamTextNormaliser` layer remains at the
 `forward_conversation_update` boundary, but it now preserves text boundaries
 rather than interpreting embedded tool markup. Provider- and chat-compat
-framing is decoded in `src/api/stream/{framing,chat_compat,provider}.rs`, and
-`src/runtime/json_handoff.rs` immediately normalizes those payloads into
+framing is decoded in
+`src/api/stream/{sse_framing,chat_compat,provider,ingress_adapter}.rs`, and
+`src/runtime/json_handoff/{protocol_ingress,tool_calls}.rs` immediately normalizes those payloads into
 accepted `RuntimeEnvelope` / `RuntimeEvent` values. Non-canonical provider
 content blocks surface recoverable `RuntimeEvent::Error` envelopes at ingress
 instead of being rewritten into accepted shapes, so downstream clients receive
 either canonical runtime events or explicit protocol failures rather than a
 hidden compatibility repair.
+
+Provider content-block indices are treated as JSON-array positions. RFC 8259
+defines arrays as ordered sequences and objects as unordered collections, so
+turn-final block completion preserves ascending numeric index order rather than
+hash order or delta-arrival order.
 
 The current ratatui surface sizes the output pane to the visible content rows
 and keeps the composer immediately below them inside the reserved inline task surface,

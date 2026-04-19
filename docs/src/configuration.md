@@ -37,7 +37,7 @@ These keys are read by the current runtime from config files:
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
 | `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
-| `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
+| `tool_call_mode` | `structured` only | inferred; resolves to `structured` in the current loader |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `model_profile` | Path to a repo-tracked profile under `models/` | default profile for the selected API backend |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
@@ -51,29 +51,35 @@ These keys are read by the current runtime from config files:
 
 When `model_profile` is set, the runtime loads the profile at startup and uses
 its request parameters (`temperature`, `top_p`, `max_tokens`, stop sequences,
-reasoning budget, and structured-tool fallback). Relative paths are resolved
+reasoning budget, and structured-tool settings). Relative paths are resolved
 from the workspace repo root when one is available, otherwise from the current
 working directory.
 
 ## Tool-call formats
 
-`tool_call_mode` controls how the runtime expects tool invocations to arrive
-from the upstream API stream.
+`tool_call_mode` controls the accepted downstream tool-call contract. The
+current runtime accepts only `structured`; local text/XML compatibility
+handling is configured separately through `VEX_TOOL_PARSER` and is normalized
+at ingress before the event reaches downstream consumers.
 
 | Mode | Meaning | Current parser boundary |
 | :--- | :--- | :--- |
-| `structured` | Prefer native structured tool calls from the upstream endpoint | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
-| `tagged-fallback` | Accept XML-like fallback tags from local endpoints that do not emit native structured deltas | Tagged `<function=...>` scanning remains the fast path, and the local-runtime fallback now defaults to a tagged-plus-XML parser chain that also accepts generic `<tool_call>` and `<invoke>` wrappers before normalizing them into the tagged text protocol |
+| `structured` | Native structured tool calls are the accepted runtime mode | JSON `tool_calls` arrays and content-block `tool_use` payloads are parsed via `serde_json`; local text/XML fallback remains an ingress-only parser concern |
 
-The runtime currently documents three structured tool-call shapes:
+The runtime currently recognizes three upstream tool-call shapes at or before
+API normalization:
 
 1. JSON `tool_calls` arrays from chat-completion style APIs.
 2. Content-block `tool_use` records from block-oriented APIs.
 3. XML-like fallback tags such as `<function=name>` and `<parameter=key>`.
 
-These paths are distinct from `regex-lite` processing. `regex-lite` is used for
-git output parsing, secret rewriting, and rate-limit extraction; it is not used
-for live tool-call parsing.
+The first two shapes are the accepted `tool_call_mode = "structured"` contract.
+The third shape is handled by `VEX_TOOL_PARSER` for local-endpoint ingress
+compatibility and is normalized before downstream consumers see runtime events.
+
+These paths are distinct from `regex-lite` processing. `regex-lite` is used
+for git output parsing, secret rewriting, and rate-limit extraction; it is not
+used for live tool-call parsing.
 
 ## Tool policy
 
@@ -262,8 +268,11 @@ Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
 
 ### `VEX_TOOL_CALL_MODE`
 
-Overrides tool-call encoding. Accepted values: `structured`,
-`tagged-fallback`.
+Overrides tool-call encoding. Accepted value: `structured`.
+
+Compatibility aliases `structured-tool-calls` and
+`structured_tool_calls` normalize to the same setting. XML-like fallback tags
+remain controlled by `VEX_TOOL_PARSER`, not by `VEX_TOOL_CALL_MODE`.
 
 ### `VEX_TOOL_PARSER`
 
