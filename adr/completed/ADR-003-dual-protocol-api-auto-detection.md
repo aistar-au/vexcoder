@@ -6,8 +6,8 @@
 **Related tasks:** None (original design decision; may spawn a FEAT task for additional backends)  
 **Implemented in:** `src/api/client.rs` — protocol selection and chat-completions URL adaptation helpers
 
-> Deprecation note: the tagged-text fallback described in this ADR has been
-> retired from current repository policy. ADR-047's API-first amendment and
+> Deprecated : the tagged-text fallback described in this ADR has been
+> rewritten from current repository policy. ADR-047's API-first amendment and
 > PR #408 remove downstream tagged/XML compatibility repair in favor of
 > API-boundary normalization plus explicit recoverable errors for
 > non-canonical provider payloads.
