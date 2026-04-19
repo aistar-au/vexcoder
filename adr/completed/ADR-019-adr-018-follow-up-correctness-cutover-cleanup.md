@@ -265,7 +265,7 @@ ADR-028 clarifies the outer-layer split that this deprecated cutover ADR left im
 
 ---
 
-## Supersession Note (2026-03-13)
+## Deprecated Note (2026-03-13)
 
 ADR-027 replaces the follow-up execution contract recorded here for the
 interactive cli surface. The checklist and evidence in this file remain the
