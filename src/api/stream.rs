@@ -1,9 +1,11 @@
 use self::provider::ProviderStreamEvent;
-use crate::runtime::json_handoff::RuntimeEnvelopeNormalizer;
+
+use self::ingress_adapter::IngressProtocolAdapter;
 
 pub(crate) mod chat_compat;
-mod framing;
+mod ingress_adapter;
 pub(crate) mod provider;
+mod sse_framing;
 mod text_normaliser;
 
 pub(crate) use self::chat_compat::ChatCompatPayload;
@@ -21,17 +23,17 @@ const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 /// from untrusted server data.
 pub(crate) const MAX_TOOL_CALL_INDEX: usize = 1_024;
 
-pub(crate) enum LegacyStreamPayload {
+pub(crate) enum IngressPayload {
     Provider(Box<ProviderStreamEvent>),
     ChatCompat(ChatCompatPayload),
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
-enum StreamProtocolMode {
+enum StreamOutputMode {
     #[default]
     Undecided,
     RuntimeEnvelope,
-    ProviderNormalized,
+    ProtocolAdapter,
 }
 
 #[derive(Default)]
@@ -44,8 +46,8 @@ pub struct StreamParser {
     // implement reconnection with Last-Event-ID semantics.
     last_event_id: Option<String>,
     reconnect_delay_ms: Option<u64>,
-    protocol_mode: StreamProtocolMode,
-    provider_normalizer: Option<RuntimeEnvelopeNormalizer>,
+    output_mode: StreamOutputMode,
+    protocol_adapter: Option<IngressProtocolAdapter>,
 }
 
 impl StreamParser {

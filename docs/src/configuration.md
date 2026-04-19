@@ -39,7 +39,7 @@ These keys are read by the current runtime from config files:
 | `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
-| `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
+| `model_profile` | Path to a repo-tracked profile under `models/` | default profile for the selected model runtime |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
 | `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, `container`, or `bubblewrap` | `passthrough` |
@@ -62,7 +62,7 @@ from the model layer.
 
 | Mode | Meaning | Current parser boundary |
 | :--- | :--- | :--- |
-| `structured` | Prefer native structured tool calls from the backend | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
+| `structured` | Prefer native structured tool calls from the model runtime | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
 | `tagged-fallback` | Accept XML-like fallback tags from local runtimes that do not emit native structured deltas | Tagged `<function=...>` scanning remains the fast path, and the local-runtime fallback now defaults to a tagged-plus-XML parser chain that also accepts generic `<tool_call>` and `<invoke>` wrappers before normalizing them into the tagged text protocol |
 
 The runtime currently documents three structured tool-call shapes:
@@ -258,7 +258,7 @@ Overrides protocol inference. Accepted values: `messages-v1`, `chat-compat`.
 
 ### `VEX_MODEL_BACKEND`
 
-Overrides backend inference. Accepted values: `local-runtime`, `api-server`.
+Overrides model-runtime inference. Accepted values: `local-runtime`, `api-server`.
 
 ### `VEX_TOOL_CALL_MODE`
 
@@ -276,7 +276,7 @@ Overrides the local text-protocol parser chain. Accepted values:
   generic `<tool_call>`, `<invoke>`, and `<tool_use>` wrappers.
 
 Local endpoints default to `hybrid` so XML-style tool wrappers still execute
-when the backend does not emit native structured tool deltas.
+when the model runtime does not emit native structured tool deltas.
 
 Example:
 
@@ -472,7 +472,7 @@ at session start.  Each server entry may also set `timeout_secs` in the
 config file; the per-server value takes priority over this environment
 variable.  Range: 1–300.  Default: `30`.
 
-## `vex init` scaffold
+## `vex init` generated files
 
 `vex init` writes a commented config skeleton. It includes some reserved
 sections for future expansion.
@@ -486,7 +486,7 @@ sections for future expansion.
   loaded from the user config layer, and merged into the runtime tool registry
   as `mcp.<server>.<tool>` names. Servers are explicitly shut down when the
   session ends (TUI exit, batch completion, or API server stop).
-- Commented `[api]` remains a scaffold placeholder in config files.
+- Commented `[api]` remains a placeholder section in config files.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
 - `[[mcp_servers]]` is rejected in repo-local and system config layers to avoid

@@ -1,11 +1,5 @@
-use super::{LegacyStreamPayload, StreamParser, StreamProtocolMode};
-use crate::runtime::json_handoff::RuntimeEnvelopeNormalizer;
-use crate::runtime::{RuntimeEnvelope, RuntimeEvent};
 use crate::types::{ApiUsage, StreamChunkMetadata};
 use serde::Deserialize;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static NEXT_STREAM_TASK_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -96,66 +90,4 @@ pub(crate) struct ProviderDelta {
     pub(crate) _signature: Option<String>,
     #[serde(default)]
     pub(crate) _choice_index: Option<usize>,
-}
-
-impl StreamParser {
-    pub fn finish(&mut self) -> Vec<RuntimeEnvelope> {
-        if self.protocol_mode != StreamProtocolMode::ProviderNormalized {
-            return Vec::new();
-        }
-
-        self.provider_normalizer_mut().finish_legacy_stream_turn()
-    }
-
-    pub(super) fn normalize_legacy_stream_payload(
-        &mut self,
-        payload: LegacyStreamPayload,
-    ) -> Vec<RuntimeEnvelope> {
-        if self.protocol_mode == StreamProtocolMode::RuntimeEnvelope {
-            return vec![self.provider_error_envelope(
-                "mixed_sse_protocol",
-                "received legacy stream events after RuntimeEnvelope passthrough began".to_string(),
-            )];
-        }
-        self.protocol_mode = StreamProtocolMode::ProviderNormalized;
-
-        match payload {
-            LegacyStreamPayload::Provider(event) => self
-                .provider_normalizer_mut()
-                .normalize_provider_stream_event(*event),
-            LegacyStreamPayload::ChatCompat(payload) => self
-                .provider_normalizer_mut()
-                .normalize_chat_compat_payload(payload),
-        }
-    }
-
-    fn provider_normalizer_mut(&mut self) -> &mut RuntimeEnvelopeNormalizer {
-        self.provider_normalizer
-            .get_or_insert_with(|| RuntimeEnvelopeNormalizer::new(next_stream_task_id()))
-    }
-
-    pub(super) fn provider_error_envelope(
-        &mut self,
-        code: &str,
-        message: String,
-    ) -> RuntimeEnvelope {
-        if self.protocol_mode == StreamProtocolMode::RuntimeEnvelope {
-            let mut normalizer = RuntimeEnvelopeNormalizer::new(next_stream_task_id());
-            let _ = normalizer.start_turn(1, None);
-            return normalizer.emit_event(RuntimeEvent::Error {
-                code: code.to_string(),
-                message,
-                recoverable: true,
-            });
-        }
-
-        self.protocol_mode = StreamProtocolMode::ProviderNormalized;
-        self.provider_normalizer_mut()
-            .emit_legacy_stream_error(code.to_string(), message)
-    }
-}
-
-fn next_stream_task_id() -> String {
-    let id = NEXT_STREAM_TASK_ID.fetch_add(1, Ordering::Relaxed);
-    format!("api_stream_{id}")
 }

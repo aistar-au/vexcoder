@@ -74,7 +74,7 @@ relative to the current parser path.
   evidence.
 - The repository can document parser follow-up work without implying that a
   broader parser is already the active runtime path.
-- The framework provides optional structured-output scaffolding, but it does
+- The framework provides optional structured-output support code, but it does
   not by itself authorize parser cutover or removal of the existing live
   parser path. Shadow validation, targeted recovery experiments, or opt-in
   local-model paths are permitted; default cutover requires all three gates.

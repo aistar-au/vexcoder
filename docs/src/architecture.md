@@ -56,7 +56,7 @@ protocol surface implemented in-tree.
    strips a single leading space per WHATWG rules, handles BOM-prefixed streams,
    and recognises `\n`, `\r\n`, and `\r` line terminators.
 - Raw JSON chunk streams without SSE framing are unsupported. Providers and
-   local backends are expected to emit valid SSE frames.
+   local model runtimes are expected to emit valid SSE frames.
 
 Intentional deviations are documented and focused in scope:
 
@@ -77,7 +77,7 @@ Intentional deviations are documented and focused in scope:
 
 The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
 `src/types/api_types.rs` preserve documented streaming values from both
-`messages-v1` and `chat-compat` backends.
+`messages-v1` and `chat-compat` runtime endpoints.
 
 - heartbeats and structured stream errors
 - text, input-json, thinking, and signature deltas

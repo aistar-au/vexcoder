@@ -7,7 +7,7 @@
 //!   Transport (src/server/, src/local_api.rs) -> Application facade (src/app/)
 //!
 //! Forbidden directions:
-//!   - Runtime must NOT import CLI, transport, terminal, or TUI frontend
+//!   - Runtime must NOT import CLI, transport, terminal, or the TUI interaction surface
 //!   - State/conversation must NOT import CLI, transport, terminal, or TUI
 //!   - Application facade must NOT import CLI (src/bin/) or transport (src/server/)
 
