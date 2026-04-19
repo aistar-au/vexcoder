@@ -15,92 +15,6 @@ use futures::StreamExt;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::mpsc;
 
-#[derive(Default)]
-struct ToolArgumentBufferState {
-    raw: String,
-    object_depth: usize,
-    array_depth: usize,
-    in_string: bool,
-    escape: bool,
-    saw_non_whitespace: bool,
-    invalid_nesting: bool,
-}
-
-impl ToolArgumentBufferState {
-    fn push_delta(&mut self, delta: &str) {
-        self.raw.push_str(delta);
-
-        for ch in delta.chars() {
-            if !ch.is_whitespace() {
-                self.saw_non_whitespace = true;
-            }
-
-            if self.in_string {
-                if self.escape {
-                    self.escape = false;
-                    continue;
-                }
-
-                match ch {
-                    '\\' => self.escape = true,
-                    '"' => self.in_string = false,
-                    _ => {}
-                }
-                continue;
-            }
-
-            match ch {
-                '"' => self.in_string = true,
-                '{' => self.object_depth = self.object_depth.saturating_add(1),
-                '}' => {
-                    if self.object_depth == 0 {
-                        self.invalid_nesting = true;
-                    } else {
-                        self.object_depth -= 1;
-                    }
-                }
-                '[' => self.array_depth = self.array_depth.saturating_add(1),
-                ']' => {
-                    if self.array_depth == 0 {
-                        self.invalid_nesting = true;
-                    } else {
-                        self.array_depth -= 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn maybe_parse(&self) -> Option<serde_json::Value> {
-        if !self.should_attempt_parse() {
-            return None;
-        }
-
-        serde_json::from_str::<serde_json::Value>(&self.raw)
-            .or_else(|_| serde_json::from_str(self.raw.trim()))
-            .ok()
-    }
-
-    fn should_attempt_parse(&self) -> bool {
-        if !self.saw_non_whitespace
-            || self.invalid_nesting
-            || self.in_string
-            || self.escape
-            || self.object_depth != 0
-            || self.array_depth != 0
-        {
-            return false;
-        }
-
-        self.raw
-            .trim_end()
-            .chars()
-            .next_back()
-            .is_some_and(|ch| matches!(ch, '}' | ']' | '"' | '0'..='9' | 'e' | 'l'))
-    }
-}
-
 impl ConversationManager {
     pub async fn send_message_with_policy(
         &mut self,
@@ -222,7 +136,6 @@ impl ConversationManager {
             let mut assistant_text = String::new();
             let mut tool_use_blocks = Vec::new();
             let mut tool_use_positions: HashMap<String, usize> = HashMap::new();
-            let mut tool_input_buffers: HashMap<String, ToolArgumentBufferState> = HashMap::new();
             let mut pending_tool_block_indices = VecDeque::new();
             let mut tool_block_indices: HashMap<String, usize> = HashMap::new();
             let mut block_tool_call_ids: HashMap<usize, String> = HashMap::new();
@@ -320,6 +233,7 @@ impl ConversationManager {
                         tool_call_id,
                         tool_name,
                         delta,
+                        arguments,
                         ..
                     } => {
                         let tool_name_for_ui = tool_name.clone();
@@ -332,19 +246,12 @@ impl ConversationManager {
                             *name = tool_name;
                         }
 
-                        let current_arguments = {
-                            let buffer =
-                                tool_input_buffers.entry(tool_call_id.clone()).or_default();
-                            buffer.push_delta(&delta);
-                            buffer.maybe_parse()
-                        };
-
-                        if let Some(arguments) = current_arguments.clone()
+                        if let Some(arguments) = arguments.as_ref()
                             && let Some(position) = tool_use_positions.get(&tool_call_id).copied()
                             && let Some(ContentBlock::ToolUse { input, .. }) =
                                 tool_use_blocks.get_mut(position)
                         {
-                            *input = arguments;
+                            *input = arguments.clone();
                         }
 
                         if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
@@ -353,7 +260,7 @@ impl ConversationManager {
                                 ConversationStreamUpdate::BlockDelta { index, delta },
                             );
                         }
-                        if let Some(arguments) = current_arguments {
+                        if let Some(arguments) = arguments {
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::ToolCallArgumentsUpdated {
@@ -416,35 +323,6 @@ impl ConversationManager {
                             ConversationStreamUpdate::StreamError(format!(
                                 "stream error ({code}): {message}"
                             )),
-                        );
-                    }
-                }
-            }
-
-            for (tool_call_id, buffer) in tool_input_buffers {
-                if buffer.raw.is_empty() {
-                    continue;
-                }
-                let Some(position) = tool_use_positions.get(&tool_call_id).copied() else {
-                    continue;
-                };
-                let Some(ContentBlock::ToolUse { input, .. }) = tool_use_blocks.get_mut(position)
-                else {
-                    continue;
-                };
-
-                let parse_result: Result<serde_json::Value, _> = serde_json::from_str(&buffer.raw)
-                    .or_else(|_| serde_json::from_str(buffer.raw.trim()));
-                match parse_result {
-                    Ok(parsed_input) => {
-                        *input = parsed_input;
-                    }
-                    Err(err) => {
-                        tracing::warn!(
-                            tool_call_id,
-                            json_len = buffer.raw.len(),
-                            err = %err,
-                            "tool input JSON parse failed; tool will run with prior arguments"
                         );
                     }
                 }
@@ -955,33 +833,4 @@ fn parse_runtime_timestamp(value: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(value)
         .ok()
         .map(|timestamp| timestamp.with_timezone(&Utc))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_tool_argument_buffer_waits_for_complete_json() {
-        let mut buffer = ToolArgumentBufferState::default();
-
-        buffer.push_delta("{\"path\": \"file");
-        assert!(!buffer.should_attempt_parse());
-        assert_eq!(buffer.maybe_parse(), None);
-
-        buffer.push_delta(".txt\"}");
-        assert!(buffer.should_attempt_parse());
-        assert_eq!(buffer.maybe_parse(), Some(json!({"path": "file.txt"})));
-    }
-
-    #[test]
-    fn test_tool_argument_buffer_accepts_complete_string_value() {
-        let mut buffer = ToolArgumentBufferState::default();
-
-        buffer.push_delta("\"ready\"");
-
-        assert!(buffer.should_attempt_parse());
-        assert_eq!(buffer.maybe_parse(), Some(json!("ready")));
-    }
 }

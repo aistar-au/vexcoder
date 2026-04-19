@@ -101,6 +101,8 @@ pub enum RuntimeEvent {
         tool_name: Option<String>,
         delta: String,
         status: ToolStatus,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        arguments: Option<serde_json::Value>,
         #[serde(default)]
         invalid_json: bool,
     },
@@ -256,11 +258,19 @@ pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
     format!("tx_{}_{entropy:04x}", count)
 }
 
+fn serialize_tool_arguments(arguments: &serde_json::Value) -> String {
+    match arguments {
+        serde_json::Value::Object(map) if map.is_empty() => String::new(),
+        _ => serde_json::to_string(arguments).unwrap_or_default(),
+    }
+}
+
 #[derive(Debug, Clone)]
 struct PendingToolCall {
     runtime_id: ToolCallId,
     name: String,
     arguments: serde_json::Value,
+    raw_arguments: String,
     start_event_id: String,
     started_at: DateTime<Utc>,
 }
@@ -306,6 +316,9 @@ enum ProviderContentBlockCompat {
         thinking: String,
         signature: String,
     },
+    ThinkingData {
+        data: String,
+    },
     ServerToolUse {
         id: String,
         name: String,
@@ -332,6 +345,9 @@ enum ProviderContentBlock {
     ToolResult,
     Thinking {
         thinking: String,
+    },
+    ThinkingData {
+        data: String,
     },
     ServerToolUse {
         id: String,
@@ -874,7 +890,7 @@ impl RuntimeEnvelopeNormalizer {
             return envelopes;
         }
 
-        for choice in chunk.choices.clone() {
+        for choice in std::mem::take(&mut chunk.choices) {
             let ChatCompatChoice {
                 index: choice_index,
                 delta,
@@ -1124,6 +1140,7 @@ impl RuntimeEnvelopeNormalizer {
                 runtime_id: runtime_id.clone(),
                 name: name.clone(),
                 arguments: arguments.clone(),
+                raw_arguments: serialize_tool_arguments(&arguments),
                 start_event_id: envelope.event_id.clone(),
                 started_at,
             },
@@ -1162,6 +1179,7 @@ impl RuntimeEnvelopeNormalizer {
                 runtime_id: runtime_id.clone(),
                 name: name.clone(),
                 arguments: arguments.clone(),
+                raw_arguments: serialize_tool_arguments(&arguments),
                 start_event_id: envelope.event_id.clone(),
                 started_at,
             },
@@ -1267,6 +1285,7 @@ impl RuntimeEnvelopeNormalizer {
             self.accumulate_tool_delta(tool_call_id, delta),
             Some(AccumulationError::MalformedPartial)
         );
+        let arguments = self.append_pending_tool_delta(tool_call_id, delta);
 
         self.next_envelope_with_context(
             RuntimeEvent::ToolCallArgumentsDelta {
@@ -1274,6 +1293,7 @@ impl RuntimeEnvelopeNormalizer {
                 tool_name,
                 delta: delta.to_string(),
                 status: ToolStatus::Pending,
+                arguments,
                 invalid_json,
             },
             None,
@@ -1343,6 +1363,24 @@ impl RuntimeEnvelopeNormalizer {
         };
 
         delta_accumulator.finish(tool_call_id);
+    }
+
+    fn append_pending_tool_delta(
+        &mut self,
+        tool_call_id: &ToolCallId,
+        delta: &str,
+    ) -> Option<serde_json::Value> {
+        let pending = self
+            .pending_tool_calls
+            .values_mut()
+            .find(|pending| pending.runtime_id == *tool_call_id)?;
+
+        pending.raw_arguments.push_str(delta);
+        let arguments = serde_json::from_str::<serde_json::Value>(&pending.raw_arguments)
+            .or_else(|_| serde_json::from_str(pending.raw_arguments.trim()))
+            .ok()?;
+        pending.arguments = arguments.clone();
+        Some(arguments)
     }
 
     fn finish_pending_tool_accumulations(&self) {
@@ -1440,6 +1478,7 @@ impl From<ProviderContentBlockCompat> for ProviderContentBlock {
                 let _ = signature;
                 Self::Thinking { thinking }
             }
+            ProviderContentBlockCompat::ThinkingData { data } => Self::ThinkingData { data },
             ProviderContentBlockCompat::ServerToolUse { id, name, input } => {
                 Self::ServerToolUse { id, name, input }
             }
@@ -1471,6 +1510,13 @@ fn provider_stream_block(
                 collapsed: false,
             },
             Some(thinking.clone()),
+        )),
+        ProviderContentBlock::ThinkingData { data } => Some((
+            StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+            Some(data.clone()),
         )),
         ProviderContentBlock::ToolUse { id, name, input }
         | ProviderContentBlock::ServerToolUse { id, name, input } => Some((

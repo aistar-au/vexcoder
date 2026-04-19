@@ -70,6 +70,27 @@ fn test_process_messages_v1_legacy_thinking_tag_emits_recoverable_error() {
 }
 
 #[test]
+fn test_process_messages_v1_thinking_data_block_emits_thinking_delta() {
+    let mut parser = StreamParser::new();
+    let frame =
+        b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking_data\",\"data\":\"opaque\"}}\n\n";
+    let events = parser.process(frame).unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "opaque"
+    )));
+    assert!(!events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::Error {
+            code,
+            recoverable,
+            ..
+        } if code == "provider_content_block_start_decode" && *recoverable
+    )));
+}
+
+#[test]
 fn test_process_chat_compat_emits_message_start_metadata() {
     let mut parser = StreamParser::new();
     let events = parser

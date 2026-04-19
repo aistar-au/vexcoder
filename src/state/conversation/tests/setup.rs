@@ -77,7 +77,7 @@ data: {"type":"content_block_start","index":0,"content_block":{"type":"text","te
 data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I will read it."}}"#
             .to_string(),
         r#"event: content_block_stop
-    data: {"type":"content_block_stop","index":0}"#
+data: {"type":"content_block_stop","index":0}"#
             .to_string(),
         format!(
             r#"event: content_block_start
