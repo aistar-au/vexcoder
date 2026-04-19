@@ -15,6 +15,7 @@ mdbook serve docs
 - [Architecture Overview](docs/src/architecture.md)
 - [Quick Start](docs/src/quick-start.md)
 - [Configuration](docs/src/configuration.md)
+- [Privacy](docs/src/privacy.md)
 - [CLI and TUI Commands](docs/src/commands.md)
 - [Dependency Upgrades](docs/src/dependency-upgrades.md)
 
@@ -42,6 +43,11 @@ implemented in-tree. One deliberate exception remains: upstream streamed model
 requests use `POST` with EventSource framing because the provider APIs require
 request bodies. Raw JSON chunk streams without SSE framing are unsupported and
 discouraged.
+
+The current client-side and LocalApiServer privacy posture is documented in
+[`docs/src/privacy.md`](docs/src/privacy.md), including local storage paths,
+credential handling, telemetry boundaries, and the read-only `/v1/privacy`
+metadata endpoint.
 
 ## Contributing
 

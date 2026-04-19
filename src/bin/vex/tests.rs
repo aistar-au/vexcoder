@@ -1058,6 +1058,12 @@ fn test_doctor_cli_parses_json_flag() {
 }
 
 #[test]
+fn test_privacy_cli_parses() {
+    let cli = Cli::parse_from(["vex", "privacy"]);
+    assert!(matches!(cli.command, Some(Commands::Privacy)));
+}
+
+#[test]
 fn test_credentials_set_cli_parses_stdin_flag() {
     let cli = Cli::parse_from(["vex", "credentials", "set", "model-token", "--stdin"]);
     match cli.command {

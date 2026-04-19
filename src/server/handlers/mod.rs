@@ -20,6 +20,7 @@ use crate::http_facade::{HeaderName, HeaderValue, StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
+use crate::privacy::{PrivacyStatement, privacy_statement};
 use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
@@ -113,6 +114,10 @@ pub async fn schema_handler() -> Result<Json<SchemaBundle>, ProblemDetailsRespon
         request_schema,
         envelope_schema,
     }))
+}
+
+pub async fn privacy_handler() -> Json<PrivacyStatement> {
+    Json(privacy_statement())
 }
 
 pub async fn agents_handler(

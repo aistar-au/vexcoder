@@ -1451,6 +1451,13 @@ fn test_infer_model_protocol_messages_v1_for_transposed_messages_v1_url() {
 
 #[test]
 fn test_interactive_model_selection_preserves_protocol_for_transposed_url() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_BACKEND");
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_NAME");
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_PROTOCOL");
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_TOKEN");
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_URL");
+
     let cwd = tempfile::tempdir().unwrap();
     let user_cfg = tempfile::tempdir().unwrap();
     let user_cfg_file = user_cfg.path().join("config.toml");

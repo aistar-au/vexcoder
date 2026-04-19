@@ -66,6 +66,13 @@ verifies that any present policy file parses cleanly.
 Exit code is non-zero only when one or more checks fail. `--json` emits a JSON
 array of `{check,status,message}` objects.
 
+### `vex privacy`
+
+Prints the current privacy summary for the CLI and LocalApiServer surfaces.
+
+The output is structured text so it can be reviewed in an interactive shell, written to a
+file, or copied into local operator documentation.
+
 ### `vex credentials <set|get|delete|list>`
 
 Manages the OS credential-store entries used by the runtime token fallback.

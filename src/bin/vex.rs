@@ -16,6 +16,7 @@ use vexcoder::exec::{parse_exec_command, run_exec};
 use vexcoder::export::{ExportFormat, render_task_export, write_export_output};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
+use vexcoder::privacy::render_privacy_markdown;
 use vexcoder::runtime::{ModelProtocol, TaskState, TaskStatus, ToolPolicy};
 use vexcoder::serve_local_api;
 use vexcoder::startup::emit_model_endpoint_warnings;
@@ -493,6 +494,10 @@ async fn main() -> Result<ExitCode> {
             } else {
                 ExitCode::SUCCESS
             });
+        }
+        Some(Commands::Privacy) => {
+            print!("{}", render_privacy_markdown());
+            return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Export {
             task_id,
