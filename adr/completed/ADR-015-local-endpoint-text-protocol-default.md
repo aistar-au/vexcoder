@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer
 **Related tasks:** `TASKS/completed/CRIT-18-local-tool-loop-enrichment-consistency.md`
 
-> Deprecated-default notice: the text-protocol fallback default described here
+> Deprecated : the text-protocol fallback default described here
 > no longer governs downstream handling. ADR-025, ADR-043, and the ADR-047
 > amendment now require structured tool payloads as the only accepted
 > downstream contract, with non-canonical provider payloads failing or
