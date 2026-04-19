@@ -262,7 +262,7 @@ where
         })
 }
 
-/// Client-side configuration for the local inference API.
+/// Client-side configuration for the same-machine inference API.
 ///
 /// Simplifies user configuration to `base_url` only; protocol is discovered
 /// automatically unless `explicit_protocol` is set (ADR-047).
@@ -378,7 +378,7 @@ pub struct DoctorMcpServer {
 }
 
 /// Intermediate per-layer config built from a TOML file.
-/// `deny_unknown_fields` ensures any unrecognized key is a hard failure.
+/// `deny_unknown_fields` ensures any unrecognized key is an immediate failure.
 #[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ConfigLayer {
@@ -450,11 +450,11 @@ impl Config {
     /// Load config from the five-layer resolution chain.
     ///
     /// Precedence (highest ΓåÆ lowest):
-    ///   environment > repo-local `.vex/config.toml` > user > system > compiled defaults
+    ///   environment > repo-scoped `.vex/config.toml` > user > system > compiled defaults
     ///
-    /// Repo-local discovery walks ancestors of `std::env::current_dir()`.
+    /// Repo-scoped discovery walks ancestors of `std::env::current_dir()`.
     /// Missing files are silently ignored. Malformed TOML, unknown keys,
-    /// invalid enum values, and `model_token` in any file are hard failures
+    /// invalid enum values, and `model_token` in any file are immediate failures
     /// with file-path context in the error message.
     pub fn load() -> Result<Self> {
         load::load()
@@ -475,7 +475,7 @@ impl Config {
 
     /// Test-only helper. Accepts explicit user and system config paths so
     /// tests can inject fixtures without touching the operator's real home
-    /// directory or `/etc`. Repo-local config is still discovered by walking
+    /// directory or `/etc`. Repo-scoped config is still discovered by walking
     /// ancestors of `cwd`.
     pub fn load_for_tests(cwd: &Path, user: Option<&Path>, system: Option<&Path>) -> Result<Self> {
         load::load_for_tests(cwd, user, system)

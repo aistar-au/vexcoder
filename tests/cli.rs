@@ -1,7 +1,7 @@
 //! CLI smoke-tests using `assert_cmd`.
 //!
 //! These tests verify that the compiled `vex` binary exits predictably for
-//! flag-only invocations that require no runtime configuration.
+//! option-only invocations that require no runtime configuration.
 
 use assert_cmd::Command;
 

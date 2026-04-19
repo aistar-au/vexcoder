@@ -1,11 +1,11 @@
 # ADR-018: Managed TUI — Scrollback, Streaming Cell, Overlays
 
 **Date:** 2026-02-22
-**Status:** Superseded by ADR-027
+**Status:** Deprecated by ADR-027
 **Deciders:** Core maintainer
 **Related tasks:** CORE-15, CORE-16, CORE-17, FEAT-17, FEAT-18, FEAT-19
 **ADR chain:** ADR-006, ADR-007, ADR-009, ADR-010
-**Supersedes:** ADR-017 (on acceptance + migration completion)
+**Deprecates:** ADR-017 (on acceptance + migration completion)
 
 ## Context
 

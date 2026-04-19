@@ -68,7 +68,7 @@ pub(super) enum Commands {
     InstallHooks,
     /// Remove the vexcoder `prepare-commit-msg` hook.
     UninstallHooks,
-    /// Manage the local skills registry.
+    /// Manage the workstation-scoped skills registry.
     Skills {
         #[command(subcommand)]
         sub: SkillsCommands,
@@ -86,7 +86,7 @@ pub(super) enum Commands {
     },
     /// Create a new git branch from HEAD and record it on the most recent task.
     Branch { name: String },
-    /// Generate a pull request title and body draft for the current branch.
+    /// Generate a proposed pull request title and body for the current branch.
     PrSummary,
     /// Configuration migration utilities.
     Migrate {
@@ -110,7 +110,7 @@ pub(super) enum Commands {
         #[arg(long)]
         force: bool,
     },
-    /// Run the local API transport adapter.
+    /// Run the same-machine API transport adapter.
     Serve {
         #[arg(long)]
         host: Option<String>,
@@ -135,7 +135,7 @@ pub(super) enum CredentialsCommands {
     ///
     /// Example:
     /// `printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token --stdin`
-    /// If no flag is passed on an interactive TTY, vex prompts for the secret
+    /// If no option is passed on an interactive TTY, vex prompts for the secret
     /// without echoing it.
     Set {
         /// Account identifier (e.g., `model-token`).

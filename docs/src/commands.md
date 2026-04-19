@@ -71,7 +71,7 @@ array of `{check,status,message}` objects.
 Prints the current privacy summary for the CLI and LocalApiServer surfaces.
 
 The output is structured text so it can be reviewed in an interactive shell, written to a
-file, or copied into local operator documentation.
+file, or copied into operator-workstation documentation.
 
 ### `vex credentials <set|get|delete|list>`
 
@@ -111,11 +111,11 @@ recent task file in `.vex/state` (or `VEX_STATE_DIR`).
 ### `vex pr-summary`
 
 Builds a diff from the current branch against the merge-base of the default
-remote branch (`origin/HEAD`) and runs one model turn to draft a PR title and
+remote branch (`origin/HEAD`) and runs one model turn to propose a PR title and
 body.
 
 The result prints to stdout. The current template starts with a `Title:` line
-followed by a Markdown body, so you can review it locally or pipe it into your
+followed by a Markdown body, so you can review it on your workstation or pipe it into your
 own git-hosting CLI workflow.
 
 ### `vex migrate config [--output PATH]`

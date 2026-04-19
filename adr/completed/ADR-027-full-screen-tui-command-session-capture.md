@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer
 **Related tasks:** CORE-15, CORE-16, PE-01, PJ-03
 **ADR chain:** ADR-018, ADR-019, ADR-022
-**Supersedes:** ADR-018, ADR-019 (corrective amendment)
+**Deprecates:** ADR-018, ADR-019 (corrective amendment)
 ## Context
 
 Previous discussions considered an inline overlay pattern that would keep

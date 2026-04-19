@@ -254,7 +254,7 @@ the tree.
 
 When the upgrade workflow matures and all active seams are well-tested, the
 `scripts/upgrade-deps.sh apply` command can be wrapped in a GitHub Actions
-scheduled workflow that opens a draft PR. The design prerequisite is that CI
+scheduled workflow that opens a pre-review PR. The design prerequisite is that CI
 passes on the manifest-only change for crates whose seam files have no API
 churn in the release. The current Makefile targets are already structured for
 this: `make deps-deny && make deps-upgrade && make gate` is a self-contained

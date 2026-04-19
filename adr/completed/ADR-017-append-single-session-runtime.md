@@ -1,9 +1,9 @@
 # ADR-017: Append-Terminal Single Session Runtime
 
 **Date:** 2026-02-21
-**Status:** Superseded by ADR-018
+**Status:** Deprecated by ADR-018
 **Deciders:** Core maintainer
-**Related tasks:** (withdrawn after supersession)
+**Related tasks:** (withdrawn after deprecation)
 
 ## Context
 

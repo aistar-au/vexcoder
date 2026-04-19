@@ -12,7 +12,7 @@ vex init
 Highest priority wins:
 
 1. Environment variables
-2. Repo-local `.vex/config.toml`
+2. Repo-scoped `.vex/config.toml`
 3. User config: `~/.config/vex/config.toml` or `~/.vex/config.toml`
 4. System config: `/etc/vex/config.toml`
 5. Built-in defaults
@@ -21,7 +21,7 @@ Highest priority wins:
 prefers `VEX_MODEL_TOKEN` from the environment and then falls back to the OS
 credential store unless `VEX_KEYRING_DISABLED` is set.
 
-Automatic context assembly now keeps small file rollups in a process-local
+Automatic context assembly now keeps small file rollups in a process-resident
 memory cache. Search indexes under `.vex/index/` and task-state JSON under
 `.vex/state/` remain the intended disk-backed layers.
 
@@ -419,7 +419,7 @@ result and is expected to switch strategy on the next attempt. Default: `200`.
 
 ### `VEX_WRITE_FILE_MAX_LINES`
 
-Hard line limit for `write_file`. Calls exceeding this are rejected outright
+Strict line limit for `write_file`. Calls exceeding this are rejected outright
 with an error directing the model to use `apply_patch` or `edit_file`.
 Default: `500`.
 

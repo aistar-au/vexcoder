@@ -3,7 +3,7 @@
 **Date:** 2026-02-19
 **Status:** Accepted
 **Deciders:** Core maintainer
-**Supersedes operationally:** ADR-004 (headless-first seam — now fully realized)
+**Deprecates operationally:** ADR-004 (headless-first seam — now fully realized)
 **Related tasks:** REF-08 runtime cutover task manifest (repository-local)
 
 ## Decision (normative)

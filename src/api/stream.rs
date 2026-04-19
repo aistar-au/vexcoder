@@ -16,7 +16,7 @@ pub use self::text_normaliser::{NormalisedChunk, StreamTextNormaliser};
 /// real SSE frame. ADR-021 Item 26.
 const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 
-/// Hard ceiling on the tool-call index accepted from a chat-compat stream.
+/// Strict ceiling on the tool-call index accepted from a chat-compat stream.
 /// Indices beyond this cap are clamped to prevent unbounded Vec allocation
 /// from untrusted server data.
 pub(crate) const MAX_TOOL_CALL_INDEX: usize = 1_024;

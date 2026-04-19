@@ -5,7 +5,7 @@
 **Deciders:** Core maintainer
 **Related tasks:** `TASKS/completed/REF-08-full-runtime-cutover.md`,
 `TASKS/completed/REF-08-deltas/`, runtime-core TUI feature follow-up manifests
-**Supersedes operationally:** none (consolidates ADR-009, ADR-010, ADR-011 for release gating)
+**Deprecates operationally:** none (consolidates ADR-009, ADR-010, ADR-011 for release gating)
 
 ## Context
 
