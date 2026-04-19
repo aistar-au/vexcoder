@@ -11,7 +11,7 @@
 
 ## Context
 
-ADR-006 established the runtime seam around `RuntimeMode`, `RuntimeContext`, `UiUpdate`, and `FrontendAdapter`. That seam is correct for in-process Rust execution, but it does not yet define a **accepted machine-readable handoff** for the same events.
+ADR-006 established the runtime seam around `RuntimeMode`, `RuntimeContext`, `UiUpdate`, and `FrontendAdapter`. That seam is correct for in-process Rust execution, but it does not yet define a **shared machine-readable handoff** for the same events.
 
 Today the codebase has two JSON-shaped surfaces, but no shared contract between them:
 
@@ -44,15 +44,15 @@ This ADR satisfies ADR-024's Phase I specification requirement, but implementati
 1. Phase H (macOS packaging and distribution) is complete, and
 2. phase-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-No implementation lane may begin accepted JSON handoff implementation before that gate is green.
+No implementation lane may begin shared JSON handoff implementation before that gate is green.
 
 ---
 
 ## Decision
 
-Introduce a accepted, transport-neutral, serde-backed JSON handoff layer for the runtime seam.
+Introduce a shared, transport-neutral, serde-backed JSON handoff layer for the runtime seam.
 
-### 1. Accepted machine-readable contract
+### 1. Shared machine-readable contract
 
 Add a new runtime-level envelope model:
 
@@ -406,7 +406,7 @@ Provider ids remain available inside the provider adapter for protocol-level cor
 
 JSONL is excellent for append-only logs, file exports, and line-oriented streaming. It is not the correct abstraction for trait boundaries because traits exchange **typed values**, not lines.
 
-The runtime needs a accepted event model that can be serialized as:
+The runtime needs a shared event model that can be serialized as:
 
 - an in-memory JSON value
 - a JSONL line

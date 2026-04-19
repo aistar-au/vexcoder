@@ -9,7 +9,7 @@
 
 ## Context
 
-The repository already has the right foundation: a accepted `TaskDocument`, a
+The repository already has the right foundation: a shared `TaskDocument`, a
 typed `RuntimeEvent` vocabulary, a `TaskDocumentCondenser` over those events,
 and a `ConversationManager` that wraps condenser turn lifecycle. That foundation
 is better structured than many comparable tools manage to build.

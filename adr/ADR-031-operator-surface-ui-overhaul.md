@@ -43,7 +43,7 @@ operator surface is a consumer of shared runtime events and task-derived
 state only. It must not become the source of truth for execution.
 
 The ADR-030 verification suite completed on 2026-03-25, so ADR-031 now depends
-on an accepted runtime control-flow contract rather than an unverified active
+on a shared runtime control-flow contract rather than an unverified active
 draft. ADR-030 is also the semantic correctness guarantee for multi-agent
 handoffs (Invariants 1, 4, 5); the operator surface inherits that guarantee by
 consuming only task-derived state. The remaining merge gate is therefore

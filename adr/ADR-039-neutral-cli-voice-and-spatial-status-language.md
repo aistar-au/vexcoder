@@ -193,6 +193,6 @@ Candidate implementation areas:
 ## References
 
 - [ADR-023](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-023-deterministic-edit-loop.md) — prompt and operator-surface command contract
-- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — accepted runtime state and task lifecycle
+- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — shared runtime state and task lifecycle
 - [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator rendering surface and timeline behavior
 - [ADR-034](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-034-multi-agent-parallel-task-execution.md) — multi-agent progress and watch surfaces

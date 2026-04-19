@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded secret revision, Retry-After header wiring, crate boundary docs)
+Last updated: 2026-04-19 (PR #406: permissions-overlay ADR follow-up, ADR-007 path rename, exact-word terminology sweep)
 
 ---
 

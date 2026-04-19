@@ -37,7 +37,7 @@ Without that boundary, `src/app.rs` risks remaining the convergence point for un
 
 ADR-028 does not replace ADR-025 or ADR-026.
 
-- **ADR-025** remains the accepted machine-readable runtime contract (`RuntimeRequest`, `RuntimeEnvelope`, normalization, schema, grammar).
+- **ADR-025** remains the shared machine-readable runtime contract (`RuntimeRequest`, `RuntimeEnvelope`, normalization, schema, grammar).
 - **ADR-026** remains the LocalApiServer transport-binding ADR (HTTP, SSE, Unix socket, auth, `/v1/schema`).
 - **ADR-028** defines the module boundaries and dependency direction by which CLI and transport layers reach that accepted runtime contract through an explicit application facade.
 

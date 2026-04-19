@@ -311,7 +311,7 @@ a design need specific to vexcoder's architecture.
 
 The long-term architecture work is tracked in the ADR set under `adr/`.
 
-- ADR-025 defines the accepted machine-readable runtime request and event contract.
+- ADR-025 defines the shared machine-readable runtime request and event contract.
 - ADR-026 defines the proposed `LocalApiServer` transport binding over that contract.
 - ADR-028 is now active in the current tree: the facade helpers are stored under `src/app/`, transport code has been extracted from `src/local_api.rs` into `src/server/` submodules (`http.rs`, `sse.rs`, `socket.rs`, `handlers/mod.rs`, `handlers/session.rs`, `util.rs`), and dependency-direction enforcement tests verify inward-only import rules across all layers, including grouped, multiline, and `super::`-relative `crate::{server::...}` / `crate::{bin::...}` imports.
 - ADR-029 is now accepted: the stream parser covers all documented SSE event types (error envelopes, heartbeats, thinking/signature deltas, citations, server-tool blocks, web-search results, cache/geo/detail metadata) and TaskState persists plan, session notes, context compaction records, and cache usage stats for multi-agent handoff. ADR-029 is a declared dependency of ADR-030 and a prerequisite for full invariant compliance — `StreamEvent::Error` lets orchestrating agents detect sub-agent stream failures, and the TaskState extensions are the handoff payload that lets an orchestrator reconstruct a sub-agent's context on resume.

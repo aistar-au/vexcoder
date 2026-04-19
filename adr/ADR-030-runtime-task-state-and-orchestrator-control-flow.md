@@ -88,7 +88,7 @@ truth and do not directly control task completion.
 
 ### Runtime event
 
-A runtime event is a accepted, runtime-owned event emitted after
+A runtime event is a runtime-owned event emitted after
 provider-native input has been normalized into the repository's internal
 execution model.
 

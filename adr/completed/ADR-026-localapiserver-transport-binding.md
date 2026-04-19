@@ -54,7 +54,7 @@ Normative rule:
 
 - runtime logic remains in Rust core/runtime code;
 - transport parsing, auth checks, and stream framing are located in the server adapter;
-- native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same accepted event model over a scoped transport surface.
+- native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same shared event model over a scoped transport surface.
 
 This ADR defines a JSON transport adapter, not a browser frontend contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
 
@@ -564,7 +564,7 @@ ADR-024 is `Proposed`, not `Locked`. The project convention (established by ADR-
 
 ### Bind LocalApiServer directly to BatchMode JSONL
 
-Rejected. BatchMode JSONL is summarized output, not a accepted live event stream.
+Rejected. BatchMode JSONL is summarized output, not the live event stream used for runtime contracts.
 
 ### Invent a server-specific `StreamChunk` schema separate from ADR-025
 
