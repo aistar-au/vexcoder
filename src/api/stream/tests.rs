@@ -302,7 +302,8 @@ fn test_normaliser_empty_input_emits_no_chunks() {
 }
 
 #[test]
-fn test_normaliser_flush_is_empty_without_buffered_state() {
+fn test_normaliser_is_stateless_across_calls() {
     let mut normaliser = StreamTextNormaliser::new();
-    assert!(normaliser.flush().is_empty());
+    assert_eq!(collect_text(&normaliser.normalise("alpha")), "alpha");
+    assert_eq!(collect_text(&normaliser.normalise("beta")), "beta");
 }

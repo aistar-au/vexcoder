@@ -112,14 +112,12 @@ impl RuntimeContext {
                 }
             }
 
-            // Flush normaliser buffers when the stream ends naturally.
-            // This emits any pending text and closes stale open tool-call
-            // blocks so the TUI sees a clean terminal state. Skip when
-            // cancelled – the turn was aborted and partial output is noise.
+            // Close any open transcript blocks when the stream ends naturally.
+            // The text normaliser is stateless, so only block completion is
+            // required here. Skip when cancelled – the turn was aborted and
+            // partial output is noise.
             if !cancelled {
-                flush_normalised_text(&mut normaliser, &tx);
-                for (index, mut block_normaliser) in textual_block_by_index.drain() {
-                    flush_normalised_block_text(&mut block_normaliser, index, &tx);
+                for (index, _) in textual_block_by_index.drain() {
                     let _ = tx.send(UiUpdate::StreamBlockComplete { index });
                 }
             }
@@ -230,11 +228,8 @@ impl RuntimeContext {
         while let Some(update) = delta_rx.recv().await {
             forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
         }
-        // Flush normaliser state after the edit stream ends so that any
-        // buffered text and stale open tool-call blocks are emitted cleanly.
-        flush_normalised_text(&mut normaliser, &tx);
-        for (index, mut block_normaliser) in textual_block_by_index.drain() {
-            flush_normalised_block_text(&mut block_normaliser, index, &tx);
+        // Close any open transcript blocks after the edit stream ends.
+        for (index, _) in textual_block_by_index.drain() {
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
 
@@ -489,10 +484,6 @@ fn forward_conversation_update(
         }
         ConversationStreamUpdate::BlockStart { index, block } => match block {
             StreamBlock::Thinking { content, collapsed } => {
-                flush_normalised_text(normaliser, tx);
-                if let Some(existing) = textual_block_by_index.get_mut(&index) {
-                    flush_normalised_block_text(existing, index, tx);
-                }
                 textual_block_by_index
                     .insert(index, crate::api::stream::StreamTextNormaliser::new());
                 let _ = tx.send(UiUpdate::StreamBlockStart {
@@ -509,10 +500,6 @@ fn forward_conversation_update(
                 }
             }
             StreamBlock::FinalText { content } => {
-                flush_normalised_text(normaliser, tx);
-                if let Some(existing) = textual_block_by_index.get_mut(&index) {
-                    flush_normalised_block_text(existing, index, tx);
-                }
                 textual_block_by_index
                     .insert(index, crate::api::stream::StreamTextNormaliser::new());
                 let _ = tx.send(UiUpdate::StreamBlockStart {
@@ -553,9 +540,7 @@ fn forward_conversation_update(
             });
         }
         ConversationStreamUpdate::BlockComplete { index } => {
-            if let Some(mut block_normaliser) = textual_block_by_index.remove(&index) {
-                flush_normalised_block_text(&mut block_normaliser, index, tx);
-            }
+            let _ = textual_block_by_index.remove(&index);
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
         ConversationStreamUpdate::ToolApprovalRequest(request) => {
@@ -603,22 +588,15 @@ fn forward_conversation_update(
 
 /// Route standalone text through the normaliser before sending it to the UI.
 ///
-/// The normaliser preserves streamed text boundaries but does not interpret
-/// tool-call markup. Tool lifecycle semantics are normalized upstream into
-/// runtime envelopes before the TUI sees them.
+/// The normaliser is stateless: it preserves streamed text boundaries but does
+/// not interpret or buffer tool-call markup. Tool lifecycle semantics are
+/// normalized upstream into runtime envelopes before the TUI sees them.
 fn emit_normalised_text(
     normaliser: &mut crate::api::stream::StreamTextNormaliser,
     text: &str,
     tx: &mpsc::UnboundedSender<UiUpdate>,
 ) {
     emit_normalised_chunks(normaliser.normalise(text), None, tx);
-}
-
-fn flush_normalised_text(
-    normaliser: &mut crate::api::stream::StreamTextNormaliser,
-    tx: &mpsc::UnboundedSender<UiUpdate>,
-) {
-    emit_normalised_chunks(normaliser.flush(), None, tx);
 }
 
 fn emit_normalised_block_text(
@@ -628,14 +606,6 @@ fn emit_normalised_block_text(
     tx: &mpsc::UnboundedSender<UiUpdate>,
 ) {
     emit_normalised_chunks(normaliser.normalise(text), Some(index), tx);
-}
-
-fn flush_normalised_block_text(
-    normaliser: &mut crate::api::stream::StreamTextNormaliser,
-    index: usize,
-    tx: &mpsc::UnboundedSender<UiUpdate>,
-) {
-    emit_normalised_chunks(normaliser.flush(), Some(index), tx);
 }
 
 fn emit_normalised_chunks(
