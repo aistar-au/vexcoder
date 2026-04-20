@@ -18,7 +18,7 @@ use vexcoder::export::{ExportFormat, render_task_export, write_export_output};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::privacy::render_privacy_markdown;
-use vexcoder::runtime::{ModelProtocol, TaskState, TaskStatus, ToolPolicy};
+use vexcoder::runtime::{TaskState, TaskStatus, ToolPolicy};
 use vexcoder::serve_local_api;
 use vexcoder::startup::emit_model_endpoint_warnings;
 use vexcoder::tui_frontend::ManagedTuiFrontend;
@@ -178,6 +178,7 @@ async fn run_print(
     prompt: String,
     config: Config,
     resume_state: Option<TaskState>,
+    format: OutputFormat,
 ) -> Result<ExitCode> {
     let stdin_content = read_stdin_if_piped();
     let stdin_attached = stdin_content.is_some();
@@ -206,7 +207,7 @@ async fn run_print(
     let opts = BatchRunOpts {
         max_turns: Some(1),
         auto_approve: None,
-        format: OutputFormat::Text,
+        format,
         resume_state,
     };
 
@@ -395,13 +396,23 @@ async fn main() -> Result<ExitCode> {
             telemetry_json: cli.telemetry_json,
         },
     )?;
-    let chat_compat = cli.chat_compat;
-    let tool_policy = if cli.plan {
+    let tool_policy = if cli.view_intended_trajectory {
         ToolPolicy::Plan
-    } else if cli.chat {
+    } else if cli.restrict_payload_tools {
         ToolPolicy::Chat
     } else {
         ToolPolicy::Full
+    };
+
+    let overrides = CliOverrides {
+        tool_policy,
+        use_alternate_navigator: cli.use_alternate_navigator.clone(),
+        expand_sector_view: cli.expand_sector_view,
+        force_unstable_alignment: cli.force_unstable_alignment,
+        bypass_integrity_locks: cli.bypass_integrity_locks,
+        recall_coordinates: cli.recall_coordinates.clone(),
+        project_map_only: cli.project_map_only.clone(),
+        set_map_encoding: cli.set_map_encoding.clone(),
     };
 
     // Subcommands take unconditional priority.
@@ -417,7 +428,7 @@ async fn main() -> Result<ExitCode> {
             let exec_args =
                 parse_exec_command(task, task_file, max_turns, auto_approve, output, format)?;
             let mut config = Config::load()?;
-            apply_cli_overrides(chat_compat, tool_policy, &mut config);
+            apply_cli_overrides(&overrides, &mut config);
             config.validate()?;
             return run_exec(exec_args, config).await;
         }
@@ -524,7 +535,7 @@ async fn main() -> Result<ExitCode> {
         }
         Some(Commands::Serve { host, port }) => {
             let mut config = Config::load()?;
-            apply_cli_overrides(chat_compat, tool_policy, &mut config);
+            apply_cli_overrides(&overrides, &mut config);
             config.validate()?;
             serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
@@ -539,9 +550,9 @@ async fn main() -> Result<ExitCode> {
     }
 
     let mut config = Config::load()?;
-    apply_cli_overrides(chat_compat, tool_policy, &mut config);
+    apply_cli_overrides(&overrides, &mut config);
 
-    let resume_state = match cli.resume.as_deref() {
+    let resume_state = match overrides.recall_coordinates.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
             Some(state) => Some(state),
             None => {
@@ -552,11 +563,12 @@ async fn main() -> Result<ExitCode> {
         None => None,
     };
 
-    // PM-03: -p/--print one-shot mode.
-    if let Some(prompt) = cli.print_prompt {
+    // -p/--project-map-only one-shot mode.
+    if let Some(prompt) = overrides.project_map_only {
         config.validate()?;
         emit_model_endpoint_warnings(&config);
-        return run_print(prompt, config, resume_state).await;
+        let fmt = map_encoding_to_output_format(&overrides.set_map_encoding);
+        return run_print(prompt, config, resume_state, fmt).await;
     }
 
     config.validate()?;
@@ -575,16 +587,38 @@ async fn main() -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Apply top-level CLI option overrides to a loaded config.
-///
-/// This is called once per code path after `Config::load()` so that options such
-/// as `--chat-compat`, `--plan`, and `--chat` take effect regardless of which
-/// subcommand is active.
-fn apply_cli_overrides(chat_compat: bool, tool_policy: ToolPolicy, config: &mut Config) {
-    if chat_compat {
-        config.model_protocol = ModelProtocol::ChatCompat;
+struct CliOverrides {
+    tool_policy: ToolPolicy,
+    use_alternate_navigator: Option<String>,
+    expand_sector_view: bool,
+    force_unstable_alignment: bool,
+    bypass_integrity_locks: bool,
+    recall_coordinates: Option<String>,
+    project_map_only: Option<String>,
+    set_map_encoding: String,
+}
+
+fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
+    config.tool_policy = o.tool_policy;
+    if let Some(ref name) = o.use_alternate_navigator {
+        config.model_name = name.clone();
     }
-    config.tool_policy = tool_policy;
+    if o.expand_sector_view {
+        config.expand_context = true;
+    }
+    if o.force_unstable_alignment {
+        config.force = true;
+    }
+    if o.bypass_integrity_locks {
+        config.bypass_policy = true;
+    }
+}
+
+fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
+    match encoding {
+        "json" => OutputFormat::Jsonl,
+        _ => OutputFormat::Text,
+    }
 }
 
 fn exit_code_for_status(status: TaskStatus) -> ExitCode {

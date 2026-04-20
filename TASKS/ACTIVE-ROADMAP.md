@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-19 (PR #406: permissions-overlay ADR follow-up, ADR-007 path rename, exact-word terminology sweep)
+Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCompat CLI cutover, 10-flag normative table)
 
 ---
 

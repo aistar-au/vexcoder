@@ -29,6 +29,7 @@ Source of truth: `adr/ADR-README.md`.
 | :--- | :--- | :--- |
 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 0 items remaining; all P1/P2/P3 items complete (Tiers 4/6/7 all cleared) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
+| `adr/ADR-022-amendment-2026-04-20.md` | Amended | Flag normalization cutover: 10-flag normative table, ChatCompat CLI removal |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (initial validation passed) | Second-stage G/H |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-release complete) | 1 external item in the next batch (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped, multiline, and `super::`-relative `server`/`bin` imports |

@@ -823,29 +823,29 @@ fn file_overlay_integration_with_active_picker() {
 
 #[test]
 fn test_resume_flag_cli_parses_with_id() {
-    let cli = Cli::parse_from(["vex", "--resume", "task-1234"]);
-    assert_eq!(cli.resume, Some("task-1234".to_string()));
-    assert!(cli.print_prompt.is_none());
+    let cli = Cli::parse_from(["vex", "--recall-coordinates", "task-1234"]);
+    assert_eq!(cli.recall_coordinates, Some("task-1234".to_string()));
+    assert!(cli.project_map_only.is_none());
 }
 
 #[test]
 fn test_resume_flag_cli_parses_without_id() {
-    // --resume with no argument should default to empty string (most-recent path).
-    let cli = Cli::parse_from(["vex", "--resume"]);
-    assert_eq!(cli.resume, Some(String::new()));
+    // --recall-coordinates with no argument should default to empty string (most-recent path).
+    let cli = Cli::parse_from(["vex", "--recall-coordinates"]);
+    assert_eq!(cli.recall_coordinates, Some(String::new()));
 }
 
 #[test]
 fn test_resume_flag_absent_is_none() {
     let cli = Cli::parse_from(["vex"]);
-    assert!(cli.resume.is_none());
+    assert!(cli.recall_coordinates.is_none());
 }
 
 #[test]
 fn test_resume_flag_can_be_combined_with_print() {
-    let cli = Cli::parse_from(["vex", "--resume", "task-1", "-p", "hello"]);
-    assert_eq!(cli.resume, Some("task-1".to_string()));
-    assert_eq!(cli.print_prompt, Some("hello".to_string()));
+    let cli = Cli::parse_from(["vex", "--recall-coordinates", "task-1", "-p", "hello"]);
+    assert_eq!(cli.recall_coordinates, Some("task-1".to_string()));
+    assert_eq!(cli.project_map_only, Some("hello".to_string()));
 }
 
 #[test]
@@ -1000,21 +1000,21 @@ fn task_list_noninteractive_render_keeps_line_mode_and_origin_copy() {
 #[test]
 fn test_print_flag_cli_parses() {
     let cli = Cli::parse_from(["vex", "-p", "hello world"]);
-    assert_eq!(cli.print_prompt, Some("hello world".to_string()));
-    assert!(cli.resume.is_none());
+    assert_eq!(cli.project_map_only, Some("hello world".to_string()));
+    assert!(cli.recall_coordinates.is_none());
 }
 
 #[test]
 fn test_print_long_form_parses() {
-    let cli = Cli::parse_from(["vex", "--print", "hello world"]);
-    assert_eq!(cli.print_prompt, Some("hello world".to_string()));
+    let cli = Cli::parse_from(["vex", "--project-map-only", "hello world"]);
+    assert_eq!(cli.project_map_only, Some("hello world".to_string()));
 }
 
 #[test]
 fn test_print_flag_can_be_combined_with_resume() {
-    let cli = Cli::parse_from(["vex", "-p", "hello", "--resume"]);
-    assert_eq!(cli.print_prompt, Some("hello".to_string()));
-    assert_eq!(cli.resume, Some(String::new()));
+    let cli = Cli::parse_from(["vex", "-p", "hello", "--recall-coordinates"]);
+    assert_eq!(cli.project_map_only, Some("hello".to_string()));
+    assert_eq!(cli.recall_coordinates, Some(String::new()));
 }
 
 // -- PB-01 ----------------------------------------------------------------

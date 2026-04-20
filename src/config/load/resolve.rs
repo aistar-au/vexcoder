@@ -178,6 +178,9 @@ pub(super) fn resolve_config(
         search: resolve_search_config(merged.search),
         auto_memory: resolve_auto_memory_config(merged.auto_memory),
         api_client: merged.api_client.unwrap_or_default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     })
 }
 

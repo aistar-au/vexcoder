@@ -87,6 +87,9 @@ fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -124,6 +127,9 @@ fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -161,6 +167,9 @@ fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -749,6 +758,9 @@ fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -786,6 +798,9 @@ fn test_https_localhost_messages_endpoint_preserves_full_request_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -927,6 +942,9 @@ fn test_structured_tool_protocol_env_off_does_not_disable_direct_client_config()
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -965,6 +983,9 @@ fn test_structured_tool_protocol_defaults_on_for_local_endpoint() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -1000,6 +1021,9 @@ fn test_structured_tool_protocol_defaults_on_for_remote_endpoint() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");

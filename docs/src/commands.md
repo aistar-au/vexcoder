@@ -25,18 +25,24 @@ targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
 #### Top-level options
 
-| Option | Effect |
-|------|--------|
-| `--chat-compat` | Use the `chat/completions` API format instead of the default `messages/v1` format. Required for endpoints that only expose the chat completions schema. |
-| `--plan` | Restrict tools to read-only operations (search, read, list, git read ops, `codebase_search`, MCP). Mutating and shell tools are excluded from the model schema and rejected at dispatch. Cannot be combined with `--chat`. |
-| `--chat` | Disable all tool use. The model operates in plain conversation mode without access to any file, search, or shell tools. Cannot be combined with `--plan`. |
+| Option | Short | Effect |
+|------|--------|--------|
+| `--force-unstable-alignment` | `-f` | Forces execution even when safety checks are red. |
+| `--project-map-only PROMPT` | `-p` | Non-interactive: run one prompt turn and print result to stdout. |
+| `--expand-sector-view` | `-e` | Expands the context window to include more files/directories in the scan. |
+| `--recall-coordinates [TASK_ID]` | `-r` | Resume a saved task by ID, or most-recent if omitted. |
+| `--bypass-integrity-locks` | `-b` | Disables policy enforcement on protected file sectors. |
+| `--view-intended-trajectory` | `-v` | Plan mode: restrict tools to read-only; shows changes before execution. Cannot be combined with `-t`. |
+| `--use-alternate-navigator MODEL` | `-n` | Override the configured model identifier. |
+| `--display-internal-telemetry` | `-d` | Enable verbose/debug output (equivalent to `RUST_LOG=debug`). |
+| `--restrict-payload-tools` | `-t` | Restrict tool payload to safe read/search subset. Cannot be combined with `-v`. |
+| `--set-map-encoding FORMAT` | `-m` | Set output encoding: `json` or `text` (default: `text`). |
 
-### `vex --resume [task-id]`
+### `vex -r [task-id]` or `vex --recall-coordinates [task-id]`
 
-Resumes a saved task. With no task id, VexCoder offers recent tasks for
-selection.
+Resumes a saved task. With no task id, resumes the most-recent saved task.
 
-### `vex -p "PROMPT"` or `vex --print "PROMPT"`
+### `vex -p "PROMPT"` or `vex --project-map-only "PROMPT"`
 
 Runs one prompt turn and prints the result to stdout. If stdin is piped, the
 stdin content is prepended to the prompt.

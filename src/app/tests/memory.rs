@@ -260,6 +260,9 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let (runtime, _ctx) = build_runtime(config).expect("runtime should build");

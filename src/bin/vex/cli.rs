@@ -8,45 +8,61 @@ pub(super) struct Cli {
     #[command(subcommand)]
     pub(super) command: Option<Commands>,
 
-    /// Resume a saved task by ID, or omit the value for an interactive
-    /// selection of the most-recent saved task.
-    /// Example: `vex --resume task-1234` or just `vex --resume`.
-    #[arg(
-        long,
-        num_args(0..=1),
-        default_missing_value = ""
-    )]
-    pub(super) resume: Option<String>,
+    /// Forces execution even when safety checks are red.
+    #[arg(short = 'f', long = "force-unstable-alignment")]
+    pub(super) force_unstable_alignment: bool,
 
-    /// Run a single prompt turn non-interactively and print the result to
-    /// stdout.  Reads additional content from stdin when stdin is not a TTY.
+    /// Non-interactive: run one prompt turn and print result to stdout.
+    /// Reads additional content from stdin when stdin is not a TTY.
     /// Example: `vex -p "summarise this file" < README.md`
-    #[arg(short = 'p', long = "print")]
-    pub(super) print_prompt: Option<String>,
+    #[arg(short = 'p', long = "project-map-only")]
+    pub(super) project_map_only: Option<String>,
+
+    /// Expands the context window to include more files/directories in the scan.
+    #[arg(short = 'e', long = "expand-sector-view")]
+    pub(super) expand_sector_view: bool,
+
+    /// Resume a saved task by ID, or omit the value for the most-recent saved task.
+    /// Example: `vex -r task-1234` or just `vex -r`.
+    #[arg(short = 'r', long = "recall-coordinates", num_args(0..=1), default_missing_value = "")]
+    pub(super) recall_coordinates: Option<String>,
+
+    /// Disables safety locks on protected file sectors (skips policy enforcement).
+    #[arg(short = 'b', long = "bypass-integrity-locks")]
+    pub(super) bypass_integrity_locks: bool,
+
+    /// Plan mode: restrict tools to read-only; shows changes before execution.
+    #[arg(
+        short = 'v',
+        long = "view-intended-trajectory",
+        conflicts_with = "restrict_payload_tools"
+    )]
+    pub(super) view_intended_trajectory: bool,
+
+    /// Override the configured model identifier.
+    #[arg(short = 'n', long = "use-alternate-navigator", value_name = "MODEL")]
+    pub(super) use_alternate_navigator: Option<String>,
 
     /// Emit internal transport and normalization telemetry to stderr.
-    #[arg(long = "display-internal-telemetry")]
+    #[arg(short = 'd', long = "display-internal-telemetry")]
     pub(super) display_internal_telemetry: bool,
 
     /// Format internal telemetry as newline-delimited JSON.
     #[arg(long = "telemetry-json")]
     pub(super) telemetry_json: bool,
 
-    /// Use the chat/completions API format instead of the default messages/v1 format.
-    /// Required when connecting to endpoints that use the chat/completions schema
-    /// instead of the messages/v1 schema.
-    #[arg(long = "chat-compat")]
-    pub(super) chat_compat: bool,
+    /// Restrict tool deployment to a safe subset (no shell, no mutating ops).
+    #[arg(
+        short = 't',
+        long = "restrict-payload-tools",
+        conflicts_with = "view_intended_trajectory"
+    )]
+    pub(super) restrict_payload_tools: bool,
 
-    /// Restrict tools to read-only operations (search, read, list, git read
-    /// ops, codebase_search, MCP). Mutating and shell tools are excluded.
-    #[arg(long, conflicts_with = "chat")]
-    pub(super) plan: bool,
-
-    /// Disable all tool use. The model operates in plain conversation mode
-    /// without access to any file, search, or shell tools.
-    #[arg(long, conflicts_with = "plan")]
-    pub(super) chat: bool,
+    /// Set output encoding: "json" | "text" (default: text).
+    #[arg(short = 'm', long = "set-map-encoding", value_name = "FORMAT",
+          value_parser = ["json", "text"], default_value = "text")]
+    pub(super) set_map_encoding: String,
 }
 
 #[derive(Subcommand)]

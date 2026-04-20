@@ -358,6 +358,15 @@ pub struct Config {
     /// when `explicit_protocol` is not set (ADR-047).
     #[serde(default)]
     pub api_client: ApiClientConfig,
+    /// Set by `-f/--force-unstable-alignment`. Forces execution even when safety checks are red.
+    #[serde(skip)]
+    pub force: bool,
+    /// Set by `-b/--bypass-integrity-locks`. Disables policy enforcement on protected sectors.
+    #[serde(skip)]
+    pub bypass_policy: bool,
+    /// Set by `-e/--expand-sector-view`. Expands file/directory scan for context assembly.
+    #[serde(skip)]
+    pub expand_context: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -512,6 +521,9 @@ impl Config {
             search: SearchConfig::default(),
             auto_memory: AutoMemoryConfig::default(),
             api_client: ApiClientConfig::default(),
+            force: false,
+            bypass_policy: false,
+            expand_context: false,
         }
     }
 
