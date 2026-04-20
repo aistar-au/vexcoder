@@ -637,6 +637,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_local_api_mode_materialized_tool_calls_seed_peer_events() {
+        let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
+            "task-materialized-peer-events".to_string(),
+            envelope_tx,
+            quit,
+            crate::runtime::delta_accumulator::DEFAULT_DELTA_ACCUMULATOR_MEMORY_WATERMARK_BYTES,
+        )));
+        let mut mode = LocalApiMode::new(Arc::clone(&shared));
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(std::env::temp_dir()));
+        let (update_tx, _update_rx) = mpsc::unbounded_channel();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+
+        mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
+        let _: RuntimeEnvelope = serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "provider-call-1".to_string(),
+                    name: "read_file".to_string(),
+                    input: json!({"path":"src/local_api.rs"}),
+                    status: crate::state::ToolStatus::Pending,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
+
+        let transcript_block_start: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let tool_call: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let transcript_block_complete: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+
+        assert!(matches!(
+            transcript_block_start.event,
+            RuntimeEvent::TranscriptBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    ref name,
+                    ref input,
+                    status: crate::state::ToolStatus::Pending,
+                    ..
+                }
+            } if name == "read_file" && input == &json!({"path":"src/local_api.rs"})
+        ));
+        assert!(matches!(
+            tool_call.event,
+            RuntimeEvent::ToolCallStarted {
+                ref tool_name,
+                ref arguments,
+                ..
+            } if tool_name == "read_file" && arguments == &json!({"path":"src/local_api.rs"})
+        ));
+        assert!(matches!(
+            transcript_block_complete.event,
+            RuntimeEvent::TranscriptBlockComplete { index: 0 }
+        ));
+
+        {
+            let shared = shared.lock().unwrap();
+            let peer_events: Vec<_> = shared.recent_peer_events.iter().cloned().collect();
+            assert_eq!(peer_events.len(), 3);
+            assert!(matches!(
+                peer_events.first(),
+                Some(PeerDeltaEvent::ToolStart { name, .. }) if name == "read_file"
+            ));
+            assert!(matches!(
+                peer_events.get(1),
+                Some(PeerDeltaEvent::ToolDelta { partial_json, .. })
+                    if partial_json == "{\"path\":\"src/local_api.rs\"}"
+            ));
+            assert!(matches!(
+                peer_events.last(),
+                Some(PeerDeltaEvent::ToolFinish { .. })
+            ));
+        }
+    }
+
+    #[tokio::test]
     async fn test_local_api_mode_waits_for_command_sessions_before_turn_end() {
         let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
         let quit = Arc::new(AtomicBool::new(false));

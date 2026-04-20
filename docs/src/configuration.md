@@ -62,24 +62,42 @@ working directory.
 ## Tool-call formats
 
 `tool_call_mode` controls the accepted downstream tool-call contract. The
-current runtime accepts only `structured`; local text/XML compatibility
-handling is configured separately through `VEX_TOOL_PARSER` and is normalized
-at ingress before the event reaches downstream consumers.
+current runtime accepts only `structured`, and supported upstream tool-call
+shapes are normalized at API ingress before the event reaches downstream
+consumers.
 
 | Mode | Meaning | Current parser boundary |
 | :--- | :--- | :--- |
-| `structured` | Native structured tool calls are the accepted runtime mode | JSON `tool_calls` arrays and content-block `tool_use` payloads are parsed via `serde_json`; local text/XML fallback remains an ingress-only parser concern |
+| `structured` | Native structured tool calls are the accepted runtime mode | JSON `tool_calls` arrays and content-block `tool_use` payloads are parsed and normalized at API ingress |
 
-The runtime currently recognizes three upstream tool-call shapes at or before
-API normalization:
+The runtime currently recognizes two upstream tool-call shapes at API
+normalization:
 
 1. JSON `tool_calls` arrays from chat-completion style APIs.
 2. Content-block `tool_use` records from block-oriented APIs.
-3. XML-like fallback tags such as `<function=name>` and `<parameter=key>`.
 
-The first two shapes are the accepted `tool_call_mode = "structured"` contract.
-The third shape is handled by `VEX_TOOL_PARSER` for local-endpoint ingress
-compatibility and is normalized before downstream consumers see runtime events.
+These shapes form the accepted `tool_call_mode = "structured"` contract.
+
+For chat-completion style tool calls, ingress tolerates the two local-server
+argument encodings seen in practice: incremental JSON text fragments inside
+`function.arguments` and fully materialized JSON values. Both are normalized to
+the same typed runtime tool-call updates before the event reaches the CLI or
+ratatui surface, so downstream consumers never parse server SSE frames or
+provider-specific tool-call JSON directly.
+
+That normalization rule follows RFC 8259's interoperability guidance: array
+order is semantically significant, while object member order is not. The
+runtime therefore coalesces streamed tool calls by array index at ingress and
+projects parsed JSON values downstream instead of exposing raw object-member
+ordering or transport-fragment details.
+
+For local and private-network endpoints, the client also protects the accepted
+boundary against stalled `stream = true` requests. If the local or
+private-network server accepts the request but does not emit an initial SSE
+event promptly, the client retries once with `stream = false` and feeds the
+JSON response through the same ingress normalizer. The CLI and ratatui
+consumers therefore continue to observe the same typed runtime events even
+when the endpoint varies between SSE and full-response delivery.
 
 These paths are distinct from `regex-lite` processing. `regex-lite` is used
 for git output parsing, secret rewriting, and rate-limit extraction; it is not
@@ -197,7 +215,7 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
-- Same-machine local inference runtimes commonly expose only plain HTTP. That
+- Local and private-network inference runtimes commonly expose only plain HTTP. That
   remains supported when you connect via `localhost`,
   `127.x.x.x`, `::1`, or `0.0.0.0`. LAN-reachable model servers on
   RFC 1918 private addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`)
@@ -209,6 +227,10 @@ The full model endpoint URL.
 - For non-context-overflow 400s, the error includes the inferred protocol
   (MessagesV1 vs ChatCompat) and suggests checking the model name, protocol
   format, and whether the server supports streaming.
+- If a local or private-network endpoint accepts `stream = true` but does not
+  emit an initial SSE event promptly, the client retries once with
+  `stream = false` and normalizes the JSON response through the same API
+  boundary instead of exposing a second downstream parser.
 
 ### `VEX_MODEL_TOKEN`
 
@@ -275,27 +297,7 @@ Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
 Overrides tool-call encoding. Accepted value: `structured`.
 
 Compatibility aliases `structured-tool-calls` and
-`structured_tool_calls` normalize to the same setting. XML-like fallback tags
-remain controlled by `VEX_TOOL_PARSER`, not by `VEX_TOOL_CALL_MODE`.
-
-### `VEX_TOOL_PARSER`
-
-Overrides the local text-protocol parser chain. Accepted values:
-`tagged`, `hybrid`.
-
-- `tagged` keeps the zero-regex `<function=...>` and `<parameter=...>` fast
-  path only.
-- `hybrid` keeps that fast path and falls back to `quick-xml` extraction for
-  generic `<tool_call>`, `<invoke>`, and `<tool_use>` wrappers.
-
-Local endpoints default to `hybrid` so XML-style tool wrappers still execute
-when the local endpoint does not emit native structured tool deltas.
-
-Example:
-
-```bash
-export VEX_TOOL_PARSER=tagged
-```
+`structured_tool_calls` normalize to the same setting.
 
 
 ### `VEX_MODEL_PROFILE`

@@ -537,6 +537,9 @@ impl ApiClient {
                         .as_object_mut()
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
+                    if self.is_local_endpoint() {
+                        payload_object.insert("parallel_tool_calls".to_string(), json!(true));
+                    }
                     payload_object.insert(
                         "tools".to_string(),
                         tool_definitions_chat_compat_for_policy(
@@ -626,7 +629,17 @@ impl ApiClient {
             }
         }
 
-        create_event_stream(self.http.clone(), &request_url, &payload, &headers).await
+        create_event_stream(
+            self.http.clone(),
+            &request_url,
+            &payload,
+            &headers,
+            match api_protocol {
+                ApiProtocol::MessagesV1 => ModelProtocol::MessagesV1,
+                ApiProtocol::ChatCompat => ModelProtocol::ChatCompat,
+            },
+        )
+        .await
     }
 
     fn request_url(&self) -> String {

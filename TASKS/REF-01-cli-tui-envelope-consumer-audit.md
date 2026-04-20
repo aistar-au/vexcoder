@@ -70,11 +70,18 @@ they still serve renderer or envelope-projection duties.
   `src/app.rs`, `src/app/turn.rs`, and `src/app/model_update.rs`.
 - [x] Keep raw `StreamBlockDelta` updates available for local envelope
   projection and renderer-oriented block handling.
+- [x] Accept both streamed JSON-string argument deltas and fully materialized
+  JSON argument values at the chat-compatible API boundary, then normalize them
+  to the same typed runtime tool-call updates before the CLI/TUI consumer
+  layer.
 - [x] Remove tagged/XML fallback parsing and the remaining legacy thinking-tag
   compatibility rewrite so no downstream compatibility parser remains behind
   the accepted API boundary.
 - [x] Update focused tests so they assert the typed downstream update path
   directly.
+- [x] Run an end-to-end local-server exercise against `http://localhost:8000`
+  so the branch proves the patched ingress path under a real runtime, not only
+  under unit and integration tests.
 - [ ] Re-run full repository validation after the documentation and roadmap
   updates settle.
 
@@ -97,5 +104,18 @@ they still serve renderer or envelope-projection duties.
   thinking-tag rewrite behind `RuntimeEnvelope` normalization. The hard cutover
   exists to prevent the repository from maintaining two semantic assembly
   paths for the same tool-call and transcript job.
+- The same boundary now tolerates the two local chat-compatible argument
+  encodings seen in practice: streamed JSON fragments and fully materialized
+  JSON values. Both are converted to one typed runtime contract before the
+  consumer surface receives them.
+- Official local-runtime API docs also advertise both streaming and
+  non-streaming response modes, so keeping that retry inside API ingress is an
+  interoperability measure rather than a second consumer-side protocol path.
+- Live validation against `http://127.0.0.1:8000` showed a second local-server
+  variation: `stream = true` requests for both `/v1/messages` and
+  `/v1/chat/completions` could complete only after the client retried with
+  `stream = false`. The retry now stays inside the API boundary and reuses the
+  same runtime-envelope normalizer rather than exposing a second downstream
+  parse path.
 - `src/local_api.rs` still relies on raw block deltas only where envelope
   projection requires them; that projection is not a second semantic parser.

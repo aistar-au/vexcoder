@@ -230,6 +230,57 @@ fn test_process_chat_compat_emits_reasoning_content_as_transcript_delta() {
 }
 
 #[test]
+fn test_process_chat_compat_emits_thinking_alias_as_transcript_delta() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","thinking":"weighing options"},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "weighing options"
+    )));
+}
+
+#[test]
+fn test_process_chat_compat_accepts_object_valued_tool_arguments() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_obj","type":"function","function":{"name":"read_file","arguments":{"path":"src/main.rs"}}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_obj" && name == "read_file" && input == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            ..
+        } if tool_name == "read_file" && arguments == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "a materialized JSON value should not require a synthetic delta replay",
+    );
+}
+
+#[test]
 fn test_process_chat_compat_preserves_tool_state_across_reasoning_interleave() {
     let mut parser = StreamParser::new();
 

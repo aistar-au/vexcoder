@@ -14,6 +14,10 @@ consumer-boundary hardening follow-up is
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into
   accepted envelopes immediately at the API boundary.
+- Local and private-network endpoints that accept `stream = true` but do not
+  emit an initial SSE event now fall back once to `stream = false`, and the
+  full JSON response is normalized through the same API boundary rather than
+  opening a second downstream parse path.
 - The server SSE path now forwards accepted envelope JSON without legacy mode
   negotiation.
 - The conversation tool loop now consumes accepted `RuntimeEvent` values,
