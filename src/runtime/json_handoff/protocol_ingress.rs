@@ -21,13 +21,20 @@ pub(super) struct ProtocolIngressState {
     open_blocks: BTreeSet<usize>,
     turn_tokens: TurnTokens,
     chat_compat_message_started: bool,
-    // Per-index lifecycle state for chat-compatible tool calls. Sparse
-    // storage avoids preallocating slots for gapped indices that arrive out
-    // of sequence, and the ordered key traversal gives deterministic close
-    // ordering at turn boundaries. Coalescence across streamed deltas is
-    // keyed on the tool_calls[i].index field, consistent with the ordering
-    // invariant for JSON arrays in RFC 8259 §4.
+    // Per-provider-block-index lifecycle state for chat-compatible tool
+    // calls. Sparse storage avoids preallocating slots for gapped indices
+    // that arrive out of sequence, and the ordered key traversal gives
+    // deterministic close ordering at turn boundaries. Coalescence across
+    // streamed deltas is keyed on the provider block index derived from
+    // `min(tool_call.index, MAX_TOOL_CALL_INDEX) + 1`, preserving the
+    // ordering invariant for JSON arrays in RFC 8259 §4.
     chat_compat_tool_lifecycles: BTreeMap<usize, PendingChatCompatToolState>,
+    // Tracks whether the active chat-compatible stream has been terminated
+    // by `[DONE]`. While set, `apply_chat_compat_tool_delta` rejects tool
+    // deltas without mutating lifecycle state, preventing late or
+    // protocol-violating frames from re-opening a block after the stream
+    // has finalised. Cleared when a new message start is observed.
+    chat_compat_stream_terminated: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -216,6 +223,7 @@ impl RuntimeEnvelopeNormalizer {
             ChatCompatPayload::Done => {
                 let envelopes = self.close_chat_compat_tool_blocks();
                 self.protocol_ingress.chat_compat_message_started = false;
+                self.protocol_ingress.chat_compat_stream_terminated = true;
                 self.protocol_ingress.chat_compat_tool_lifecycles.clear();
                 envelopes
             }
@@ -416,6 +424,14 @@ impl RuntimeEnvelopeNormalizer {
         }
 
         self.protocol_ingress.chat_compat_message_started = true;
+        // Only a fresh `role` announcement resets the termination gate raised
+        // by the previous `[DONE]`. Bare id/model echoes that arrive after
+        // the stream has finalised are treated as protocol violations and
+        // must not re-admit tool-call deltas without an unambiguous new
+        // message signal.
+        if role.is_some() {
+            self.protocol_ingress.chat_compat_stream_terminated = false;
+        }
         message_start_metadata(metadata)
             .map(|metadata| self.emit_provider_metadata(metadata))
             .unwrap_or_default()
@@ -426,6 +442,14 @@ impl RuntimeEnvelopeNormalizer {
         choice_index: Option<usize>,
         tool_call: ChatCompatToolCallDelta,
     ) -> Vec<RuntimeEnvelope> {
+        if self.protocol_ingress.chat_compat_stream_terminated {
+            // Once `[DONE]` has been observed the stream is finalised; late
+            // tool-call frames must not instantiate fresh lifecycle state via
+            // `entry(..).or_default()`. A new message start is required before
+            // any further deltas are admitted.
+            return Vec::new();
+        }
+
         let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
         let block_index = raw_index.saturating_add(1);
         let _ = (choice_index, tool_call.call_type);
@@ -497,15 +521,25 @@ impl RuntimeEnvelopeNormalizer {
     }
 
     fn close_chat_compat_tool_blocks(&mut self) -> Vec<RuntimeEnvelope> {
+        // Every observed index must be sealed at the turn boundary so that a
+        // late delta cannot advance a `Discovered` entry to `Opened` after a
+        // `finish_reason` or `[DONE]` terminator. Only `Opened` indices emit a
+        // block close, because `Discovered` never dispatched a
+        // ContentBlockStart to the consumer.
         let to_close: Vec<usize> = self
             .protocol_ingress
             .chat_compat_tool_lifecycles
             .iter_mut()
-            .filter_map(|(index, state)| {
-                (state.lifecycle == ToolCallLifecycle::Opened).then(|| {
+            .filter_map(|(index, state)| match state.lifecycle {
+                ToolCallLifecycle::Opened => {
                     state.lifecycle = ToolCallLifecycle::Closed;
-                    *index
-                })
+                    Some(*index)
+                }
+                ToolCallLifecycle::Discovered => {
+                    state.lifecycle = ToolCallLifecycle::Closed;
+                    None
+                }
+                ToolCallLifecycle::Closed => None,
             })
             .collect();
 
