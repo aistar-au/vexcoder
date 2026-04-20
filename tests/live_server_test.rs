@@ -7,15 +7,24 @@
 //!
 //! Configuration:
 //!   VEX_LIVE_SERVER_URL — base URL of the local server (default: http://localhost:8000)
-//!   VEX_STALLED_SSE_URL — base URL of the stalled SSE reproducer
-//!   (default: http://127.0.0.1:8011)
 //!
 //! Run with:
 //!   VEX_LIVE_SERVER_URL=http://localhost:8000 cargo nextest run -p vexcoder --test live_server_test
 
+use axum::{
+    Json, Router,
+    response::{
+        IntoResponse, Response,
+        sse::{Event, Sse},
+    },
+    routing::post,
+};
 use futures::StreamExt;
 use reqwest::header::HeaderMap;
+use serde_json::{Value, json};
+use std::convert::Infallible;
 use std::time::{Duration, Instant};
+use tokio::task::JoinHandle;
 use vexcoder::config::Config;
 use vexcoder::runtime::{
     ModelBackend, ModelBackendKind, ModelProtocol, RuntimeEvent, ToolCallMode, ToolPolicy,
@@ -25,10 +34,6 @@ use vexcoder::types::{ApiMessage, Content, ModelProfile};
 /// Resolve the live server URL from the environment or use the default.
 fn live_server_url() -> String {
     std::env::var("VEX_LIVE_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
-}
-
-fn stalled_server_url() -> String {
-    std::env::var("VEX_STALLED_SSE_URL").unwrap_or_else(|_| "http://127.0.0.1:8011".to_string())
 }
 
 fn single_user_message(text: &str) -> Vec<ApiMessage> {
@@ -157,6 +162,108 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
     }
 }
 
+fn stalled_chat_response() -> Value {
+    json!({
+        "id": "chatcmpl-stalled-fallback",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "stalled-test-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "index": 0,
+                    "id": "call_stalled_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": {
+                            "path": "src/lib.rs"
+                        }
+                    }
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }],
+        "usage": {
+            "prompt_tokens": 9,
+            "completion_tokens": 3,
+            "total_tokens": 12
+        }
+    })
+}
+
+fn stalled_messages_response() -> Value {
+    json!({
+        "id": "msg-stalled-fallback",
+        "type": "message",
+        "role": "assistant",
+        "model": "stalled-test-model",
+        "content": [{
+            "type": "tool_use",
+            "id": "toolu_stalled_1",
+            "name": "read_file",
+            "input": {
+                "path": "src/lib.rs"
+            }
+        }],
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "usage": {
+            "input_tokens": 9,
+            "output_tokens": 3
+        }
+    })
+}
+
+fn stalled_sse_response() -> Response {
+    Sse::new(futures::stream::pending::<Result<Event, Infallible>>()).into_response()
+}
+
+fn stream_requested(payload: &Value) -> bool {
+    payload.get("stream").and_then(Value::as_bool) == Some(true)
+}
+
+async fn stalled_chat_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+
+    Json(stalled_chat_response()).into_response()
+}
+
+async fn stalled_messages_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+
+    Json(stalled_messages_response()).into_response()
+}
+
+async fn spawn_stalled_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("stalled test server listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("stalled test server should expose a local address");
+
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(stalled_chat_handler))
+                .route("/v1/messages", post(stalled_messages_handler)),
+        )
+        .await
+        .expect("stalled test server should stay alive until aborted");
+    });
+
+    (format!("http://{addr}"), server)
+}
+
 // ---------------------------------------------------------------------------
 // Tests — server probe
 // ---------------------------------------------------------------------------
@@ -280,26 +387,15 @@ async fn test_chat_compat_url_resolves_correctly() {
 
 #[tokio::test]
 async fn test_stalled_stream_chat_compat_falls_back_to_non_stream_json() {
-    let base_url = stalled_server_url();
+    let (base_url, server) = spawn_stalled_server().await;
     let config = build_chat_compat_config(&base_url, "stalled-test-model");
     let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
     let started = Instant::now();
 
-    let stream = client
+    let mut stream = client
         .create_stream(&single_user_message("Inspect src/lib.rs."))
-        .await;
-
-    let mut stream = match stream {
-        Ok(stream) => stream,
-        Err(err) if err.to_string().contains("cannot reach") => {
-            eprintln!(
-                "[stalled-server: connection refused on {} — skipping test, set VEX_STALLED_SSE_URL to override]",
-                base_url
-            );
-            return;
-        }
-        Err(err) => panic!("stalled chat-compat stream failed unexpectedly: {err:#}"),
-    };
+        .await
+        .expect("stalled chat-compat stream should fall back to non-stream JSON");
 
     let elapsed = started.elapsed();
     assert!(
@@ -343,30 +439,21 @@ async fn test_stalled_stream_chat_compat_falls_back_to_non_stream_json() {
         RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
             if status == "completed" && usage.input == 9 && usage.output == 3
     )));
+
+    server.abort();
 }
 
 #[tokio::test]
 async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
-    let base_url = stalled_server_url();
+    let (base_url, server) = spawn_stalled_server().await;
     let config = build_messages_v1_config(&base_url, "stalled-test-model");
     let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
     let started = Instant::now();
 
-    let stream = client
+    let mut stream = client
         .create_stream(&single_user_message("Inspect src/lib.rs."))
-        .await;
-
-    let mut stream = match stream {
-        Ok(stream) => stream,
-        Err(err) if err.to_string().contains("cannot reach") => {
-            eprintln!(
-                "[stalled-server: connection refused on {} — skipping test, set VEX_STALLED_SSE_URL to override]",
-                base_url
-            );
-            return;
-        }
-        Err(err) => panic!("stalled messages-v1 stream failed unexpectedly: {err:#}"),
-    };
+        .await
+        .expect("stalled MessagesV1 stream should fall back to non-stream JSON");
 
     let elapsed = started.elapsed();
     assert!(
@@ -410,4 +497,6 @@ async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
         RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
             if status == "completed" && usage.input == 9 && usage.output == 3
     )));
+
+    server.abort();
 }
