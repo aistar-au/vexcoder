@@ -9,7 +9,7 @@ use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ApiUsage, StreamChunkMetadata};
 use crate::usage::TurnTokens;
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
 pub(super) struct ProtocolIngressState {
@@ -21,7 +21,20 @@ pub(super) struct ProtocolIngressState {
     open_blocks: BTreeSet<usize>,
     turn_tokens: TurnTokens,
     chat_compat_message_started: bool,
-    chat_compat_tools: Vec<PendingChatCompatToolState>,
+    // Per-provider-block-index lifecycle state for chat-compatible tool
+    // calls. Sparse storage avoids preallocating slots for gapped indices
+    // that arrive out of sequence, and the ordered key traversal gives
+    // deterministic close ordering at turn boundaries. Coalescence across
+    // streamed deltas is keyed on the provider block index derived from
+    // `min(tool_call.index, MAX_TOOL_CALL_INDEX) + 1`, preserving the
+    // ordering invariant for JSON arrays in RFC 8259 §4.
+    chat_compat_tool_lifecycles: BTreeMap<usize, PendingChatCompatToolState>,
+    // Tracks whether the active chat-compatible stream has been terminated
+    // by `[DONE]`. While set, `apply_chat_compat_tool_delta` rejects tool
+    // deltas without mutating lifecycle state, preventing late or
+    // protocol-violating frames from re-opening a block after the stream
+    // has finalised. Cleared when a new message start is observed.
+    chat_compat_stream_terminated: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -29,8 +42,21 @@ struct PendingChatCompatToolState {
     id: String,
     name: String,
     pending_arguments: String,
-    started: bool,
-    stopped: bool,
+    lifecycle: ToolCallLifecycle,
+}
+
+// An explicit state machine replaces the earlier pair of boolean flags so
+// transitions are observable and enforceable at a single call site. Each
+// tool-call index advances monotonically from `Discovered` (metadata
+// accumulating, block not yet opened) through `Opened` (ContentBlockStart
+// dispatched, arguments now streamable) to `Closed` (ContentBlockStop
+// dispatched; no further deltas are forwarded to the consumer).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum ToolCallLifecycle {
+    #[default]
+    Discovered,
+    Opened,
+    Closed,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -197,7 +223,8 @@ impl RuntimeEnvelopeNormalizer {
             ChatCompatPayload::Done => {
                 let envelopes = self.close_chat_compat_tool_blocks();
                 self.protocol_ingress.chat_compat_message_started = false;
-                self.protocol_ingress.chat_compat_tools.clear();
+                self.protocol_ingress.chat_compat_stream_terminated = true;
+                self.protocol_ingress.chat_compat_tool_lifecycles.clear();
                 envelopes
             }
             ChatCompatPayload::Chunk(chunk) => self.normalize_chat_compat_chunk(*chunk),
@@ -333,6 +360,7 @@ impl RuntimeEnvelopeNormalizer {
             let ChatCompatDelta {
                 role: _,
                 content,
+                reasoning_content,
                 refusal,
                 tool_calls,
             } = delta;
@@ -340,6 +368,17 @@ impl RuntimeEnvelopeNormalizer {
             if let Some(content) = content {
                 envelopes
                     .extend(self.apply_provider_stream_delta(0, ProviderBlockDelta::Text(content)));
+            }
+
+            // Mixed reasoning plus tool-call streams from chat-compatible
+            // servers expose the model's reasoning trace through a sibling
+            // field. The consumer surface is protocol-agnostic, so the
+            // reasoning payload is coalesced into the same transcript block
+            // as ordinary content deltas rather than exposing a new event.
+            if let Some(reasoning) = reasoning_content {
+                envelopes.extend(
+                    self.apply_provider_stream_delta(0, ProviderBlockDelta::Text(reasoning)),
+                );
             }
 
             if let Some(tool_calls) = tool_calls {
@@ -385,6 +424,14 @@ impl RuntimeEnvelopeNormalizer {
         }
 
         self.protocol_ingress.chat_compat_message_started = true;
+        // Only a fresh `role` announcement resets the termination gate raised
+        // by the previous `[DONE]`. Bare id/model echoes that arrive after
+        // the stream has finalised are treated as protocol violations and
+        // must not re-admit tool-call deltas without an unambiguous new
+        // message signal.
+        if role.is_some() {
+            self.protocol_ingress.chat_compat_stream_terminated = false;
+        }
         message_start_metadata(metadata)
             .map(|metadata| self.emit_provider_metadata(metadata))
             .unwrap_or_default()
@@ -395,15 +442,31 @@ impl RuntimeEnvelopeNormalizer {
         choice_index: Option<usize>,
         tool_call: ChatCompatToolCallDelta,
     ) -> Vec<RuntimeEnvelope> {
+        if self.protocol_ingress.chat_compat_stream_terminated {
+            // Once `[DONE]` has been observed the stream is finalised; late
+            // tool-call frames must not instantiate fresh lifecycle state via
+            // `entry(..).or_default()`. A new message start is required before
+            // any further deltas are admitted.
+            return Vec::new();
+        }
+
         let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
         let block_index = raw_index.saturating_add(1);
-        self.ensure_chat_compat_tool_slot(block_index);
+        let _ = (choice_index, tool_call.call_type);
 
-        let mut start_block = None;
-        let mut partial_json = None;
-        {
-            let state = &mut self.protocol_ingress.chat_compat_tools[block_index];
-            let _ = (choice_index, tool_call.call_type);
+        let (start_block, partial_json) = {
+            let state = self
+                .protocol_ingress
+                .chat_compat_tool_lifecycles
+                .entry(block_index)
+                .or_default();
+
+            if state.lifecycle == ToolCallLifecycle::Closed {
+                // A late delta for an already-finalised index must not
+                // resurrect the block; the consumer has been told the
+                // tool call is complete and cannot safely accept more.
+                return Vec::new();
+            }
 
             if let Some(id) = tool_call.id
                 && !id.is_empty()
@@ -421,24 +484,28 @@ impl RuntimeEnvelopeNormalizer {
                 }
             }
 
-            if !state.started && !state.name.is_empty() {
+            let start_block = (state.lifecycle == ToolCallLifecycle::Discovered
+                && !state.name.is_empty())
+            .then(|| {
                 let id = if state.id.is_empty() {
                     format!("toolu_chat_compat_{block_index}")
                 } else {
                     state.id.clone()
                 };
-                start_block = Some(ProviderContentBlock::ToolUse {
+                state.lifecycle = ToolCallLifecycle::Opened;
+                ProviderContentBlock::ToolUse {
                     id,
                     name: state.name.clone(),
                     input: empty_json_object(),
-                });
-                state.started = true;
-            }
+                }
+            });
 
-            if state.started && !state.pending_arguments.is_empty() {
-                partial_json = Some(std::mem::take(&mut state.pending_arguments));
-            }
-        }
+            let partial_json = (state.lifecycle == ToolCallLifecycle::Opened
+                && !state.pending_arguments.is_empty())
+            .then(|| std::mem::take(&mut state.pending_arguments));
+
+            (start_block, partial_json)
+        };
 
         let mut envelopes = Vec::new();
         if let Some(content_block) = start_block {
@@ -453,31 +520,28 @@ impl RuntimeEnvelopeNormalizer {
         envelopes
     }
 
-    fn ensure_chat_compat_tool_slot(&mut self, index: usize) {
-        let required = index.saturating_add(1);
-        if self.protocol_ingress.chat_compat_tools.len() < required {
-            self.protocol_ingress
-                .chat_compat_tools
-                .resize_with(required, PendingChatCompatToolState::default);
-        }
-    }
-
     fn close_chat_compat_tool_blocks(&mut self) -> Vec<RuntimeEnvelope> {
-        let mut to_close = Vec::new();
-        for (index, state) in self
+        // Every observed index must be sealed at the turn boundary so that a
+        // late delta cannot advance a `Discovered` entry to `Opened` after a
+        // `finish_reason` or `[DONE]` terminator. Only `Opened` indices emit a
+        // block close, because `Discovered` never dispatched a
+        // ContentBlockStart to the consumer.
+        let to_close: Vec<usize> = self
             .protocol_ingress
-            .chat_compat_tools
+            .chat_compat_tool_lifecycles
             .iter_mut()
-            .enumerate()
-        {
-            if index == 0 {
-                continue;
-            }
-            if state.started && !state.stopped {
-                state.stopped = true;
-                to_close.push(index);
-            }
-        }
+            .filter_map(|(index, state)| match state.lifecycle {
+                ToolCallLifecycle::Opened => {
+                    state.lifecycle = ToolCallLifecycle::Closed;
+                    Some(*index)
+                }
+                ToolCallLifecycle::Discovered => {
+                    state.lifecycle = ToolCallLifecycle::Closed;
+                    None
+                }
+                ToolCallLifecycle::Closed => None,
+            })
+            .collect();
 
         let mut envelopes = Vec::new();
         for index in to_close {

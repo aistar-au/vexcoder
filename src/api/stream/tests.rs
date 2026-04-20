@@ -213,6 +213,229 @@ fn test_process_clamps_chat_compat_tool_call_index() {
 }
 
 #[test]
+fn test_process_chat_compat_emits_reasoning_content_as_transcript_delta() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"weighing options"},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "weighing options"
+    )));
+}
+
+#[test]
+fn test_process_chat_compat_preserves_tool_state_across_reasoning_interleave() {
+    let mut parser = StreamParser::new();
+
+    let first = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"plan: call read_file","tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"read_file","arguments":"{\"path\":\""}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(first.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "plan: call read_file"
+    )));
+    assert!(first.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, .. }
+        } if id == "call_a" && name == "read_file"
+    )));
+
+    let second = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"reasoning_content":"now finalising args","tool_calls":[{"index":0,"function":{"arguments":"src/lib.rs\"}"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(second.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "now finalising args"
+    )));
+    assert!(second.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallArgumentsDelta { delta, tool_name, .. }
+            if delta == "src/lib.rs\"}" && tool_name.as_deref() == Some("read_file")
+    )));
+}
+
+#[test]
+fn test_process_chat_compat_allocates_sparse_tool_call_indices() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"read_file","arguments":"{}"}},{"index":5,"id":"call_b","type":"function","function":{"name":"write_file","arguments":"{}"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    let tool_starts: Vec<usize> = events
+        .iter()
+        .filter_map(|event| match &event.event {
+            RuntimeEvent::TranscriptBlockStart {
+                index,
+                block: crate::state::StreamBlock::ToolCall { .. },
+            } => Some(*index),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tool_starts, vec![1, 6]);
+}
+
+#[test]
+fn test_process_chat_compat_ignores_deltas_after_tool_block_closed() {
+    let mut parser = StreamParser::new();
+
+    let opening = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"noop","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+    assert!(opening.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockComplete { index: 1 }
+    )));
+
+    let replay = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"should-be-ignored"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    let has_late_tool_event = replay.iter().any(|event| {
+        matches!(
+            &event.event,
+            RuntimeEvent::ToolCallArgumentsDelta { .. }
+                | RuntimeEvent::TranscriptBlockStart {
+                    block: crate::state::StreamBlock::ToolCall { .. },
+                    ..
+                }
+        )
+    });
+    assert!(!has_late_tool_event);
+}
+
+#[test]
+fn test_process_chat_compat_seals_discovered_tool_at_finish_reason() {
+    let mut parser = StreamParser::new();
+
+    let opening = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"arguments":"{\"path\""}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    let had_block_start = opening.iter().any(|event| {
+        matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart {
+                block: crate::state::StreamBlock::ToolCall { .. },
+                ..
+            }
+        )
+    });
+    assert!(
+        !had_block_start,
+        "a Discovered entry must not emit a block start before a name is observed",
+    );
+
+    let terminator = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+    let had_late_start = terminator.iter().any(|event| {
+        matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart {
+                block: crate::state::StreamBlock::ToolCall { .. },
+                ..
+            }
+        )
+    });
+    assert!(!had_late_start);
+
+    let replay = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"read_file","arguments":":\"main.rs\"}"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    let resurrected = replay.iter().any(|event| {
+        matches!(
+            &event.event,
+            RuntimeEvent::ToolCallArgumentsDelta { .. }
+                | RuntimeEvent::TranscriptBlockStart {
+                    block: crate::state::StreamBlock::ToolCall { .. },
+                    ..
+                }
+        )
+    });
+    assert!(
+        !resurrected,
+        "a late name delta must not advance a sealed Discovered index to Opened",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_rejects_tool_deltas_after_done() {
+    let mut parser = StreamParser::new();
+
+    let _ = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+"#,
+        )
+        .unwrap();
+
+    let late = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":7,"id":"call_late","type":"function","function":{"name":"read_file","arguments":"{}"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    let late_tool_event = late.iter().any(|event| {
+        matches!(
+            &event.event,
+            RuntimeEvent::ToolCallArgumentsDelta { .. }
+                | RuntimeEvent::TranscriptBlockStart {
+                    block: crate::state::StreamBlock::ToolCall { .. },
+                    ..
+                }
+        )
+    });
+    assert!(
+        !late_tool_event,
+        "tool deltas arriving after [DONE] must be dropped before lifecycle state is instantiated",
+    );
+}
+
+#[test]
 fn test_process_preserves_tab_after_single_space_strip() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: \t{\"type\":\"ping\"}\n\n").unwrap();
