@@ -1,22 +1,6 @@
 # Summary
 
-- [Introduction](introduction.md)
-- [Architecture Overview](architecture.md)
-- [Tool-Call Cutover](tool-call-cutover.md)
-
----
-
-# User Guide
-
-- [Quick Start](quick-start.md)
-- [Configuration](configuration.md)
-- [Privacy](privacy.md)
-- [CLI and TUI Commands](commands.md)
-- [Performance](performance.md)
-- [Legacy Config Note](migration.md)
-
-# Maintainer Guide
-
-- [Dependency Upgrades](dependency-upgrades.md)
-- [Lint Policy](linting.md)
-- [MSRV Policy](msrv.md)
+- [Build From Source](introduction.md)
+- [macOS](macos.md)
+- [Linux](linux.md)
+- [Windows PowerShell](windows.md)

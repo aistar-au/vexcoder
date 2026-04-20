@@ -2,6 +2,23 @@
 
 Interactive coding assistant CLI, implemented in Rust.
 
+## Build from source
+
+Requires Git, a stable Rust toolchain with `cargo` on your `PATH`, write access in the checkout so `vex init` can create `.vex/` and `AGENTS.md`, and a reachable model endpoint.
+
+`vex` does not bundle a model runtime. For the fastest same-machine setup, point `.vex/config.toml` at a local server on `http://127.0.0.1:8080/v1`. Local and private-network endpoints can stay on plain HTTP and do not need `VEX_MODEL_TOKEN`; remote public endpoints must use `https://` and a token.
+
+```bash
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+cargo build --release
+./target/release/vex init
+```
+
+The built binary is at `target/release/vex`.
+
+The OS-specific guides under `docs/src/` walk through the local-server config, token rules, `vex doctor`, and the first interactive launch in detail.
+
 ## Documentation
 
 Full documentation is in [`docs/src/`](docs/src/SUMMARY.md). To read it locally:
@@ -11,43 +28,16 @@ cargo install mdbook
 mdbook serve docs
 ```
 
-- [Introduction](docs/src/introduction.md)
-- [Architecture Overview](docs/src/architecture.md)
-- [Quick Start](docs/src/quick-start.md)
-- [Configuration](docs/src/configuration.md)
-- [Privacy](docs/src/privacy.md)
-- [CLI and TUI Commands](docs/src/commands.md)
-- [Dependency Upgrades](docs/src/dependency-upgrades.md)
+Start with:
 
-Architecture records are stored under [`adr/`](adr/ADR-README.md). They are kept in
-the repository for design history, but are not part of the published user
-guide. The current runtime, application, transport, and renderer dependency
-layout is summarized in [`docs/src/architecture.md`](docs/src/architecture.md),
-with the ADR set under [`adr/`](adr/ADR-README.md) carrying the detailed design
-history. Direct crate version requirements are centralized in the root
-[`Cargo.toml`](Cargo.toml) `workspace.dependencies` table, and the maintainer
-workflow for stale-version audits, security checks, and manifest upgrades is
-documented in [`docs/src/dependency-upgrades.md`](docs/src/dependency-upgrades.md).
-The same manifest also carries `workspace.metadata.upgrade-seams` and
-`workspace.metadata.upgrade-notes`, which are the maintainer map for the small
-set of Rust files that should absorb dependency API churn.
-Use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrade`
-(backed by `cargo-deny`, `cargo-outdated`, and `cargo-upgrade`) for all
-dependency work. `make bump` changes the version.
+- [Build From Source](docs/src/introduction.md)
+- [macOS](docs/src/macos.md)
+- [Linux](docs/src/linux.md)
+- [Windows PowerShell](docs/src/windows.md)
 
-## Standards posture
-
-The transport surface aligns with RFC 9110, RFC 9111, RFC 9112, RFC 8259, the
-WHATWG server-sent-events parsing rules, RFC 7519, and RFC 8446 for the parts
-implemented in-tree. One deliberate exception remains: upstream streamed model
-requests use `POST` with EventSource framing because the provider APIs require
-request bodies. Raw JSON chunk streams without SSE framing are unsupported and
-discouraged.
-
-The current client-side and LocalApiServer privacy posture is documented in
-[`docs/src/privacy.md`](docs/src/privacy.md), including local storage paths,
-credential handling, telemetry boundaries, and the read-only `/v1/privacy`
-metadata endpoint.
+Architecture records are stored under [`adr/`](adr/ADR-README.md). They carry
+design history and follow-up amendments separately from the build-first user
+guide.
 
 ## Contributing
 

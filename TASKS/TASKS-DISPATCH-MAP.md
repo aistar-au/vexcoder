@@ -15,9 +15,9 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | `TASKS/PM-02-undo-checkpoints.md` | Pre-ADR | None | `/undo` slash command and per-change checkpoint stack. Branch only. |
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
 | `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
-| `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `architecture.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
+| `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
 | `TASKS/PR-405-permissions-overlay-followup.md` | `ADR-048`, PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task manifest covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
-| `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | `REF-01`, PR #404 follow-up | `runtime-envelope-api-sse-normalization-plan.md`, `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | Runtime-owned typed tool-argument projection for CLI/TUI consumers; preserve raw block deltas only for envelope and local-API projection. Active. |
+| `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | `REF-01`, PR #404 follow-up | `adr/ADR-047-amendment-2026-04-20.md`, `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | Runtime-owned typed tool-argument projection for CLI/TUI consumers; preserve raw block deltas only for envelope and local-API projection. Active. |
 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | PR #390 replacement follow-up | `AGENTS.md`, `CONTRIBUTING.md` | Local-session detached-worktree skill-bootstrap audit and repo-root anchoring. Branch only. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 

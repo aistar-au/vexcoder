@@ -1,6 +1,6 @@
 # Quick Start
 
-This page gets you from clone to a running session in the fewest steps.
+This page gets you from clone to a first verified response in the fewest steps.
 
 ## 1. Build the binary
 
@@ -26,47 +26,40 @@ This creates:
 
 ## 3. Configure your model endpoint
 
-Local example:
+Write `.vex/config.toml` with a reachable endpoint. Local and private-network endpoints can stay on plain HTTP and do not need `VEX_MODEL_TOKEN`. Remote public endpoints must use `https://` and a token.
 
-```toml
-# .vex/config.toml
-model_url = "http://localhost:8080/v1"
+```bash
+cat > .vex/config.toml <<'EOF'
+model_url = "http://127.0.0.1:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
+EOF
 ```
 
-For a local Messages-v1 server, use plain HTTP unless you
-have explicitly configured TLS:
-
-```toml
-# .vex/config.toml
-model_url = "http://localhost:8000/v1/messages"
-model_name = "your-model-name"
-model_profile = "models/local-balanced.toml"
-```
-
-Remote example:
-
-```toml
-# .vex/config.toml
-model_url = "https://your-endpoint.example/v1/messages"
-model_name = "your-model-name"
-model_profile = "models/api-structured.toml"
-```
-
-Export a token only when the endpoint requires one:
+If you are connecting to a remote public endpoint, change `model_url` to the exact `https://` URL that endpoint exposes, set `model_name` to a model it accepts, and export the token before continuing:
 
 ```bash
 export VEX_MODEL_TOKEN="your-token"
 ```
 
-## 4. Start the interactive UI
+For scheme-and-host discovery through `api_client.base_url`, see [Configuration](configuration.md).
+
+## 4. Verify the endpoint
 
 ```bash
+./target/release/vex doctor
+```
+
+Expect `VEX_MODEL_URL set` to pass. `Model endpoint reachable` should pass once your server is listening; if it warns, start the server or update `model_url`, then rerun `vex doctor`.
+
+## 5. Start the interactive UI
+
+```bash
+./target/release/vex --print "Reply with the single word ok."
 ./target/release/vex
 ```
 
-## 5. Run one-shot or batch commands
+## 6. Run one-shot or batch commands
 
 One-shot plain text:
 
@@ -79,21 +72,6 @@ Batch mode:
 ```bash
 ./target/release/vex exec --task "review src/app.rs" --format jsonl
 ```
-
-## 6. Verify the local gate
-
-```bash
-make gate-fast
-```
-
-The local pre-push hook also runs `cargo nextest run`, which uses nextest's
-default cross-platform concurrency. The CI workflow runs 8 parallel jobs with
-cargo registry and build-artifact caching.
-
-Once inside an interactive session, the model can explore the codebase using
-`codebase_search` (for functions, types, and code patterns), `list_files`
-(for directory structure), `list_dir` (non-recursive directory listing), and
-`glob_files` (workspace-wide glob matching) before making targeted reads.
 
 ## Next
 

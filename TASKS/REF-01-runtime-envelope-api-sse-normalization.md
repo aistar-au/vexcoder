@@ -38,7 +38,7 @@ once provider ingress and downstream runtime code both repair legacy dialects,
 the repository is again maintaining two semantic assembly paths for one
 accepted contract.
 
-Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
+Primary reference: `adr/ADR-047-amendment-2026-04-20.md`
 
 ## Scope Summary
 

@@ -4,8 +4,11 @@ VexCoder reads configuration from layered TOML files plus environment
 variables. The normal starting point is:
 
 ```bash
-vex init
+./target/release/vex init
 ```
+
+If you have already installed `vex` onto your `PATH`, the equivalent command is
+`vex init`.
 
 ## Resolution order
 
@@ -31,7 +34,7 @@ These keys are read by the current runtime from config files:
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
-| `model_url` | Model endpoint URL | `http://localhost:8080/v1` |
+| `model_url` | Full model endpoint URL used by the runtime | unset; must be configured unless `api_client.base_url` is set |
 | `model_url_skip_tls_check` | Skip HTTPS certificate validation for the model endpoint | `false` |
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
@@ -39,6 +42,7 @@ These keys are read by the current runtime from config files:
 | `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
 | `tool_call_mode` | `structured` only | inferred; resolves to `structured` in the current loader |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
+| `api_client.base_url` | Scheme-and-host base URL used for automatic protocol discovery | unset |
 | `model_profile` | Path to a repo-tracked profile under `models/` | default profile for the selected API backend |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |

@@ -1,16 +1,16 @@
-# Introduction
+# Build From Source
 
-VexCoder is a local coding assistant you run as a binary. It connects to the
-model endpoint you configure, supports interactive CLI sessions and
-non-interactive batch runs, and keeps its setup lightweight enough to build
-from source on supported platforms.
+`vex` builds as a local CLI binary, but it does not bundle a model runtime.
+Before you start, make sure you have:
 
-This book focuses on the public user surface:
+- Git and a stable Rust toolchain on your `PATH`
+- permission to clone into a writable directory and create `.vex/` files plus `AGENTS.md` inside it
+- a reachable model endpoint
 
-- building the binary
-- understanding the current runtime, application, and transport layout
-- creating a workspace with `vex init`
-- configuring the model endpoint and token
-- using the current CLI options and interactive commands
+Use a local server on `http://127.0.0.1:8080/v1` when you want the fastest same-machine setup. Local and private-network endpoints can stay on plain HTTP and do not need `VEX_MODEL_TOKEN`. Use a remote public endpoint only when it is exposed over `https://`; those endpoints require `VEX_MODEL_TOKEN`. For alternative endpoint wiring through `api_client.base_url`, see [Configuration](configuration.md).
 
-The shortest path to a running session is in [Quick Start](quick-start.md). For the current code layout, see [Architecture Overview](architecture.md).
+Open the page for your shell:
+
+- [macOS](macos.md)
+- [Linux](linux.md)
+- [Windows PowerShell](windows.md)
