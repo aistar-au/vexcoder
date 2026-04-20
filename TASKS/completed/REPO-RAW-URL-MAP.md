@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 394
+- Total tracked files: 395
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -403,3 +403,4 @@ Canonical raw URL index for every tracked file in this repository.
 | 392 | `tests/signal_handling_tests.rs` | ~79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
 | 393 | `tests/stream_parser_tests.rs` | ~396 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | 394 | `tests/tool_operator_tests.rs` | ~382 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 395 | `src/observability.rs` | ~273 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/observability.rs> |
