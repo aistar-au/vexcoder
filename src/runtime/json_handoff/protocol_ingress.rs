@@ -2,7 +2,8 @@ use super::derived::{empty_json_object, token_usage_from_turn_tokens};
 use super::{RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext};
 use crate::api::stream::MAX_TOOL_CALL_INDEX;
 use crate::api::stream::chat_compat::{
-    ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatPayload, ChatCompatToolCallDelta,
+    ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatFunctionArguments,
+    ChatCompatPayload, ChatCompatToolCallDelta,
 };
 use crate::api::stream::provider::{ProviderDelta, ProviderStreamEvent};
 use crate::state::{StreamBlock, ToolStatus};
@@ -42,6 +43,7 @@ struct PendingChatCompatToolState {
     id: String,
     name: String,
     pending_arguments: String,
+    materialized_arguments: Option<serde_json::Value>,
     lifecycle: ToolCallLifecycle,
 }
 
@@ -480,7 +482,30 @@ impl RuntimeEnvelopeNormalizer {
                     state.name = name;
                 }
                 if let Some(arguments) = function.arguments {
-                    state.pending_arguments.push_str(&arguments);
+                    match arguments {
+                        ChatCompatFunctionArguments::String(arguments) => {
+                            if let Some(value) = state.materialized_arguments.take()
+                                && let Ok(serialized) = serde_json::to_string(&value)
+                            {
+                                state.pending_arguments.push_str(&serialized);
+                            }
+                            state.pending_arguments.push_str(&arguments);
+                        }
+                        ChatCompatFunctionArguments::Json(arguments) => {
+                            if state.lifecycle == ToolCallLifecycle::Discovered
+                                && state.pending_arguments.is_empty()
+                            {
+                                state.materialized_arguments = Some(arguments);
+                            } else if let Ok(serialized) = serde_json::to_string(&arguments) {
+                                if let Some(value) = state.materialized_arguments.take()
+                                    && let Ok(materialized) = serde_json::to_string(&value)
+                                {
+                                    state.pending_arguments.push_str(&materialized);
+                                }
+                                state.pending_arguments.push_str(&serialized);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -496,7 +521,10 @@ impl RuntimeEnvelopeNormalizer {
                 ProviderContentBlock::ToolUse {
                     id,
                     name: state.name.clone(),
-                    input: empty_json_object(),
+                    input: state
+                        .materialized_arguments
+                        .take()
+                        .unwrap_or_else(empty_json_object),
                 }
             });
 

@@ -49,11 +49,11 @@ pub(crate) struct ChatCompatDelta {
     pub(crate) role: Option<String>,
     #[serde(default)]
     pub(crate) content: Option<String>,
-    // Several chat-compatible servers emit a `reasoning_content` field
-    // alongside `content` when mixed reasoning + tool-call streams are
-    // requested. The runtime treats it as a transcript-text delta so the
-    // downstream consumer observes no protocol-specific variation.
-    #[serde(default)]
+    // Some chat-compatible local runtimes emit `reasoning_content`, while
+    // others surface the same payload as `thinking`. Both are normalized to
+    // one transcript-text delta at ingress so downstream code stays
+    // protocol-agnostic.
+    #[serde(default, alias = "thinking")]
     pub(crate) reasoning_content: Option<String>,
     #[serde(default)]
     pub(crate) refusal: Option<String>,
@@ -78,7 +78,14 @@ pub(crate) struct ChatCompatFunctionDelta {
     #[serde(default)]
     pub(crate) name: Option<String>,
     #[serde(default)]
-    pub(crate) arguments: Option<String>,
+    pub(crate) arguments: Option<ChatCompatFunctionArguments>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum ChatCompatFunctionArguments {
+    String(String),
+    Json(serde_json::Value),
 }
 
 pub(super) fn parse_chat_compat_chunk(json_data: &str) -> Option<ChatCompatPayload> {

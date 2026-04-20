@@ -626,7 +626,17 @@ impl ApiClient {
             }
         }
 
-        create_event_stream(self.http.clone(), &request_url, &payload, &headers).await
+        create_event_stream(
+            self.http.clone(),
+            &request_url,
+            &payload,
+            &headers,
+            match api_protocol {
+                ApiProtocol::MessagesV1 => ModelProtocol::MessagesV1,
+                ApiProtocol::ChatCompat => ModelProtocol::ChatCompat,
+            },
+        )
+        .await
     }
 
     fn request_url(&self) -> String {

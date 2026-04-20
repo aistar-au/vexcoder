@@ -7,8 +7,8 @@
 
 use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::stream::StreamParser;
-use crate::runtime::RuntimeEnvelope;
 use crate::runtime::backend::EventStream;
+use crate::runtime::{ModelProtocol, RuntimeEnvelope};
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
 use eventsource_client::{Client as _, ClientBuilder, ReconnectOptions, SSE};
@@ -16,13 +16,21 @@ use futures::{StreamExt, stream};
 use launchdarkly_sdk_transport::{
     ByteStream as TransportByteStream, HttpTransport, ResponseFuture, TransportError,
 };
+use serde_json::{Value, json};
 use std::collections::VecDeque;
+use std::time::Duration;
+
+#[cfg(test)]
+const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_millis(50);
+#[cfg(not(test))]
+const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) async fn create_event_stream(
     http: reqwest::Client,
     request_url: &str,
     payload: &serde_json::Value,
     headers: &reqwest::header::HeaderMap,
+    protocol: ModelProtocol,
 ) -> Result<EventStream> {
     let mut builder = ClientBuilder::for_url(request_url)
         .map_err(|error| {
@@ -54,7 +62,9 @@ pub(crate) async fn create_event_stream(
         })?;
     }
 
-    let client = builder.build_with_transport(ReqwestEventSourceTransport { client: http });
+    let client = builder.build_with_transport(ReqwestEventSourceTransport {
+        client: http.clone(),
+    });
     let mut state = EventStreamState {
         upstream: client.stream(),
         parser: StreamParser::new(),
@@ -62,7 +72,30 @@ pub(crate) async fn create_event_stream(
         request_url: request_url.to_string(),
     };
 
-    let first_event = next_stream_event(&mut state).await?;
+    let first_event = if crate::util::is_local_endpoint_url(request_url) {
+        match tokio::time::timeout(LOCAL_STREAM_START_TIMEOUT, next_stream_event(&mut state)).await
+        {
+            Ok(result) => result?,
+            Err(_) => {
+                tracing::warn!(
+                    target: "vex::http",
+                    url = %crate::runtime::rewrite_url_for_logs(request_url),
+                    timeout_ms = LOCAL_STREAM_START_TIMEOUT.as_millis(),
+                    "local streaming request emitted no initial SSE event; retrying as non-streaming JSON"
+                );
+                return create_non_stream_fallback_stream(
+                    http,
+                    request_url,
+                    payload,
+                    headers,
+                    protocol,
+                )
+                .await;
+            }
+        }
+    } else {
+        next_stream_event(&mut state).await?
+    };
     let tail = stream::try_unfold(state, |mut state| async move {
         match next_stream_event(&mut state).await {
             Ok(Some(event)) => Ok(Some((event, state))),
@@ -76,6 +109,246 @@ pub(crate) async fn create_event_stream(
     } else {
         Ok(Box::pin(tail))
     }
+}
+
+async fn create_non_stream_fallback_stream(
+    http: reqwest::Client,
+    request_url: &str,
+    payload: &serde_json::Value,
+    headers: &reqwest::header::HeaderMap,
+    protocol: ModelProtocol,
+) -> Result<EventStream> {
+    let mut request_headers = headers.clone();
+    request_headers.insert(
+        reqwest::header::ACCEPT,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+
+    let response = http
+        .post(request_url)
+        .headers(request_headers)
+        .json(&non_stream_payload(payload))
+        .send()
+        .await
+        .map_err(|error| map_api_request_error(error, request_url))?;
+
+    let status = response.status();
+    let retry_after = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let body = response
+        .text()
+        .await
+        .unwrap_or_else(|error| format!("<failed to read non-streaming response body: {error}>"));
+
+    if !status.is_success() {
+        return Err(map_api_status_error(
+            status,
+            &body,
+            request_url,
+            retry_after.as_deref(),
+        ));
+    }
+
+    let envelopes = normalize_non_stream_response(protocol, &body).with_context(|| {
+        format!(
+            "failed to normalize non-streaming fallback response from '{}'",
+            request_url
+        )
+    })?;
+
+    Ok(Box::pin(stream::iter(envelopes.into_iter().map(Ok))))
+}
+
+fn non_stream_payload(payload: &serde_json::Value) -> serde_json::Value {
+    let mut payload = payload.clone();
+    if let Some(object) = payload.as_object_mut() {
+        object.insert("stream".to_string(), Value::Bool(false));
+    }
+    payload
+}
+
+fn normalize_non_stream_response(
+    protocol: ModelProtocol,
+    body: &str,
+) -> Result<Vec<RuntimeEnvelope>> {
+    let response: Value =
+        serde_json::from_str(body).with_context(|| "response body was not valid JSON")?;
+    let mut parser = StreamParser::new();
+    let mut envelopes = Vec::new();
+
+    match protocol {
+        ModelProtocol::MessagesV1 => {
+            let content_blocks = messages_v1_content_blocks(&response);
+            feed_synthetic_event(
+                &mut parser,
+                &mut envelopes,
+                "message_start",
+                json!({
+                    "type": "message_start",
+                    "message": {
+                        "id": response
+                            .get("id")
+                            .cloned()
+                            .unwrap_or_else(|| json!("nonstream-message")),
+                        "type": response
+                            .get("type")
+                            .cloned()
+                            .unwrap_or_else(|| json!("message")),
+                        "role": response
+                            .get("role")
+                            .cloned()
+                            .unwrap_or_else(|| json!("assistant")),
+                        "model": response
+                            .get("model")
+                            .cloned()
+                            .unwrap_or_else(|| json!("unknown")),
+                        "content": content_blocks,
+                        "stop_reason": response
+                            .get("stop_reason")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                        "stop_sequence": response
+                            .get("stop_sequence")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                        "usage": response.get("usage").cloned().unwrap_or(Value::Null),
+                    }
+                }),
+            )?;
+
+            for (index, block) in messages_v1_content_blocks(&response)
+                .into_iter()
+                .enumerate()
+            {
+                feed_synthetic_event(
+                    &mut parser,
+                    &mut envelopes,
+                    "content_block_start",
+                    json!({
+                        "type": "content_block_start",
+                        "index": index,
+                        "content_block": block,
+                    }),
+                )?;
+            }
+
+            feed_synthetic_event(
+                &mut parser,
+                &mut envelopes,
+                "message_delta",
+                json!({
+                    "type": "message_delta",
+                    "delta": {
+                        "stop_reason": response
+                            .get("stop_reason")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                        "stop_sequence": response
+                            .get("stop_sequence")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    },
+                    "usage": response.get("usage").cloned().unwrap_or(Value::Null),
+                }),
+            )?;
+        }
+        ModelProtocol::ChatCompat => {
+            let choices = response
+                .get("choices")
+                .and_then(Value::as_array)
+                .map(|choices| {
+                    choices
+                        .iter()
+                        .enumerate()
+                        .map(|(fallback_index, choice)| {
+                            let message = choice.get("message").cloned().unwrap_or(Value::Null);
+                            let mut delta = serde_json::Map::new();
+
+                            if let Some(role) = message.get("role").cloned() {
+                                delta.insert("role".to_string(), role);
+                            }
+                            if let Some(content) = message.get("content").cloned() {
+                                delta.insert("content".to_string(), content);
+                            }
+                            if let Some(reasoning) = message.get("reasoning_content").cloned() {
+                                delta.insert("reasoning_content".to_string(), reasoning);
+                            } else if let Some(thinking) = message.get("thinking").cloned() {
+                                delta.insert("thinking".to_string(), thinking);
+                            }
+                            if let Some(refusal) = message.get("refusal").cloned() {
+                                delta.insert("refusal".to_string(), refusal);
+                            }
+                            if let Some(tool_calls) = message.get("tool_calls").cloned() {
+                                delta.insert("tool_calls".to_string(), tool_calls);
+                            }
+
+                            json!({
+                                "index": choice
+                                    .get("index")
+                                    .and_then(Value::as_u64)
+                                    .unwrap_or(fallback_index as u64),
+                                "delta": Value::Object(delta),
+                                "finish_reason": choice
+                                    .get("finish_reason")
+                                    .cloned()
+                                    .unwrap_or(Value::Null),
+                                "logprobs": choice.get("logprobs").cloned().unwrap_or(Value::Null),
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            feed_synthetic_event(
+                &mut parser,
+                &mut envelopes,
+                "",
+                json!({
+                    "id": response.get("id").cloned().unwrap_or(Value::Null),
+                    "object": response.get("object").cloned().unwrap_or_else(|| json!("chat.completion")),
+                    "created": response.get("created").cloned().unwrap_or(Value::Null),
+                    "model": response.get("model").cloned().unwrap_or(Value::Null),
+                    "system_fingerprint": response
+                        .get("system_fingerprint")
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                    "service_tier": response.get("service_tier").cloned().unwrap_or(Value::Null),
+                    "choices": choices,
+                    "usage": response.get("usage").cloned().unwrap_or(Value::Null),
+                    "prompt_progress": response
+                        .get("prompt_progress")
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                    "timings": response.get("timings").cloned().unwrap_or(Value::Null),
+                }),
+            )?;
+        }
+    }
+
+    envelopes.extend(parser.finish());
+    Ok(envelopes)
+}
+
+fn messages_v1_content_blocks(response: &Value) -> Vec<Value> {
+    match response.get("content") {
+        Some(Value::Array(blocks)) => blocks.clone(),
+        Some(Value::String(text)) => vec![json!({ "type": "text", "text": text })],
+        _ => Vec::new(),
+    }
+}
+
+fn feed_synthetic_event(
+    parser: &mut StreamParser,
+    envelopes: &mut Vec<RuntimeEnvelope>,
+    event_type: &str,
+    payload: Value,
+) -> Result<()> {
+    let payload = serde_json::to_string(&payload)?;
+    envelopes.extend(parser.process_sse_event(event_type, &payload)?);
+    Ok(())
 }
 
 struct EventStreamState {

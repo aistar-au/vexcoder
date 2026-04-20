@@ -113,8 +113,8 @@ array. Each tool call carries:
 - `id`: a unique identifier for the tool call, present only in the first
   chunk.
 - `function.name`: present only in the first chunk.
-- `function.arguments`: a partial JSON string, streamed incrementally across
-  multiple chunks.
+- `function.arguments`: typically a partial JSON string, streamed
+  incrementally across multiple chunks.
 
 The critical design decision is that tool call identity (`id`) and tool name
 are emitted once at the start of the tool call, while arguments are streamed as
@@ -124,6 +124,29 @@ content blocks; it is an explicit protocol-level field.
 When arguments are streamed as partial JSON, the consumer must buffer and
 concatenate before parsing. Invalid or truncated JSON is a known failure mode
 that requires explicit handling in the consumer.
+
+For local-server interoperability, the ingress normalizer also accepts a fully
+materialized JSON value in `function.arguments` and converts that variation to
+the same typed runtime tool-call contract before the event leaves the API
+boundary. This keeps the downstream CLI and ratatui layers independent of
+server-specific serialization choices.
+
+RFC 8259 is the standards basis for that split: arrays are ordered sequences,
+so coalescence by `tool_calls[index]` is stable, while object members are
+unordered and interoperable consumers must not depend on member order. The
+normalizer therefore resolves transport framing and JSON-value assembly at
+ingress rather than asking downstream consumers to preserve or reparse raw
+member ordering.
+
+Local runtime interoperability also exposed a transport-level variation:
+servers that accept `stream = true` but do not emit an initial SSE event
+promptly. The WHATWG SSE processing model only yields consumer-visible events
+after the sender produces event fields and a frame terminator, so an accepted
+connection with no early event provides no stream facts for downstream code to
+consume. For same-machine local endpoints, the client now retries that stalled
+start once with `stream = false` and runs the full JSON response through the
+same ingress normalizer. The downstream API contract therefore remains
+`RuntimeEnvelope`-only across both streamed and full-response local variants.
 
 **Relevance to ADR-047 amendment, Decision 3:** The streaming tool call pattern
 directly validates the `tool_call_started` (carries id and name) followed by
