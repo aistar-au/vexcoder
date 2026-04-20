@@ -7,19 +7,35 @@
 //!
 //! Configuration:
 //!   VEX_LIVE_SERVER_URL — base URL of the local server (default: http://localhost:8000)
+//!   VEX_STALLED_SSE_URL — base URL of the stalled SSE reproducer
+//!   (default: http://127.0.0.1:8011)
 //!
 //! Run with:
 //!   VEX_LIVE_SERVER_URL=http://localhost:8000 cargo nextest run -p vexcoder --test live_server_test
 
+use futures::StreamExt;
 use reqwest::header::HeaderMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use vexcoder::config::Config;
-use vexcoder::runtime::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
-use vexcoder::types::ModelProfile;
+use vexcoder::runtime::{
+    ModelBackend, ModelBackendKind, ModelProtocol, RuntimeEvent, ToolCallMode, ToolPolicy,
+};
+use vexcoder::types::{ApiMessage, Content, ModelProfile};
 
 /// Resolve the live server URL from the environment or use the default.
 fn live_server_url() -> String {
     std::env::var("VEX_LIVE_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
+}
+
+fn stalled_server_url() -> String {
+    std::env::var("VEX_STALLED_SSE_URL").unwrap_or_else(|_| "http://127.0.0.1:8011".to_string())
+}
+
+fn single_user_message(text: &str) -> Vec<ApiMessage> {
+    vec![ApiMessage {
+        role: "user".to_string(),
+        content: Content::Text(text.to_string()),
+    }]
 }
 
 /// Check whether the live server is reachable. Returns the model name if
@@ -260,4 +276,138 @@ async fn test_chat_compat_url_resolves_correctly() {
     let expected_url = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
     assert_eq!(config.model_url, expected_url);
     assert_eq!(config.model_protocol, ModelProtocol::ChatCompat);
+}
+
+#[tokio::test]
+async fn test_stalled_stream_chat_compat_falls_back_to_non_stream_json() {
+    let base_url = stalled_server_url();
+    let config = build_chat_compat_config(&base_url, "stalled-test-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    let started = Instant::now();
+
+    let stream = client
+        .create_stream(&single_user_message("Inspect src/lib.rs."))
+        .await;
+
+    let mut stream = match stream {
+        Ok(stream) => stream,
+        Err(err) if err.to_string().contains("cannot reach") => {
+            eprintln!(
+                "[stalled-server: connection refused on {} — skipping test, set VEX_STALLED_SSE_URL to override]",
+                base_url
+            );
+            return;
+        }
+        Err(err) => panic!("stalled chat-compat stream failed unexpectedly: {err:#}"),
+    };
+
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_secs(5),
+        "expected the initial SSE timeout-driven fallback, got elapsed={elapsed:?}"
+    );
+
+    let mut envelopes = Vec::new();
+    while let Some(event) = stream.next().await {
+        envelopes.push(event.expect("runtime envelope"));
+    }
+
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TranscriptBlockStart {
+            block: vexcoder::state::StreamBlock::ToolCall { id, name, input, .. },
+            ..
+        } if id == "call_stalled_1"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/lib.rs"})
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::ToolCallStarted { tool_call_id, tool_name, arguments, .. }
+            if tool_call_id.starts_with("tx_")
+                && tool_name == "read_file"
+                && arguments == &serde_json::json!({"path":"src/lib.rs"})
+    )));
+    assert!(
+        !envelopes
+            .iter()
+            .any(|envelope| matches!(&envelope.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized stalled-fallback tool calls should not emit argument deltas",
+    );
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::UsageUpdated { usage } if usage.input == 9 && usage.output == 3
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
+            if status == "completed" && usage.input == 9 && usage.output == 3
+    )));
+}
+
+#[tokio::test]
+async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
+    let base_url = stalled_server_url();
+    let config = build_messages_v1_config(&base_url, "stalled-test-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    let started = Instant::now();
+
+    let stream = client
+        .create_stream(&single_user_message("Inspect src/lib.rs."))
+        .await;
+
+    let mut stream = match stream {
+        Ok(stream) => stream,
+        Err(err) if err.to_string().contains("cannot reach") => {
+            eprintln!(
+                "[stalled-server: connection refused on {} — skipping test, set VEX_STALLED_SSE_URL to override]",
+                base_url
+            );
+            return;
+        }
+        Err(err) => panic!("stalled messages-v1 stream failed unexpectedly: {err:#}"),
+    };
+
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_secs(5),
+        "expected the initial SSE timeout-driven fallback, got elapsed={elapsed:?}"
+    );
+
+    let mut envelopes = Vec::new();
+    while let Some(event) = stream.next().await {
+        envelopes.push(event.expect("runtime envelope"));
+    }
+
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TranscriptBlockStart {
+            block: vexcoder::state::StreamBlock::ToolCall { id, name, input, .. },
+            ..
+        } if id == "toolu_stalled_1"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/lib.rs"})
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::ToolCallStarted { tool_call_id, tool_name, arguments, .. }
+            if tool_call_id.starts_with("tx_")
+                && tool_name == "read_file"
+                && arguments == &serde_json::json!({"path":"src/lib.rs"})
+    )));
+    assert!(
+        !envelopes
+            .iter()
+            .any(|envelope| matches!(&envelope.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized stalled-fallback tool calls should not emit argument deltas",
+    );
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::UsageUpdated { usage } if usage.input == 9 && usage.output == 3
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
+            if status == "completed" && usage.input == 9 && usage.output == 3
+    )));
 }

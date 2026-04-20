@@ -283,6 +283,187 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
 }
 
 #[tokio::test]
+async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_tool_calls() {
+    type RequestLog = Arc<Mutex<Vec<Value>>>;
+
+    async fn handler(
+        State(log): State<RequestLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        log.lock().unwrap().push(payload.clone());
+
+        if payload.get("stream").and_then(Value::as_bool) == Some(true) {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            return (
+                [(header::CONTENT_TYPE, "text/event-stream")],
+                "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null},\"finish_reason\":null}]}\n\n",
+            )
+                .into_response();
+        }
+
+        Json(json!({
+            "id": "chatcmpl-fallback-tools",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "local/test-model",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_read_01",
+                            "type": "function",
+                            "function": {
+                                "name": "read_file",
+                                "arguments": {
+                                    "path": "src/lib.rs"
+                                }
+                            }
+                        },
+                        {
+                            "index": 1,
+                            "id": "call_find_01",
+                            "type": "function",
+                            "function": {
+                                "name": "find_files",
+                                "arguments": {
+                                    "pattern": "src/**/*.rs"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "tool_calls"
+            }],
+            "usage": {
+                "prompt_tokens": 13,
+                "completion_tokens": 4,
+                "total_tokens": 17
+            }
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let request_log = requests.clone();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(handler))
+                .with_state(requests),
+        )
+        .await
+        .unwrap();
+    });
+
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/chat/completions"),
+        ModelProtocol::ChatCompat,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    let mut stream = client
+        .create_stream(&single_user_message("Inspect the Rust files."))
+        .await
+        .expect("stream should build");
+
+    let mut envelopes = Vec::new();
+    while let Some(event) = stream.next().await {
+        envelopes.push(event.expect("runtime envelope"));
+    }
+
+    server.abort();
+
+    let requests = request_log.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "expected streaming request plus fallback retry"
+    );
+    assert_eq!(requests[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(requests[1].get("stream"), Some(&Value::Bool(false)));
+    assert_eq!(
+        requests[0].get("parallel_tool_calls"),
+        Some(&Value::Bool(true))
+    );
+    assert_eq!(
+        requests[1].get("parallel_tool_calls"),
+        Some(&Value::Bool(true))
+    );
+
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TranscriptBlockStart {
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. },
+            ..
+        } if id == "call_read_01"
+            && name == "read_file"
+            && input == &json!({"path":"src/lib.rs"})
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TranscriptBlockStart {
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. },
+            ..
+        } if id == "call_find_01"
+            && name == "find_files"
+            && input == &json!({"pattern":"src/**/*.rs"})
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            tool_call_id,
+            ..
+        } if tool_call_id.starts_with("tx_")
+            && tool_name == "read_file"
+            && arguments == &json!({"path":"src/lib.rs"})
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            tool_call_id,
+            ..
+        } if tool_call_id.starts_with("tx_")
+            && tool_name == "find_files"
+            && arguments == &json!({"pattern":"src/**/*.rs"})
+    )));
+    assert!(
+        !envelopes
+            .iter()
+            .any(|envelope| matches!(&envelope.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized non-stream tool calls should not be replayed as synthetic argument deltas",
+    );
+
+    let usage_updates: Vec<(u64, u64)> = envelopes
+        .iter()
+        .filter_map(|envelope| match &envelope.event {
+            RuntimeEvent::UsageUpdated { usage } => Some((usage.input, usage.output)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(usage_updates, vec![(13, 4)]);
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TurnEnd {
+            status,
+            usage: Some(usage),
+            ..
+        } if status == "completed" && usage.input == 13 && usage.output == 4
+    )));
+}
+
+#[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
     type RequestLog = Arc<Mutex<Vec<Value>>>;
 

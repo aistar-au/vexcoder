@@ -537,6 +537,9 @@ impl ApiClient {
                         .as_object_mut()
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
+                    if self.is_local_endpoint() {
+                        payload_object.insert("parallel_tool_calls".to_string(), json!(true));
+                    }
                     payload_object.insert(
                         "tools".to_string(),
                         tool_definitions_chat_compat_for_policy(

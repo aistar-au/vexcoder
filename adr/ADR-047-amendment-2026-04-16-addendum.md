@@ -151,14 +151,15 @@ variants.
 
 Official local runtime API documents also record the two variations absorbed
 here. Common local chat APIs document that `stream: false` can return a single
-JSON object and show tool-call `arguments` as a materialized JSON object in
-both streaming and non-streaming examples. Common local chat-completions
-servers document both synchronous and streaming `/v1/chat/completions`, parsed
-tool-call support, reasoning-content fields, and capability-discovery
-endpoints. Together these sources show that local runtimes legitimately vary
-in transport mode and argument materialization while still advertising stable
-APIs, which is why the consumer-facing contract must remain the normalized
-runtime envelope rather than raw provider payloads.
+JSON object and show tool-call `arguments` as materialized JSON values,
+including parallel tool-call arrays, in both streaming and non-streaming
+examples. Common local chat-completions servers document both synchronous and
+streaming `/v1/chat/completions`, parsed tool-call support, reasoning-content
+fields, capability-discovery endpoints, and an explicit `parallel_tool_calls`
+request flag for multi-call turns. Together these sources show that local
+runtimes legitimately vary in transport mode and argument materialization while
+still advertising stable APIs, which is why the consumer-facing contract must
+remain the normalized runtime envelope rather than raw provider payloads.
 
 **Relevance to ADR-047 amendment, Decision 3:** The streaming tool call pattern
 directly validates the `tool_call_started` (carries id and name) followed by
