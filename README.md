@@ -4,9 +4,9 @@ Interactive coding assistant CLI, implemented in Rust.
 
 ## Build from source
 
-Requires Git, a stable Rust toolchain with `cargo` on your `PATH`, write access in the checkout, and a reachable model endpoint.
+Requires Git, a stable Rust toolchain with `cargo` on your `PATH`, write access in the checkout so `vex init` can create `.vex/` and `AGENTS.md`, and a reachable model endpoint.
 
-`vex` does not bundle a model runtime. For the fastest same-machine setup, point `.vex/config.toml` at a local server on `http://127.0.0.1:8080/v1`. Use `VEX_MODEL_TOKEN` only when you connect to a remote public `https://` endpoint.
+`vex` does not bundle a model runtime. For the fastest same-machine setup, point `.vex/config.toml` at a local server on `http://127.0.0.1:8080/v1`. Local and private-network endpoints can stay on plain HTTP and do not need `VEX_MODEL_TOKEN`; remote public endpoints must use `https://` and a token.
 
 ```bash
 git clone https://github.com/aistar-au/vexcoder.git

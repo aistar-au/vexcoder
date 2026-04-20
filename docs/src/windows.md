@@ -4,7 +4,7 @@ This guide gets the repo-local `vex.exe` binary running from PowerShell.
 
 Before you start:
 
-- use a checkout you can write to; `vex init` creates `.vex\config.toml`, `.vex\validate.toml`, and `AGENTS.md`
+- use a checkout where you can write `.vex\` and `AGENTS.md`; `vex init` creates `.vex\config.toml`, `.vex\validate.toml`, and `AGENTS.md`
 - `vex` needs an external model endpoint; it does not start a model server for you
 - local and private-network endpoints do not need `VEX_MODEL_TOKEN`; remote public endpoints do
 
@@ -43,12 +43,18 @@ cargo build --release
 The fastest local setup is a server that listens on `http://127.0.0.1:8080/v1`.
 
 ```powershell
-@'
+[System.IO.File]::WriteAllText(
+	".vex\config.toml",
+	@'
 model_url = "http://127.0.0.1:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
-'@ | Set-Content -Path .vex\config.toml
+'@,
+	[System.Text.UTF8Encoding]::new($false)
+)
 ```
+
+If you prefer scheme-and-host discovery instead of a fixed `model_url`, see [Configuration](configuration.md) and set `api_client.base_url` instead.
 
 ## 6. Start your local server in another PowerShell window
 
@@ -62,7 +68,7 @@ Make sure it is already listening on `127.0.0.1:8080` before the next step. If y
 .\target\release\vex.exe doctor
 ```
 
-Expect `VEX_MODEL_URL set` and `Model endpoint reachable` to pass. If the endpoint check warns, start your local server or update `model_url`.
+Expect `VEX_MODEL_URL set` to pass. `Model endpoint reachable` should pass once your server is listening; if it warns, start your local server or update `model_url`, then rerun `vex doctor`.
 
 ## 8. Remote endpoints require HTTPS and a token
 
