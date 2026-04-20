@@ -21,8 +21,8 @@ The transcript-first cutover is already in place for the API/runtime envelope:
   batch derivation path.
 - `schemas/runtime_envelope_v1.json` no longer advertises
   `assistant_delta` or `assistant_message`.
-- `docs/src/tool-call-cutover.md` already states that downstream consumers
-  must read transcript block events only.
+- `TASKS/transcript-first-task-state.md` already records that downstream
+  consumers must stay on the transcript-first event path.
 
 The alternate-route removal is therefore complete in code and schema. Any
 remaining references are deprecated notes or task-planning text, not live
@@ -85,8 +85,7 @@ Required fix:
   matches the audited branch state.
 - Keep entries for:
   `TASKS/PR-348-transcript-first-debug.md`,
-  `TASKS/transcript-first-task-state.md`,
-  and `docs/src/tool-call-cutover.md`.
+  and `TASKS/transcript-first-task-state.md`.
 
 ---
 

@@ -84,4 +84,3 @@ Batch mode:
 
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
-- [Architecture Overview](architecture.md)

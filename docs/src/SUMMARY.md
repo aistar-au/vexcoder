@@ -13,11 +13,6 @@
 - [Performance](performance.md)
 - [Legacy Config Note](migration.md)
 
-# Architecture Notes
-
-- [Architecture Overview](architecture.md)
-- [Tool-Call Cutover](tool-call-cutover.md)
-
 # Maintainer Guide
 
 - [Dependency Upgrades](dependency-upgrades.md)

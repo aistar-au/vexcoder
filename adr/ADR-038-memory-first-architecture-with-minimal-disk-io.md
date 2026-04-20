@@ -181,7 +181,7 @@ Key source files:
 - `src/tools/operator/git_ops.rs`
 - `src/tools/operator/search.rs`
 - `tests/disk_policy_tests.rs`
-- `docs/src/architecture.md`
+- `TASKS/PM-05-crate-boundaries-and-tool-calls.md`
 - `docs/src/configuration.md`
 
 ## Validation

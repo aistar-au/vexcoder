@@ -269,8 +269,8 @@ Candidate implementation areas:
 Grounded in comparable open-source Rust CLI patterns without reusing external
 wording or implementation material. Each crate either fills a gap in vexcoder's
 current dependency tree or is rejected with design rationale.
-Full decisions documented in `docs/src/architecture.md` under "Crate expansion
-decisions".
+Full decisions documented in
+`TASKS/PM-05-crate-boundaries-and-tool-calls.md`.
 
 These design decisions are active now. Crates are added only when the runtime
 path and tests exist, so accepted next-batch candidates do not become unused
