@@ -80,22 +80,8 @@ Batch mode:
 ./target/release/vex exec --task "review src/app.rs" --format jsonl
 ```
 
-## 6. Verify the local gate
-
-```bash
-make gate-fast
-```
-
-The local pre-push hook also runs `cargo nextest run`, which uses nextest's
-default cross-platform concurrency. The CI workflow runs 8 parallel jobs with
-cargo registry and build-artifact caching.
-
-Once inside an interactive session, the model can explore the codebase using
-`codebase_search` (for functions, types, and code patterns), `list_files`
-(for directory structure), `list_dir` (non-recursive directory listing), and
-`glob_files` (workspace-wide glob matching) before making targeted reads.
-
 ## Next
 
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
+- [Architecture Overview](architecture.md)

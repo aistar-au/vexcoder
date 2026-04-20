@@ -5,6 +5,11 @@ VexCoder currently has two operator-facing surfaces in the source tree:
 - the interactive CLI UI started by `src/bin/vex.rs`
 - the non-interactive batch runner in `src/batch_mode.rs`
 
+If you only need to clone, build, configure, and run the binary, return to
+[Build From Source](introduction.md) or [Quick Start](quick-start.md). This
+page is the maintainer-facing code-layout and boundary view that sits behind
+the build-first user guide.
+
 Most interactive application coordination is rooted at `src/app.rs` and its
 split submodules under `src/app/` (for example `commands/`,
 `slash_commands.rs`, and `layout.rs`). The runtime core is found under

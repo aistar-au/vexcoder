@@ -1,16 +1,32 @@
-# Introduction
+# Build From Source
 
-VexCoder is a local coding assistant you run as a binary. It connects to the
-model endpoint you configure, supports interactive CLI sessions and
-non-interactive batch runs, and keeps its setup lightweight enough to build
-from source on supported platforms.
+VexCoder is a local coding assistant CLI you build and run from a normal Rust
+checkout. Start here if you only need a working binary; architecture notes and
+ADR history are later in the book.
 
-This book focuses on the public user surface:
+Prerequisite: a stable Rust toolchain with `cargo` available on your `PATH`.
 
-- building the binary
-- understanding the current runtime, application, and transport layout
-- creating a workspace with `vex init`
-- configuring the model endpoint and token
-- using the current CLI options and interactive commands
+## Fast path
 
-The shortest path to a running session is in [Quick Start](quick-start.md). For the current code layout, see [Architecture Overview](architecture.md).
+```bash
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+cargo build --release
+./target/release/vex init
+./target/release/vex
+```
+
+The built binary is at `target/release/vex`.
+
+If your endpoint requires authentication, export a token before launching:
+
+```bash
+export VEX_MODEL_TOKEN="your-token"
+```
+
+## Next
+
+- [Quick Start](quick-start.md) for endpoint configuration and first-run examples
+- [Configuration](configuration.md) for the full `.vex/config.toml` surface
+- [CLI and TUI Commands](commands.md) for interactive and batch usage
+- [Architecture Overview](architecture.md) when you need the code-layout and boundary view

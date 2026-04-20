@@ -4,8 +4,11 @@ VexCoder reads configuration from layered TOML files plus environment
 variables. The normal starting point is:
 
 ```bash
-vex init
+./target/release/vex init
 ```
+
+If you have already installed `vex` onto your `PATH`, the equivalent command is
+`vex init`.
 
 ## Resolution order
 
