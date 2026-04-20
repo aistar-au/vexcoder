@@ -9,6 +9,8 @@ use crate::api::stream::provider::{ProviderDelta, ProviderStreamEvent};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ApiUsage, StreamChunkMetadata};
 use crate::usage::TurnTokens;
+use opentelemetry::KeyValue;
+use opentelemetry_semantic_conventions::attribute as semconv;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -136,6 +138,35 @@ enum ProviderBlockDelta {
     ToolArguments(String),
 }
 
+fn provider_block_kind(block: &ProviderContentBlock) -> &'static str {
+    match block {
+        ProviderContentBlock::Text { .. } => "text",
+        ProviderContentBlock::ToolUse { .. } => "tool_use",
+        ProviderContentBlock::ToolResult => "tool_result",
+        ProviderContentBlock::Thinking { .. } => "thinking",
+        ProviderContentBlock::ThinkingData { .. } => "thinking_data",
+        ProviderContentBlock::ServerToolUse { .. } => "server_tool_use",
+        ProviderContentBlock::WebSearchToolResult => "web_search_tool_result",
+    }
+}
+
+fn provider_delta_kind(delta: &ProviderBlockDelta) -> &'static str {
+    match delta {
+        ProviderBlockDelta::Text(_) => "text",
+        ProviderBlockDelta::ToolArguments(_) => "tool_arguments",
+    }
+}
+
+fn annotate_current_tool_span(tool_name: &str, tool_call_id: &str) {
+    crate::observability::set_span_attributes(
+        &tracing::Span::current(),
+        [
+            KeyValue::new(semconv::GEN_AI_TOOL_NAME, tool_name.to_string()),
+            KeyValue::new(semconv::GEN_AI_TOOL_CALL_ID, tool_call_id.to_string()),
+        ],
+    );
+}
+
 impl RuntimeEnvelopeNormalizer {
     pub(crate) fn finish_protocol_ingress_turn(&mut self) -> Vec<RuntimeEnvelope> {
         if !self.protocol_ingress.turn_started {
@@ -152,6 +183,21 @@ impl RuntimeEnvelopeNormalizer {
 
         let usage =
             token_usage_from_turn_tokens(std::mem::take(&mut self.protocol_ingress.turn_tokens));
+        if let Some(usage) = &usage {
+            crate::observability::set_span_attributes(
+                &tracing::Span::current(),
+                [
+                    KeyValue::new(
+                        semconv::GEN_AI_USAGE_INPUT_TOKENS,
+                        i64::try_from(usage.input).unwrap_or(i64::MAX),
+                    ),
+                    KeyValue::new(
+                        semconv::GEN_AI_USAGE_OUTPUT_TOKENS,
+                        i64::try_from(usage.output).unwrap_or(i64::MAX),
+                    ),
+                ],
+            );
+        }
         envelopes.extend(self.normalize_ui_update(
             &super::UiUpdate::TurnComplete,
             Some(TurnEndContext {
@@ -223,6 +269,10 @@ impl RuntimeEnvelopeNormalizer {
     ) -> Vec<RuntimeEnvelope> {
         match payload {
             ChatCompatPayload::Done => {
+                tracing::trace!(
+                    target: "vex::protocol",
+                    "chat-compatible stream terminated with [DONE]"
+                );
                 let envelopes = self.close_chat_compat_tool_blocks();
                 self.protocol_ingress.chat_compat_message_started = false;
                 self.protocol_ingress.chat_compat_stream_terminated = true;
@@ -251,6 +301,7 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         }
 
+        tracing::trace!(target: "vex::protocol", "protocol ingress turn started");
         let envelope = self.start_turn(1, None);
         self.protocol_ingress.turn_started = true;
         vec![envelope]
@@ -261,6 +312,17 @@ impl RuntimeEnvelopeNormalizer {
         index: usize,
         content_block: ProviderContentBlock,
     ) -> Vec<RuntimeEnvelope> {
+        if let ProviderContentBlock::ToolUse { id, name, .. }
+        | ProviderContentBlock::ServerToolUse { id, name, .. } = &content_block
+        {
+            annotate_current_tool_span(name, id);
+        }
+        tracing::trace!(
+            target: "vex::protocol",
+            index,
+            block_kind = provider_block_kind(&content_block),
+            "opening provider stream block"
+        );
         let Some((block, initial_delta)) = provider_stream_block(&content_block) else {
             return Vec::new();
         };
@@ -300,9 +362,17 @@ impl RuntimeEnvelopeNormalizer {
             ));
         }
 
+        let delta_kind = provider_delta_kind(&block_delta);
         let delta = match block_delta {
             ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => delta,
         };
+        tracing::trace!(
+            target: "vex::protocol",
+            index,
+            delta_kind,
+            delta_bytes = delta.len(),
+            "applying provider stream delta"
+        );
         envelopes.extend(
             self.normalize_ui_update(&super::UiUpdate::StreamBlockDelta { index, delta }, None),
         );
@@ -314,6 +384,11 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         }
 
+        tracing::trace!(
+            target: "vex::protocol",
+            index,
+            "closing provider stream block"
+        );
         self.normalize_ui_update(&super::UiUpdate::StreamBlockComplete { index }, None)
     }
 
@@ -401,6 +476,15 @@ impl RuntimeEnvelopeNormalizer {
                 envelopes.extend(self.emit_provider_metadata(metadata));
             }
 
+            if let Some(finish_reason) = finish_reason.as_deref() {
+                crate::observability::set_span_attributes(
+                    &tracing::Span::current(),
+                    [KeyValue::new(
+                        semconv::GEN_AI_RESPONSE_FINISH_REASONS,
+                        finish_reason.to_string(),
+                    )],
+                );
+            }
             if finish_reason.is_some() {
                 envelopes.extend(self.close_chat_compat_tool_blocks());
             }
@@ -425,6 +509,11 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         }
 
+        tracing::trace!(
+            target: "vex::protocol",
+            role = role.as_deref().unwrap_or("unknown"),
+            "observed chat-compatible message start"
+        );
         self.protocol_ingress.chat_compat_message_started = true;
         // Only a fresh `role` announcement resets the termination gate raised
         // by the previous `[DONE]`. Bare id/model echoes that arrive after
@@ -445,6 +534,11 @@ impl RuntimeEnvelopeNormalizer {
         tool_call: ChatCompatToolCallDelta,
     ) -> Vec<RuntimeEnvelope> {
         if self.protocol_ingress.chat_compat_stream_terminated {
+            tracing::trace!(
+                target: "vex::protocol",
+                choice_index = choice_index.unwrap_or_default(),
+                "ignoring late chat-compatible tool delta after stream termination"
+            );
             // Once `[DONE]` has been observed the stream is finalised; late
             // tool-call frames must not instantiate fresh lifecycle state via
             // `entry(..).or_default()`. A new message start is required before
@@ -537,9 +631,20 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = Vec::new();
         if let Some(content_block) = start_block {
+            tracing::trace!(
+                target: "vex::protocol",
+                block_index,
+                "opening chat-compatible tool block"
+            );
             envelopes.extend(self.open_provider_stream_block(block_index, content_block));
         }
         if let Some(partial_json) = partial_json {
+            tracing::trace!(
+                target: "vex::protocol",
+                block_index,
+                partial_bytes = partial_json.len(),
+                "applying chat-compatible tool arguments delta"
+            );
             envelopes.extend(self.apply_provider_stream_delta(
                 block_index,
                 ProviderBlockDelta::ToolArguments(partial_json),
@@ -573,6 +678,11 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = Vec::new();
         for index in to_close {
+            tracing::trace!(
+                target: "vex::protocol",
+                index,
+                "closing chat-compatible tool block"
+            );
             envelopes.extend(self.close_provider_stream_block(index));
         }
         envelopes

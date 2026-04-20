@@ -18,6 +18,7 @@ pub mod init;
 pub(crate) mod local_api;
 pub mod mcp;
 pub mod net;
+pub mod observability;
 pub mod pr_summary;
 pub mod privacy;
 pub mod prompts;

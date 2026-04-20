@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
-use axum::Json;
 use axum::response::{IntoResponse, Response};
+use http_api_problem::HttpApiProblem;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::io::BufReader;
@@ -191,12 +191,16 @@ impl ProblemDetailsResponse {
 
 impl IntoResponse for ProblemDetailsResponse {
     fn into_response(self) -> Response {
-        let mut response = (self.status, Json(self.details)).into_response();
-        response.headers_mut().insert(
-            crate::http_facade::header::CONTENT_TYPE,
-            crate::http_facade::HeaderValue::from_static("application/problem+json"),
-        );
-        response
+        let mut problem = HttpApiProblem::new(self.status)
+            .type_url(self.details.r#type)
+            .title(self.details.title);
+        if let Some(detail) = self.details.detail {
+            problem = problem.detail(detail);
+        }
+        if let Some(instance) = self.details.instance {
+            problem = problem.instance(instance);
+        }
+        problem.into_response()
     }
 }
 

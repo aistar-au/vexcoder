@@ -6,6 +6,7 @@ use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tabled::{Table, Tabled};
+use tracing::Instrument;
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
@@ -178,10 +179,29 @@ async fn run_print(
     config: Config,
     resume_state: Option<TaskState>,
 ) -> Result<ExitCode> {
-    let full_prompt = match read_stdin_if_piped() {
+    let stdin_content = read_stdin_if_piped();
+    let stdin_attached = stdin_content.is_some();
+    let full_prompt = match stdin_content {
         Some(stdin_content) => format!("{stdin_content}\n{prompt}"),
         None => prompt,
     };
+    let request_id = vexcoder::observability::new_request_id();
+    let print_span = tracing::info_span!(
+        "cli_print_request",
+        request_id = %request_id,
+        trace_id = tracing::field::Empty,
+        otel_span_id = tracing::field::Empty,
+        prompt_chars = full_prompt.chars().count(),
+        stdin_attached,
+        output_format = "text",
+    );
+    vexcoder::observability::attach_standard_baggage(
+        &print_span,
+        "cli",
+        "print",
+        Some(&request_id),
+        resume_state.as_ref().map(|state| state.id.as_str()),
+    );
 
     let opts = BatchRunOpts {
         max_turns: Some(1),
@@ -190,7 +210,9 @@ async fn run_print(
         resume_state,
     };
 
-    let result = run_batch(full_prompt, opts, &config).await?;
+    let result = run_batch(full_prompt, opts, &config)
+        .instrument(print_span)
+        .await?;
     print!("{}", result.output_lines.join("\n"));
 
     Ok(exit_code_for_status(result.status))
@@ -366,26 +388,13 @@ async fn main() -> Result<ExitCode> {
     let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
     let _ = eyre_hook.install();
 
-    let _log_guard = if std::env::var_os("RUST_LOG").is_some() {
-        let file_appender = tracing_appender::rolling::daily(
-            dirs::state_dir()
-                .or_else(dirs::data_local_dir)
-                .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-                .join("vex")
-                .join("logs"),
-            "vex.log",
-        );
-        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-        tracing_subscriber::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .with_writer(non_blocking)
-            .init();
-        Some(guard)
-    } else {
-        None
-    };
-
     let cli = Cli::parse();
+    let _telemetry_guard = vexcoder::observability::init_cli_observability(
+        vexcoder::observability::CliTelemetryOptions {
+            display_internal_telemetry: cli.display_internal_telemetry,
+            telemetry_json: cli.telemetry_json,
+        },
+    )?;
     let chat_compat = cli.chat_compat;
     let tool_policy = if cli.plan {
         ToolPolicy::Plan

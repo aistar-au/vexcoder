@@ -23,7 +23,9 @@ use crate::turn_evidence::{
     note_changed_files_from_tool_call,
 };
 use crate::usage::TurnTokens;
+use opentelemetry::KeyValue;
 use std::path::PathBuf;
+use tracing::Instrument;
 
 // ── Output format ─────────────────────────────────────────────────────────────
 
@@ -533,92 +535,120 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         .as_ref()
         .map(|state| state.id.clone())
         .unwrap_or_else(uuid_task_id);
-    let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
-    let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
-    let (client, notes_warning) = build_api_client_with_notes(config)?;
-    let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
-    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
-    let client = client
-        .with_project_instructions(instructions_text)
-        .with_extra_tool_definitions(
-            mcp_registry
-                .as_ref()
-                .map(|registry| registry.tool_definitions())
-                .unwrap_or_default(),
-        );
-    if let Some(warning) = notes_warning {
-        eprintln!("{warning}");
-    }
-    if let Some(warning) = sandbox_warning {
-        eprintln!("{warning}");
-    }
-    let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
-        .with_search_config(config.search.clone())
-        .with_sandbox(sandbox)
-        .with_mcp_registry(mcp_registry)
-        .with_compaction_config(config.compaction.clone());
-
-    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-    let mut mode = BatchMode::new(
-        task_id.clone(),
-        opts,
-        config.notes_path.clone(),
-        instructions_path,
+    let batch_span = tracing::info_span!(
+        "batch_run",
+        task_id = %task_id,
+        trace_id = tracing::field::Empty,
+        otel_span_id = tracing::field::Empty,
+        max_turns = opts.max_turns.unwrap_or_default(),
+        output_format = ?opts.format,
+    );
+    crate::observability::attach_standard_baggage(
+        &batch_span,
+        "cli",
+        "batch",
+        None,
+        Some(&task_id),
+    );
+    crate::observability::set_span_attributes(
+        &batch_span,
+        [
+            KeyValue::new("task.id", task_id.clone()),
+            KeyValue::new("vex.batch.output_format", format!("{:?}", opts.format)),
+        ],
     );
 
-    // Submit the initial task.
-    mode.on_user_input(task, &mut ctx);
+    async move {
+        let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
+        let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
+        let (client, notes_warning) = build_api_client_with_notes(config)?;
+        let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+        crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
+        let client = client
+            .with_project_instructions(instructions_text)
+            .with_extra_tool_definitions(
+                mcp_registry
+                    .as_ref()
+                    .map(|registry| registry.tool_definitions())
+                    .unwrap_or_default(),
+            );
+        if let Some(warning) = notes_warning {
+            eprintln!("{warning}");
+        }
+        if let Some(warning) = sandbox_warning {
+            eprintln!("{warning}");
+        }
+        let operator = ToolOperator::new(config.working_dir.clone());
+        let conversation =
+            ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+                .with_search_config(config.search.clone())
+                .with_sandbox(sandbox)
+                .with_mcp_registry(mcp_registry)
+                .with_compaction_config(config.compaction.clone());
 
-    if mode.is_done() {
+        let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+        let mut mode = BatchMode::new(
+            task_id.clone(),
+            opts,
+            config.notes_path.clone(),
+            instructions_path,
+        );
+
+        // Submit the initial task.
+        mode.on_user_input(task, &mut ctx);
+
+        if mode.is_done() {
+            ctx.shutdown_resources().await;
+            return Ok(BatchResult {
+                status: mode.status,
+                output_lines: mode.output_lines,
+                turn_count: mode.current_turn,
+                task_id,
+            });
+        }
+
+        // Progress spinner for headless/batch runs.
+        let spinner = if console::Term::stderr().is_term() {
+            let pb = indicatif::ProgressBar::new_spinner();
+            pb.set_style(
+                indicatif::ProgressStyle::default_spinner()
+                    .template("{spinner:.magenta} {msg}")
+                    .expect("valid template"),
+            );
+            pb.set_message("working…");
+            pb.enable_steady_tick(std::time::Duration::from_millis(100));
+            Some(pb)
+        } else {
+            None
+        };
+
+        // Drain updates until the mode reports done.
+        while let Some(update) = update_rx.recv().await {
+            mode.on_model_update(update, &mut ctx);
+            if let Some(ref pb) = spinner {
+                pb.set_message(format!("turn {} · working…", mode.current_turn));
+            }
+            if mode.is_done() {
+                break;
+            }
+        }
+
+        if let Some(pb) = spinner {
+            pb.finish_and_clear();
+        }
+
         ctx.shutdown_resources().await;
-        return Ok(BatchResult {
+
+        Ok(BatchResult {
             status: mode.status,
             output_lines: mode.output_lines,
             turn_count: mode.current_turn,
             task_id,
-        });
+        })
     }
-
-    // Progress spinner for headless/batch runs.
-    let spinner = if console::Term::stderr().is_term() {
-        let pb = indicatif::ProgressBar::new_spinner();
-        pb.set_style(
-            indicatif::ProgressStyle::default_spinner()
-                .template("{spinner:.magenta} {msg}")
-                .expect("valid template"),
-        );
-        pb.set_message("working…");
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
-    } else {
-        None
-    };
-
-    // Drain updates until the mode reports done.
-    while let Some(update) = update_rx.recv().await {
-        mode.on_model_update(update, &mut ctx);
-        if let Some(ref pb) = spinner {
-            pb.set_message(format!("turn {} · working…", mode.current_turn));
-        }
-        if mode.is_done() {
-            break;
-        }
-    }
-
-    if let Some(pb) = spinner {
-        pb.finish_and_clear();
-    }
-
-    ctx.shutdown_resources().await;
-
-    Ok(BatchResult {
-        status: mode.status,
-        output_lines: mode.output_lines,
-        turn_count: mode.current_turn,
-        task_id,
-    })
+    .instrument(batch_span)
+    .await
 }
 
 // ── Test helpers ───────────────────────────────────────────────────────────────

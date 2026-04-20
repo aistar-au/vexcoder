@@ -24,6 +24,14 @@ pub(super) struct Cli {
     #[arg(short = 'p', long = "print")]
     pub(super) print_prompt: Option<String>,
 
+    /// Emit internal transport and normalization telemetry to stderr.
+    #[arg(long = "display-internal-telemetry")]
+    pub(super) display_internal_telemetry: bool,
+
+    /// Format internal telemetry as newline-delimited JSON.
+    #[arg(long = "telemetry-json")]
+    pub(super) telemetry_json: bool,
+
     /// Use the chat/completions API format instead of the default messages/v1 format.
     /// Required when connecting to endpoints that use the chat/completions schema
     /// instead of the messages/v1 schema.

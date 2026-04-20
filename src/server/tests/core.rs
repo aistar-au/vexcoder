@@ -309,6 +309,10 @@ async fn test_http_router_requires_bearer_token() {
         .await
         .unwrap();
     assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+    assert!(
+        unauthorized.headers().contains_key("x-request-id"),
+        "unauthorized responses must carry x-request-id"
+    );
 
     let authorized = router
         .oneshot(
@@ -321,6 +325,14 @@ async fn test_http_router_requires_bearer_token() {
         .await
         .unwrap();
     assert_eq!(authorized.status(), StatusCode::OK);
+    assert!(
+        authorized.headers().contains_key("x-request-id"),
+        "authorized responses must carry x-request-id"
+    );
+    assert!(
+        authorized.headers().contains_key("x-ratelimit-limit"),
+        "authorized responses must carry rate-limit headers"
+    );
 }
 
 #[tokio::test]

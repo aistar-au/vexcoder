@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fs::OpenOptions;
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -14,11 +14,11 @@ pub fn debug_payload_enabled() -> bool {
 }
 
 pub fn emit_debug_payload(request_url: &str, payload: &Value) {
-    let formatted_payload = serde_json::to_string_pretty(payload)
-        .unwrap_or_else(|_| "<payload serialization error>".to_string());
-    let message =
-        format!("VEX_API DEBUG payload_request url={request_url}\npayload:\n{formatted_payload}\n");
-    emit_log_message(&message);
+    emit_log_value(&json!({
+        "event": "api.payload_request",
+        "url": request_url,
+        "payload_summary": summarize_debug_payload(payload),
+    }));
 }
 
 pub fn emit_sse_parse_error(
@@ -26,11 +26,126 @@ pub fn emit_sse_parse_error(
     json_data: &str,
     parse_error: &serde_json::Error,
 ) {
-    let message = format!(
-        "VEX_API ERROR sse_parse_failed error={parse_error}\nevent_type={}\ndata:\n{json_data}\n",
-        event_type.unwrap_or("<none>")
-    );
-    emit_log_message(&message);
+    emit_log_value(&json!({
+        "event": "api.sse_parse_failed",
+        "event_type": event_type.unwrap_or("<none>"),
+        "error": parse_error.to_string(),
+        "data_summary": summarize_sse_payload(json_data),
+    }));
+}
+
+fn summarize_debug_payload(payload: &Value) -> Value {
+    let message_roles = payload
+        .get("messages")
+        .and_then(Value::as_array)
+        .map(|messages| summarize_message_roles(messages))
+        .unwrap_or_default();
+    let message_count = payload
+        .get("messages")
+        .and_then(Value::as_array)
+        .map(|messages| messages.len())
+        .unwrap_or(0);
+    let redacted_message_chars = payload
+        .get("messages")
+        .and_then(Value::as_array)
+        .map(|messages| messages.iter().map(redacted_value_chars).sum::<usize>())
+        .unwrap_or(0);
+    let tool_names = payload
+        .get("tools")
+        .and_then(Value::as_array)
+        .map(|tools| {
+            tools
+                .iter()
+                .filter_map(extract_tool_name)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let stop_count = payload
+        .get("stop")
+        .and_then(Value::as_array)
+        .map(|stop| stop.len())
+        .unwrap_or(0);
+    let mut top_level_keys = payload
+        .as_object()
+        .map(|object| object.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    top_level_keys.sort();
+
+    json!({
+        "model": payload.get("model").and_then(Value::as_str).unwrap_or("unknown"),
+        "stream": payload.get("stream").and_then(Value::as_bool).unwrap_or(false),
+        "top_level_keys": top_level_keys,
+        "message_count": message_count,
+        "message_roles": message_roles,
+        "redacted_message_chars": redacted_message_chars,
+        "system_prompt_present": payload.get("system").is_some(),
+        "tool_count": tool_names.len(),
+        "tool_names": tool_names,
+        "stop_count": stop_count,
+        "has_reasoning_effort": payload.get("reasoning_effort").is_some(),
+        "max_tokens": payload.get("max_tokens").cloned().unwrap_or(Value::Null),
+        "temperature": payload.get("temperature").cloned().unwrap_or(Value::Null),
+        "top_p": payload.get("top_p").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn summarize_message_roles(messages: &[Value]) -> serde_json::Map<String, Value> {
+    let mut counts = serde_json::Map::new();
+    for message in messages {
+        let role = message
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        let next = counts.get(&role).and_then(Value::as_u64).unwrap_or(0) + 1;
+        counts.insert(role, Value::from(next));
+    }
+    counts
+}
+
+fn redacted_value_chars(value: &Value) -> usize {
+    match value {
+        Value::Null => 0,
+        Value::Bool(_) | Value::Number(_) => 0,
+        Value::String(text) => text.chars().count(),
+        Value::Array(values) => values.iter().map(redacted_value_chars).sum(),
+        Value::Object(map) => map.values().map(redacted_value_chars).sum(),
+    }
+}
+
+fn extract_tool_name(tool: &Value) -> Option<String> {
+    tool.get("name")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            tool.get("function")
+                .and_then(|function| function.get("name"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string)
+}
+
+fn summarize_sse_payload(json_data: &str) -> Value {
+    match serde_json::from_str::<Value>(json_data) {
+        Ok(value) => {
+            let mut top_level_keys = value
+                .as_object()
+                .map(|object| object.keys().cloned().collect::<Vec<_>>())
+                .unwrap_or_default();
+            top_level_keys.sort();
+            json!({
+                "kind": "json",
+                "top_level_keys": top_level_keys,
+                "redacted_chars": redacted_value_chars(&value),
+                "contains_tool_calls": json_data.contains("\"tool_calls\""),
+            })
+        }
+        Err(_) => json!({
+            "kind": "non_json",
+            "bytes": json_data.len(),
+            "contains_tool_calls": json_data.contains("\"tool_calls\""),
+            "contains_tool_use": json_data.contains("\"tool_use\""),
+        }),
+    }
 }
 
 fn emit_log_message(message: &str) {
@@ -41,6 +156,12 @@ fn emit_log_message(message: &str) {
     }
 
     eprintln!("{message}");
+}
+
+fn emit_log_value(value: &Value) {
+    let encoded = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
+    emit_log_message(&format!("{encoded}\n"));
 }
 
 fn resolve_log_path() -> Option<String> {
@@ -93,6 +214,71 @@ mod tests {
         assert_eq!(
             default_log_path(),
             std::env::temp_dir().join(DEFAULT_API_LOG_FILENAME)
+        );
+    }
+
+    #[test]
+    fn test_emit_debug_payload_redacts_prompt_text() {
+        let env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _guard = crate::test_support::EnvRestore::capture(&env_lock, API_LOG_PATH_ENV);
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        crate::test_support::test_set_var(
+            &env_lock,
+            API_LOG_PATH_ENV,
+            temp.path().to_string_lossy().to_string(),
+        );
+
+        emit_debug_payload(
+            "http://127.0.0.1:8000/v1/messages",
+            &json!({
+                "model": "local/test",
+                "messages": [{
+                    "role": "user",
+                    "content": "super secret prompt text"
+                }],
+                "tools": [{"function": {"name": "read_file"}}],
+                "stream": true,
+            }),
+        );
+
+        let content = std::fs::read_to_string(temp.path()).unwrap();
+        assert!(
+            !content.contains("super secret prompt text"),
+            "got: {content}"
+        );
+        assert!(content.contains("\"message_count\":1"), "got: {content}");
+        assert!(
+            content.contains("\"tool_names\":[\"read_file\"]"),
+            "got: {content}"
+        );
+    }
+
+    #[test]
+    fn test_emit_sse_parse_error_redacts_event_data() {
+        let env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _guard = crate::test_support::EnvRestore::capture(&env_lock, API_LOG_PATH_ENV);
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        crate::test_support::test_set_var(
+            &env_lock,
+            API_LOG_PATH_ENV,
+            temp.path().to_string_lossy().to_string(),
+        );
+        let parse_error = serde_json::from_str::<Value>("{").unwrap_err();
+
+        emit_sse_parse_error(
+            Some("content_block_delta"),
+            "{\"tool_calls\":[{\"function\":{\"arguments\":\"super secret arguments\"}}]",
+            &parse_error,
+        );
+
+        let content = std::fs::read_to_string(temp.path()).unwrap();
+        assert!(
+            !content.contains("super secret arguments"),
+            "got: {content}"
+        );
+        assert!(
+            content.contains("\"contains_tool_calls\":true"),
+            "got: {content}"
         );
     }
 }

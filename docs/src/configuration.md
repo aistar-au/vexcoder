@@ -232,6 +232,37 @@ The full model endpoint URL.
   `stream = false` and normalizes the JSON response through the same API
   boundary instead of exposing a second downstream parser.
 
+### API tracing and startup retries
+
+For CLI troubleshooting, especially around `vex -p`, the transport layer now
+emits request-scoped tracing, propagates W3C trace context, and applies a
+short exponential backoff when a local endpoint is still starting up.
+
+- `vex --display-internal-telemetry -p "..."` mirrors internal telemetry to
+  stderr for one-shot runs without having to set `RUST_LOG` manually.
+- `vex --telemetry-json --display-internal-telemetry -p "..."` emits
+  newline-delimited JSON telemetry suitable for local collection by Vector,
+  Fluent Bit, or an OpenTelemetry collector.
+- `RUST_LOG=debug` enables structured transport, normalization, rate-limit,
+  and fallback spans for both interactive and one-shot runs.
+- `VEX_INTERNAL_TELEMETRY_PATH=/tmp/vex-internal.log` writes internal
+  telemetry to a dedicated non-blocking file sink instead of stderr.
+- `VEX_TELEMETRY_FORMAT=json` selects NDJSON output when telemetry is written
+  to a file-backed sink.
+- `VEX_TELEMETRY_ENVIRONMENT=staging` and `VEX_TELEMETRY_TENANT_ID=internal`
+  attach environment and tenant baggage to the current trace context.
+- `VEX_API_LOG_PATH=/tmp/vex-api.log` chooses where payload diagnostics are
+  written when payload logging is enabled.
+- `VEX_DEBUG_PAYLOAD=1` records outbound request payload summaries for API
+  debugging. Prompt text, tool arguments, and SSE payload bodies are reduced to
+  structural metadata rather than being written verbatim.
+- Request and server spans carry `traceparent`, `x-request-id`, and GenAI
+  semantic attributes so transport logs, tool lifecycle events, and runtime
+  normalization can be correlated under one request trace.
+- Local endpoint startup retries only cover initial connection failures before
+  a response stream exists. Once a streaming request is established, the CLI
+  does not replay it automatically.
+
 ### `VEX_MODEL_TOKEN`
 
 Bearer token for authenticated endpoints.

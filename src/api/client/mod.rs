@@ -2,6 +2,7 @@ use self::protocol_discovery::discover_protocol;
 use super::eventsource::create_event_stream;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
 use crate::config::Config;
+use crate::observability::REQUEST_ID_HEADER;
 use crate::runtime::backend::{
     EventStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
@@ -9,10 +10,13 @@ use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
 use anyhow::Result;
 use anyhow::anyhow;
+use opentelemetry::KeyValue;
+use opentelemetry_semantic_conventions::attribute as semconv;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
 use std::sync::{Arc, RwLock};
+use tracing::Instrument;
 
 /// Server capabilities discovered from a local inference server.
 /// Populated by `poll_server_info()` once per session for local endpoints.
@@ -629,6 +633,66 @@ impl ApiClient {
             }
         }
 
+        let request_id = crate::observability::new_request_id();
+        headers.insert(
+            reqwest::header::HeaderName::from_static(REQUEST_ID_HEADER),
+            reqwest::header::HeaderValue::from_str(&request_id)
+                .map_err(|error| anyhow!("invalid x-request-id header: {error}"))?,
+        );
+        let payload_bytes = serde_json::to_vec(&payload)
+            .map(|body| body.len())
+            .unwrap_or_default();
+        let request_span = tracing::info_span!(
+            "model_api_request",
+            request_id = %request_id,
+            trace_id = tracing::field::Empty,
+            otel_span_id = tracing::field::Empty,
+            url = %crate::runtime::rewrite_url_for_logs(&request_url),
+            protocol = ?api_protocol,
+            model = %model,
+            local_endpoint = self.is_local_endpoint(),
+            tool_policy = ?self.tool_policy,
+            structured_tools = self.supports_structured_tool_protocol(),
+            payload_bytes,
+        );
+        crate::observability::attach_standard_baggage(
+            &request_span,
+            "model_api",
+            "inference_request",
+            Some(&request_id),
+            None,
+        );
+        let mut request_attributes = vec![
+            KeyValue::new(
+                semconv::GEN_AI_OPERATION_NAME,
+                gen_ai_operation_name(api_protocol),
+            ),
+            KeyValue::new(semconv::GEN_AI_REQUEST_MODEL, model.clone()),
+            KeyValue::new(semconv::GEN_AI_REQUEST_MAX_TOKENS, i64::from(max_tokens)),
+            KeyValue::new(semconv::GEN_AI_REQUEST_TEMPERATURE, self.temperature as f64),
+            KeyValue::new(semconv::GEN_AI_REQUEST_TOP_P, self.top_p as f64),
+            KeyValue::new(semconv::GEN_AI_SYSTEM, gen_ai_system_name(api_protocol)),
+            KeyValue::new(semconv::HTTP_REQUEST_METHOD, "POST"),
+        ];
+        if let Some(server_address) = request_server_address(&request_url) {
+            request_attributes.push(KeyValue::new(semconv::SERVER_ADDRESS, server_address));
+        }
+        crate::observability::set_span_attributes(&request_span, request_attributes);
+
+        tracing::info!(
+            target: "vex::http",
+            parent: &request_span,
+            request_id = %request_id,
+            url = %crate::runtime::rewrite_url_for_logs(&request_url),
+            protocol = ?api_protocol,
+            model = %model,
+            local_endpoint = self.is_local_endpoint(),
+            tool_policy = ?self.tool_policy,
+            structured_tools = self.supports_structured_tool_protocol(),
+            payload_bytes,
+            "dispatching model request"
+        );
+
         create_event_stream(
             self.http.clone(),
             &request_url,
@@ -638,7 +702,9 @@ impl ApiClient {
                 ApiProtocol::MessagesV1 => ModelProtocol::MessagesV1,
                 ApiProtocol::ChatCompat => ModelProtocol::ChatCompat,
             },
+            &request_id,
         )
+        .instrument(request_span)
         .await
     }
 
@@ -648,6 +714,27 @@ impl ApiClient {
             ApiProtocol::ChatCompat => adapt_to_chat_compat_url(&self.api_url),
         }
     }
+}
+
+fn gen_ai_operation_name(api_protocol: ApiProtocol) -> &'static str {
+    match api_protocol {
+        ApiProtocol::MessagesV1 => "respond",
+        ApiProtocol::ChatCompat => "chat",
+    }
+}
+
+fn gen_ai_system_name(api_protocol: ApiProtocol) -> &'static str {
+    match api_protocol {
+        ApiProtocol::ChatCompat => "_OTHER",
+        ApiProtocol::MessagesV1 => "_OTHER",
+    }
+}
+
+fn request_server_address(request_url: &str) -> Option<String> {
+    request_url
+        .parse::<http::Uri>()
+        .ok()
+        .and_then(|uri| uri.host().map(str::to_string))
 }
 
 fn configured_api_client_base_url(config: &Config) -> Option<String> {
@@ -683,21 +770,40 @@ impl ModelBackend for ApiClient {
 
 pub(crate) fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Error {
     let local_http_hint = local_plain_http_hint(request_url);
+    let rewritten_url = crate::runtime::rewrite_url_for_logs(request_url);
 
     if error.is_connect() && is_local_endpoint_url(request_url) {
+        tracing::warn!(
+            target: "vex::http",
+            url = %rewritten_url,
+            error = %error,
+            "cannot reach local API endpoint"
+        );
         return anyhow!(
-            "cannot reach local API endpoint '{}': {}. Start your local server or update VEX_MODEL_URL.{}",
+            "cannot reach local API endpoint '{}': {}. Start your local server or update VEX_MODEL_URL. The CLI retries short-lived local startup connection failures automatically before failing. For transport diagnostics, rerun with --display-internal-telemetry or set RUST_LOG=debug.{}",
             request_url,
             error,
             local_http_hint
         );
     }
     if error.is_connect() {
+        tracing::warn!(
+            target: "vex::http",
+            url = %rewritten_url,
+            error = %error,
+            "cannot reach remote API endpoint"
+        );
         return anyhow!("cannot reach API endpoint '{}': {}", request_url, error);
     }
     if error.is_timeout() {
+        tracing::warn!(
+            target: "vex::http",
+            url = %rewritten_url,
+            error = %error,
+            "API request timed out"
+        );
         return anyhow!(
-            "API request to '{}' timed out: {}.{}",
+            "API request to '{}' timed out: {}. The endpoint accepted the connection but did not answer before the configured timeout. For transport diagnostics, rerun with --display-internal-telemetry or set RUST_LOG=debug.{}",
             request_url,
             error,
             local_http_hint

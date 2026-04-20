@@ -29,15 +29,20 @@ ratatui-macros = "0.7"
 aho-corasick = "1"
 anyhow = "1"
 axum = { version = "0.8", features = ["http1", "http2", "json", "tokio"] }
+axum-tracing-opentelemetry = "0.33"
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
 # 0.17 is the last release compatible with Rust 1.91 (MSRV); bump when MSRV advances.
 eventsource-client = { version = "0.17", default-features = false }
+backoff = { version = "0.4", default-features = false, features = ["tokio"] }
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 http = "1"
+http-api-problem = { version = "0.60", default-features = false, features = [
+  "axum",
+] }
 hyper-util = { version = "0.1", features = [
   "http1",
   "http2",
@@ -91,10 +96,19 @@ tokio-rustls = "0.26"
 tokio-stream = "0.1"
 tokio-util = "0.7"
 toml = "0.8"
+opentelemetry = { version = "0.31", default-features = false, features = [
+  "trace",
+] }
+opentelemetry-semantic-conventions = "0.31"
+opentelemetry_sdk = { version = "0.31", default-features = false, features = [
+  "trace",
+] }
 tracing = "0.1"
+tracing-opentelemetry = { version = "0.32", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false, features = [
   "env-filter",
   "fmt",
+  "json",
 ] }
 unicode-segmentation = "1"
 unicode-width = "0.2"
@@ -128,7 +142,15 @@ dunce = "1"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 indexmap = { version = "2", features = ["serde"] }
-tower-http = { version = "0.6", default-features = false, features = ["trace"] }
+tower-http = { version = "0.6", default-features = false, features = [
+  "request-id",
+  "sensitive-headers",
+  "trace",
+] }
+tower_governor = { version = "0.8", default-features = false, features = [
+  "axum",
+  "tracing",
+] }
 regex-lite = "0.1"
 httpdate = "1"
 which = { version = "7", default-features = false }
@@ -236,6 +258,18 @@ reqwest = [
   "src/server/handlers/session.rs",
   "src/net/proxy.rs",
 ]
+axum-tracing-opentelemetry = ["src/server/http.rs"]
+backoff = ["src/api/eventsource.rs"]
+http-api-problem = ["src/server/util.rs"]
+opentelemetry = ["src/observability.rs", "src/api/client/mod.rs"]
+opentelemetry-semantic-conventions = [
+  "src/api/client/mod.rs",
+  "src/runtime/json_handoff/protocol_ingress.rs",
+]
+opentelemetry_sdk = ["src/observability.rs"]
+tower-http = ["src/server/http.rs", "src/observability.rs"]
+tower_governor = ["src/server/http.rs"]
+tracing-opentelemetry = ["src/observability.rs", "src/api/client/mod.rs"]
 # XML tool-call parser — the only call site for quick-xml's reader API.
 quick-xml = ["src/state/conversation/tool_call_parser.rs"]
 # tree-sitter grammar loading and query API — one indexing module.
@@ -300,10 +334,12 @@ fs2.workspace = true
 futures.workspace = true
 hyper.workspace = true
 http.workspace = true
+http-api-problem.workspace = true
 hyper-util.workspace = true
 ratatui.workspace = true
 reqwest.workspace = true
 async-compression.workspace = true
+backoff.workspace = true
 jsonwebtoken.workspace = true
 oauth2.workspace = true
 open.workspace = true
@@ -318,7 +354,11 @@ tokio-rustls.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true
 toml.workspace = true
+opentelemetry.workspace = true
+opentelemetry-semantic-conventions.workspace = true
+opentelemetry_sdk.workspace = true
 tracing.workspace = true
+tracing-opentelemetry.workspace = true
 tracing-subscriber.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
@@ -341,6 +381,7 @@ color-eyre.workspace = true
 human-panic.workspace = true
 dialoguer.workspace = true
 dirs.workspace = true
+axum-tracing-opentelemetry.workspace = true
 tracing-appender.workspace = true
 similar.workspace = true
 
@@ -364,6 +405,7 @@ chrono.workspace = true
 # --- collections, HTTP middleware, text matching ---
 indexmap.workspace = true
 tower-http.workspace = true
+tower_governor.workspace = true
 regex-lite.workspace = true
 httpdate.workspace = true
 

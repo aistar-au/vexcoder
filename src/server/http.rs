@@ -1,16 +1,25 @@
 use anyhow::{Context, Result};
 use axum::Router;
+use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::middleware::{self, Next};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
+use opentelemetry::KeyValue;
+use opentelemetry_semantic_conventions::attribute as semconv;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::key_extractor::GlobalKeyExtractor;
+use tower_governor::{GovernorError, GovernorLayer};
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 
 use super::handlers::{
@@ -28,6 +37,10 @@ use crate::app::runtime_tokio::{net::TcpListener, select, spawn};
 use crate::config::Config;
 use crate::http_facade::{HeaderValue, Request, StatusCode, header};
 use crate::local_api::LocalApiState;
+use crate::observability::REQUEST_ID_HEADER;
+
+const LOCAL_API_RATE_LIMIT_PER_SECOND: u64 = 120;
+const LOCAL_API_RATE_LIMIT_BURST: u32 = 240;
 
 #[cfg(test)]
 pub fn build_router(config: Config) -> Router {
@@ -79,6 +92,82 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
 pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {
     let expected_header = Arc::<str>::from(format!("Bearer {}", auth.bearer_token));
     let hsts_enabled = auth.hsts_enabled;
+    let mut governor = GovernorConfigBuilder::default().key_extractor(GlobalKeyExtractor);
+    governor.per_second(LOCAL_API_RATE_LIMIT_PER_SECOND);
+    governor.burst_size(LOCAL_API_RATE_LIMIT_BURST);
+    let governor = governor
+        .use_headers()
+        .finish()
+        .expect("local API governor config must be valid");
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(|request: &Request<_>| {
+            let request_id = request
+                .headers()
+                .get(REQUEST_ID_HEADER)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("missing");
+            let traceparent = request
+                .headers()
+                .get("traceparent")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("missing");
+            let span = tracing::info_span!(
+                "local_api_http_request",
+                method = %request.method(),
+                path = %request.uri().path(),
+                request_id = %request_id,
+                traceparent = %traceparent,
+                trace_id = tracing::field::Empty,
+                otel_span_id = tracing::field::Empty,
+            );
+            crate::observability::attach_standard_baggage(
+                &span,
+                "local_api",
+                "http_request",
+                Some(request_id),
+                None,
+            );
+            let mut attributes = vec![KeyValue::new(
+                semconv::HTTP_REQUEST_METHOD,
+                request.method().as_str().to_string(),
+            )];
+            if let Some(server_address) = request
+                .headers()
+                .get("host")
+                .and_then(|value| value.to_str().ok())
+            {
+                attributes.push(KeyValue::new(
+                    semconv::SERVER_ADDRESS,
+                    server_address.to_string(),
+                ));
+            }
+            crate::observability::set_span_attributes(&span, attributes);
+            span
+        })
+        .on_response(
+            |response: &Response, latency: Duration, span: &tracing::Span| {
+                let request_id = response
+                    .headers()
+                    .get(REQUEST_ID_HEADER)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("missing");
+                tracing::info!(
+                    parent: span,
+                    status = response.status().as_u16(),
+                    latency_ms = latency.as_millis() as u64,
+                    request_id = %request_id,
+                    "completed local API request"
+                );
+            },
+        )
+        .on_failure(|error, latency: Duration, span: &tracing::Span| {
+            tracing::warn!(
+                parent: span,
+                latency_ms = latency.as_millis() as u64,
+                failure = ?error,
+                "local API request failed"
+            );
+        });
     build_router_with_state(state)
         .layer(middleware::from_fn(move |request, next| {
             let expected_header = Arc::clone(&expected_header);
@@ -86,7 +175,58 @@ pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Rou
                 authorize_http_request(request, next, expected_header, hsts_enabled).await
             }
         }))
-        .layer(TraceLayer::new_for_http())
+        .layer(GovernorLayer::new(governor).error_handler(governor_error_response))
+        .layer(trace_layer)
+        .layer(SetSensitiveRequestHeadersLayer::new(std::iter::once(
+            header::AUTHORIZATION,
+        )))
+        .layer(OtelAxumLayer::default())
+        .layer(OtelInResponseLayer)
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+}
+
+fn governor_error_response(error: GovernorError) -> http::Response<Body> {
+    let (status, reason, headers) = match error {
+        GovernorError::TooManyRequests { wait_time, headers } => {
+            tracing::warn!(
+                target: "vex::http",
+                wait_time_secs = wait_time,
+                "local API rate limit exceeded"
+            );
+            (StatusCode::TOO_MANY_REQUESTS, "rate_limited", headers)
+        }
+        GovernorError::UnableToExtractKey => {
+            tracing::error!(
+                target: "vex::http",
+                "local API rate limiter could not extract a key"
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "rate_limit_key_unavailable",
+                None,
+            )
+        }
+        GovernorError::Other { code, msg, headers } => {
+            tracing::warn!(
+                target: "vex::http",
+                status = code.as_u16(),
+                message = msg.as_deref().unwrap_or("unknown"),
+                "local API rate limiter returned a custom error"
+            );
+            (
+                StatusCode::from_u16(code.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                "rate_limit_error",
+                headers,
+            )
+        }
+    };
+
+    let mut response = ProblemDetailsResponse::from_reason(status, reason).into_response();
+    if let Some(headers) = headers {
+        response.headers_mut().extend(headers);
+    }
+    response
 }
 
 async fn authorize_http_request(
@@ -115,7 +255,6 @@ async fn authorize_http_request(
 }
 
 fn unauthorized_response() -> Response {
-    use axum::response::IntoResponse;
     ProblemDetailsResponse::from_reason(StatusCode::UNAUTHORIZED, "unauthorized").into_response()
 }
 
@@ -159,7 +298,11 @@ async fn serve_plain_listener(
                         _ = shutdown.cancelled() => {}
                         result = connection => {
                             if let Err(error) = result {
-                                eprintln!("[local api] connection error: {error}");
+                                tracing::warn!(
+                                    target: "vex::http",
+                                    error = %error,
+                                    "local API connection error"
+                                );
                             }
                         }
                     }
@@ -188,7 +331,11 @@ async fn serve_tls_listener(
                     let tls_stream = match acceptor.accept(stream).await {
                         Ok(stream) => stream,
                         Err(error) => {
-                            eprintln!("[local api] tls accept failed: {error}");
+                            tracing::warn!(
+                                target: "vex::http",
+                                error = %error,
+                                "local API TLS accept failed"
+                            );
                             return;
                         }
                     };
@@ -199,7 +346,11 @@ async fn serve_tls_listener(
                         _ = shutdown.cancelled() => {}
                         result = connection => {
                             if let Err(error) = result {
-                                eprintln!("[local api] tls connection error: {error}");
+                                tracing::warn!(
+                                    target: "vex::http",
+                                    error = %error,
+                                    "local API TLS connection error"
+                                );
                             }
                         }
                     }
