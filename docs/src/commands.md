@@ -45,7 +45,9 @@ Resumes a saved task. With no task id, resumes the most-recent saved task.
 ### `vex -p "PROMPT"` or `vex --project-map-only "PROMPT"`
 
 Runs one prompt turn and prints the result to stdout. If stdin is piped, the
-stdin content is prepended to the prompt.
+stdin content is prepended to the prompt. For local inference endpoints,
+protocol discovery runs before the turn starts, so `-p` does not require a
+manual chat-compat hint when the server only exposes `/v1/chat/completions`.
 
 ### `vex exec --task "TEXT"`
 

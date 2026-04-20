@@ -345,10 +345,23 @@ impl RuntimeEnvelopeNormalizer {
         index: usize,
         block_delta: ProviderBlockDelta,
     ) -> Vec<RuntimeEnvelope> {
+        let is_text_delta = matches!(&block_delta, ProviderBlockDelta::Text(_));
+        let delta_kind = provider_delta_kind(&block_delta);
+        let delta = match block_delta {
+            ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => delta,
+        };
+        if delta.is_empty() {
+            tracing::trace!(
+                target: "vex::protocol",
+                index,
+                delta_kind,
+                "ignoring empty provider stream delta"
+            );
+            return Vec::new();
+        }
+
         let mut envelopes = self.ensure_protocol_ingress_turn_started();
-        if matches!(block_delta, ProviderBlockDelta::Text(_))
-            && !self.protocol_ingress.open_blocks.contains(&index)
-        {
+        if is_text_delta && !self.protocol_ingress.open_blocks.contains(&index) {
             self.protocol_ingress.open_blocks.insert(index);
             envelopes.extend(self.normalize_ui_update(
                 &super::UiUpdate::StreamBlockStart {
@@ -361,11 +374,6 @@ impl RuntimeEnvelopeNormalizer {
                 None,
             ));
         }
-
-        let delta_kind = provider_delta_kind(&block_delta);
-        let delta = match block_delta {
-            ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => delta,
-        };
         tracing::trace!(
             target: "vex::protocol",
             index,
@@ -441,6 +449,23 @@ impl RuntimeEnvelopeNormalizer {
                 refusal,
                 tool_calls,
             } = delta;
+
+            tracing::trace!(
+                target: "vex::protocol",
+                choice_index = choice_index.unwrap_or_default(),
+                content_state = text_field_state(content.as_deref()),
+                content_bytes = content.as_ref().map(|text| text.len()).unwrap_or_default(),
+                reasoning_state = text_field_state(reasoning_content.as_deref()),
+                reasoning_bytes = reasoning_content
+                    .as_ref()
+                    .map(|text| text.len())
+                    .unwrap_or_default(),
+                refusal_state = text_field_state(refusal.as_deref()),
+                tool_call_count = tool_calls.as_ref().map(|items| items.len()).unwrap_or_default(),
+                finish_reason = finish_reason.as_deref().unwrap_or("none"),
+                has_logprobs = logprobs.is_some(),
+                "normalizing chat-compatible choice"
+            );
 
             if let Some(content) = content {
                 envelopes
@@ -548,9 +573,47 @@ impl RuntimeEnvelopeNormalizer {
 
         let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
         let block_index = raw_index.saturating_add(1);
+        let has_id = tool_call.id.as_ref().is_some_and(|id| !id.is_empty());
+        let has_function = tool_call.function.is_some();
+        let has_name = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.name.as_ref())
+            .is_some_and(|name| !name.is_empty());
+        let arguments_shape = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.arguments.as_ref())
+            .map(chat_compat_arguments_shape)
+            .unwrap_or("none");
+        let arguments_bytes = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.arguments.as_ref())
+            .map(chat_compat_arguments_bytes)
+            .unwrap_or_default();
         let _ = (choice_index, tool_call.call_type);
 
-        let (start_block, partial_json) = {
+        tracing::trace!(
+            target: "vex::protocol",
+            choice_index = choice_index.unwrap_or_default(),
+            raw_index,
+            block_index,
+            has_id,
+            has_function,
+            has_name,
+            arguments_shape,
+            arguments_bytes,
+            "processing chat-compatible tool delta"
+        );
+
+        let (
+            start_block,
+            partial_json,
+            lifecycle_after,
+            pending_argument_bytes,
+            has_materialized_arguments,
+        ) = {
             let state = self
                 .protocol_ingress
                 .chat_compat_tool_lifecycles
@@ -626,8 +689,26 @@ impl RuntimeEnvelopeNormalizer {
                 && !state.pending_arguments.is_empty())
             .then(|| std::mem::take(&mut state.pending_arguments));
 
-            (start_block, partial_json)
+            (
+                start_block,
+                partial_json,
+                state.lifecycle,
+                state.pending_arguments.len(),
+                state.materialized_arguments.is_some(),
+            )
         };
+
+        tracing::trace!(
+            target: "vex::protocol",
+            choice_index = choice_index.unwrap_or_default(),
+            block_index,
+            lifecycle = tool_call_lifecycle_name(lifecycle_after),
+            pending_argument_bytes,
+            has_materialized_arguments,
+            emitted_start_block = start_block.is_some(),
+            emitted_partial_argument_bytes = partial_json.as_ref().map(|json| json.len()).unwrap_or_default(),
+            "normalized chat-compatible tool delta"
+        );
 
         let mut envelopes = Vec::new();
         if let Some(content_block) = start_block {
@@ -686,6 +767,36 @@ impl RuntimeEnvelopeNormalizer {
             envelopes.extend(self.close_provider_stream_block(index));
         }
         envelopes
+    }
+}
+
+fn text_field_state(value: Option<&str>) -> &'static str {
+    match value {
+        Some("") => "empty",
+        Some(_) => "text",
+        None => "missing_or_null",
+    }
+}
+
+fn chat_compat_arguments_shape(arguments: &ChatCompatFunctionArguments) -> &'static str {
+    match arguments {
+        ChatCompatFunctionArguments::String(_) => "string",
+        ChatCompatFunctionArguments::Json(_) => "json",
+    }
+}
+
+fn chat_compat_arguments_bytes(arguments: &ChatCompatFunctionArguments) -> usize {
+    match arguments {
+        ChatCompatFunctionArguments::String(arguments) => arguments.len(),
+        ChatCompatFunctionArguments::Json(arguments) => arguments.to_string().len(),
+    }
+}
+
+fn tool_call_lifecycle_name(lifecycle: ToolCallLifecycle) -> &'static str {
+    match lifecycle {
+        ToolCallLifecycle::Discovered => "discovered",
+        ToolCallLifecycle::Opened => "opened",
+        ToolCallLifecycle::Closed => "closed",
     }
 }
 

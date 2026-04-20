@@ -28,6 +28,10 @@ const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_millis(50);
 #[cfg(not(test))]
 const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(test)]
+const LOCAL_NON_STREAM_FALLBACK_TIMEOUT: Duration = Duration::from_millis(100);
+#[cfg(not(test))]
+const LOCAL_NON_STREAM_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(test)]
 const LOCAL_CONNECT_RETRY_MAX_ELAPSED: Duration = Duration::from_millis(250);
 #[cfg(not(test))]
 const LOCAL_CONNECT_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(2);
@@ -82,6 +86,7 @@ pub(crate) async fn create_event_stream(
         upstream: client.stream(),
         parser: StreamParser::new(),
         pending: VecDeque::new(),
+        terminal_outcome: None,
         request_url: request_url.to_string(),
         request_id: request_id.to_string(),
         protocol_name: protocol_name(protocol),
@@ -157,6 +162,7 @@ async fn create_non_stream_fallback_stream(
 ) -> Result<EventStream> {
     let fallback_start = Instant::now();
     let request_url_for_logs = crate::runtime::rewrite_url_for_logs(request_url);
+    let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
     let mut request_headers = headers.clone();
     request_headers.insert(
         reqwest::header::ACCEPT,
@@ -170,6 +176,12 @@ async fn create_non_stream_fallback_stream(
         url = %request_url_for_logs,
         fallback_reason = fallback_reason,
         protocol = ?protocol,
+        local_endpoint = is_local_endpoint,
+        local_timeout_ms = if is_local_endpoint {
+            LOCAL_NON_STREAM_FALLBACK_TIMEOUT.as_millis() as u64
+        } else {
+            0
+        },
         "issuing non-streaming fallback request"
     );
 
@@ -178,12 +190,16 @@ async fn create_non_stream_fallback_stream(
             let http = http.clone();
             let request_headers = request_headers.clone();
             let fallback_payload = fallback_payload.clone();
+            let request_url = request_url.to_string();
             async move {
-                http.post(request_url)
+                let mut request = http
+                    .post(&request_url)
                     .headers(request_headers)
-                    .json(&fallback_payload)
-                    .send()
-                    .await
+                    .json(&fallback_payload);
+                if is_local_endpoint {
+                    request = request.timeout(LOCAL_NON_STREAM_FALLBACK_TIMEOUT);
+                }
+                request.send().await
             }
         })
         .await
@@ -254,6 +270,7 @@ fn normalize_non_stream_response(
     );
     let response: Value =
         serde_json::from_str(body).with_context(|| "response body was not valid JSON")?;
+    log_non_stream_response_shape(protocol, &response, request_id);
     let mut parser = StreamParser::new();
     let mut envelopes = Vec::new();
 
@@ -424,6 +441,162 @@ fn messages_v1_content_blocks(response: &Value) -> Vec<Value> {
     }
 }
 
+fn log_non_stream_response_shape(protocol: ModelProtocol, response: &Value, request_id: &str) {
+    match protocol {
+        ModelProtocol::MessagesV1 => {
+            let content_blocks = messages_v1_content_blocks(response);
+            let text_block_count = content_blocks
+                .iter()
+                .filter(|block| {
+                    block.get("type").and_then(Value::as_str) == Some("text")
+                        && block
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .is_some_and(|text| !text.is_empty())
+                })
+                .count();
+            let empty_text_block_count = content_blocks
+                .iter()
+                .filter(|block| {
+                    block.get("type").and_then(Value::as_str) == Some("text")
+                        && block.get("text").and_then(Value::as_str) == Some("")
+                })
+                .count();
+            let tool_use_count = content_blocks
+                .iter()
+                .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_use"))
+                .count();
+
+            tracing::debug!(
+                target: "vex::protocol",
+                request_id = %request_id,
+                protocol = protocol_name(protocol),
+                content_block_count = content_blocks.len(),
+                text_block_count,
+                empty_text_block_count,
+                tool_use_count,
+                stop_reason = response
+                    .get("stop_reason")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("none"),
+                "inspected non-stream fallback payload shape"
+            );
+        }
+        ModelProtocol::ChatCompat => {
+            let choices = response
+                .get("choices")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let text_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .get("message")
+                        .and_then(|message| message.get("content"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|text| !text.is_empty())
+                })
+                .count();
+            let reasoning_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .get("message")
+                        .and_then(|message| {
+                            message
+                                .get("reasoning_content")
+                                .or_else(|| message.get("thinking"))
+                        })
+                        .and_then(Value::as_str)
+                        .is_some_and(|text| !text.is_empty())
+                })
+                .count();
+            let tool_call_count: usize = choices
+                .iter()
+                .map(|choice| {
+                    choice
+                        .get("message")
+                        .and_then(|message| message.get("tool_calls"))
+                        .and_then(Value::as_array)
+                        .map(|tool_calls| tool_calls.len())
+                        .unwrap_or_default()
+                })
+                .sum();
+            let null_content_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .get("message")
+                        .and_then(|message| message.get("content"))
+                        .is_some_and(Value::is_null)
+                })
+                .count();
+            let empty_content_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .get("message")
+                        .and_then(|message| message.get("content"))
+                        .and_then(Value::as_str)
+                        == Some("")
+                })
+                .count();
+            let missing_content_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .get("message")
+                        .is_some_and(|message| message.get("content").is_none())
+                })
+                .count();
+            let tool_only_choice_count = choices
+                .iter()
+                .filter(|choice| {
+                    let message = choice.get("message");
+                    let has_text = message
+                        .and_then(|message| message.get("content"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|text| !text.is_empty());
+                    let has_reasoning = message
+                        .and_then(|message| {
+                            message
+                                .get("reasoning_content")
+                                .or_else(|| message.get("thinking"))
+                        })
+                        .and_then(Value::as_str)
+                        .is_some_and(|text| !text.is_empty());
+                    let has_tool_calls = message
+                        .and_then(|message| message.get("tool_calls"))
+                        .and_then(Value::as_array)
+                        .is_some_and(|tool_calls| !tool_calls.is_empty());
+                    !has_text && !has_reasoning && has_tool_calls
+                })
+                .count();
+
+            tracing::debug!(
+                target: "vex::protocol",
+                request_id = %request_id,
+                protocol = protocol_name(protocol),
+                choice_count = choices.len(),
+                text_choice_count,
+                reasoning_choice_count,
+                tool_call_count,
+                null_content_choice_count,
+                empty_content_choice_count,
+                missing_content_choice_count,
+                tool_only_choice_count,
+                first_finish_reason = choices
+                    .first()
+                    .and_then(|choice| choice.get("finish_reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("none"),
+                "inspected non-stream fallback payload shape"
+            );
+        }
+    }
+}
+
 fn feed_synthetic_event(
     parser: &mut StreamParser,
     envelopes: &mut Vec<RuntimeEnvelope>,
@@ -439,6 +612,7 @@ struct EventStreamState {
     upstream: eventsource_client::BoxStream<eventsource_client::Result<SSE>>,
     parser: StreamParser,
     pending: VecDeque<RuntimeEnvelope>,
+    terminal_outcome: Option<&'static str>,
     request_url: String,
     request_id: String,
     protocol_name: &'static str,
@@ -455,6 +629,17 @@ struct EventStreamState {
 fn finish_pending_events(state: &mut EventStreamState) -> Option<RuntimeEnvelope> {
     state.pending.extend(state.parser.finish());
     state.pending.pop_front()
+}
+
+fn finish_stream(state: &mut EventStreamState, outcome: &'static str) -> Option<RuntimeEnvelope> {
+    state.terminal_outcome = Some(outcome);
+    if let Some(event) = finish_pending_events(state) {
+        observe_envelope(state, &event);
+        return Some(event);
+    }
+
+    emit_stream_summary(state, outcome);
+    None
 }
 
 fn observe_envelope(state: &mut EventStreamState, envelope: &RuntimeEnvelope) {
@@ -517,13 +702,13 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
             return Ok(Some(event));
         }
 
-        let Some(item) = state.upstream.next().await else {
-            if let Some(event) = finish_pending_events(state) {
-                observe_envelope(state, &event);
-                return Ok(Some(event));
-            }
-            emit_stream_summary(state, "stream_closed");
+        if let Some(outcome) = state.terminal_outcome {
+            emit_stream_summary(state, outcome);
             return Ok(None);
+        }
+
+        let Some(item) = state.upstream.next().await else {
+            return Ok(finish_stream(state, "stream_closed"));
         };
 
         match item {
@@ -536,12 +721,7 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
                 );
             }
             Err(eventsource_client::Error::Eof) => {
-                if let Some(event) = finish_pending_events(state) {
-                    observe_envelope(state, &event);
-                    return Ok(Some(event));
-                }
-                emit_stream_summary(state, "stream_eof");
-                return Ok(None);
+                return Ok(finish_stream(state, "stream_eof"));
             }
             Err(eventsource_client::Error::UnexpectedResponse(response, body)) => {
                 let retry_after = response
@@ -805,6 +985,7 @@ mod tests {
             upstream: Box::pin(stream::iter(vec![Err(eventsource_client::Error::Eof)])),
             parser,
             pending: VecDeque::new(),
+            terminal_outcome: None,
             request_url: "https://example.test/sse".to_string(),
             request_id: "req-test-eof".to_string(),
             protocol_name: "messages-v1",
@@ -822,6 +1003,50 @@ mod tests {
 
         assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
         assert!(next_stream_event(&mut state).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn eof_after_pending_turn_end_does_not_poll_upstream_again() {
+        let mut parser = StreamParser::new();
+        let _ = parser
+            .process(
+                b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
+            )
+            .unwrap();
+
+        let polls = Arc::new(AtomicUsize::new(0));
+        let polls_for_stream = Arc::clone(&polls);
+        let upstream = stream::poll_fn(move |_| {
+            let poll_index = polls_for_stream.fetch_add(1, Ordering::SeqCst);
+            match poll_index {
+                0 => std::task::Poll::Ready(Some(Err(eventsource_client::Error::Eof))),
+                _ => panic!("upstream polled again after EOF"),
+            }
+        });
+
+        let mut state = EventStreamState {
+            upstream: Box::pin(upstream),
+            parser,
+            pending: VecDeque::new(),
+            terminal_outcome: None,
+            request_url: "https://example.test/sse".to_string(),
+            request_id: "req-test-eof-once".to_string(),
+            protocol_name: "messages-v1",
+            started_at: Instant::now(),
+            envelope_count: 0,
+            tool_call_starts: 0,
+            tool_call_completions: 0,
+            tool_call_failures: 0,
+            last_usage: None,
+            final_status: None,
+            summary_emitted: false,
+        };
+
+        let event = next_stream_event(&mut state).await.unwrap().unwrap();
+
+        assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
+        assert!(next_stream_event(&mut state).await.unwrap().is_none());
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

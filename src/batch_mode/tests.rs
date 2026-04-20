@@ -397,6 +397,77 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
 }
 
 #[tokio::test]
+async fn test_batch_mode_text_format_captures_textual_block_delta_output() {
+    let mut ctx = setup_batch_ctx();
+    let opts = BatchRunOpts {
+        format: OutputFormat::Text,
+        ..Default::default()
+    };
+    let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+    mode.on_user_input("task".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "normalized batch output".to_string(),
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
+    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+    assert_eq!(
+        mode.output_lines,
+        vec!["normalized batch output".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn test_batch_mode_text_format_ignores_tool_argument_block_deltas() {
+    let mut ctx = setup_batch_ctx();
+    let opts = BatchRunOpts {
+        format: OutputFormat::Text,
+        ..Default::default()
+    };
+    let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+    mode.on_user_input("task".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall {
+                id: "tool-1".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 1,
+            delta: "{\"path\":\"src/lib.rs\"}".to_string(),
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(UiUpdate::StreamBlockComplete { index: 1 }, &mut ctx);
+    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+    assert_eq!(mode.output_lines, vec![String::new()]);
+}
+
+#[tokio::test]
 async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
     let temp = tempfile::tempdir().unwrap();

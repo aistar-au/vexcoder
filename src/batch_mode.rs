@@ -90,6 +90,7 @@ pub struct BatchMode {
     current_turn: usize,
     current_turn_input: String,
     current_turn_changed_files: BTreeSet<String>,
+    current_turn_text_block_indices: BTreeSet<usize>,
     task_changed_files: BTreeSet<String>,
     current_turn_command_history: Vec<CommandEvidence>,
     current_turn_tokens: TurnTokens,
@@ -124,6 +125,7 @@ impl BatchMode {
             current_turn: 0,
             current_turn_input: String::new(),
             current_turn_changed_files: BTreeSet::new(),
+            current_turn_text_block_indices: BTreeSet::new(),
             task_changed_files: BTreeSet::new(),
             current_turn_command_history: Vec::new(),
             current_turn_tokens: TurnTokens::default(),
@@ -155,6 +157,7 @@ impl BatchMode {
         self.current_response.clear();
         self.current_turn_input.clear();
         self.current_turn_changed_files.clear();
+        self.current_turn_text_block_indices.clear();
         self.current_turn_command_history.clear();
         self.current_turn_tokens = TurnTokens::default();
         self.pending_tool_calls.clear();
@@ -206,6 +209,7 @@ impl BatchMode {
 
         self.turn_in_progress = false;
         self.current_turn_tokens = TurnTokens::default();
+        self.current_turn_text_block_indices.clear();
         self.pending_tool_calls.clear();
     }
 
@@ -354,7 +358,13 @@ impl RuntimeMode for BatchMode {
                     self.done = true;
                 }
             }
-            UiUpdate::StreamBlockStart { block, .. } => match block {
+            UiUpdate::StreamBlockStart { index, block } => match block {
+                StreamBlock::Thinking { content, .. } | StreamBlock::FinalText { content } => {
+                    self.current_turn_text_block_indices.insert(index);
+                    if !content.is_empty() {
+                        self.current_response.push_str(&content);
+                    }
+                }
                 StreamBlock::ToolCall {
                     id, name, input, ..
                 } => {
@@ -373,11 +383,16 @@ impl RuntimeMode for BatchMode {
                         self.note_command_history_from_tool_result(&pending.name, is_error);
                     }
                 }
-                StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
             },
-            UiUpdate::StreamBlockDelta { .. }
-            | UiUpdate::ToolCallArgumentsUpdated { .. }
-            | UiUpdate::StreamBlockComplete { .. } => {}
+            UiUpdate::StreamBlockDelta { index, delta } => {
+                if self.current_turn_text_block_indices.contains(&index) {
+                    self.current_response.push_str(&delta);
+                }
+            }
+            UiUpdate::ToolCallArgumentsUpdated { .. } => {}
+            UiUpdate::StreamBlockComplete { index } => {
+                self.current_turn_text_block_indices.remove(&index);
+            }
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest { response_tx, .. }) => {
                 let approved = self.approval_decision();
                 let _ = response_tx.send(approved);
@@ -594,6 +609,8 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
             config.notes_path.clone(),
             instructions_path,
         );
+
+        ctx.populate_local_server_info().await;
 
         // Submit the initial task.
         mode.on_user_input(task, &mut ctx);

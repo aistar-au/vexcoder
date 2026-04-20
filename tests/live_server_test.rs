@@ -17,7 +17,7 @@ use axum::{
         IntoResponse, Response,
         sse::{Event, Sse},
     },
-    routing::post,
+    routing::{get, post},
 };
 use futures::StreamExt;
 use reqwest::header::HeaderMap;
@@ -25,6 +25,7 @@ use serde_json::{Value, json};
 use std::convert::Infallible;
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
+use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
 use vexcoder::config::Config;
 use vexcoder::runtime::{
     ModelBackend, ModelBackendKind, ModelProtocol, RuntimeEvent, ToolCallMode, ToolPolicy,
@@ -168,6 +169,55 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
     }
 }
 
+fn build_auto_detect_batch_config(base_url: &str, model_name: &str) -> Config {
+    let mut config = build_messages_v1_config(base_url, model_name);
+    config.model_url.clear();
+    config.api_client.base_url = base_url.trim_end_matches('/').to_string();
+    config.search.auto_index = false;
+    config
+}
+
+fn fallback_chat_text_response(text: &str) -> Value {
+    json!({
+        "id": "chatcmpl-batch-fallback",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "stalled-test-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": text
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 9,
+            "completion_tokens": 3,
+            "total_tokens": 12
+        }
+    })
+}
+
+fn fallback_messages_text_response(text: &str) -> Value {
+    json!({
+        "id": "msg-batch-fallback",
+        "type": "message",
+        "role": "assistant",
+        "model": "stalled-test-model",
+        "content": [{
+            "type": "text",
+            "text": text
+        }],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+            "input_tokens": 8,
+            "output_tokens": 2
+        }
+    })
+}
+
 fn stalled_chat_response() -> Value {
     json!({
         "id": "chatcmpl-stalled-fallback",
@@ -268,6 +318,121 @@ async fn spawn_stalled_server() -> (String, JoinHandle<()>) {
     });
 
     (format!("http://{addr}"), server)
+}
+
+async fn probe_messages_handler() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        "event: ping\ndata: {\"type\":\"ping\"}\n\n",
+    )
+}
+
+async fn probe_chat_handler() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        "data: {\"choices\":[]}\n\n",
+    )
+}
+
+async fn missing_probe_handler() -> impl IntoResponse {
+    axum::http::StatusCode::NOT_FOUND
+}
+
+async fn stalled_chat_text_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+
+    Json(fallback_chat_text_response("chat-compat batch output")).into_response()
+}
+
+async fn stalled_messages_text_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+
+    Json(fallback_messages_text_response("messages-v1 batch output")).into_response()
+}
+
+async fn spawn_batch_chat_compat_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("batch chat-compat test server listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("batch chat-compat test server should expose a local address");
+
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(missing_probe_handler))
+                .route(
+                    "/v1/chat/completions",
+                    get(probe_chat_handler).post(stalled_chat_text_handler),
+                ),
+        )
+        .await
+        .expect("batch chat-compat test server should stay alive until aborted");
+    });
+
+    (format!("http://{addr}"), server)
+}
+
+async fn spawn_batch_messages_v1_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("batch messages-v1 test server listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("batch messages-v1 test server should expose a local address");
+
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route(
+                    "/v1/messages",
+                    get(probe_messages_handler).post(stalled_messages_text_handler),
+                )
+                .route("/v1/chat/completions", get(missing_probe_handler)),
+        )
+        .await
+        .expect("batch messages-v1 test server should stay alive until aborted");
+    });
+
+    (format!("http://{addr}"), server)
+}
+
+fn assert_batch_jsonl_response(output_lines: &[String], expected_response: &str) {
+    assert_eq!(
+        output_lines.len(),
+        2,
+        "expected one turn record and one summary"
+    );
+
+    let turn_record: Value =
+        serde_json::from_str(&output_lines[0]).expect("turn record should be valid JSON");
+    assert_eq!(
+        turn_record.get("response").and_then(Value::as_str),
+        Some(expected_response)
+    );
+    assert_eq!(turn_record.get("turn").and_then(Value::as_u64), Some(1));
+
+    let summary_record: Value =
+        serde_json::from_str(&output_lines[1]).expect("summary record should be valid JSON");
+    assert_eq!(
+        summary_record.get("summary").and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        summary_record.get("status").and_then(Value::as_str),
+        Some("Completed")
+    );
+    assert_eq!(
+        summary_record.get("total_turns").and_then(Value::as_u64),
+        Some(1)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +668,100 @@ async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
         RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
             if status == "completed" && usage.input == 9 && usage.output == 3
     )));
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_run_batch_auto_detects_chat_compat_and_preserves_fallback_text_output() {
+    let (base_url, server) = spawn_batch_chat_compat_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "stalled-test-model");
+
+    let result = run_batch(
+        "Reply with exactly the fallback text.".to_string(),
+        BatchRunOpts {
+            max_turns: Some(1),
+            format: OutputFormat::Text,
+            ..Default::default()
+        },
+        &config,
+    )
+    .await
+    .expect("batch run should succeed against auto-detected chat-compat server");
+
+    assert_eq!(
+        result.output_lines,
+        vec!["chat-compat batch output".to_string()]
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_run_batch_auto_detects_messages_v1_and_preserves_fallback_text_output() {
+    let (base_url, server) = spawn_batch_messages_v1_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "stalled-test-model");
+
+    let result = run_batch(
+        "Reply with exactly the fallback text.".to_string(),
+        BatchRunOpts {
+            max_turns: Some(1),
+            format: OutputFormat::Text,
+            ..Default::default()
+        },
+        &config,
+    )
+    .await
+    .expect("batch run should succeed against auto-detected messages-v1 server");
+
+    assert_eq!(
+        result.output_lines,
+        vec!["messages-v1 batch output".to_string()]
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_run_batch_auto_detects_chat_compat_and_preserves_fallback_jsonl_output() {
+    let (base_url, server) = spawn_batch_chat_compat_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "stalled-test-model");
+
+    let result = run_batch(
+        "Reply with exactly the fallback text.".to_string(),
+        BatchRunOpts {
+            max_turns: Some(1),
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        },
+        &config,
+    )
+    .await
+    .expect("batch run should succeed against auto-detected chat-compat server");
+
+    assert_batch_jsonl_response(&result.output_lines, "chat-compat batch output");
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_run_batch_auto_detects_messages_v1_and_preserves_fallback_jsonl_output() {
+    let (base_url, server) = spawn_batch_messages_v1_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "stalled-test-model");
+
+    let result = run_batch(
+        "Reply with exactly the fallback text.".to_string(),
+        BatchRunOpts {
+            max_turns: Some(1),
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        },
+        &config,
+    )
+    .await
+    .expect("batch run should succeed against auto-detected messages-v1 server");
+
+    assert_batch_jsonl_response(&result.output_lines, "messages-v1 batch output");
 
     server.abort();
 }

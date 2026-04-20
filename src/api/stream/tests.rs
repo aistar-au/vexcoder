@@ -91,6 +91,38 @@ fn test_process_messages_v1_thinking_data_block_emits_thinking_delta() {
 }
 
 #[test]
+fn test_process_messages_v1_tool_use_accepts_object_arguments_without_synthetic_delta() {
+    let mut parser = StreamParser::new();
+    let frame = b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_obj\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\",\"line\":7}}}\n\n";
+    let events = parser.process(frame).unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "toolu_obj"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/lib.rs","line":7})
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            ..
+        } if tool_name == "read_file"
+            && arguments == &serde_json::json!({"path":"src/lib.rs","line":7})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized messages-v1 tool input should not emit a synthetic arguments delta",
+    );
+}
+
+#[test]
 fn test_process_chat_compat_emits_message_start_metadata() {
     let mut parser = StreamParser::new();
     let events = parser
@@ -277,6 +309,100 @@ fn test_process_chat_compat_accepts_object_valued_tool_arguments() {
             .iter()
             .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
         "a materialized JSON value should not require a synthetic delta replay",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_emits_text_and_materialized_tool_arguments_from_same_chunk() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"reading now","tool_calls":[{"index":0,"id":"call_mix","type":"function","function":{"name":"read_file","arguments":{"path":"src/main.rs"}}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "reading now"
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_mix"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized chat-compat tool arguments should stay materialized even when text and tool calls share a chunk",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_ignores_empty_content_without_emitting_text_block() {
+    let mut parser = StreamParser::new();
+    let mut events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":"stop"}]}
+
+"#,
+        )
+        .unwrap();
+    events.extend(parser.finish());
+
+    assert!(
+        !events.iter().any(|event| matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart { index: 0, .. }
+                | RuntimeEvent::TranscriptBlockDelta { index: 0, .. }
+        )),
+        "empty chat-compatible content should not open or update a transcript block",
+    );
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+    )));
+}
+
+#[test]
+fn test_process_chat_compat_ignores_empty_content_when_tool_calls_are_present() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"","tool_calls":[{"index":0,"id":"call_empty_mix","type":"function","function":{"name":"read_file","arguments":{"path":"src/main.rs"}}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(
+        !events.iter().any(|event| matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart { index: 0, .. }
+                | RuntimeEvent::TranscriptBlockDelta { index: 0, .. }
+        )),
+        "tool-only chat-compatible chunks must not emit an empty transcript block first",
+    );
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_empty_mix"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized tool-only chat-compatible chunks should stay materialized",
     );
 }
 

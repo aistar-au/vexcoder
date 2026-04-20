@@ -141,7 +141,33 @@ fn test_cli_parses_internal_telemetry_flags() {
     ]);
     assert!(cli.display_internal_telemetry);
     assert!(cli.telemetry_json);
-    assert_eq!(cli.print_prompt.as_deref(), Some("Reply with exactly ok."));
+    assert_eq!(
+        cli.project_map_only.as_deref(),
+        Some("Reply with exactly ok.")
+    );
+}
+
+#[test]
+fn test_cli_parses_print_plan_jsonl_and_telemetry_flags_together() {
+    let cli = Cli::parse_from([
+        "vex",
+        "--display-internal-telemetry",
+        "--telemetry-json",
+        "-p",
+        "Reply with exactly ok.",
+        "-t",
+        "-m",
+        "jsonl",
+    ]);
+
+    assert!(cli.display_internal_telemetry);
+    assert!(cli.telemetry_json);
+    assert!(cli.restrict_payload_tools);
+    assert_eq!(cli.set_map_encoding, "jsonl");
+    assert_eq!(
+        cli.project_map_only.as_deref(),
+        Some("Reply with exactly ok.")
+    );
 }
 
 #[test]
@@ -1018,6 +1044,15 @@ fn test_project_map_only_flag_can_be_combined_with_recall_coordinates() {
     let cli = Cli::parse_from(["vex", "-p", "hello", "--recall-coordinates"]);
     assert_eq!(cli.project_map_only, Some("hello".to_string()));
     assert_eq!(cli.recall_coordinates, Some(String::new()));
+}
+
+#[test]
+fn test_project_map_only_flag_can_be_combined_with_plan_policy_and_jsonl_output() {
+    let cli = Cli::parse_from(["vex", "-p", "hello", "-t", "-m", "jsonl"]);
+
+    assert_eq!(cli.project_map_only, Some("hello".to_string()));
+    assert!(cli.restrict_payload_tools);
+    assert_eq!(cli.set_map_encoding, "jsonl");
 }
 
 #[test]
