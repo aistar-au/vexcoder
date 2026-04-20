@@ -123,10 +123,10 @@ CLI plus ratatui/crossterm stack remain downstream of the normalized API.
   renderer duties.
 - Keep tool-call accumulation at the ingress boundary. Current public streaming
   protocols still emit partial tool-argument state instead of finalized call
-  objects, including OpenAI Responses
-  `response.function_call_arguments.delta`, Anthropic
-  `input_json_delta.partial_json`, and chat-compatible
-  `tool_calls[*].function.arguments` fragments. CLI and TUI consumers must stay
+  objects, including responses-style
+  `response.function_call_arguments.delta`, messages-style
+  `input_json_delta.partial_json`, and chat-compatible incremental
+  tool-argument fragments. CLI and TUI consumers must stay
   downstream of that coalescence step.
 
 ## Follow-up Lane

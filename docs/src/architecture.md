@@ -88,13 +88,12 @@ The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
   text, logprobs, choice indexes, and tool-call type
 
 Public streaming tool-call protocols still expose partial lifecycle state
-rather than a single finalized call object. OpenAI Responses documents
+rather than a single finalized call object. Responses-style APIs document
 `response.function_call_arguments.delta` /
-`response.function_call_arguments.done`, Anthropic Messages streams
+`response.function_call_arguments.done`, messages-style streams use
 `input_json_delta.partial_json` updates keyed by content-block `index`, and
-chat-compatible servers commonly emit incremental
-`tool_calls[*].function.arguments` fragments plus sibling
-`reasoning_content` text. The internal contract therefore treats tool-call
+chat-compatible servers commonly emit incremental tool-argument fragments plus
+a separate reasoning side channel. The internal contract therefore treats tool-call
 coalescence and reasoning normalization as ingress-only work:
 `src/runtime/json_handoff/protocol_ingress.rs` accumulates provider deltas
 into accepted runtime events, and downstream consumers such as the ratatui
