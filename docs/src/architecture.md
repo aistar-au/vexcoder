@@ -87,6 +87,20 @@ The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
 - chat-compat chunk metadata such as service tier, system fingerprint, refusal
   text, logprobs, choice indexes, and tool-call type
 
+Public streaming tool-call protocols still expose partial lifecycle state
+rather than a single finalized call object. OpenAI Responses documents
+`response.function_call_arguments.delta` /
+`response.function_call_arguments.done`, Anthropic Messages streams
+`input_json_delta.partial_json` updates keyed by content-block `index`, and
+chat-compatible servers commonly emit incremental
+`tool_calls[*].function.arguments` fragments plus sibling
+`reasoning_content` text. The internal contract therefore treats tool-call
+coalescence and reasoning normalization as ingress-only work:
+`src/runtime/json_handoff/protocol_ingress.rs` accumulates provider deltas
+into accepted runtime events, and downstream consumers such as the ratatui
+task surface observe only normalized `RuntimeEnvelope` / `RuntimeEvent`
+output.
+
 Not every metadata field is rendered in the interactive transcript today, but
 the parser keeps those values in the normalized event surface instead of
 dropping them during protocol conversion.
