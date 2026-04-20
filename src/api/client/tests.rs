@@ -763,11 +763,11 @@ async fn test_create_stream_times_out_when_messages_v1_non_stream_fallback_stall
 
 #[tokio::test]
 async fn test_populate_server_info_discovers_protocol_from_api_client_base_url() {
-    async fn block_delta_probe() -> impl IntoResponse {
+    async fn messages_v1_probe() -> impl IntoResponse {
         StatusCode::NOT_FOUND
     }
 
-    async fn choices_delta_probe() -> impl IntoResponse {
+    async fn chat_compat_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "data: {\"ok\":true}\n\n",
@@ -782,8 +782,8 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
         axum::serve(
             listener,
             Router::new()
-                .route("/v1/messages", get(block_delta_probe))
-                .route("/v1/chat/completions", get(choices_delta_probe)),
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
         )
         .await
         .unwrap();
@@ -812,14 +812,14 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
 
 #[tokio::test]
 async fn test_populate_server_info_prefers_messages_v1_when_base_url_exposes_both_protocols() {
-    async fn block_delta_probe() -> impl IntoResponse {
+    async fn messages_v1_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "event: ping\ndata: {\"type\":\"ping\"}\n\n",
         )
     }
 
-    async fn choices_delta_probe() -> impl IntoResponse {
+    async fn chat_compat_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "data: {\"choices\":[]}\n\n",
@@ -834,8 +834,8 @@ async fn test_populate_server_info_prefers_messages_v1_when_base_url_exposes_bot
         axum::serve(
             listener,
             Router::new()
-                .route("/v1/messages", get(block_delta_probe))
-                .route("/v1/chat/completions", get(choices_delta_probe)),
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
         )
         .await
         .unwrap();
@@ -861,11 +861,11 @@ async fn test_populate_server_info_prefers_messages_v1_when_base_url_exposes_bot
 
 #[tokio::test]
 async fn test_populate_server_info_discovers_protocol_from_local_model_url_session() {
-    async fn block_delta_probe() -> impl IntoResponse {
+    async fn messages_v1_probe() -> impl IntoResponse {
         StatusCode::NOT_FOUND
     }
 
-    async fn choices_delta_probe() -> impl IntoResponse {
+    async fn chat_compat_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "data: {\"ok\":true}\n\n",
@@ -880,8 +880,8 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
         axum::serve(
             listener,
             Router::new()
-                .route("/v1/messages", get(block_delta_probe))
-                .route("/v1/chat/completions", get(choices_delta_probe)),
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
         )
         .await
         .unwrap();

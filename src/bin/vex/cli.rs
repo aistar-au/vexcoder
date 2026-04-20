@@ -61,7 +61,7 @@ pub(super) struct Cli {
 
     /// Set output encoding: "jsonl" | "text" (default: text).
     #[arg(short = 'm', long = "set-map-encoding", value_name = "FORMAT",
-            value_parser = ["jsonl", "json", "text"], default_value = "text")]
+        value_parser = ["jsonl", "text"], default_value = "text")]
     pub(super) set_map_encoding: String,
 }
 

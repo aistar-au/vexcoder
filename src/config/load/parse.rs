@@ -23,7 +23,6 @@ pub(crate) fn parse_model_protocol(value: String) -> Option<ModelProtocol> {
 pub(crate) fn parse_tool_call_mode(value: String) -> Option<ToolCallMode> {
     match value.trim().to_ascii_lowercase().as_str() {
         "structured" => Some(ToolCallMode::Structured),
-        "structured-tool-calls" | "structured_tool_calls" => Some(ToolCallMode::Structured),
         _ => None,
     }
 }
@@ -49,11 +48,10 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
 }
 
 pub(crate) fn infer_model_protocol(_api_url: &str) -> ModelProtocol {
-    // messages-v1 is always the default wire protocol regardless of the URL
-    // path.  ChatCompat is selected only when the user explicitly sets
-    // `model_protocol = "chat-compat"` in config, or when local protocol
-    // discovery later resolves the endpoint to Choices-Delta. No URL-based
-    // inference is needed here.
+    // messages-v1 remains the configuration-time default regardless of the URL
+    // path. Explicit configuration can request chat-compat, and runtime
+    // discovery can later rebind a local base URL to the server's supported
+    // endpoint. This helper therefore performs no URL-based inference.
     ModelProtocol::MessagesV1
 }
 

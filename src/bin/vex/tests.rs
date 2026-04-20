@@ -1111,8 +1111,17 @@ fn test_set_map_encoding_jsonl_maps_to_jsonl_output() {
 }
 
 #[test]
-fn test_set_map_encoding_json_alias_still_maps_to_jsonl_output() {
-    assert_eq!(map_encoding_to_output_format("json"), OutputFormat::Jsonl);
+fn test_cli_rejects_obsolete_json_map_encoding_alias() {
+    let err = match Cli::try_parse_from(["vex", "-p", "hello", "-m", "json"]) {
+        Ok(_) => panic!("expected clap to reject the obsolete json alias"),
+        Err(err) => err,
+    };
+
+    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    assert!(
+        err.to_string().contains("jsonl"),
+        "unexpected clap error: {err}"
+    );
 }
 
 // -- PB-01 ----------------------------------------------------------------

@@ -221,10 +221,6 @@ fn parse_api_client_protocol_override(value: &str) -> Option<ModelProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
         "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
         "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
-        // Accept ADR-047 legacy names while keeping the config surface on the
-        // accepted protocol vocabulary.
-        "block-delta" | "block_delta" | "blockdelta" => Some(ModelProtocol::MessagesV1),
-        "choices-delta" | "choices_delta" | "choicesdelta" => Some(ModelProtocol::ChatCompat),
         _ => None,
     }
 }
@@ -280,9 +276,7 @@ pub struct ApiClientConfig {
     /// Only `scheme://host:port` is required (e.g. `http://127.0.0.1:8000`).
     pub base_url: String,
     /// Optional explicit protocol override. When set, protocol discovery is
-    /// skipped and this accepted model protocol is used for the entire
-    /// session. ADR-047 legacy aliases (`block_delta`, `choices_delta`) are
-    /// still accepted during config deserialization.
+    /// skipped and the selected protocol is used for the entire session.
     #[serde(
         default,
         deserialize_with = "deserialize_api_client_protocol_override",

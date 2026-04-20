@@ -639,7 +639,7 @@ fn default_auto_approve_scope(
 
 fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
     match encoding {
-        "json" | "jsonl" => OutputFormat::Jsonl,
+        "jsonl" => OutputFormat::Jsonl,
         _ => OutputFormat::Text,
     }
 }

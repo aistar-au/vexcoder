@@ -106,7 +106,7 @@ fn test_api_client_explicit_protocol_accepts_canonical_name() {
 }
 
 #[test]
-fn test_api_client_explicit_protocol_accepts_legacy_alias() {
+fn test_api_client_explicit_protocol_rejects_obsolete_alias() {
     let cwd = tempfile::tempdir().unwrap();
     let user_cfg = tempfile::tempdir().unwrap();
     let user_cfg_file = user_cfg.path().join("config.toml");
@@ -122,16 +122,16 @@ fn test_api_client_explicit_protocol_accepts_legacy_alias() {
     )
     .unwrap();
 
-    let config = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap();
+    let error = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap_err();
 
-    assert_eq!(
-        config.api_client.explicit_protocol,
-        Some(crate::runtime::ModelProtocol::ChatCompat)
+    assert!(
+        format!("{error:#}").contains("api_client.explicit_protocol"),
+        "unexpected error: {error:#}"
     );
 }
 
 #[test]
-fn test_config_loads_vex_model_name_without_legacy_prefix() {
+fn test_config_loads_vex_model_name_without_previous_prefix() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://localhost:8080/v1");
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_NAME", "local-model-70b");
@@ -165,7 +165,7 @@ fn test_invalid_model_protocol_env_var_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://localhost:8080/v1");
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_NAME", "mock-model");
-    crate::test_support::test_set_var(&_lock, "VEX_MODEL_PROTOCOL", "legacy-value");
+    crate::test_support::test_set_var(&_lock, "VEX_MODEL_PROTOCOL", "unsupported-value");
 
     assert!(Config::load().is_err());
 
@@ -282,7 +282,7 @@ fn test_api_vpn_trust_true_is_rejected() {
 #[test]
 fn test_invalid_model_backend_error_lists_remote_alias() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var(&_lock, "VEX_MODEL_BACKEND", "legacy-value");
+    crate::test_support::test_set_var(&_lock, "VEX_MODEL_BACKEND", "unsupported-value");
 
     let err = super::read_env_layer().unwrap_err();
     let msg = format!("{err:#}");
@@ -295,16 +295,34 @@ fn test_invalid_model_backend_error_lists_remote_alias() {
 }
 
 #[test]
-fn test_invalid_tool_call_mode_error_lists_supported_aliases() {
+fn test_obsolete_tool_call_mode_alias_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var(&_lock, "VEX_TOOL_CALL_MODE", "legacy-value");
+    crate::test_support::test_set_var(&_lock, "VEX_TOOL_CALL_MODE", "structured_tool_calls");
+
+    let err = super::read_env_layer().unwrap_err();
+
+    assert!(
+        format!("{err:#}").contains("Invalid VEX_TOOL_CALL_MODE"),
+        "unexpected error: {err:#}"
+    );
+    crate::test_support::test_remove_var(&_lock, "VEX_TOOL_CALL_MODE");
+}
+
+#[test]
+fn test_invalid_tool_call_mode_error_lists_canonical_value() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::test_support::test_set_var(&_lock, "VEX_TOOL_CALL_MODE", "unsupported-value");
 
     let err = super::read_env_layer().unwrap_err();
     let msg = format!("{err:#}");
 
     assert!(
-        msg.contains("structured_tool_calls"),
-        "expected structured aliases in error: {msg}"
+        msg.contains("structured"),
+        "expected canonical value in error: {msg}"
+    );
+    assert!(
+        !msg.contains("structured_tool_calls"),
+        "unexpected obsolete alias in error: {msg}"
     );
     crate::test_support::test_remove_var(&_lock, "VEX_TOOL_CALL_MODE");
 }
@@ -316,35 +334,35 @@ fn test_user_config_path_prefers_xdg_config_home() {
     let _xdg = EnvRestore::capture(&_lock, "XDG_CONFIG_HOME");
     let temp = tempfile::tempdir().unwrap();
     let xdg_root = temp.path().join("xdg-root");
-    let legacy_home = temp.path().join("home");
+    let fallback_home = temp.path().join("home");
     let xdg_path = xdg_root.join("vex").join("config.toml");
-    let legacy_path = legacy_home.join(".vex").join("config.toml");
+    let fallback_path = fallback_home.join(".vex").join("config.toml");
 
     std::fs::create_dir_all(xdg_path.parent().unwrap()).unwrap();
-    std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
     std::fs::write(&xdg_path, "model_name = \"xdg\"\n").unwrap();
-    std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
-    crate::test_support::test_set_var(&_lock, "HOME", &legacy_home);
+    std::fs::write(&fallback_path, "model_name = \"fallback\"\n").unwrap();
+    crate::test_support::test_set_var(&_lock, "HOME", &fallback_home);
     crate::test_support::test_set_var(&_lock, "XDG_CONFIG_HOME", &xdg_root);
 
     assert_eq!(super::user_config_path(), Some(xdg_path));
 }
 
 #[test]
-fn test_user_config_path_falls_back_to_legacy_home_config() {
+fn test_user_config_path_falls_back_to_home_config() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _home = EnvRestore::capture(&_lock, "HOME");
     let _xdg = EnvRestore::capture(&_lock, "XDG_CONFIG_HOME");
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path().join("home");
-    let legacy_path = home.join(".vex").join("config.toml");
+    let fallback_path = home.join(".vex").join("config.toml");
 
-    std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
-    std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
+    std::fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
+    std::fs::write(&fallback_path, "model_name = \"fallback\"\n").unwrap();
     crate::test_support::test_set_var(&_lock, "HOME", &home);
     crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME");
 
-    assert_eq!(super::user_config_path(), Some(legacy_path));
+    assert_eq!(super::user_config_path(), Some(fallback_path));
 }
 
 #[test]

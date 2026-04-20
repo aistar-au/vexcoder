@@ -36,7 +36,7 @@ targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 | `--use-alternate-navigator MODEL` | `-n` | Override the configured model identifier. |
 | `--display-internal-telemetry` | `-d` | Enable verbose/debug output (equivalent to `RUST_LOG=debug`). |
 | `--restrict-payload-tools` | `-t` | Select the existing safe read/search tool subset directly. Cannot be combined with `-v`. |
-| `--set-map-encoding FORMAT` | `-m` | Set output encoding: `jsonl` or `text` (default: `text`; `json` remains a compatibility alias). |
+| `--set-map-encoding FORMAT` | `-m` | Set output encoding: `jsonl` or `text` (default: `text`). |
 
 ### `vex -r [task-id]` or `vex --recall-coordinates [task-id]`
 
@@ -131,7 +131,7 @@ own git-hosting CLI workflow.
 
 ### `vex migrate config [--output PATH]`
 
-Writes a TOML fragment based on legacy environment variables.
+Writes a TOML fragment based on older environment variables.
 
 ### `vex completions <bash|zsh|fish|powershell>`
 

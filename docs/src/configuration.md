@@ -331,9 +331,6 @@ Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
 
 Overrides tool-call encoding. Accepted value: `structured`.
 
-Compatibility aliases `structured-tool-calls` and
-`structured_tool_calls` normalize to the same setting.
-
 
 ### `VEX_MODEL_PROFILE`
 
@@ -638,19 +635,19 @@ export VEX_MODEL_TOKEN="your-token"
 The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
 connection path, `probe_timeout_ms` controls the discovery-request ceiling, and
 `delta_accumulator_memory_watermark_mb` bounds in-progress tool-call delta
-state. `explicit_protocol` remains available as a last-resort compatibility
-override when a server cannot be probed reliably, but the normal path is
-automatic discovery for both fullscreen and `vex -p` runs. Discovery probes
-`/v1/messages` first and only falls back to `/v1/chat/completions` when the
-messages-v1 probe fails, so dual-protocol servers stay on messages-v1 by
-default. When `model_url` already points at `/v1/messages` or
+state. `explicit_protocol` remains available when an operator must pin request
+routing instead of using discovery, but the normal path is automatic discovery
+for both fullscreen and `vex -p` runs. Discovery probes `/v1/messages` first
+and only falls back to `/v1/chat/completions` when the messages-v1 probe fails,
+so dual-protocol servers stay on messages-v1 by default. When `model_url`
+already points at `/v1/messages` or
 `/v1/chat/completions`, that concrete endpoint path is preserved; discovery
 rewrites only bare base URLs.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `base_url` | string | `""` | Optional scheme-and-host base URL (for example `http://127.0.0.1:8000`). When set, the client discovers or applies the protocol and adapts requests to `/v1/messages` or `/v1/chat/completions`. |
-| `explicit_protocol` | `"messages-v1"` \| `"chat-compat"` | unset | Optional emergency override that bypasses discovery and pins request routing to the selected protocol. Legacy `block_delta` and `choices_delta` aliases still parse for compatibility. |
+| `explicit_protocol` | `"messages-v1"` \| `"chat-compat"` | unset | Optional explicit protocol pin. When set, discovery is skipped and request routing stays on the selected protocol. |
 | `probe_timeout_ms` | integer | `2000` | Per-request timeout budget for each ADR-047 protocol-discovery probe (`/v1/messages`, then `/v1/chat/completions`). Raise this for slower local runtimes or remote tunnels. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-progress streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 
