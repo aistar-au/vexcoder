@@ -123,6 +123,25 @@ fn test_composer_focus_depends_on_overlays_not_scroll_offsets() {
     mode.overlay_state.pending_memory_clear = true;
     assert!(!mode.composer_is_focused());
 }
+
+#[test]
+fn force_config_enables_session_auto_approval_at_startup() {
+    let mut config = Config::default_for_tui();
+    config.force = true;
+
+    let mode = TuiMode::new_with_config(None, config);
+    assert!(mode.overlay_state.auto_approve_session);
+}
+
+#[test]
+fn expand_context_config_raises_context_scan_cap() {
+    let mut config = Config::default_for_tui();
+    config.expand_context = true;
+
+    let mode = TuiMode::new_with_config(None, config);
+    assert!(mode.context_assembler.max_related > ContextAssembler::default().max_related);
+}
+
 #[test]
 fn overlay_renders_after_base_panes() {
     let mode = TuiMode::new();

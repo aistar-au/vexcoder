@@ -2,7 +2,7 @@ use super::*;
 
 impl TuiMode {
     fn expand_slash_instruction_context(&self, input: &str) -> String {
-        let assembler = ContextAssembler::default();
+        let assembler = self.context_assembler.clone();
         let operator = ToolOperator::new(self.working_dir.clone());
         self.expand_inline_tokens_in_text(input, &operator, &assembler)
     }

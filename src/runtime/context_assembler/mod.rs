@@ -14,6 +14,7 @@ use crate::util::parse_bool_flag;
 const DEFAULT_MAX_FILE_BYTES: usize = 32_768;
 const DEFAULT_MAX_DIFF_LINES: usize = 200;
 const DEFAULT_MAX_RELATED: usize = 3;
+const EXPANDED_MAX_RELATED: usize = 8;
 const DEFAULT_GIT_TIMEOUT_MS: u64 = 2_000;
 const DEFAULT_INCLUDE_GIT_CONTEXT: bool = false;
 
@@ -76,6 +77,13 @@ impl Default for ContextAssembler {
 }
 
 impl ContextAssembler {
+    pub fn with_expanded_scan(mut self, enabled: bool) -> Self {
+        if enabled {
+            self.max_related = self.max_related.max(EXPANDED_MAX_RELATED);
+        }
+        self
+    }
+
     pub fn with_git_context(mut self, enabled: bool) -> Self {
         self.include_git_context = enabled;
         self
@@ -447,6 +455,12 @@ mod tests {
                 .any(|snapshot| snapshot.path.as_path() == Path::new("src/runtime/helper.rs")),
             "expected inferred related file rollup"
         );
+    }
+
+    #[test]
+    fn expanded_scan_raises_related_path_cap() {
+        let assembler = ContextAssembler::default().with_expanded_scan(true);
+        assert!(assembler.max_related > ContextAssembler::default().max_related);
     }
 
     #[tokio::test]

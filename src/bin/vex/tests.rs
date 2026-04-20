@@ -4,8 +4,10 @@
 
 use super::{
     Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
-    emit_migrate_config_output, format_task_entries_table, read_secret_from_env_var,
+    apply_process_policy_overrides, default_auto_approve_scope, emit_migrate_config_output,
+    format_task_entries_table, map_encoding_to_output_format, read_secret_from_env_var,
     read_secret_from_reader, render_task_entries, resolve_credentials_secret, resolve_resume_state,
+    tool_policy_from_cli,
 };
 use clap::Parser;
 use clap_complete::Shell;
@@ -13,13 +15,14 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::Command;
 use vexcoder::app::TuiMode;
-use vexcoder::batch_mode::{BatchResult, OutputFormat};
+use vexcoder::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
 use vexcoder::config::Config;
+use vexcoder::disk_policy::DiskPolicyMode;
 use vexcoder::init::{
     INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE, extract_init_template_keys, run_init,
 };
 use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
-use vexcoder::runtime::{TaskState, TaskStatus};
+use vexcoder::runtime::{TaskState, TaskStatus, ToolPolicy};
 use vexcoder::startup::{looks_like_session_output, should_ignore_startup_paste_text};
 use vexcoder::tui_frontend::{
     active_file_picker, active_slash_picker, apply_file_picker_selection,
@@ -822,27 +825,27 @@ fn file_overlay_integration_with_active_picker() {
 // -- PM-01 ----------------------------------------------------------------
 
 #[test]
-fn test_resume_flag_cli_parses_with_id() {
+fn test_recall_coordinates_flag_cli_parses_with_id() {
     let cli = Cli::parse_from(["vex", "--recall-coordinates", "task-1234"]);
     assert_eq!(cli.recall_coordinates, Some("task-1234".to_string()));
     assert!(cli.project_map_only.is_none());
 }
 
 #[test]
-fn test_resume_flag_cli_parses_without_id() {
+fn test_recall_coordinates_flag_cli_parses_without_id() {
     // --recall-coordinates with no argument should default to empty string (most-recent path).
     let cli = Cli::parse_from(["vex", "--recall-coordinates"]);
     assert_eq!(cli.recall_coordinates, Some(String::new()));
 }
 
 #[test]
-fn test_resume_flag_absent_is_none() {
+fn test_recall_coordinates_flag_absent_is_none() {
     let cli = Cli::parse_from(["vex"]);
     assert!(cli.recall_coordinates.is_none());
 }
 
 #[test]
-fn test_resume_flag_can_be_combined_with_print() {
+fn test_recall_coordinates_flag_can_be_combined_with_project_map_only() {
     let cli = Cli::parse_from(["vex", "--recall-coordinates", "task-1", "-p", "hello"]);
     assert_eq!(cli.recall_coordinates, Some("task-1".to_string()));
     assert_eq!(cli.project_map_only, Some("hello".to_string()));
@@ -998,23 +1001,83 @@ fn task_list_noninteractive_render_keeps_line_mode_and_origin_copy() {
 // -- PM-03 ----------------------------------------------------------------
 
 #[test]
-fn test_print_flag_cli_parses() {
+fn test_project_map_only_flag_cli_parses() {
     let cli = Cli::parse_from(["vex", "-p", "hello world"]);
     assert_eq!(cli.project_map_only, Some("hello world".to_string()));
     assert!(cli.recall_coordinates.is_none());
 }
 
 #[test]
-fn test_print_long_form_parses() {
+fn test_project_map_only_long_form_parses() {
     let cli = Cli::parse_from(["vex", "--project-map-only", "hello world"]);
     assert_eq!(cli.project_map_only, Some("hello world".to_string()));
 }
 
 #[test]
-fn test_print_flag_can_be_combined_with_resume() {
+fn test_project_map_only_flag_can_be_combined_with_recall_coordinates() {
     let cli = Cli::parse_from(["vex", "-p", "hello", "--recall-coordinates"]);
     assert_eq!(cli.project_map_only, Some("hello".to_string()));
     assert_eq!(cli.recall_coordinates, Some(String::new()));
+}
+
+#[test]
+fn test_restrict_payload_tools_maps_to_plan_policy() {
+    assert_eq!(tool_policy_from_cli(false, true), ToolPolicy::Plan);
+}
+
+#[test]
+fn test_view_intended_trajectory_maps_to_plan_policy() {
+    assert_eq!(tool_policy_from_cli(true, false), ToolPolicy::Plan);
+}
+
+#[test]
+fn test_force_defaults_batch_auto_approve_to_task_scope() {
+    let mut config = Config::default_for_tui();
+    config.force = true;
+
+    assert_eq!(
+        default_auto_approve_scope(&config, None),
+        Some(AutoApproveScope::Task)
+    );
+}
+
+#[test]
+fn test_explicit_auto_approve_scope_takes_precedence_over_force_default() {
+    let mut config = Config::default_for_tui();
+    config.force = true;
+
+    assert_eq!(
+        default_auto_approve_scope(&config, Some(AutoApproveScope::Once)),
+        Some(AutoApproveScope::Once)
+    );
+}
+
+#[test]
+fn test_bypass_integrity_locks_forces_disk_policy_off_for_process() {
+    let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
+    unsafe { std::env::set_var("VEX_DISK_POLICY", "strict") };
+
+    let mut config = Config::default_for_tui();
+    config.bypass_policy = true;
+    apply_process_policy_overrides(&config);
+
+    assert_eq!(
+        vexcoder::disk_policy::resolve_policy_mode(),
+        DiskPolicyMode::Off
+    );
+
+    vexcoder::disk_policy::set_process_policy_override(None);
+    unsafe { std::env::remove_var("VEX_DISK_POLICY") };
+}
+
+#[test]
+fn test_set_map_encoding_jsonl_maps_to_jsonl_output() {
+    assert_eq!(map_encoding_to_output_format("jsonl"), OutputFormat::Jsonl);
+}
+
+#[test]
+fn test_set_map_encoding_json_alias_still_maps_to_jsonl_output() {
+    assert_eq!(map_encoding_to_output_format("json"), OutputFormat::Jsonl);
 }
 
 // -- PB-01 ----------------------------------------------------------------

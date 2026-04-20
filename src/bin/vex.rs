@@ -10,8 +10,9 @@ use tracing::Instrument;
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
-use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
+use vexcoder::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, run_batch};
 use vexcoder::config::Config;
+use vexcoder::disk_policy::{self, DiskPolicyMode};
 use vexcoder::doctor::run_doctor;
 use vexcoder::exec::{parse_exec_command, run_exec};
 use vexcoder::export::{ExportFormat, render_task_export, write_export_output};
@@ -43,10 +44,11 @@ fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-// ── PM-01: resolve task state for --resume ────────────────────────────────────
+// ── PM-01: resolve task state for --recall-coordinates ───────────────────────
 
-/// Load a `TaskState` for `--resume`.  An empty `task_id` means "pick the most
-/// recent saved task"; a non-empty `task_id` loads that specific task.
+/// Load a `TaskState` for `--recall-coordinates`. An empty `task_id` means
+/// "pick the most recent saved task"; a non-empty `task_id` loads that
+/// specific task.
 /// Returns `None` only when no tasks exist yet (empty-id path).
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     if task_id.is_empty() {
@@ -63,7 +65,7 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     }
 }
 
-// ── PM-03: --print one-shot mode ──────────────────────────────────────────────
+// ── PM-03: --project-map-only one-shot mode ──────────────────────────────────
 
 /// Collect stdin when it is not a TTY (pipe / redirect) and prepend it to the
 /// prompt so that `vex -p "summarise" < file.txt` works naturally.
@@ -206,7 +208,7 @@ async fn run_print(
 
     let opts = BatchRunOpts {
         max_turns: Some(1),
-        auto_approve: None,
+        auto_approve: default_auto_approve_scope(&config, None),
         format,
         resume_state,
     };
@@ -396,13 +398,8 @@ async fn main() -> Result<ExitCode> {
             telemetry_json: cli.telemetry_json,
         },
     )?;
-    let tool_policy = if cli.view_intended_trajectory {
-        ToolPolicy::Plan
-    } else if cli.restrict_payload_tools {
-        ToolPolicy::Chat
-    } else {
-        ToolPolicy::Full
-    };
+    let tool_policy =
+        tool_policy_from_cli(cli.view_intended_trajectory, cli.restrict_payload_tools);
 
     let overrides = CliOverrides {
         tool_policy,
@@ -429,6 +426,7 @@ async fn main() -> Result<ExitCode> {
                 parse_exec_command(task, task_file, max_turns, auto_approve, output, format)?;
             let mut config = Config::load()?;
             apply_cli_overrides(&overrides, &mut config);
+            apply_process_policy_overrides(&config);
             config.validate()?;
             return run_exec(exec_args, config).await;
         }
@@ -536,6 +534,7 @@ async fn main() -> Result<ExitCode> {
         Some(Commands::Serve { host, port }) => {
             let mut config = Config::load()?;
             apply_cli_overrides(&overrides, &mut config);
+            apply_process_policy_overrides(&config);
             config.validate()?;
             serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
@@ -551,6 +550,7 @@ async fn main() -> Result<ExitCode> {
 
     let mut config = Config::load()?;
     apply_cli_overrides(&overrides, &mut config);
+    apply_process_policy_overrides(&config);
 
     let resume_state = match overrides.recall_coordinates.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
@@ -574,7 +574,7 @@ async fn main() -> Result<ExitCode> {
     config.validate()?;
     emit_model_endpoint_warnings(&config);
 
-    // PM-01: --resume startup option.
+    // PM-01: --recall-coordinates startup option.
     if let Some(state) = resume_state {
         let mut frontend = ManagedTuiFrontend::new()?;
         run_tui_session(config, Some(state), &mut frontend).await?;
@@ -598,6 +598,17 @@ struct CliOverrides {
     set_map_encoding: String,
 }
 
+fn tool_policy_from_cli(
+    view_intended_trajectory: bool,
+    restrict_payload_tools: bool,
+) -> ToolPolicy {
+    if view_intended_trajectory || restrict_payload_tools {
+        ToolPolicy::Plan
+    } else {
+        ToolPolicy::Full
+    }
+}
+
 fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     config.tool_policy = o.tool_policy;
     if let Some(ref name) = o.use_alternate_navigator {
@@ -614,9 +625,21 @@ fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     }
 }
 
+fn apply_process_policy_overrides(config: &Config) {
+    let mode = config.bypass_policy.then_some(DiskPolicyMode::Off);
+    disk_policy::set_process_policy_override(mode);
+}
+
+fn default_auto_approve_scope(
+    config: &Config,
+    explicit: Option<AutoApproveScope>,
+) -> Option<AutoApproveScope> {
+    explicit.or(config.force.then_some(AutoApproveScope::Task))
+}
+
 fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
     match encoding {
-        "json" => OutputFormat::Jsonl,
+        "json" | "jsonl" => OutputFormat::Jsonl,
         _ => OutputFormat::Text,
     }
 }

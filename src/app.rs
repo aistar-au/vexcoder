@@ -411,6 +411,7 @@ pub struct TuiMode {
     working_dir: PathBuf,
     model_url: String,
     search_config: crate::config::SearchConfig,
+    context_assembler: ContextAssembler,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,

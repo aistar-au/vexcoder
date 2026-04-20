@@ -17,7 +17,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
 }
 
 /// Build a runtime and immediately apply a pre-loaded resume state.
-/// Called from `src/bin/vex.rs` when `--resume` is passed at startup.
+/// Called from `src/bin/vex.rs` when `--recall-coordinates` is passed at startup.
 pub fn build_runtime_with_resume(
     config: Config,
     resume_state: TaskState,

@@ -358,13 +358,16 @@ pub struct Config {
     /// when `explicit_protocol` is not set (ADR-047).
     #[serde(default)]
     pub api_client: ApiClientConfig,
-    /// Set by `-f/--force-unstable-alignment`. Forces execution even when safety checks are red.
+    /// Set by `-f/--force-unstable-alignment`. Enables session-wide or task-wide
+    /// auto-approval for the current process.
     #[serde(skip)]
     pub force: bool,
-    /// Set by `-b/--bypass-integrity-locks`. Disables policy enforcement on protected sectors.
+    /// Set by `-b/--bypass-integrity-locks`. Disables durable-state disk-policy
+    /// enforcement for the current process.
     #[serde(skip)]
     pub bypass_policy: bool,
-    /// Set by `-e/--expand-sector-view`. Expands file/directory scan for context assembly.
+    /// Set by `-e/--expand-sector-view`. Expands inferred related-path and
+    /// directory scan limits for context assembly.
     #[serde(skip)]
     pub expand_context: bool,
 }

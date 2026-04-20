@@ -19,16 +19,16 @@ explicit CLI override is removed.
 
 | # | Intent | Full Flag | Short | Description |
 | ---: | :--- | :--- | :--- | :--- |
-| 1 | Total Risk | `--force-unstable-alignment` | `-f` | Forces execution even when safety checks are red |
+| 1 | Total Risk | `--force-unstable-alignment` | `-f` | Enables session-wide or task-wide auto-approval |
 | 2 | Scripting/Print | `--project-map-only` | `-p` | Non-interactive single-turn print to stdout |
-| 3 | Context Injection | `--expand-sector-view` | `-e` | Expands file/directory scan for context assembly |
+| 3 | Context Injection | `--expand-sector-view` | `-e` | Expands related-path and directory scan limits for context assembly |
 | 4 | Resume Session | `--recall-coordinates` | `-r` | Resumes the saved task at the recorded point |
-| 5 | Skip Permissions | `--bypass-integrity-locks` | `-b` | Disables policy enforcement on protected sectors |
-| 6 | Plan Mode | `--view-intended-trajectory` | `-v` | Read-only tool policy; previews changes before execution |
+| 5 | Skip Permissions | `--bypass-integrity-locks` | `-b` | Disables runtime durable-state disk-policy enforcement for the process |
+| 6 | Plan Mode | `--view-intended-trajectory` | `-v` | Selects the existing read-only planning tool policy |
 | 7 | Model Selection | `--use-alternate-navigator` | `-n` | Overrides the configured model identifier |
 | 8 | Verbosity/Debug | `--display-internal-telemetry` | `-d` | Enables RUST_LOG=debug verbose output |
-| 9 | Tool Restriction | `--restrict-payload-tools` | `-t` | Restricts tool payload to safe read/search subset |
-| 10 | Output Format | `--set-map-encoding` | `-m` | Sets output encoding: json or text |
+| 9 | Tool Restriction | `--restrict-payload-tools` | `-t` | Selects the existing safe read/search tool subset directly |
+| 10 | Output Format | `--set-map-encoding` | `-m` | Sets output encoding: jsonl or text |
 
 ## Removed
 
@@ -37,7 +37,9 @@ explicit CLI override is removed.
   protocol for non-native endpoints. The explicit CLI override is no longer
   supported.
 - `--plan`: superseded by `--view-intended-trajectory` (`-v`).
-- `--chat`: superseded by `--restrict-payload-tools` (`-t`).
+- `--chat`: no longer exposed as a top-level flag. `ToolPolicy::Chat` remains
+  available via `tool_policy = "chat"` in config when plain conversation mode
+  is required.
 - `--resume`: superseded by `--recall-coordinates` (`-r`).
 - `--print` / `-p`: superseded by `--project-map-only` (`-p`; same short flag,
   same semantics, new canonical name).
@@ -46,9 +48,9 @@ explicit CLI override is removed.
 
 Three `#[serde(skip)]` fields are added to `Config` to carry CLI-only state:
 
-- `force: bool` — set by `-f/--force-unstable-alignment`
-- `bypass_policy: bool` — set by `-b/--bypass-integrity-locks`
-- `expand_context: bool` — set by `-e/--expand-sector-view`
+- `force: bool` — enables session-wide or task-wide auto-approval
+- `bypass_policy: bool` — overrides runtime durable-state disk-policy mode to `off`
+- `expand_context: bool` — raises context-assembly related-path and directory scan caps
 
 These fields are not persisted to TOML. They are wired in `apply_cli_overrides`
 after `Config::load()`.

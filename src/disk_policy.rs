@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
 /// Categorizes filesystem access per ADR-038 Memory-First Architecture.
 ///
@@ -25,6 +26,25 @@ pub enum DiskPolicyMode {
     Warn,
     /// Panic on forbidden access (CI gate via `VEX_DISK_POLICY=strict`).
     Strict,
+}
+
+fn process_policy_override() -> &'static Mutex<Option<DiskPolicyMode>> {
+    static OVERRIDE: OnceLock<Mutex<Option<DiskPolicyMode>>> = OnceLock::new();
+    OVERRIDE.get_or_init(|| Mutex::new(None))
+}
+
+fn current_process_policy_override() -> Option<DiskPolicyMode> {
+    *process_policy_override()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Override the disk policy mode for the current process.
+pub fn set_process_policy_override(mode: Option<DiskPolicyMode>) {
+    let mut guard = process_policy_override()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = mode;
 }
 
 /// Enforce the ADR-038 disk policy for a path under an explicit mode.
@@ -87,8 +107,12 @@ fn classify_vex_subpath(path: &Path) -> DiskPermission {
     DiskPermission::Forbidden
 }
 
-/// Resolve the disk policy mode from the `VEX_DISK_POLICY` environment variable.
+/// Resolve the disk policy mode from the process override or `VEX_DISK_POLICY`.
 pub fn resolve_policy_mode() -> DiskPolicyMode {
+    if let Some(mode) = current_process_policy_override() {
+        return mode;
+    }
+
     match std::env::var("VEX_DISK_POLICY") {
         Ok(val) => match val.to_lowercase().as_str() {
             "strict" => DiskPolicyMode::Strict,
@@ -168,6 +192,18 @@ mod tests {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         crate::test_support::test_set_var(&_lock, "VEX_DISK_POLICY", "mystery");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
+        crate::test_support::test_remove_var(&_lock, "VEX_DISK_POLICY");
+    }
+
+    #[test]
+    fn process_override_takes_precedence_over_env() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        crate::test_support::test_set_var(&_lock, "VEX_DISK_POLICY", "strict");
+
+        set_process_policy_override(Some(DiskPolicyMode::Off));
+        assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
+
+        set_process_policy_override(None);
         crate::test_support::test_remove_var(&_lock, "VEX_DISK_POLICY");
     }
 

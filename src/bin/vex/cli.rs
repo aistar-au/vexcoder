@@ -8,7 +8,7 @@ pub(super) struct Cli {
     #[command(subcommand)]
     pub(super) command: Option<Commands>,
 
-    /// Forces execution even when safety checks are red.
+    /// Automatically approve tool requests for the current session or batch task.
     #[arg(short = 'f', long = "force-unstable-alignment")]
     pub(super) force_unstable_alignment: bool,
 
@@ -18,7 +18,7 @@ pub(super) struct Cli {
     #[arg(short = 'p', long = "project-map-only")]
     pub(super) project_map_only: Option<String>,
 
-    /// Expands the context window to include more files/directories in the scan.
+    /// Expands inferred related-path and directory scan limits for context assembly.
     #[arg(short = 'e', long = "expand-sector-view")]
     pub(super) expand_sector_view: bool,
 
@@ -27,11 +27,11 @@ pub(super) struct Cli {
     #[arg(short = 'r', long = "recall-coordinates", num_args(0..=1), default_missing_value = "")]
     pub(super) recall_coordinates: Option<String>,
 
-    /// Disables safety locks on protected file sectors (skips policy enforcement).
+    /// Disables durable-state disk-policy enforcement for the current process.
     #[arg(short = 'b', long = "bypass-integrity-locks")]
     pub(super) bypass_integrity_locks: bool,
 
-    /// Plan mode: restrict tools to read-only; shows changes before execution.
+    /// Select the existing read-only planning tool policy.
     #[arg(
         short = 'v',
         long = "view-intended-trajectory",
@@ -51,7 +51,7 @@ pub(super) struct Cli {
     #[arg(long = "telemetry-json")]
     pub(super) telemetry_json: bool,
 
-    /// Restrict tool deployment to a safe subset (no shell, no mutating ops).
+    /// Select the existing safe read/search tool subset directly.
     #[arg(
         short = 't',
         long = "restrict-payload-tools",
@@ -59,9 +59,9 @@ pub(super) struct Cli {
     )]
     pub(super) restrict_payload_tools: bool,
 
-    /// Set output encoding: "json" | "text" (default: text).
+    /// Set output encoding: "jsonl" | "text" (default: text).
     #[arg(short = 'm', long = "set-map-encoding", value_name = "FORMAT",
-          value_parser = ["json", "text"], default_value = "text")]
+            value_parser = ["jsonl", "json", "text"], default_value = "text")]
     pub(super) set_map_encoding: String,
 }
 

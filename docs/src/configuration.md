@@ -110,8 +110,8 @@ used for live tool-call parsing.
 | Policy | Tools exposed | CLI option |
 | :--- | :--- | :--- |
 | `full` | All registered tools including mutating and shell tools | (default) |
-| `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--plan` |
-| `chat` | No tools — plain conversation mode | `--chat` |
+| `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--view-intended-trajectory` or `--restrict-payload-tools` |
+| `chat` | No tools — plain conversation mode | config-only (`tool_policy = "chat"`) |
 
 When `plan` is active, mutating tools (`write_file`, `apply_patch`, `edit_file`,
 `rename_file`, `git_add`, `git_commit`, `run_command`) are excluded from the

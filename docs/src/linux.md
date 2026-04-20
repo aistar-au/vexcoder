@@ -78,6 +78,6 @@ export VEX_MODEL_TOKEN="your-token"
 ## 9. Send one request and open the interactive app
 
 ```bash
-./target/release/vex --print "Reply with the single word ok."
+./target/release/vex --project-map-only "Reply with the single word ok."
 ./target/release/vex
 ```

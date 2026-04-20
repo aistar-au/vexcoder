@@ -27,16 +27,16 @@ targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
 | Option | Short | Effect |
 |------|--------|--------|
-| `--force-unstable-alignment` | `-f` | Forces execution even when safety checks are red. |
+| `--force-unstable-alignment` | `-f` | Auto-approve tool requests for the current session or batch task. |
 | `--project-map-only PROMPT` | `-p` | Non-interactive: run one prompt turn and print result to stdout. |
-| `--expand-sector-view` | `-e` | Expands the context window to include more files/directories in the scan. |
+| `--expand-sector-view` | `-e` | Expands inferred related-path and directory scan limits for context assembly. |
 | `--recall-coordinates [TASK_ID]` | `-r` | Resume a saved task by ID, or most-recent if omitted. |
-| `--bypass-integrity-locks` | `-b` | Disables policy enforcement on protected file sectors. |
-| `--view-intended-trajectory` | `-v` | Plan mode: restrict tools to read-only; shows changes before execution. Cannot be combined with `-t`. |
+| `--bypass-integrity-locks` | `-b` | Disable runtime durable-state disk-policy enforcement for this process. |
+| `--view-intended-trajectory` | `-v` | Select the existing read-only planning tool policy. Cannot be combined with `-t`. |
 | `--use-alternate-navigator MODEL` | `-n` | Override the configured model identifier. |
 | `--display-internal-telemetry` | `-d` | Enable verbose/debug output (equivalent to `RUST_LOG=debug`). |
-| `--restrict-payload-tools` | `-t` | Restrict tool payload to safe read/search subset. Cannot be combined with `-v`. |
-| `--set-map-encoding FORMAT` | `-m` | Set output encoding: `json` or `text` (default: `text`). |
+| `--restrict-payload-tools` | `-t` | Select the existing safe read/search tool subset directly. Cannot be combined with `-v`. |
+| `--set-map-encoding FORMAT` | `-m` | Set output encoding: `jsonl` or `text` (default: `text`; `json` remains a compatibility alias). |
 
 ### `vex -r [task-id]` or `vex --recall-coordinates [task-id]`
 

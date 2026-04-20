@@ -81,6 +81,6 @@ $env:VEX_MODEL_TOKEN = "your-token"
 ## 9. Send one request and open the interactive app
 
 ```powershell
-.\target\release\vex.exe --print "Reply with the single word ok."
+.\target\release\vex.exe --project-map-only "Reply with the single word ok."
 .\target\release\vex.exe
 ```

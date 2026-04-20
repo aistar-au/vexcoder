@@ -55,7 +55,7 @@ Expect `VEX_MODEL_URL set` to pass. `Model endpoint reachable` should pass once 
 ## 5. Start the interactive UI
 
 ```bash
-./target/release/vex --print "Reply with the single word ok."
+./target/release/vex --project-map-only "Reply with the single word ok."
 ./target/release/vex
 ```
 

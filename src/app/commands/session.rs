@@ -125,7 +125,7 @@ impl TuiMode {
     }
     /// PK-07: `/diff [--staged]` — show git diff output, capped at 200 lines.
     pub(crate) fn handle_diff_command(&mut self, args: &str) {
-        let diff_defaults = ContextAssembler::default();
+        let diff_defaults = self.context_assembler.clone();
         let max_diff_lines = diff_defaults.max_diff_lines;
         let timeout_ms = resolve_git_timeout_ms(diff_defaults.git_timeout_ms);
         let staged = match args.split_whitespace().collect::<Vec<_>>().as_slice() {
