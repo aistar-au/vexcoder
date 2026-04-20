@@ -443,8 +443,8 @@ mod tests {
     /// working directory is inside a git repository.
     #[test]
     fn test_discover_git_root_finds_repo() {
-        let here = std::env::current_dir().expect("cwd must be available in tests");
-        let Some(root) = discover_git_root(&here) else {
+        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let Some(root) = discover_git_root(here) else {
             // Not inside a git checkout (e.g. source tarball); skip.
             return;
         };
@@ -459,8 +459,8 @@ mod tests {
     /// working directory is inside a git repository.
     #[test]
     fn test_gix_git_dir_returns_git_directory() {
-        let here = std::env::current_dir().expect("cwd must be available in tests");
-        let Some(dir) = gix_git_dir(&here) else {
+        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let Some(dir) = gix_git_dir(here) else {
             return;
         };
         assert!(
