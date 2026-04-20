@@ -1,8 +1,19 @@
 # Linux
 
-## 1. Install the Rust toolchain
+This guide gets the repo-local `vex` binary running on Linux.
+
+Before you start:
+
+- use a checkout you can write to; `vex init` creates `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md`
+- `vex` needs an external model endpoint; it does not start a model server for you
+- Git and a working C toolchain must already be available through your distro packages
+- local and private-network endpoints do not need `VEX_MODEL_TOKEN`; remote public endpoints do
+
+## 1. Verify Git and the C toolchain, then install Rust
 
 ```bash
+git --version
+cc --version
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 rustc --version
@@ -22,36 +33,49 @@ cd vexcoder
 cargo build --release
 ```
 
-## 4. Write the local config files
+## 4. Scaffold the repo-local workspace files
 
 ```bash
 ./target/release/vex init
 ```
 
-## 5. Write the endpoint config
+## 5. Point `vex` at a local server
+
+The fastest local setup is a server that listens on `http://127.0.0.1:8080/v1`.
 
 ```bash
 cat > .vex/config.toml <<'EOF'
-model_url = "http://localhost:8080/v1"
+model_url = "http://127.0.0.1:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 EOF
 ```
 
-## 6. Export a token only when the endpoint requires one
+## 6. Start your local server in another shell session
+
+Make sure it is already listening on `127.0.0.1:8080` before the next step. If your server uses a different host or port, update `model_url` to match.
+
+## 7. Verify the endpoint and permissions
+
+`vex` needs normal user-level write access in this checkout and network access to `model_url`. No extra privileges are required after the toolchain install completes.
+
+```bash
+./target/release/vex doctor
+```
+
+Expect `VEX_MODEL_URL set` and `Model endpoint reachable` to pass. If the endpoint check warns, start your local server or update `model_url`.
+
+## 8. Remote endpoints require HTTPS and a token
+
+If you switch away from the local-server path, set `model_url` to the exact `https://` endpoint your server exposes, set `model_name` to a model that endpoint accepts, and then export the token before rerunning `vex doctor`.
 
 ```bash
 export VEX_MODEL_TOKEN="your-token"
 ```
 
-## 7. Start the interactive binary
+## 9. Send one request and open the interactive app
 
 ```bash
+./target/release/vex --print "Reply with the single word ok."
 ./target/release/vex
-```
-
-## 8. Run one non-interactive task
-
-```bash
-./target/release/vex exec --task "review src/app.rs" --format jsonl
 ```
