@@ -46,8 +46,11 @@ Resumes a saved task. With no task id, resumes the most-recent saved task.
 
 Runs one prompt turn and prints the result to stdout. If stdin is piped, the
 stdin content is prepended to the prompt. For local inference endpoints,
-protocol discovery runs before the turn starts, so `-p` does not require a
-manual chat-compat hint when the server only exposes `/v1/chat/completions`.
+protocol discovery runs before the turn starts when you configure a bare
+`api_client.base_url`. On dual-protocol servers, discovery probes
+`/v1/messages` first and falls back to `/v1/chat/completions` only when the
+messages-v1 probe fails. If `model_url` already points at a concrete endpoint
+path, that explicit path remains authoritative for the turn.
 
 ### `vex exec --task "TEXT"`
 

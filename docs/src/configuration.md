@@ -39,7 +39,7 @@ These keys are read by the current runtime from config files:
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
-| `model_protocol` | `messages-v1` or `chat-compat`; used as the fallback when `model_url` or `api_client.base_url` does not already pin a concrete endpoint path and local discovery has not selected a native protocol yet | `messages-v1` |
+| `model_protocol` | `messages-v1` or `chat-compat`; used as the fallback when `model_url` or `api_client.base_url` does not already pin a concrete endpoint path and local discovery has not selected a native protocol yet. When a bare base URL exposes both protocols, discovery prefers `messages-v1`. | `messages-v1` |
 | `tool_call_mode` | `structured` only | inferred; resolves to `structured` in the current loader |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `api_client.base_url` | Scheme-and-host base URL used for automatic protocol discovery | unset |
@@ -640,9 +640,12 @@ connection path, `probe_timeout_ms` controls the discovery-request ceiling, and
 `delta_accumulator_memory_watermark_mb` bounds in-progress tool-call delta
 state. `explicit_protocol` remains available as a last-resort compatibility
 override when a server cannot be probed reliably, but the normal path is
-automatic discovery for both fullscreen and `vex -p` runs. When `model_url`
-already points at `/v1/messages` or `/v1/chat/completions`, that concrete
-endpoint path is preserved; discovery rewrites only bare base URLs.
+automatic discovery for both fullscreen and `vex -p` runs. Discovery probes
+`/v1/messages` first and only falls back to `/v1/chat/completions` when the
+messages-v1 probe fails, so dual-protocol servers stay on messages-v1 by
+default. When `model_url` already points at `/v1/messages` or
+`/v1/chat/completions`, that concrete endpoint path is preserved; discovery
+rewrites only bare base URLs.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
