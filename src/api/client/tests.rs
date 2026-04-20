@@ -1267,6 +1267,30 @@ fn test_map_api_status_error_server_500() {
     assert!(msg.contains("out of memory"), "got: {msg}");
 }
 
+#[tokio::test]
+async fn test_map_api_request_error_local_connect_mentions_retry_and_telemetry() {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+
+    let request_url = format!("http://{addr}/v1/messages");
+    let error = reqwest::Client::new()
+        .post(&request_url)
+        .send()
+        .await
+        .expect_err("request should fail once the listener is dropped");
+
+    let msg = map_api_request_error(error, &request_url).to_string();
+    assert!(
+        msg.contains("retries short-lived local startup connection failures"),
+        "got: {msg}"
+    );
+    assert!(msg.contains("--display-internal-telemetry"), "got: {msg}");
+    assert!(msg.contains("RUST_LOG=debug"), "got: {msg}");
+}
+
 // ── Rate-limit / Retry-After header detection ───────────────────────
 
 #[test]

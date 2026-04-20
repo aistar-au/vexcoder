@@ -232,6 +232,37 @@ The full model endpoint URL.
   `stream = false` and normalizes the JSON response through the same API
   boundary instead of exposing a second downstream parser.
 
+### API tracing and startup retries
+
+For CLI troubleshooting, especially around `vex -p`, the transport layer now
+emits request-scoped tracing, propagates W3C trace context, and applies a
+short exponential backoff when a local endpoint is still starting up.
+
+- `vex --display-internal-telemetry -p "..."` mirrors internal telemetry to
+  stderr for one-shot runs without having to set `RUST_LOG` manually.
+- `vex --telemetry-json --display-internal-telemetry -p "..."` emits
+  newline-delimited JSON telemetry suitable for local collection by Vector,
+  Fluent Bit, or an OpenTelemetry collector.
+- `RUST_LOG=debug` enables structured transport, normalization, rate-limit,
+  and fallback spans for both interactive and one-shot runs.
+- `VEX_INTERNAL_TELEMETRY_PATH=/tmp/vex-internal.log` writes internal
+  telemetry to a dedicated non-blocking file sink instead of stderr.
+- `VEX_TELEMETRY_FORMAT=json` selects NDJSON output when telemetry is written
+  to a file-backed sink.
+- `VEX_TELEMETRY_ENVIRONMENT=staging` and `VEX_TELEMETRY_TENANT_ID=internal`
+  attach environment and tenant baggage to the current trace context.
+- `VEX_API_LOG_PATH=/tmp/vex-api.log` chooses where payload diagnostics are
+  written when payload logging is enabled.
+- `VEX_DEBUG_PAYLOAD=1` records outbound request payload summaries for API
+  debugging. Prompt text, tool arguments, and SSE payload bodies are reduced to
+  structural metadata rather than being written verbatim.
+- Request and server spans carry `traceparent`, `x-request-id`, and GenAI
+  semantic attributes so transport logs, tool lifecycle events, and runtime
+  normalization can be correlated under one request trace.
+- Local endpoint startup retries only cover initial connection failures before
+  a response stream exists. Once a streaming request is established, the CLI
+  does not replay it automatically.
+
 ### `VEX_MODEL_TOKEN`
 
 Bearer token for authenticated endpoints.
@@ -288,6 +319,10 @@ Model identifier sent to the API.
 
 Overrides protocol inference. Accepted values: `messages-v1`, `chat-compat`.
 
+The runtime still probes local endpoints and records the server-native protocol
+for transport diagnostics. Use this override only when a server needs an
+explicit wire-protocol pin instead of the discovered default.
+
 ### `VEX_MODEL_BACKEND`
 
 Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
@@ -312,6 +347,10 @@ Overrides the working directory used for tool execution.
 ### `VEX_MODEL_HEADERS_JSON`
 
 Adds extra request headers as a JSON object.
+
+Operator-supplied headers are preserved when internal tracing is enabled. The
+runtime injects `x-request-id` and W3C trace context headers only when they are
+not already present.
 
 Example:
 
@@ -343,6 +382,27 @@ Controls the timeout used by context-related git commands.
 - Default: `2000`.
 - Applies to automatic git context when `VEX_CONTEXT_INCLUDE_GIT=1` and to the
   existing review helpers that call git through the shared runtime wrapper.
+
+## API tracing and startup retries
+
+- `--display-internal-telemetry` mirrors internal transport logs to stderr.
+- `--telemetry-json` switches those logs to NDJSON/JSONL output.
+- `VEX_INTERNAL_TELEMETRY_PATH` writes internal telemetry to a file instead of
+  stderr.
+- `VEX_TELEMETRY_FORMAT=json` is the environment equivalent of
+  `--telemetry-json`.
+- `VEX_TELEMETRY_ENVIRONMENT` and `VEX_TELEMETRY_TENANT_ID` add baggage fields
+  to request-scoped spans.
+
+When telemetry is enabled, the CLI installs a local OpenTelemetry tracer
+provider, propagates W3C `traceparent` and `baggage` headers on outbound model
+requests, and records structural payload summaries instead of raw prompts or tool
+arguments.
+
+Local API rate limiting applies only after bearer-token authorization succeeds.
+Authorized requests are bucketed per forwarded client IP when available and
+otherwise by an authorization-header-derived key, so unauthenticated callers do
+not consume the same limit bucket as valid local clients.
 
 ### `VEX_DISK_POLICY`
 

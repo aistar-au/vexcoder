@@ -128,6 +128,20 @@ fn test_migrate_config_cli_parses_output_flag() {
 }
 
 #[test]
+fn test_cli_parses_internal_telemetry_flags() {
+    let cli = Cli::parse_from([
+        "vex",
+        "--display-internal-telemetry",
+        "--telemetry-json",
+        "-p",
+        "Reply with exactly ok.",
+    ]);
+    assert!(cli.display_internal_telemetry);
+    assert!(cli.telemetry_json);
+    assert_eq!(cli.print_prompt.as_deref(), Some("Reply with exactly ok."));
+}
+
+#[test]
 fn test_emit_migrate_config_output_writes_requested_file() {
     let temp = tempfile::tempdir().unwrap();
     let output_path = temp.path().join("migrate.toml");

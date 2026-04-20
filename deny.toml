@@ -98,6 +98,14 @@ reason = "rustls-webpki 0.101.7 vulnerability (URI name constraint bypass) pulle
 id = "RUSTSEC-2026-0099"
 reason = "rustls-webpki 0.101.7 vulnerability (wildcard certificate name constraint bypass) pulled in transitively via hickory-resolver v0.24.4 → tokio-rustls. This codebase uses DoH only; the DNS resolution path does not verify wildcard name constraints against user-controlled certificates. Resolution: remove when hickory-resolver upgrades to rustls-webpki ≥0.102."
 
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0012"
+reason = "backoff 0.4.0 is intentionally used for bounded local-startup connection retries on the CLI API transport path. The retry scope is local connect failures before any streaming response exists, and the dependency is not exposed across trust boundaries. Resolution: remove this exception when the requested retry lane migrates to a maintained equivalent such as backon without widening the transport surface."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2024-0384"
+reason = "instant 0.1.13 is pulled transitively by backoff 0.4.0 for the same local-startup retry path. The crate is not used directly by this repository. Resolution: remove this exception when the bounded retry implementation moves off backoff and instant leaves the graph."
+
 # ---------------------------------------------------------------------------
 # 2. Dependency graph quality
 # ---------------------------------------------------------------------------
