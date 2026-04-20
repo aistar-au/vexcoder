@@ -53,7 +53,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 42 | `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | ~169 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-runtime-envelope-api-sse-normalization.md> |
 | 43 | `TASKS/TASKS-DISPATCH-MAP.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 44 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 45 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~404 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 45 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~402 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 46 | `TASKS/transcript-first-task-state.md` | ~175 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/transcript-first-task-state.md> |
 | 47 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~424 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 48 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
@@ -114,11 +114,11 @@ Canonical raw URL index for every tracked file in this repository.
 | 103 | `crates/vexcoder-api-types/Cargo.toml` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/crates/vexcoder-api-types/Cargo.toml> |
 | 104 | `crates/vexcoder-api-types/src/lib.rs` | ~361 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/crates/vexcoder-api-types/src/lib.rs> |
 | 105 | `deny.toml` | ~182 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/deny.toml> |
-| 106 | `docs/src/SUMMARY.md` | ~20 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
+| 106 | `docs/src/SUMMARY.md` | ~6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 107 | `docs/src/commands.md` | ~361 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
 | 108 | `docs/src/configuration.md` | ~603 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 109 | `docs/src/dependency-upgrades.md` | ~261 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/dependency-upgrades.md> |
-| 110 | `docs/src/introduction.md` | ~34 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
+| 110 | `docs/src/introduction.md` | ~7 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
 | 111 | `docs/src/linting.md` | ~96 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/linting.md> |
 | 112 | `docs/src/migration.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
 | 113 | `docs/src/msrv.md` | ~69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/msrv.md> |

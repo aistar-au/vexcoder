@@ -31,9 +31,9 @@ mdbook serve docs
 Start with:
 
 - [Build From Source](docs/src/introduction.md)
-- [Quick Start](docs/src/quick-start.md)
-- [Configuration](docs/src/configuration.md)
-- [CLI and TUI Commands](docs/src/commands.md)
+- [macOS](docs/src/macos.md)
+- [Linux](docs/src/linux.md)
+- [Windows PowerShell](docs/src/windows.md)
 
 Architecture records are stored under [`adr/`](adr/ADR-README.md). They carry
 design history and follow-up amendments separately from the build-first user
