@@ -639,9 +639,9 @@ impl ApiClient {
             reqwest::header::HeaderValue::from_str(&request_id)
                 .map_err(|error| anyhow!("invalid x-request-id header: {error}"))?,
         );
-        let payload_bytes = serde_json::to_vec(&payload)
-            .map(|body| body.len())
-            .unwrap_or_default();
+        let serialized_payload = serde_json::to_string(&payload)
+            .map_err(|error| anyhow!("failed to serialize API request payload: {error}"))?;
+        let payload_bytes = serialized_payload.len();
         let request_span = tracing::info_span!(
             "model_api_request",
             request_id = %request_id,
@@ -678,6 +678,7 @@ impl ApiClient {
             request_attributes.push(KeyValue::new(semconv::SERVER_ADDRESS, server_address));
         }
         crate::observability::set_span_attributes(&request_span, request_attributes);
+        crate::observability::inject_span_context_headers(&request_span, &mut headers);
 
         tracing::info!(
             target: "vex::http",
@@ -697,6 +698,7 @@ impl ApiClient {
             self.http.clone(),
             &request_url,
             &payload,
+            serialized_payload,
             &headers,
             match api_protocol {
                 ApiProtocol::MessagesV1 => ModelProtocol::MessagesV1,

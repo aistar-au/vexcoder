@@ -11,12 +11,14 @@ use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
 use opentelemetry::KeyValue;
 use opentelemetry_semantic_conventions::attribute as semconv;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::key_extractor::GlobalKeyExtractor;
+use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{GovernorError, GovernorLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
@@ -92,7 +94,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
 pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {
     let expected_header = Arc::<str>::from(format!("Bearer {}", auth.bearer_token));
     let hsts_enabled = auth.hsts_enabled;
-    let mut governor = GovernorConfigBuilder::default().key_extractor(GlobalKeyExtractor);
+    let mut governor = GovernorConfigBuilder::default().key_extractor(AuthorizedClientKeyExtractor);
     governor.per_second(LOCAL_API_RATE_LIMIT_PER_SECOND);
     governor.burst_size(LOCAL_API_RATE_LIMIT_BURST);
     let governor = governor
@@ -131,31 +133,21 @@ pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Rou
                 semconv::HTTP_REQUEST_METHOD,
                 request.method().as_str().to_string(),
             )];
-            if let Some(server_address) = request
-                .headers()
-                .get("host")
-                .and_then(|value| value.to_str().ok())
-            {
-                attributes.push(KeyValue::new(
-                    semconv::SERVER_ADDRESS,
-                    server_address.to_string(),
-                ));
+            if let Some((server_address, server_port)) = request_host_parts(request) {
+                attributes.push(KeyValue::new(semconv::SERVER_ADDRESS, server_address));
+                if let Some(server_port) = server_port {
+                    attributes.push(KeyValue::new(semconv::SERVER_PORT, i64::from(server_port)));
+                }
             }
             crate::observability::set_span_attributes(&span, attributes);
             span
         })
         .on_response(
             |response: &Response, latency: Duration, span: &tracing::Span| {
-                let request_id = response
-                    .headers()
-                    .get(REQUEST_ID_HEADER)
-                    .and_then(|value| value.to_str().ok())
-                    .unwrap_or("missing");
                 tracing::info!(
                     parent: span,
                     status = response.status().as_u16(),
                     latency_ms = latency.as_millis() as u64,
-                    request_id = %request_id,
                     "completed local API request"
                 );
             },
@@ -169,13 +161,13 @@ pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Rou
             );
         });
     build_router_with_state(state)
+        .layer(GovernorLayer::new(governor).error_handler(governor_error_response))
         .layer(middleware::from_fn(move |request, next| {
             let expected_header = Arc::clone(&expected_header);
             async move {
                 authorize_http_request(request, next, expected_header, hsts_enabled).await
             }
         }))
-        .layer(GovernorLayer::new(governor).error_handler(governor_error_response))
         .layer(trace_layer)
         .layer(SetSensitiveRequestHeadersLayer::new(std::iter::once(
             header::AUTHORIZATION,
@@ -184,6 +176,62 @@ pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Rou
         .layer(OtelInResponseLayer)
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct AuthorizedClientKeyExtractor;
+
+impl KeyExtractor for AuthorizedClientKeyExtractor {
+    type Key = String;
+
+    fn name(&self) -> &'static str {
+        "authorized client"
+    }
+
+    fn extract<T>(&self, req: &http::Request<T>) -> Result<Self::Key, GovernorError> {
+        if let Some(ip) = forwarded_client_ip(req.headers()) {
+            return Ok(format!("ip:{ip}"));
+        }
+
+        authorized_header_hash(req.headers())
+            .map(|hash| format!("auth:{hash:016x}"))
+            .ok_or(GovernorError::UnableToExtractKey)
+    }
+}
+
+fn forwarded_client_ip(headers: &http::HeaderMap) -> Option<std::net::IpAddr> {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            value
+                .split(',')
+                .find_map(|segment| segment.trim().parse::<std::net::IpAddr>().ok())
+        })
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<std::net::IpAddr>().ok())
+        })
+}
+
+fn authorized_header_hash(headers: &http::HeaderMap) -> Option<u64> {
+    let authorization = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())?;
+    let mut hasher = DefaultHasher::new();
+    authorization.hash(&mut hasher);
+    Some(hasher.finish())
+}
+
+fn request_host_parts<T>(request: &Request<T>) -> Option<(String, Option<u16>)> {
+    let authority = request
+        .headers()
+        .get("host")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<http::uri::Authority>().ok())?;
+    Some((authority.host().to_string(), authority.port_u16()))
 }
 
 fn governor_error_response(error: GovernorError) -> http::Response<Body> {

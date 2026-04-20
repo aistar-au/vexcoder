@@ -313,6 +313,10 @@ async fn test_http_router_requires_bearer_token() {
         unauthorized.headers().contains_key("x-request-id"),
         "unauthorized responses must carry x-request-id"
     );
+    assert!(
+        !unauthorized.headers().contains_key("x-ratelimit-limit"),
+        "unauthorized responses should bypass the authorized rate-limit bucket"
+    );
 
     let authorized = router
         .oneshot(

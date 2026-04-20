@@ -1,8 +1,11 @@
 use anyhow::{Context as AnyhowContext, Result};
 use opentelemetry::baggage::BaggageExt;
+use opentelemetry::propagation::Injector;
 use opentelemetry::trace::TraceContextExt;
+use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::{Context, KeyValue, global, propagation::TextMapCompositePropagator};
 use opentelemetry_sdk::propagation::{BaggagePropagator, TraceContextPropagator};
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use tracing::Span;
@@ -38,6 +41,7 @@ pub struct CliTelemetryOptions {
 
 pub struct TelemetryGuards {
     _writer_guard: WorkerGuard,
+    tracer_provider: SdkTracerProvider,
 }
 
 pub fn new_request_id() -> String {
@@ -54,7 +58,9 @@ pub fn init_cli_observability(options: CliTelemetryOptions) -> Result<Option<Tel
     let env_filter = resolve_env_filter(options)?;
     let telemetry_format = resolve_telemetry_format(options)?;
     let (writer, writer_guard) = build_telemetry_writer(options.display_internal_telemetry)?;
-    let tracer = global::tracer("vexcoder.internal");
+    let tracer_provider = SdkTracerProvider::builder().build();
+    global::set_tracer_provider(tracer_provider.clone());
+    let tracer = tracer_provider.tracer("vexcoder.internal");
     let otel_layer = tracing_opentelemetry::layer()
         .with_context_activation(true)
         .with_tracer(tracer);
@@ -96,7 +102,14 @@ pub fn init_cli_observability(options: CliTelemetryOptions) -> Result<Option<Tel
 
     Ok(Some(TelemetryGuards {
         _writer_guard: writer_guard,
+        tracer_provider,
     }))
+}
+
+impl Drop for TelemetryGuards {
+    fn drop(&mut self) {
+        let _ = self.tracer_provider.shutdown();
+    }
 }
 
 pub fn attach_standard_baggage(
@@ -145,6 +158,17 @@ pub fn record_trace_context_fields(span: &Span) {
         "otel_span_id",
         tracing::field::display(span_context.span_id()),
     );
+}
+
+pub fn inject_span_context_headers(span: &Span, headers: &mut reqwest::header::HeaderMap) {
+    let context = span.context();
+    inject_context_headers(&context, headers);
+}
+
+fn inject_context_headers(context: &Context, headers: &mut reqwest::header::HeaderMap) {
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(context, &mut HeaderInjector { headers });
+    });
 }
 
 pub fn telemetry_environment_label() -> String {
@@ -250,9 +274,29 @@ fn telemetry_tenant_id() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+struct HeaderInjector<'a> {
+    headers: &'a mut reqwest::header::HeaderMap,
+}
+
+impl Injector for HeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        let Ok(name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) else {
+            return;
+        };
+        if self.headers.contains_key(&name) {
+            return;
+        }
+        let Ok(value) = reqwest::header::HeaderValue::from_str(&value) else {
+            return;
+        };
+        self.headers.insert(name, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
 
     #[test]
     fn test_default_telemetry_log_path_uses_log_filename() {
@@ -268,6 +312,40 @@ mod tests {
         assert_eq!(
             resolve_telemetry_format(CliTelemetryOptions::default()).unwrap(),
             TelemetryFormat::Json
+        );
+    }
+
+    #[test]
+    fn test_inject_context_headers_preserves_existing_headers() {
+        install_w3c_propagation();
+
+        let parent = Context::new()
+            .with_remote_span_context(SpanContext::new(
+                TraceId::from_hex("0123456789abcdef0123456789abcdef").unwrap(),
+                SpanId::from_hex("0123456789abcdef").unwrap(),
+                TraceFlags::SAMPLED,
+                true,
+                TraceState::default(),
+            ))
+            .with_baggage(vec![KeyValue::new("request.id", "req-123".to_string())]);
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::HeaderName::from_static("traceparent"),
+            reqwest::header::HeaderValue::from_static("existing-traceparent"),
+        );
+
+        inject_context_headers(&parent, &mut headers);
+
+        assert_eq!(
+            headers
+                .get("traceparent")
+                .and_then(|value| value.to_str().ok()),
+            Some("existing-traceparent")
+        );
+        assert_eq!(
+            headers.get("baggage").and_then(|value| value.to_str().ok()),
+            Some("request.id=req-123")
         );
     }
 }

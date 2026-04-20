@@ -148,20 +148,16 @@ fn summarize_sse_payload(json_data: &str) -> Value {
     }
 }
 
-fn emit_log_message(message: &str) {
+fn emit_log_value(value: &Value) {
+    let encoded = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
     if let Some(path) = resolve_log_path()
-        && append_log_file(&path, message).is_ok()
+        && append_log_file(&path, &format!("{encoded}\n")).is_ok()
     {
         return;
     }
 
-    eprintln!("{message}");
-}
-
-fn emit_log_value(value: &Value) {
-    let encoded = serde_json::to_string(value)
-        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
-    emit_log_message(&format!("{encoded}\n"));
+    eprintln!("{encoded}");
 }
 
 fn resolve_log_path() -> Option<String> {
@@ -280,5 +276,30 @@ mod tests {
             content.contains("\"contains_tool_calls\":true"),
             "got: {content}"
         );
+    }
+
+    #[test]
+    fn test_emit_log_value_writes_single_ndjson_record_per_line() {
+        let env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _guard = crate::test_support::EnvRestore::capture(&env_lock, API_LOG_PATH_ENV);
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        crate::test_support::test_set_var(
+            &env_lock,
+            API_LOG_PATH_ENV,
+            temp.path().to_string_lossy().to_string(),
+        );
+
+        emit_debug_payload(
+            "http://127.0.0.1:8000/v1/messages",
+            &json!({"messages": []}),
+        );
+        emit_debug_payload(
+            "http://127.0.0.1:8000/v1/messages",
+            &json!({"messages": []}),
+        );
+
+        let content = std::fs::read_to_string(temp.path()).unwrap();
+        assert!(!content.contains("\n\n"), "got: {content:?}");
+        assert_eq!(content.lines().count(), 2, "got: {content:?}");
     }
 }

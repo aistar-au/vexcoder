@@ -38,6 +38,7 @@ pub(crate) async fn create_event_stream(
     http: reqwest::Client,
     request_url: &str,
     payload: &serde_json::Value,
+    serialized_payload: String,
     headers: &reqwest::header::HeaderMap,
     protocol: ModelProtocol,
     request_id: &str,
@@ -54,7 +55,7 @@ pub(crate) async fn create_event_stream(
         // Intentional deviation from the browser EventSource interface: the
         // upstream APIs require POST bodies for streamed generation.
         .method("POST".to_string())
-        .body(payload.to_string())
+        .body(serialized_payload)
         // Reconnect stays disabled for POST streaming requests. Replaying a
         // partial generation would not be idempotent and could duplicate work.
         .reconnect(ReconnectOptions::reconnect(false).build());
@@ -710,6 +711,7 @@ fn local_connect_retry_backoff() -> backoff::ExponentialBackoff {
     let mut builder = ExponentialBackoffBuilder::new();
     builder
         .with_initial_interval(LOCAL_CONNECT_RETRY_INITIAL_INTERVAL)
+        .with_randomization_factor(0.0)
         .with_multiplier(2.0)
         .with_max_interval(LOCAL_CONNECT_RETRY_MAX_INTERVAL)
         .with_max_elapsed_time(Some(LOCAL_CONNECT_RETRY_MAX_ELAPSED));
@@ -784,7 +786,11 @@ where
 mod tests {
     use super::*;
     use crate::runtime::RuntimeEvent;
+    use axum::Router;
+    use axum::routing::get;
     use futures::stream;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test]
     async fn eof_still_flushes_provider_normalized_turn_end() {
@@ -816,5 +822,133 @@ mod tests {
 
         assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
         assert!(next_stream_event(&mut state).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn retry_local_connect_errors_retries_connect_failures_for_local_endpoints() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+
+        let server = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            axum::serve(
+                listener,
+                Router::new().route("/health", get(|| async { "ok" })),
+            )
+            .await
+            .unwrap();
+        });
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let result = retry_local_connect_errors(
+            &format!("http://{addr}/v1/messages"),
+            "req-local-retry",
+            "test_connect_retry",
+            || {
+                let client = client.clone();
+                let attempts = Arc::clone(&attempts);
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    client.get(format!("http://{addr}/health")).send().await
+                }
+            },
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "expected retry to eventually succeed: {result:?}"
+        );
+        assert!(attempts.load(Ordering::SeqCst) > 1);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn retry_local_connect_errors_does_not_retry_non_local_connect_errors() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(20))
+            .build()
+            .unwrap();
+
+        let result = retry_local_connect_errors(
+            "https://model.example.internal/v1/messages",
+            "req-remote-connect",
+            "test_remote_no_retry",
+            || {
+                let client = client.clone();
+                let attempts = Arc::clone(&attempts);
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    client.get("http://127.0.0.1:9/health").send().await
+                }
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_local_connect_errors_does_not_retry_non_connect_errors() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let client = reqwest::Client::new();
+
+        let result = retry_local_connect_errors(
+            "http://127.0.0.1:8000/v1/messages",
+            "req-local-non-connect",
+            "test_builder_error",
+            || {
+                let client = client.clone();
+                let attempts = Arc::clone(&attempts);
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    client.get("http://[").send().await
+                }
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_local_connect_errors_stops_after_max_elapsed_time() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let start = Instant::now();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(20))
+            .build()
+            .unwrap();
+
+        let result = retry_local_connect_errors(
+            "http://127.0.0.1:9/v1/messages",
+            "req-local-timeout",
+            "test_max_elapsed",
+            || {
+                let client = client.clone();
+                let attempts = Arc::clone(&attempts);
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    client.get("http://127.0.0.1:9/health").send().await
+                }
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert!(start.elapsed() >= LOCAL_CONNECT_RETRY_INITIAL_INTERVAL);
+        assert!(start.elapsed() < LOCAL_CONNECT_RETRY_MAX_ELAPSED);
     }
 }

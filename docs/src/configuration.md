@@ -319,6 +319,10 @@ Model identifier sent to the API.
 
 Overrides protocol inference. Accepted values: `messages-v1`, `chat-compat`.
 
+The runtime still probes local endpoints and records the server-native protocol
+for transport diagnostics. Use this override only when a server needs an
+explicit wire-protocol pin instead of the discovered default.
+
 ### `VEX_MODEL_BACKEND`
 
 Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
@@ -343,6 +347,10 @@ Overrides the working directory used for tool execution.
 ### `VEX_MODEL_HEADERS_JSON`
 
 Adds extra request headers as a JSON object.
+
+Operator-supplied headers are preserved when internal tracing is enabled. The
+runtime injects `x-request-id` and W3C trace context headers only when they are
+not already present.
 
 Example:
 
@@ -374,6 +382,27 @@ Controls the timeout used by context-related git commands.
 - Default: `2000`.
 - Applies to automatic git context when `VEX_CONTEXT_INCLUDE_GIT=1` and to the
   existing review helpers that call git through the shared runtime wrapper.
+
+## API tracing and startup retries
+
+- `--display-internal-telemetry` mirrors internal transport logs to stderr.
+- `--telemetry-json` switches those logs to NDJSON/JSONL output.
+- `VEX_INTERNAL_TELEMETRY_PATH` writes internal telemetry to a file instead of
+  stderr.
+- `VEX_TELEMETRY_FORMAT=json` is the environment equivalent of
+  `--telemetry-json`.
+- `VEX_TELEMETRY_ENVIRONMENT` and `VEX_TELEMETRY_TENANT_ID` add baggage fields
+  to request-scoped spans.
+
+When telemetry is enabled, the CLI installs a local OpenTelemetry tracer
+provider, propagates W3C `traceparent` and `baggage` headers on outbound model
+requests, and records structural payload summaries instead of raw prompts or tool
+arguments.
+
+Local API rate limiting applies only after bearer-token authorization succeeds.
+Authorized requests are bucketed per forwarded client IP when available and
+otherwise by an authorization-header-derived key, so unauthenticated callers do
+not consume the same limit bucket as valid local clients.
 
 ### `VEX_DISK_POLICY`
 
