@@ -61,7 +61,7 @@ impl TuiMode {
     /// Derive structured timeline entries from accepted task state.
     ///
     /// Implements ADR-031 Batch B by deriving both the structured timeline
-    /// and the legacy activity summary from the same task-owned step views.
+    /// and the earlier activity summary from the same task-owned step views.
     ///
     /// Each derived entry carries lifecycle, label, and inspector detail so
     /// the renderer can highlight the selected step and show its content in

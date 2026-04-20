@@ -236,25 +236,25 @@ fn test_tui_resume_restores_legacy_subdir_state() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".git")).unwrap();
     let nested = temp.path().join("src/nested");
-    let legacy_state_dir = nested.join(".vex/state");
-    std::fs::create_dir_all(&legacy_state_dir).unwrap();
+    let saved_state_dir = nested.join(".vex/state");
+    std::fs::create_dir_all(&saved_state_dir).unwrap();
 
-    let mut saved = TaskState::new("task-legacy-ui".to_string());
+    let mut saved = TaskState::new("task-saved-ui".to_string());
     saved.status = crate::runtime::TaskStatus::Completed;
-    saved.save(&legacy_state_dir).unwrap();
+    saved.save(&saved_state_dir).unwrap();
 
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     std::env::set_current_dir(&nested).unwrap();
 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.on_user_input("/resume task-legacy-ui".to_string(), &mut ctx);
+    mode.on_user_input("/resume task-saved-ui".to_string(), &mut ctx);
 
     std::env::set_current_dir(old_cwd).unwrap();
 
-    assert_eq!(mode.current_task_id(), "task-legacy-ui");
+    assert_eq!(mode.current_task_id(), "task-saved-ui");
     assert!(
-        mode.history_lines()[0].contains("[resumed: task-legacy-ui status=Completed]"),
+        mode.history_lines()[0].contains("[resumed: task-saved-ui status=Completed]"),
         "expected resume confirmation in history"
     );
 }

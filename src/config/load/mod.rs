@@ -290,7 +290,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             if parse_model_protocol(v.clone()).is_none() {
                 bail!(
                     "Invalid VEX_MODEL_PROTOCOL '{}': expected one of \
-                     messages-v1, messages_v1, messages, v1, chat-compat, chat_compat, chat",
+                     messages-v1, chat-compat",
                     v
                 );
             }
@@ -304,7 +304,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             if parse_model_backend(v.clone()).is_none() {
                 bail!(
                     "Invalid VEX_MODEL_BACKEND '{}': expected one of \
-                     local-runtime, local_runtime, local, api-server, api_server, api, remote",
+                     local-runtime, api-server",
                     v
                 );
             }
@@ -502,7 +502,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     {
         bail!(
             "config file '{}': invalid model_backend '{}': expected one of \
-                 local-runtime, local_runtime, local, api-server, api_server, api, remote",
+                 local-runtime, api-server",
             path.display(),
             s
         );
@@ -512,7 +512,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     {
         bail!(
             "config file '{}': invalid model_protocol '{}': expected one of \
-                 messages-v1, messages_v1, messages, v1, chat-compat, chat_compat, chat",
+                 messages-v1, chat-compat",
             path.display(),
             s
         );
@@ -531,7 +531,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         && parse_sandbox_kind(s.clone()).is_none()
     {
         bail!(
-            "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container, bubblewrap, bwrap, linux-bwrap",
+            "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, container, bubblewrap",
             path.display(),
             s
         );
@@ -586,7 +586,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
 mod resolve;
 use resolve::*;
 
-pub(super) use resolve::{default_model_backend, default_tool_call_mode, migrate_config_from_env};
+pub(super) use resolve::{default_model_backend, default_tool_call_mode};
 
 #[cfg(test)]
 mod tests;

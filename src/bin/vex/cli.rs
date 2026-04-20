@@ -112,11 +112,6 @@ pub(super) enum Commands {
     Branch { name: String },
     /// Generate a proposed pull request title and body for the current branch.
     PrSummary,
-    /// Configuration migration utilities.
-    Migrate {
-        #[command(subcommand)]
-        sub: MigrateCommands,
-    },
     /// Check environment health without starting the agent loop.
     Doctor {
         #[arg(long)]
@@ -223,15 +218,4 @@ pub(super) enum TaskCommands {
     /// Write the todos projection to `.vex/state/projections/todos.json`
     /// and print the file path.  Creates or replaces the file atomically.
     ExportTodos,
-}
-
-#[derive(Subcommand)]
-pub(super) enum MigrateCommands {
-    /// Map pre-ADR-022 VEX_* env var values to current config.toml keys.
-    /// Reads from the environment and writes a fragment to stdout by default.
-    /// Non-destructive unless `--output <path>` is passed explicitly.
-    Config {
-        #[arg(long)]
-        output: Option<PathBuf>,
-    },
 }

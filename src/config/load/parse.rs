@@ -6,16 +6,16 @@ use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxKind, ToolCallMode}
 
 pub(crate) fn parse_model_backend(value: String) -> Option<ModelBackendKind> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "local-runtime" | "local_runtime" | "local" => Some(ModelBackendKind::LocalRuntime),
-        "api-server" | "api_server" | "api" | "remote" => Some(ModelBackendKind::ApiServer),
+        "local-runtime" => Some(ModelBackendKind::LocalRuntime),
+        "api-server" => Some(ModelBackendKind::ApiServer),
         _ => None,
     }
 }
 
 pub(crate) fn parse_model_protocol(value: String) -> Option<ModelProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
-        "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
+        "messages-v1" => Some(ModelProtocol::MessagesV1),
+        "chat-compat" => Some(ModelProtocol::ChatCompat),
         _ => None,
     }
 }
@@ -39,10 +39,10 @@ pub(crate) fn parse_api_transport(value: String) -> Option<ApiTransport> {
 pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
     match value.trim().to_ascii_lowercase().as_str() {
         "passthrough" => Some(SandboxKind::Passthrough),
-        "macos-exec" | "macos_exec" => Some(SandboxKind::MacosExec),
+        "macos-exec" => Some(SandboxKind::MacosExec),
         "container" => Some(SandboxKind::Container),
         // Gap 36: Linux userspace sandbox via bubblewrap.
-        "bubblewrap" | "bwrap" | "linux-bwrap" => Some(SandboxKind::Bubblewrap),
+        "bubblewrap" => Some(SandboxKind::Bubblewrap),
         _ => None,
     }
 }

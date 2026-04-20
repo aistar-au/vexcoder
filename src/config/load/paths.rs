@@ -29,17 +29,7 @@ pub(crate) fn find_repo_root(cwd: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn user_config_path() -> Option<PathBuf> {
-    let primary = user_config_xdg_path();
-    if primary.as_ref().is_some_and(|path| path.exists()) {
-        return primary;
-    }
-
-    let legacy = user_config_legacy_path();
-    if legacy.as_ref().is_some_and(|path| path.exists()) {
-        return legacy;
-    }
-
-    primary.or(legacy)
+    user_config_xdg_path()
 }
 
 fn env_path(key: &str) -> Option<PathBuf> {
@@ -56,10 +46,6 @@ fn user_config_xdg_path() -> Option<PathBuf> {
     env_path("XDG_CONFIG_HOME")
         .or_else(dirs::config_dir)
         .map(|d| d.join("vex").join("config.toml"))
-}
-
-fn user_config_legacy_path() -> Option<PathBuf> {
-    preferred_home_dir().map(|home| home.join(".vex").join("config.toml"))
 }
 
 pub(crate) fn system_config_path() -> Option<PathBuf> {

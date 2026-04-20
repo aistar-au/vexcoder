@@ -81,7 +81,7 @@ fn test_api_client_config_defaults_probe_timeout_ms() {
 }
 
 #[test]
-fn test_api_client_explicit_protocol_accepts_canonical_name() {
+fn test_api_client_explicit_protocol_accepts_supported_name() {
     let cwd = tempfile::tempdir().unwrap();
     let user_cfg = tempfile::tempdir().unwrap();
     let user_cfg_file = user_cfg.path().join("config.toml");
@@ -102,6 +102,30 @@ fn test_api_client_explicit_protocol_accepts_canonical_name() {
     assert_eq!(
         config.api_client.explicit_protocol,
         Some(crate::runtime::ModelProtocol::ChatCompat)
+    );
+}
+
+#[test]
+fn test_api_client_explicit_protocol_rejects_short_alias() {
+    let cwd = tempfile::tempdir().unwrap();
+    let user_cfg = tempfile::tempdir().unwrap();
+    let user_cfg_file = user_cfg.path().join("config.toml");
+    std::fs::write(
+        &user_cfg_file,
+        concat!(
+            "model_url = \"http://127.0.0.1:8000/v1\"\n",
+            "model_name = \"local-model\"\n",
+            "[api_client]\n",
+            "base_url = \"http://127.0.0.1:8787\"\n",
+            "explicit_protocol = \"chat\"\n",
+        ),
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap_err();
+    assert!(
+        format!("{error:#}").contains("invalid api_client.explicit_protocol"),
+        "unexpected error: {error:#}"
     );
 }
 
@@ -280,7 +304,7 @@ fn test_api_vpn_trust_true_is_rejected() {
 }
 
 #[test]
-fn test_invalid_model_backend_error_lists_remote_alias() {
+fn test_invalid_model_backend_error_lists_supported_values() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_BACKEND", "unsupported-value");
 
@@ -288,10 +312,70 @@ fn test_invalid_model_backend_error_lists_remote_alias() {
     let msg = format!("{err:#}");
 
     assert!(
-        msg.contains("remote"),
-        "expected remote alias in error: {msg}"
+        msg.contains("local-runtime, api-server"),
+        "expected supported values in error: {msg}"
+    );
+    assert!(
+        !msg.contains("local_runtime"),
+        "unexpected alias in error: {msg}"
+    );
+    assert!(
+        !msg.contains("api_server"),
+        "unexpected alias in error: {msg}"
+    );
+    assert!(!msg.contains("remote"), "unexpected alias in error: {msg}");
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_BACKEND");
+}
+
+#[test]
+fn test_obsolete_model_backend_alias_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::test_support::test_set_var(&_lock, "VEX_MODEL_BACKEND", "remote");
+
+    let err = super::read_env_layer().unwrap_err();
+
+    assert!(
+        format!("{err:#}").contains("Invalid VEX_MODEL_BACKEND"),
+        "unexpected error: {err:#}"
     );
     crate::test_support::test_remove_var(&_lock, "VEX_MODEL_BACKEND");
+}
+
+#[test]
+fn test_invalid_model_protocol_error_lists_supported_values() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::test_support::test_set_var(&_lock, "VEX_MODEL_PROTOCOL", "unsupported-value");
+
+    let err = super::read_env_layer().unwrap_err();
+    let msg = format!("{err:#}");
+
+    assert!(
+        msg.contains("messages-v1, chat-compat"),
+        "expected supported values in error: {msg}"
+    );
+    assert!(
+        !msg.contains("messages_v1"),
+        "unexpected alias in error: {msg}"
+    );
+    assert!(
+        !msg.contains("chat_compat"),
+        "unexpected alias in error: {msg}"
+    );
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_PROTOCOL");
+}
+
+#[test]
+fn test_obsolete_model_protocol_alias_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::test_support::test_set_var(&_lock, "VEX_MODEL_PROTOCOL", "chat");
+
+    let err = super::read_env_layer().unwrap_err();
+
+    assert!(
+        format!("{err:#}").contains("Invalid VEX_MODEL_PROTOCOL"),
+        "unexpected error: {err:#}"
+    );
+    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_PROTOCOL");
 }
 
 #[test]
@@ -309,7 +393,7 @@ fn test_obsolete_tool_call_mode_alias_is_rejected() {
 }
 
 #[test]
-fn test_invalid_tool_call_mode_error_lists_canonical_value() {
+fn test_invalid_tool_call_mode_error_lists_supported_value() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_TOOL_CALL_MODE", "unsupported-value");
 
@@ -318,7 +402,7 @@ fn test_invalid_tool_call_mode_error_lists_canonical_value() {
 
     assert!(
         msg.contains("structured"),
-        "expected canonical value in error: {msg}"
+        "expected supported value in error: {msg}"
     );
     assert!(
         !msg.contains("structured_tool_calls"),
@@ -349,20 +433,22 @@ fn test_user_config_path_prefers_xdg_config_home() {
 }
 
 #[test]
-fn test_user_config_path_falls_back_to_home_config() {
+fn test_user_config_path_ignores_old_home_config() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _home = EnvRestore::capture(&_lock, "HOME");
     let _xdg = EnvRestore::capture(&_lock, "XDG_CONFIG_HOME");
     let temp = tempfile::tempdir().unwrap();
+    let xdg_root = temp.path().join("xdg-root");
     let home = temp.path().join("home");
-    let fallback_path = home.join(".vex").join("config.toml");
+    let xdg_path = xdg_root.join("vex").join("config.toml");
+    let old_home_path = home.join(".vex").join("config.toml");
 
-    std::fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
-    std::fs::write(&fallback_path, "model_name = \"fallback\"\n").unwrap();
+    std::fs::create_dir_all(old_home_path.parent().unwrap()).unwrap();
+    std::fs::write(&old_home_path, "model_name = \"fallback\"\n").unwrap();
     crate::test_support::test_set_var(&_lock, "HOME", &home);
-    crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME");
+    crate::test_support::test_set_var(&_lock, "XDG_CONFIG_HOME", &xdg_root);
 
-    assert_eq!(super::user_config_path(), Some(fallback_path));
+    assert_eq!(super::user_config_path(), Some(xdg_path));
 }
 
 #[test]
@@ -604,52 +690,6 @@ fn test_model_profile_loaded_from_layered_config() {
     assert_eq!(cfg.tool_call_mode, cfg.model_profile.tool_call_mode());
 }
 
-#[test]
-fn test_migrate_maps_structured_tool_protocol_on() {
-    let out = super::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "on")]);
-    assert!(out.contains("tool_call_mode = \"structured\""), "{out}");
-}
-
-#[test]
-fn test_migrate_maps_structured_tool_protocol_off() {
-    let out = super::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "off")]);
-    assert!(
-        out.contains("structured tool transport is always enabled"),
-        "{out}"
-    );
-}
-
-#[test]
-fn test_migrate_strips_v1_messages_suffix_from_url() {
-    let out = super::migrate_config_from_env(&[(
-        "VEX_MODEL_URL",
-        "https://api.example.internal/v1/messages",
-    )]);
-    assert!(
-        out.contains("model_url = \"https://api.example.internal\""),
-        "{out}"
-    );
-    assert!(!out.contains("/v1/messages"), "{out}");
-}
-
-#[test]
-fn test_migrate_empty_env_produces_only_header_comments() {
-    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    let _api_protocol = EnvRestore::capture(&_lock, "VEX_API_PROTOCOL");
-    let _structured_tool_protocol = EnvRestore::capture(&_lock, "VEX_STRUCTURED_TOOL_PROTOCOL");
-    let _model_url = EnvRestore::capture(&_lock, "VEX_MODEL_URL");
-    crate::test_support::test_remove_var(&_lock, "VEX_API_PROTOCOL");
-    crate::test_support::test_remove_var(&_lock, "VEX_STRUCTURED_TOOL_PROTOCOL");
-    crate::test_support::test_remove_var(&_lock, "VEX_MODEL_URL");
-
-    let out = super::migrate_config_from_env(&[]);
-    assert!(
-        out.starts_with("# generated by vex migrate config"),
-        "{out}"
-    );
-    assert_eq!(out.lines().count(), 2);
-}
-
 // ---------------------------------------------------------------------------
 // TOML file layer validation
 // ---------------------------------------------------------------------------
@@ -768,6 +808,23 @@ fn test_invalid_sandbox_kind_in_config_file_is_rejected() {
     assert!(
         msg.contains("sandbox") && msg.contains("bogus"),
         "expected sandbox error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_obsolete_sandbox_alias_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "sandbox = \"bwrap\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("sandbox") && msg.contains("bwrap"),
+        "expected sandbox alias rejection, got: {msg}"
     );
 }
 

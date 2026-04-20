@@ -8,7 +8,7 @@ The CLI app keeps all task-state discovery on a bounded path.
 passing `None` as the limit applies the budget default automatically. Directory
 entries are streamed directly into the selector so no call site materialises a
 full per-directory `Vec<TaskStateFile>` before truncation. Newest copies win
-when the same task id exists in both the workspace and legacy fallback
+when the same task id exists in both the workspace and fallback search
 directories.
 
 Cold-start scans read a small header projection from each selected task-state
@@ -18,7 +18,7 @@ skipping the large turn-history, approval, and command-evidence collections.
 
 Production cold-start paths currently use header-only scans plus direct
 candidate loads. The process-global header cache is keyed by full path so the
-workspace directory and legacy fallback directory do not alias when they carry
+workspace directory and fallback directory do not alias when they carry
 the same task id. `LazyTaskHandle` remains test-only support code rather than a
 shipped runtime abstraction.
 

@@ -1,6 +1,6 @@
 //! JSON Web Token validation and generation.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|

@@ -197,7 +197,7 @@ mod tests {
         assert!(!is_auto_note_line(
             "manual note mentioning [auto] in passing"
         ));
-        assert!(!is_auto_note_line("[auto] legacy auto line"));
+        assert!(!is_auto_note_line("[auto] older-format auto line"));
     }
 
     #[test]

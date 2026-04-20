@@ -44,10 +44,10 @@ distinct problem:
 
 | Tool | Purpose | Manifest change? |
 | :--- | :--- | :--- |
-| `cargo deny` | Security advisories, license compliance, graph quality | No |
+| `cargo deny` | Security advisories, license checks, graph quality | No |
 | `cargo machete` | Detects unused direct dependencies in `Cargo.toml` | No |
 | `cargo outdated` | Reports which direct requirements have newer releases | No |
-| `cargo semver-checks` | Verifies library crate API compatibility after upgrades | No |
+| `cargo semver-checks` | Verifies library crate API shape after upgrades | No |
 | `cargo upgrade` | Edits `Cargo.toml` requirement strings to latest compatible version | Yes |
 | `cargo update` | Refreshes `Cargo.lock` to newest versions allowed by existing requirements | No |
 

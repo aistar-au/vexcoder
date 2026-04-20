@@ -1,6 +1,6 @@
 //! HTTP body compression/decompression.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|

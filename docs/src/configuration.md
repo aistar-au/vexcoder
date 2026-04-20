@@ -414,7 +414,7 @@ Controls the disk-policy enforcement mode (ADR-038).
 ### `VEX_SANDBOX`
 
 Selects the command sandbox driver. Accepted values: `passthrough`,
-`macos-exec`, `container`, `bubblewrap`, `bwrap`, `linux-bwrap`.
+`macos-exec`, `container`, `bubblewrap`.
 
 - `passthrough` preserves the current process-spawn behavior.
 - `macos-exec` wraps commands with `sandbox-exec` on macOS.
@@ -424,7 +424,7 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
   mounts core system directories read-only, adds read-only mounts for common
   host toolchain roots derived from `PATH`, `CARGO_HOME`, and `RUSTUP_HOME`,
   and disables network by default.
-- The built-in `macos-exec` default is intentionally compatibility-first: it
+- The built-in `macos-exec` profile keeps broad access by default: it
   allows broad file access, network access, process spawning, IPC lookups, and
   signals so common development tools continue to work. Use a custom profile if
   you need stricter containment than process wrapping plus policy hooks.
@@ -434,7 +434,7 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
 Optional sandbox driver parameter.
 
 - For `macos-exec`, this is a profile path. When unset, the runtime uses a
-  built-in compatibility-focused policy string.
+  built-in permissive policy string.
 - For `container`, this is the image name passed to the container runtime.
   Startup runs a short `run --rm <image> true` probe through that runtime so
   the selected image is validated before the first wrapped command.

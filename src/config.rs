@@ -219,8 +219,8 @@ pub(crate) struct AutoMemoryConfigLayer {
 
 fn parse_api_client_protocol_override(value: &str) -> Option<ModelProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
-        "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
+        "messages-v1" => Some(ModelProtocol::MessagesV1),
+        "chat-compat" => Some(ModelProtocol::ChatCompat),
         _ => None,
     }
 }
@@ -620,8 +620,4 @@ impl Config {
 
 pub fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
     load::doctor_rollup(cwd)
-}
-
-pub fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
-    load::migrate_config_from_env(envs)
 }

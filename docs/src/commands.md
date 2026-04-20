@@ -129,10 +129,6 @@ The result prints to stdout. The current template starts with a `Title:` line
 followed by a Markdown body, so you can review it on your workstation or pipe it into your
 own git-hosting CLI workflow.
 
-### `vex migrate config [--output PATH]`
-
-Writes a TOML fragment based on older environment variables.
-
 ### `vex completions <bash|zsh|fish|powershell>`
 
 Writes shell completion scripts to stdout.

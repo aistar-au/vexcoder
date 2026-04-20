@@ -30,19 +30,7 @@ mod cli;
 #[path = "vex/tests.rs"]
 mod tests;
 
-use self::cli::{
-    Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands, TaskCommands,
-};
-
-fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
-    let fragment = vexcoder::config::migrate_config_from_env(&[]);
-    if let Some(path) = output_path {
-        std::fs::write(path, fragment)?;
-    } else {
-        print!("{}", fragment);
-    }
-    Ok(())
-}
+use self::cli::{Cli, Commands, CredentialsCommands, SkillsCommands, TaskCommands};
 
 // ── PM-01: resolve task state for --recall-coordinates ───────────────────────
 
@@ -492,12 +480,6 @@ async fn main() -> Result<ExitCode> {
             print!("{rendered}");
             return Ok(ExitCode::SUCCESS);
         }
-        Some(Commands::Migrate { sub }) => match sub {
-            MigrateCommands::Config { output } => {
-                emit_migrate_config_output(output.as_deref())?;
-                return Ok(ExitCode::SUCCESS);
-            }
-        },
         Some(Commands::Doctor { json }) => {
             let cwd = std::env::current_dir()?;
             let report = run_doctor(&cwd).await;

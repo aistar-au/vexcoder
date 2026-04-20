@@ -1,6 +1,6 @@
 //! Shared outbound HTTP client profile for workspace-owned transport seams.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|
