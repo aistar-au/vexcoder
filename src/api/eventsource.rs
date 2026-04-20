@@ -152,10 +152,11 @@ async fn create_non_stream_fallback_stream(
         ));
     }
 
+    let request_url_for_logs = crate::runtime::rewrite_url_for_logs(request_url);
     let envelopes = normalize_non_stream_response(protocol, &body).with_context(|| {
         format!(
             "failed to normalize non-streaming fallback response from '{}'",
-            request_url
+            request_url_for_logs
         )
     })?;
 
@@ -214,7 +215,6 @@ fn normalize_non_stream_response(
                             .get("stop_sequence")
                             .cloned()
                             .unwrap_or(Value::Null),
-                        "usage": response.get("usage").cloned().unwrap_or(Value::Null),
                     }
                 }),
             )?;

@@ -374,6 +374,22 @@ async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
             ..
         } if tool_name == "read_file" && arguments.get("path") == Some(&json!("src/lib.rs"))
     )));
+    let usage_updates: Vec<(u64, u64)> = envelopes
+        .iter()
+        .filter_map(|envelope| match &envelope.event {
+            RuntimeEvent::UsageUpdated { usage } => Some((usage.input, usage.output)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(usage_updates, vec![(11, 3)]);
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TurnEnd {
+            status,
+            usage: Some(usage),
+            ..
+        } if status == "completed" && usage.input == 11 && usage.output == 3
+    )));
     assert!(
         !envelopes
             .iter()

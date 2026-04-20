@@ -91,13 +91,13 @@ runtime therefore coalesces streamed tool calls by array index at ingress and
 projects parsed JSON values downstream instead of exposing raw object-member
 ordering or transport-fragment details.
 
-For same-machine local endpoints, the client also protects the accepted
-boundary against stalled `stream = true` requests. If the local server accepts
-the request but does not emit an initial SSE event promptly, the client retries
-once with `stream = false` and feeds the JSON response through the same ingress
-normalizer. The CLI and ratatui consumers therefore continue to observe the
-same typed runtime events even when the local runtime varies between SSE and
-full-response delivery.
+For local and private-network endpoints, the client also protects the accepted
+boundary against stalled `stream = true` requests. If the local or
+private-network server accepts the request but does not emit an initial SSE
+event promptly, the client retries once with `stream = false` and feeds the
+JSON response through the same ingress normalizer. The CLI and ratatui
+consumers therefore continue to observe the same typed runtime events even
+when the endpoint varies between SSE and full-response delivery.
 
 These paths are distinct from `regex-lite` processing. `regex-lite` is used
 for git output parsing, secret rewriting, and rate-limit extraction; it is not
@@ -215,7 +215,7 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
-- Same-machine local inference runtimes commonly expose only plain HTTP. That
+- Local and private-network inference runtimes commonly expose only plain HTTP. That
   remains supported when you connect via `localhost`,
   `127.x.x.x`, `::1`, or `0.0.0.0`. LAN-reachable model servers on
   RFC 1918 private addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`)
@@ -227,10 +227,10 @@ The full model endpoint URL.
 - For non-context-overflow 400s, the error includes the inferred protocol
   (MessagesV1 vs ChatCompat) and suggests checking the model name, protocol
   format, and whether the server supports streaming.
-- If a same-machine local endpoint accepts `stream = true` but does not emit an
-  initial SSE event promptly, the client retries once with `stream = false`
-  and normalizes the JSON response through the same API boundary instead of
-  exposing a second downstream parser.
+- If a local or private-network endpoint accepts `stream = true` but does not
+  emit an initial SSE event promptly, the client retries once with
+  `stream = false` and normalizes the JSON response through the same API
+  boundary instead of exposing a second downstream parser.
 
 ### `VEX_MODEL_TOKEN`
 

@@ -108,6 +108,9 @@ they still serve renderer or envelope-projection duties.
   encodings seen in practice: streamed JSON fragments and fully materialized
   JSON values. Both are converted to one typed runtime contract before the
   consumer surface receives them.
+- Official local-runtime API docs also advertise both streaming and
+  non-streaming response modes, so keeping that retry inside API ingress is an
+  interoperability measure rather than a second consumer-side protocol path.
 - Live validation against `http://127.0.0.1:8000` showed a second local-server
   variation: `stream = true` requests for both `/v1/messages` and
   `/v1/chat/completions` could complete only after the client retried with

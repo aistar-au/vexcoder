@@ -66,7 +66,7 @@ Remaining follow-up is limited to:
 
 - splitting `src/runtime/json_handoff.rs` into companion modules as the
   accepted contract grows
-- documenting and maintaining the same-machine local fallback from stalled
+- documenting and maintaining the local/private-network fallback from stalled
   SSE startup to one `stream = false` retry through the accepted normalizer
 - adding resumable replay semantics when the transport layer is ready for
   stable event IDs and replay tokens
