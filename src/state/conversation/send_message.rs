@@ -131,7 +131,15 @@ impl ConversationManager {
                     rounds -= 1;
                     continue;
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    self.finish_turn_doc(
+                        TurnOutcome::Failed {
+                            message: e.to_string(),
+                        },
+                        turn_tokens,
+                    );
+                    return Err(e);
+                }
             };
             let mut assistant_text = String::new();
             let mut tool_use_blocks = Vec::new();
@@ -142,7 +150,18 @@ impl ConversationManager {
             let mut completed_tool_call_ids = HashSet::new();
             let mut saw_usage_update = false;
             while let Some(event_result) = stream.next().await {
-                let event = event_result?.event;
+                let event = match event_result {
+                    Ok(envelope) => envelope.event,
+                    Err(error) => {
+                        self.finish_turn_doc(
+                            TurnOutcome::Failed {
+                                message: error.to_string(),
+                            },
+                            turn_tokens,
+                        );
+                        return Err(error);
+                    }
+                };
 
                 match event.clone() {
                     RuntimeEvent::TurnStart { .. } => {}

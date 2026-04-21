@@ -426,6 +426,10 @@ fn local_connect_retry_backoff() -> backoff::ExponentialBackoff {
     builder.build()
 }
 
+fn should_retry_local_startup_error(error: &reqwest::Error) -> bool {
+    error.status().is_none() && (error.is_connect() || error.is_timeout())
+}
+
 async fn retry_local_connect_errors<T, Op, Fut>(
     request_url: &str,
     request_id: &str,
@@ -469,7 +473,7 @@ where
                 }
                 return Ok(result);
             }
-            Err(error) if error.is_connect() => {
+            Err(error) if should_retry_local_startup_error(&error) => {
                 let Some(delay) = backoff.next_backoff() else {
                     return Err(error);
                 };
@@ -481,7 +485,7 @@ where
                     operation = operation_name,
                     error = %error,
                     next_delay_ms,
-                    "local API endpoint not ready; retrying connect failure with backoff"
+                    "local API endpoint not ready; retrying startup request failure with backoff"
                 );
                 tokio::time::sleep(delay).await;
             }

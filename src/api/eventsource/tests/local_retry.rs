@@ -135,8 +135,9 @@ async fn retry_local_connect_errors_does_not_retry_non_connect_errors() {
 async fn retry_local_connect_errors_stops_after_max_elapsed_time() {
     let attempts = Arc::new(AtomicUsize::new(0));
     let start = Instant::now();
+    let request_timeout = Duration::from_millis(20);
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(20))
+        .timeout(request_timeout)
         .build()
         .unwrap();
 
@@ -156,7 +157,10 @@ async fn retry_local_connect_errors_stops_after_max_elapsed_time() {
     .await;
 
     assert!(result.is_err());
-    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert!(attempts.load(Ordering::SeqCst) >= 2);
     assert!(start.elapsed() >= LOCAL_CONNECT_RETRY_INITIAL_INTERVAL);
-    assert!(start.elapsed() < LOCAL_CONNECT_RETRY_MAX_ELAPSED);
+    assert!(
+        start.elapsed()
+            < LOCAL_CONNECT_RETRY_MAX_ELAPSED + LOCAL_CONNECT_RETRY_MAX_INTERVAL + request_timeout
+    );
 }

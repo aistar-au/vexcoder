@@ -416,6 +416,50 @@ async fn test_chat_compat_stream_tool_call_round_trip() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_send_message_error_closes_failed_turn_before_retry() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    let first_error = manager
+        .send_message("first".to_string(), None)
+        .await
+        .expect_err("empty mock queue must fail");
+    assert!(
+        first_error
+            .to_string()
+            .contains("No more responses configured")
+    );
+
+    let task_doc = manager.task_doc().expect("task document after failure");
+    assert!(task_doc.active_turn.is_none());
+    assert_eq!(task_doc.completed_turns.len(), 1);
+    assert!(matches!(
+        &task_doc.completed_turns[0].outcome,
+        crate::runtime::task_document::TurnOutcome::Failed { message }
+            if message.contains("No more responses configured")
+    ));
+
+    let second_error = manager
+        .send_message("second".to_string(), None)
+        .await
+        .expect_err("subsequent failure must return an error instead of panicking");
+    assert!(
+        second_error
+            .to_string()
+            .contains("No more responses configured")
+    );
+
+    let task_doc = manager
+        .task_doc()
+        .expect("task document after retry failure");
+    assert!(task_doc.active_turn.is_none());
+    assert_eq!(task_doc.completed_turns.len(), 2);
+}
+
 #[tokio::test]
 async fn test_local_endpoint_retries_once_when_tool_evidence_required() -> Result<()> {
     let first_response_sse = vec![
