@@ -1069,7 +1069,7 @@ mod tests {
         });
 
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(50))
+            .timeout(Duration::from_millis(200))
             .build()
             .unwrap();
         let result = retry_local_connect_errors(
