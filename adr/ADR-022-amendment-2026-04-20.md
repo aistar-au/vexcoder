@@ -7,7 +7,7 @@
 
 ## Summary
 
-Replaces the ad-hoc flag surface inherited from the pre-normalization era with
+Replaces the ad-hoc flag surface inherited from the pre-normalization CLI with
 exactly ten semantic flags aligned to the single normalized API consumer path
 and the ratatui-native TUI stack. Removes `--chat-compat` and the CLI-level
 `ModelProtocol::ChatCompat` override as the ChatCompat alternative routing path
