@@ -1,9 +1,12 @@
 //! Live local server integration tests.
 //!
-//! These tests exercise the API client configuration and protocol detection
-//! against a real inference server. They require a running server and are
-//! skipped when no server is reachable. No inference calls are made — only
-//! the `/v1/models` endpoint is probed.
+//! This file mixes two kinds of coverage:
+//! - smoke tests that probe a real local inference server when one is running
+//! - in-process axum fixtures that exercise stalled-stream fallback,
+//!   protocol discovery, and tool-call normalization end to end
+//!
+//! The smoke tests are skipped when no external server is reachable. The mock
+//! transport tests always run because they host their own local endpoints.
 //!
 //! Configuration:
 //!   VEX_LIVE_SERVER_URL — base URL of the local server (default: http://localhost:8000)
