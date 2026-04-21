@@ -848,7 +848,7 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
 /// coalesces partial JSON fragments arriving across three separate SSE chunks
 /// into a single materialized tool call with the complete arguments object.
 ///
-/// This covers the typical llama.cpp streaming pattern where `"arguments"` is
+/// This covers the typical local chat-compatible streaming pattern where `"arguments"` is
 /// delivered as a fragmented JSON string: `"{\"path\":"`, `"\"src/lib.rs\""`,
 /// `"}"`.
 #[test]
