@@ -228,20 +228,42 @@ impl RuntimeEnvelopeNormalizer {
             ProviderStreamEvent::ContentBlockStart {
                 index,
                 content_block,
-            } => match decode_provider_content_block(content_block) {
+            } => match decode_provider_content_block(content_block.clone()) {
                 Ok(content_block) => self.open_provider_stream_block(index, content_block),
-                Err(err) => vec![self.emit_event(RuntimeEvent::Error {
-                    code: "provider_content_block_start_decode".to_string(),
-                    message: format!(
-                        "failed to decode provider content_block_start event at index {index}: {err}"
-                    ),
-                    recoverable: true,
-                })],
+                Err(err) => {
+                    // Log the raw JSON payload so that malformed content-block
+                    // shapes are diagnosable from `-d` output without requiring
+                    // RUST_LOG=trace. The payload is capped to 512 bytes to
+                    // bound log volume for unexpectedly large blocks.
+                    let raw = serde_json::to_string(&content_block)
+                        .unwrap_or_else(|_| "<non-serializable>".to_string());
+                    let truncated = if raw.len() > 512 {
+                        format!("{}…({}B total)", &raw[..512], raw.len())
+                    } else {
+                        raw
+                    };
+                    tracing::warn!(
+                        target: "vex::protocol",
+                        index,
+                        error = %err,
+                        raw_payload = %truncated,
+                        "failed to decode provider content_block_start; raw payload logged for diagnosis"
+                    );
+                    vec![self.emit_event(RuntimeEvent::Error {
+                        code: "provider_content_block_start_decode".to_string(),
+                        message: format!(
+                            "failed to decode provider content_block_start event at index {index}: {err}"
+                        ),
+                        recoverable: true,
+                    })]
+                }
             },
             ProviderStreamEvent::ContentBlockDelta { index, delta } => provider_block_delta(&delta)
                 .map(|delta| self.apply_provider_stream_delta(index, delta))
                 .unwrap_or_default(),
-            ProviderStreamEvent::ContentBlockStop { index } => self.close_provider_stream_block(index),
+            ProviderStreamEvent::ContentBlockStop { index } => {
+                self.close_provider_stream_block(index)
+            }
             ProviderStreamEvent::MessageDelta { delta, usage } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = delta.metadata {
@@ -559,7 +581,7 @@ impl RuntimeEnvelopeNormalizer {
         tool_call: ChatCompatToolCallDelta,
     ) -> Vec<RuntimeEnvelope> {
         if self.protocol_ingress.chat_compat_stream_terminated {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 choice_index = choice_index.unwrap_or_default(),
                 "ignoring late chat-compatible tool delta after stream termination"
@@ -594,7 +616,7 @@ impl RuntimeEnvelopeNormalizer {
             .unwrap_or_default();
         let _ = (choice_index, tool_call.call_type);
 
-        tracing::trace!(
+        tracing::debug!(
             target: "vex::protocol",
             choice_index = choice_index.unwrap_or_default(),
             raw_index,
@@ -698,7 +720,7 @@ impl RuntimeEnvelopeNormalizer {
             )
         };
 
-        tracing::trace!(
+        tracing::debug!(
             target: "vex::protocol",
             choice_index = choice_index.unwrap_or_default(),
             block_index,
@@ -712,7 +734,7 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = Vec::new();
         if let Some(content_block) = start_block {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 block_index,
                 "opening chat-compatible tool block"
@@ -720,7 +742,7 @@ impl RuntimeEnvelopeNormalizer {
             envelopes.extend(self.open_provider_stream_block(block_index, content_block));
         }
         if let Some(partial_json) = partial_json {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 block_index,
                 partial_bytes = partial_json.len(),
@@ -759,7 +781,7 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = Vec::new();
         for index in to_close {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 index,
                 "closing chat-compatible tool block"

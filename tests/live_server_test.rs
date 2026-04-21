@@ -765,3 +765,461 @@ async fn test_run_batch_auto_detects_messages_v1_and_preserves_fallback_jsonl_ou
 
     server.abort();
 }
+
+// ---------------------------------------------------------------------------
+// Response fixtures — empty-output and tool-call JSON-form variants
+// ---------------------------------------------------------------------------
+
+fn empty_string_content_chat_response() -> Value {
+    json!({
+        "id": "chatcmpl-empty-str",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "test-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": ""
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 5,
+            "completion_tokens": 1,
+            "total_tokens": 6
+        }
+    })
+}
+
+fn null_content_no_tools_chat_response() -> Value {
+    json!({
+        "id": "chatcmpl-null-no-tools",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "test-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": null
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 5,
+            "completion_tokens": 0,
+            "total_tokens": 5
+        }
+    })
+}
+
+/// Chat-compat non-stream response where `arguments` is a JSON object (not a
+/// string), covering the `ChatCompatFunctionArguments::Json` normalization path
+/// that is only reachable from the non-stream fallback (streaming endpoints
+/// always emit string-form arguments in deltas).
+fn tool_calls_json_arguments_chat_response() -> Value {
+    json!({
+        "id": "chatcmpl-json-args",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "test-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "index": 0,
+                    "id": "call_json_args_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": {
+                            "path": "src/main.rs",
+                            "offset": 1,
+                            "limit": 50
+                        }
+                    }
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15
+        }
+    })
+}
+
+/// Messages-v1 non-stream response with a tool_use block, used to verify
+/// stalled-stream + auto-detect tool-call round-trips.
+fn tool_calls_messages_v1_response() -> Value {
+    json!({
+        "id": "msg-tool-fallback",
+        "type": "message",
+        "role": "assistant",
+        "model": "test-model",
+        "content": [{
+            "type": "tool_use",
+            "id": "toolu_auto_1",
+            "name": "read_file",
+            "input": {
+                "path": "src/lib.rs"
+            }
+        }],
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 5
+        }
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Handlers and spawn helpers for new test scenarios
+// ---------------------------------------------------------------------------
+
+async fn empty_string_content_chat_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+    Json(empty_string_content_chat_response()).into_response()
+}
+
+async fn null_content_no_tools_chat_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+    Json(null_content_no_tools_chat_response()).into_response()
+}
+
+async fn tool_calls_json_args_chat_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+    Json(tool_calls_json_arguments_chat_response()).into_response()
+}
+
+async fn tool_calls_messages_v1_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return stalled_sse_response();
+    }
+    Json(tool_calls_messages_v1_response()).into_response()
+}
+
+/// Handler for the fallback POST path that intentionally exceeds
+/// `LOCAL_NON_STREAM_FALLBACK_TIMEOUT` (100 ms in test configuration), used
+/// to verify the timeout fires before the response arrives.
+async fn slow_non_stream_handler(_payload: Json<Value>) -> Response {
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    Json(json!({"error": "too slow"})).into_response()
+}
+
+async fn spawn_empty_string_content_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("empty-content test server should bind");
+    let addr = listener.local_addr().expect("must have local address");
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new().route(
+                "/v1/chat/completions",
+                post(empty_string_content_chat_handler),
+            ),
+        )
+        .await
+        .expect("empty-content server should stay alive until aborted");
+    });
+    (format!("http://{addr}"), server)
+}
+
+async fn spawn_null_content_no_tools_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("null-content test server should bind");
+    let addr = listener.local_addr().expect("must have local address");
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new().route(
+                "/v1/chat/completions",
+                post(null_content_no_tools_chat_handler),
+            ),
+        )
+        .await
+        .expect("null-content server should stay alive until aborted");
+    });
+    (format!("http://{addr}"), server)
+}
+
+async fn spawn_slow_fallback_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("slow-fallback test server should bind");
+    let addr = listener.local_addr().expect("must have local address");
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(slow_non_stream_handler))
+                .route("/v1/messages", post(slow_non_stream_handler)),
+        )
+        .await
+        .expect("slow-fallback server should stay alive until aborted");
+    });
+    (format!("http://{addr}"), server)
+}
+
+async fn spawn_tool_calls_json_args_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("json-args test server should bind");
+    let addr = listener.local_addr().expect("must have local address");
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(missing_probe_handler))
+                .route(
+                    "/v1/chat/completions",
+                    get(probe_chat_handler).post(tool_calls_json_args_chat_handler),
+                ),
+        )
+        .await
+        .expect("json-args server should stay alive until aborted");
+    });
+    (format!("http://{addr}"), server)
+}
+
+async fn spawn_auto_detect_messages_v1_tool_calls_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("messages-v1 tool-calls test server should bind");
+    let addr = listener.local_addr().expect("must have local address");
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route(
+                    "/v1/messages",
+                    get(probe_messages_handler).post(tool_calls_messages_v1_handler),
+                )
+                .route("/v1/chat/completions", get(missing_probe_handler)),
+        )
+        .await
+        .expect("messages-v1 tool-calls server should stay alive until aborted");
+    });
+    (format!("http://{addr}"), server)
+}
+
+// ---------------------------------------------------------------------------
+// Tests — slow fallback diagnostics
+// ---------------------------------------------------------------------------
+
+/// Verifies that a stalled stream followed by a slow non-stream POST resolves
+/// as an error instead of hanging or producing a bogus success result.
+///
+/// The bounded timeout regressions live in `src/api/client/tests.rs`, where the
+/// library is compiled under `cfg(test)` and the short local timeout constants
+/// apply. This integration test exercises the same end-to-end path under the
+/// production timeout values used by `tests/live_server_test.rs`.
+#[tokio::test]
+async fn test_local_fallback_post_slow_response_surfaces_error() {
+    let (base_url, server) = spawn_slow_fallback_server().await;
+    let config = build_chat_compat_config(&base_url, "timeout-test-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+
+    let started = Instant::now();
+    let result = client.create_stream(&single_user_message("test")).await;
+    let elapsed = started.elapsed();
+
+    assert!(
+        result.is_err(),
+        "slow fallback POST must surface a timeout error, got Ok"
+    );
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "slow fallback path should fail promptly instead of hanging; elapsed={elapsed:?}"
+    );
+
+    server.abort();
+}
+
+// ---------------------------------------------------------------------------
+// Tests — chat-compat empty-output normalization matrix
+// ---------------------------------------------------------------------------
+
+/// Verifies that a non-stream fallback response with an empty-string
+/// `content` field and no tool calls produces a well-formed `TurnEnd` event
+/// without hanging or erroring.
+#[tokio::test]
+async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end() {
+    let (base_url, server) = spawn_empty_string_content_server().await;
+    let config = build_chat_compat_config(&base_url, "empty-content-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+
+    let mut stream = client
+        .create_stream(&single_user_message("Say nothing."))
+        .await
+        .expect("empty-content fallback must not error");
+
+    let mut envelopes = Vec::new();
+    while let Some(envelope) = stream.next().await {
+        envelopes.push(envelope.expect("envelope must not error"));
+    }
+
+    assert!(
+        envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::TurnEnd { .. })),
+        "empty-string content fallback must emit TurnEnd; got {:?}",
+        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. })),
+        "empty-content fallback must not emit ToolCallStarted"
+    );
+
+    server.abort();
+}
+
+/// Verifies that a non-stream fallback response with a `null` content field
+/// and no tool calls produces a well-formed `TurnEnd` without tool-call events.
+#[tokio::test]
+async fn test_stalled_stream_chat_compat_null_content_no_tools_produces_turn_end() {
+    let (base_url, server) = spawn_null_content_no_tools_server().await;
+    let config = build_chat_compat_config(&base_url, "null-no-tools-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+
+    let mut stream = client
+        .create_stream(&single_user_message("Say nothing."))
+        .await
+        .expect("null-no-tools fallback must not error");
+
+    let mut envelopes = Vec::new();
+    while let Some(envelope) = stream.next().await {
+        envelopes.push(envelope.expect("envelope must not error"));
+    }
+
+    assert!(
+        envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::TurnEnd { .. })),
+        "null-no-tools fallback must emit TurnEnd; got {:?}",
+        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. })),
+        "null-no-tools fallback must not emit ToolCallStarted"
+    );
+
+    server.abort();
+}
+
+// ---------------------------------------------------------------------------
+// Tests — JSON-form arguments normalization (item-5 in transport follow-up)
+// ---------------------------------------------------------------------------
+
+/// Verifies that the non-stream fallback normalizes tool calls whose
+/// `arguments` field is a JSON object (not a string), exercising the
+/// `ChatCompatFunctionArguments::Json` path in `apply_chat_compat_tool_delta`.
+///
+/// This path is only reachable from the non-stream fallback because streaming
+/// endpoints always emit string-form deltas.
+#[tokio::test]
+async fn test_stalled_stream_chat_compat_json_form_arguments_normalizes_correctly() {
+    let (base_url, server) = spawn_tool_calls_json_args_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "json-args-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    assert_eq!(
+        client.server_info().and_then(|info| info.native_protocol),
+        Some(ModelProtocol::ChatCompat),
+        "auto-detect should select chat-compat before issuing the request"
+    );
+
+    let mut stream = client
+        .create_stream(&single_user_message("Read main.rs."))
+        .await
+        .expect("json-args fallback must not error");
+
+    let mut envelopes = Vec::new();
+    while let Some(envelope) = stream.next().await {
+        envelopes.push(envelope.expect("envelope must not error"));
+    }
+
+    assert!(
+        envelopes.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
+                if tool_name == "read_file"
+                    && arguments.get("path").and_then(Value::as_str) == Some("src/main.rs")
+        )),
+        "json-form arguments must materialize as ToolCallStarted with correct input; got {:?}",
+        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "json-form arguments must not emit argument deltas"
+    );
+
+    server.abort();
+}
+
+/// Verifies end-to-end auto-detect → messages-v1 → stalled-stream fallback →
+/// tool-call materialization. Confirms that `messages/v1` is selected by
+/// protocol discovery when the server serves both probe endpoints but only
+/// `/v1/messages` returns a valid SSE probe response.
+#[tokio::test]
+async fn test_run_batch_auto_detects_messages_v1_and_normalizes_fallback_tool_calls() {
+    let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;
+    let config = build_auto_detect_batch_config(&base_url, "tool-detect-model");
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    assert_eq!(
+        client.server_info().and_then(|info| info.native_protocol),
+        Some(ModelProtocol::MessagesV1),
+        "auto-detect should select messages-v1 before issuing the request"
+    );
+
+    let mut stream = client
+        .create_stream(&single_user_message("Read lib.rs."))
+        .await
+        .expect("messages-v1 tool-call fallback must not error");
+
+    let mut envelopes = Vec::new();
+    while let Some(envelope) = stream.next().await {
+        envelopes.push(envelope.expect("envelope must not error"));
+    }
+
+    assert!(
+        envelopes.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
+                if tool_name == "read_file"
+                    && arguments.get("path").and_then(Value::as_str) == Some("src/lib.rs")
+        )),
+        "auto-detected messages-v1 tool call must materialize; got {:?}",
+        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !envelopes
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized messages-v1 tool calls must not emit argument deltas"
+    );
+
+    server.abort();
+}
