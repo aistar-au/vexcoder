@@ -426,6 +426,19 @@ fn local_connect_retry_backoff() -> backoff::ExponentialBackoff {
     builder.build()
 }
 
+fn next_local_connect_retry_delay(
+    backoff: &mut backoff::ExponentialBackoff,
+    attempt: u32,
+) -> Option<Duration> {
+    backoff.next_backoff().or({
+        if attempt == 1 {
+            Some(LOCAL_CONNECT_RETRY_INITIAL_INTERVAL)
+        } else {
+            None
+        }
+    })
+}
+
 fn should_retry_local_startup_error(error: &reqwest::Error) -> bool {
     error.status().is_none() && (error.is_connect() || error.is_timeout())
 }
@@ -474,7 +487,7 @@ where
                 return Ok(result);
             }
             Err(error) if should_retry_local_startup_error(&error) => {
-                let Some(delay) = backoff.next_backoff() else {
+                let Some(delay) = next_local_connect_retry_delay(&mut backoff, attempt) else {
                     return Err(error);
                 };
                 let next_delay_ms = delay.as_millis() as u64;

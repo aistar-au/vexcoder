@@ -1,69 +1,53 @@
 use super::*;
 
 #[tokio::test]
-async fn retry_local_connect_errors_retries_connect_failures_for_local_endpoints() {
-    let attempts = Arc::new(AtomicUsize::new(0));
-    let failing_listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
-    failing_listener.set_nonblocking(true).unwrap();
-    let failing_addr = failing_listener.local_addr().unwrap();
-    drop(failing_listener);
+async fn retry_local_connect_errors_retries_initial_local_startup_timeout() {
+    let client_attempts = Arc::new(AtomicUsize::new(0));
+    let server_attempts = Arc::new(AtomicUsize::new(0));
+    let request_timeout = LOCAL_CONNECT_RETRY_MAX_ELAPSED + Duration::from_millis(50);
+    let stall_duration = request_timeout + Duration::from_millis(20);
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await
         .unwrap();
     let server_addr = listener.local_addr().unwrap();
-
+    let handler_attempts = Arc::clone(&server_attempts);
     let server = tokio::spawn(async move {
         axum::serve(
             listener,
-            Router::new().route("/health", get(|| async { "ok" })),
+            Router::new().route(
+                "/health",
+                get(move || {
+                    let handler_attempts = Arc::clone(&handler_attempts);
+                    async move {
+                        if handler_attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                            tokio::time::sleep(stall_duration).await;
+                        }
+                        "ok"
+                    }
+                }),
+            ),
         )
         .await
         .unwrap();
     });
 
-    let readiness_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
+    let client = reqwest::Client::builder()
+        .timeout(request_timeout)
         .build()
         .unwrap();
 
-    let mut server_ready = false;
-    for _ in 0..20 {
-        match readiness_client
-            .get(format!("http://{server_addr}/health"))
-            .send()
-            .await
-        {
-            Ok(response) if response.status().is_success() => {
-                let body = response.text().await.unwrap_or_default();
-                if body == "ok" {
-                    server_ready = true;
-                    break;
-                }
-            }
-            Ok(_) | Err(_) => {}
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
-    assert!(server_ready, "expected local test server to become ready");
-
     let result = retry_local_connect_errors(
         &format!("http://{server_addr}/v1/messages"),
-        "req-local-retry",
-        "test_connect_retry",
+        "req-local-timeout-retry",
+        "test_timeout_retry",
         || {
-            let attempts = Arc::clone(&attempts);
+            let client = client.clone();
+            let client_attempts = Arc::clone(&client_attempts);
             async move {
-                let target_addr = if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-                    failing_addr
-                } else {
-                    server_addr
-                };
-                reqwest::Client::builder()
-                    .timeout(Duration::from_secs(1))
-                    .build()
-                    .unwrap()
-                    .get(format!("http://{target_addr}/health"))
+                client_attempts.fetch_add(1, Ordering::SeqCst);
+                client
+                    .get(format!("http://{server_addr}/health"))
                     .send()
                     .await
             }
@@ -73,9 +57,10 @@ async fn retry_local_connect_errors_retries_connect_failures_for_local_endpoints
 
     assert!(
         result.is_ok(),
-        "expected retry to eventually succeed: {result:?}"
+        "expected retry to eventually succeed after the initial timeout: {result:?}"
     );
-    assert!(attempts.load(Ordering::SeqCst) > 1);
+    assert_eq!(client_attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(server_attempts.load(Ordering::SeqCst), 2);
 
     server.abort();
 }

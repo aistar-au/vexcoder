@@ -551,6 +551,76 @@ fn test_process_preserves_tab_after_single_space_strip() {
     );
 }
 
+#[test]
+fn test_process_accepts_supported_sse_framing_variants_without_payload_events() {
+    type FramingCase = (
+        &'static str,
+        &'static [u8],
+        Option<&'static str>,
+        Option<u64>,
+    );
+
+    let cases: [FramingCase; 6] = [
+        (
+            "unknown fields alongside ping events",
+            b"custom-field: ignored\nevent: ping\ndata: {\"type\":\"ping\"}\n\n",
+            None,
+            None,
+        ),
+        (
+            "carriage-return frame delimiters",
+            b"event: ping\rdata: {\"type\":\"ping\"}\r\r",
+            None,
+            None,
+        ),
+        (
+            "a single UTF-8 BOM at stream start",
+            b"\xEF\xBB\xBFevent: ping\ndata: {\"type\":\"ping\"}\n\n",
+            None,
+            None,
+        ),
+        (
+            "id and retry metadata fields",
+            b"id: evt-42\nretry: 1500\nevent: ping\ndata: {\"type\":\"ping\"}\n\n",
+            Some("evt-42"),
+            Some(1500),
+        ),
+        ("id-only frames", b"id: evt-42\n\n", Some("evt-42"), None),
+        ("colon-free field names", b"custom-field\n\n", None, None),
+    ];
+
+    for (label, frame, expected_last_event_id, expected_retry_ms) in cases {
+        let mut parser = StreamParser::new();
+        let events = parser.process(frame).unwrap();
+
+        assert!(events.is_empty(), "{label} should not emit payload events");
+        assert_eq!(
+            parser.last_event_id(),
+            expected_last_event_id,
+            "{label} should preserve the expected event id state",
+        );
+        assert_eq!(
+            parser.reconnect_delay_ms(),
+            expected_retry_ms,
+            "{label} should preserve the expected reconnect delay state",
+        );
+    }
+}
+
+#[test]
+fn test_process_raw_json_frame_without_data_emits_error() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"{\"type\":\"ping\"}\n\n").unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(
+        &events[0].event,
+        RuntimeEvent::Error { code, message, .. }
+            if code == "sse_parse_error"
+                && message.contains("raw JSON chunk streams are unsupported")
+    ));
+}
+
 use super::{NormalisedChunk, StreamTextNormaliser};
 
 fn collect_text(chunks: &[NormalisedChunk]) -> String {

@@ -259,7 +259,7 @@ fn probe_attempt_summary(attempt: &ProbeAttempt) -> serde_json::Value {
         "endpoint": rewrite_url_for_logs(&attempt.endpoint),
         "accept_header": attempt.accept_header,
         "status": attempt.status,
-        "error": attempt.error,
+        "error": attempt.error.as_ref().map(|error| crate::runtime::revise_secrets(error)),
         "latency_ms": attempt.latency_ms,
     })
 }
@@ -294,5 +294,27 @@ mod tests {
         };
         assert_eq!(attempt.status, Some(200));
         assert!(attempt.error.is_none());
+    }
+
+    #[test]
+    fn probe_attempt_summary_sanitizes_error_text() {
+        let attempt = ProbeAttempt {
+            endpoint: "http://127.0.0.1:8000/v1/messages".to_string(),
+            accept_header: "text/event-stream".to_string(),
+            status: None,
+            error: Some(
+                "request failed for https://example.com/path?token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234"
+                    .to_string(),
+            ),
+            latency_ms: 12,
+        };
+
+        let summary = probe_attempt_summary(&attempt);
+        let error = summary["error"]
+            .as_str()
+            .expect("probe summary should contain error text");
+
+        assert!(error.contains("[AMENDED]"));
+        assert!(!error.contains("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234"));
     }
 }

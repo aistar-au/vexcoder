@@ -14,20 +14,18 @@
 //! Run with:
 //!   VEX_LIVE_SERVER_URL=http://localhost:8000 cargo nextest run -p vexcoder --test live_server_test
 
-#![allow(unsafe_code)]
+// Unsafe env-var mutation is confined to the logging submodule, where tests
+// serialize access with `test_support::ENV_LOCK` before calling
+// `std::env::set_var` and `std::env::remove_var`.
 
 use axum::{
     Json, Router,
-    response::{
-        IntoResponse, Response,
-        sse::{Event, Sse},
-    },
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use futures::StreamExt;
 use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use std::convert::Infallible;
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
@@ -290,8 +288,16 @@ fn stalled_messages_response() -> Value {
     })
 }
 
-fn stalled_sse_response() -> Response {
-    Sse::new(futures::stream::pending::<Result<Event, Infallible>>()).into_response()
+// The timeout-specific startup regressions are covered in unit tests.
+// This integration harness only needs the local stream to terminate before the
+// first SSE event so the end-to-end fallback path stays exercised without
+// spending five seconds in every scenario.
+fn no_initial_sse_response() -> Response {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        "",
+    )
+        .into_response()
 }
 
 fn stream_requested(payload: &Value) -> bool {
@@ -300,7 +306,7 @@ fn stream_requested(payload: &Value) -> bool {
 
 async fn stalled_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
 
     Json(stalled_chat_response()).into_response()
@@ -308,7 +314,7 @@ async fn stalled_chat_handler(Json(payload): Json<Value>) -> Response {
 
 async fn stalled_messages_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
 
     Json(stalled_messages_response()).into_response()
@@ -356,7 +362,7 @@ async fn missing_probe_handler() -> impl IntoResponse {
 
 async fn stalled_chat_text_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
 
     Json(fallback_chat_text_response("chat-compat batch output")).into_response()
@@ -364,7 +370,7 @@ async fn stalled_chat_text_handler(Json(payload): Json<Value>) -> Response {
 
 async fn stalled_messages_text_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
 
     Json(fallback_messages_text_response("messages-v1 batch output")).into_response()
@@ -479,8 +485,8 @@ async fn test_stalled_stream_chat_compat_falls_back_to_non_stream_json() {
 
     let elapsed = started.elapsed();
     assert!(
-        elapsed >= Duration::from_secs(5),
-        "expected the initial SSE timeout-driven fallback, got elapsed={elapsed:?}"
+        elapsed < Duration::from_secs(2),
+        "expected a prompt no-initial-event fallback instead of the long startup timeout; elapsed={elapsed:?}"
     );
 
     let mut envelopes = Vec::new();
@@ -537,8 +543,8 @@ async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
 
     let elapsed = started.elapsed();
     assert!(
-        elapsed >= Duration::from_secs(5),
-        "expected the initial SSE timeout-driven fallback, got elapsed={elapsed:?}"
+        elapsed < Duration::from_secs(2),
+        "expected a prompt no-initial-event fallback instead of the long startup timeout; elapsed={elapsed:?}"
     );
 
     let mut envelopes = Vec::new();
@@ -793,28 +799,28 @@ fn tool_calls_messages_v1_response() -> Value {
 
 async fn empty_string_content_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
     Json(empty_string_content_chat_response()).into_response()
 }
 
 async fn null_content_no_tools_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
     Json(null_content_no_tools_chat_response()).into_response()
 }
 
 async fn tool_calls_json_args_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
     Json(tool_calls_json_arguments_chat_response()).into_response()
 }
 
 async fn tool_calls_messages_v1_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
-        return stalled_sse_response();
+        return no_initial_sse_response();
     }
     Json(tool_calls_messages_v1_response()).into_response()
 }

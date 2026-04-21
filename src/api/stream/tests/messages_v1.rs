@@ -2,79 +2,62 @@ use super::*;
 use serde_json::json;
 
 #[test]
-fn test_process_messages_v1_tool_use_accepts_object_arguments_without_synthetic_delta() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(
+fn test_process_messages_v1_materialized_tool_use_inputs_do_not_emit_synthetic_deltas() {
+    let cases = vec![
+        (
+            "object arguments",
             br#"event: content_block_start
 data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"read_file","input":{"path":"main.rs","encoding":"utf-8"}}}
 
-"#,
-        )
-        .unwrap();
-
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::TranscriptBlockStart {
-            index: 1,
-            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
-        } if id == "call_1"
-            && name == "read_file"
-            && input == &json!({"path": "main.rs", "encoding": "utf-8"})
-    )));
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::ToolCallStarted {
-            tool_name,
-            arguments,
-            ..
-        } if tool_name == "read_file"
-            && arguments == &json!({"path": "main.rs", "encoding": "utf-8"})
-    )));
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "messages/v1 object arguments should not synthesize ToolCallArgumentsDelta events"
-    );
-}
-
-#[test]
-fn test_process_messages_v1_tool_use_accepts_array_arguments_without_synthetic_delta() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(
+"# as &[u8],
+            "read_file",
+            json!({"path": "main.rs", "encoding": "utf-8"}),
+        ),
+        (
+            "array arguments",
             br#"event: content_block_start
 data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"search","input":["main.rs",{"max_depth":2}]}}
 
-"#,
-        )
-        .unwrap();
+"# as &[u8],
+            "search",
+            json!(["main.rs", {"max_depth": 2}]),
+        ),
+    ];
 
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::TranscriptBlockStart {
-            index: 1,
-            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
-        } if id == "call_1"
-            && name == "search"
-            && input == &json!(["main.rs", {"max_depth": 2}])
-    )));
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::ToolCallStarted {
-            tool_name,
-            arguments,
-            ..
-        } if tool_name == "search"
-            && arguments == &json!(["main.rs", {"max_depth": 2}])
-    )));
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "messages/v1 array arguments should not synthesize ToolCallArgumentsDelta events"
-    );
+    for (label, frame, expected_name, expected_input) in cases {
+        let mut parser = StreamParser::new();
+        let events = parser.process(frame).unwrap();
+
+        assert!(
+            events.iter().any(|event| matches!(
+                &event.event,
+                RuntimeEvent::TranscriptBlockStart {
+                    index: 1,
+                    block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+                } if id == "call_1"
+                    && name == expected_name
+                    && input == &expected_input
+            )),
+            "{label} must emit a materialized tool-call block start"
+        );
+        assert!(
+            events.iter().any(|event| matches!(
+                &event.event,
+                RuntimeEvent::ToolCallStarted {
+                    tool_name,
+                    arguments,
+                    ..
+                } if tool_name == expected_name && arguments == &expected_input
+            )),
+            "{label} must emit ToolCallStarted with the materialized JSON input"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+            "{label} should not synthesize ToolCallArgumentsDelta events",
+        );
+    }
 }
 
 #[test]

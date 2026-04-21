@@ -1,3 +1,7 @@
+// This module mutates process env vars in tests while holding
+// `test_support::ENV_LOCK`, which serializes access within this binary.
+#![allow(unsafe_code)]
+
 use super::*;
 use tempfile::NamedTempFile;
 
@@ -18,8 +22,14 @@ impl EnvVarRestore {
 impl Drop for EnvVarRestore {
     fn drop(&mut self) {
         if let Some(value) = &self.original {
+            // SAFETY: Test env-var mutations are serialized via
+            // `test_support::ENV_LOCK`, and this restore runs while that lock
+            // guard is still alive because the restore guards drop before it.
             unsafe { std::env::set_var(self.key, value) };
         } else {
+            // SAFETY: Test env-var mutations are serialized via
+            // `test_support::ENV_LOCK`, and this restore runs while that lock
+            // guard is still alive because the restore guards drop before it.
             unsafe { std::env::remove_var(self.key) };
         }
     }
@@ -32,7 +42,11 @@ async fn test_chat_compat_fallback_writes_protocol_and_shape_debug_records() {
     let _path_restore = EnvVarRestore::capture("VEX_API_LOG_PATH");
     let log_file = NamedTempFile::new().expect("temp log file");
 
+    // SAFETY: `test_support::ENV_LOCK` is held for the duration of this test,
+    // so process-global env-var mutation is serialized within this binary.
     unsafe { std::env::set_var("VEX_DEBUG_PAYLOAD", "1") };
+    // SAFETY: `test_support::ENV_LOCK` is held for the duration of this test,
+    // so process-global env-var mutation is serialized within this binary.
     unsafe { std::env::set_var("VEX_API_LOG_PATH", log_file.path()) };
 
     let (base_url, server) = spawn_tool_calls_json_args_server().await;
@@ -84,7 +98,11 @@ async fn test_messages_v1_fallback_writes_protocol_and_shape_debug_records() {
     let _path_restore = EnvVarRestore::capture("VEX_API_LOG_PATH");
     let log_file = NamedTempFile::new().expect("temp log file");
 
+    // SAFETY: `test_support::ENV_LOCK` is held for the duration of this test,
+    // so process-global env-var mutation is serialized within this binary.
     unsafe { std::env::set_var("VEX_DEBUG_PAYLOAD", "1") };
+    // SAFETY: `test_support::ENV_LOCK` is held for the duration of this test,
+    // so process-global env-var mutation is serialized within this binary.
     unsafe { std::env::set_var("VEX_API_LOG_PATH", log_file.path()) };
 
     let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;
