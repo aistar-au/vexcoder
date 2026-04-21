@@ -46,157 +46,7 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
     }]
 }
 
-#[test]
-fn test_protocol_inference_defaults_to_messages_v1() {
-    let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
-    assert_eq!(protocol, ApiProtocol::MessagesV1);
-}
-
-#[test]
-fn test_protocol_inference_detects_chat_compat() {
-    let protocol = infer_api_protocol("http://localhost:8000/v1/chat/completions");
-    assert_eq!(protocol, ApiProtocol::ChatCompat);
-}
-
-#[test]
-fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
-    let config = crate::config::Config {
-        model_token: None,
-        model_name: "local/test-model".to_string(),
-        model_url: "http://localhost:8000/v1/messages".to_string(),
-        model_url_skip_tls_check: false,
-        working_dir: std::path::PathBuf::from("."),
-        model_backend: ModelBackendKind::LocalRuntime,
-        model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::Structured,
-        tool_policy: ToolPolicy::Full,
-        model_profile: crate::types::ModelProfile::default_for_backend(
-            ModelBackendKind::LocalRuntime,
-        ),
-        max_project_instructions_tokens: 4096,
-        max_memory_tokens: 2048,
-        sandbox: crate::runtime::SandboxConfig::default(),
-        model_headers: reqwest::header::HeaderMap::new(),
-        mcp_servers: Vec::new(),
-        http_hooks: Vec::new(),
-        compaction: CompactionConfig::default(),
-        undo: crate::config::UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
-        notes_path: None,
-        api: crate::config::ApiConfig::default(),
-        hooks: Vec::new(),
-        auto_memory: crate::config::AutoMemoryConfig::default(),
-        api_client: crate::config::ApiClientConfig::default(),
-        force: false,
-        bypass_policy: false,
-        expand_context: false,
-    };
-
-    let client = ApiClient::new(&config).expect("client should build");
-    assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
-    assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
-    assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
-}
-
-#[test]
-fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
-    let config = crate::config::Config {
-        model_token: None,
-        model_name: "local/test-model".to_string(),
-        model_url: "http://localhost:8000/v1".to_string(),
-        model_url_skip_tls_check: false,
-        working_dir: std::path::PathBuf::from("."),
-        model_backend: ModelBackendKind::LocalRuntime,
-        model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::Structured,
-        tool_policy: ToolPolicy::Full,
-        model_profile: crate::types::ModelProfile::default_for_backend(
-            ModelBackendKind::LocalRuntime,
-        ),
-        max_project_instructions_tokens: 4096,
-        max_memory_tokens: 2048,
-        sandbox: crate::runtime::SandboxConfig::default(),
-        model_headers: reqwest::header::HeaderMap::new(),
-        mcp_servers: Vec::new(),
-        http_hooks: Vec::new(),
-        compaction: CompactionConfig::default(),
-        undo: crate::config::UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
-        notes_path: None,
-        api: crate::config::ApiConfig::default(),
-        hooks: Vec::new(),
-        auto_memory: crate::config::AutoMemoryConfig::default(),
-        api_client: crate::config::ApiClientConfig::default(),
-        force: false,
-        bypass_policy: false,
-        expand_context: false,
-    };
-
-    let client = ApiClient::new(&config).expect("client should build");
-    assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
-    assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
-    assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
-}
-
-#[test]
-fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
-    let config = crate::config::Config {
-        model_token: None,
-        model_name: "local/test-model".to_string(),
-        model_url: "http://localhost:8000/v1".to_string(),
-        model_url_skip_tls_check: false,
-        working_dir: std::path::PathBuf::from("."),
-        model_backend: ModelBackendKind::LocalRuntime,
-        model_protocol: ModelProtocol::ChatCompat,
-        tool_call_mode: ToolCallMode::Structured,
-        tool_policy: ToolPolicy::Full,
-        model_profile: crate::types::ModelProfile::default_for_backend(
-            ModelBackendKind::LocalRuntime,
-        ),
-        max_project_instructions_tokens: 4096,
-        max_memory_tokens: 2048,
-        sandbox: crate::runtime::SandboxConfig::default(),
-        model_headers: reqwest::header::HeaderMap::new(),
-        mcp_servers: Vec::new(),
-        http_hooks: Vec::new(),
-        compaction: CompactionConfig::default(),
-        undo: crate::config::UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
-        notes_path: None,
-        api: crate::config::ApiConfig::default(),
-        hooks: Vec::new(),
-        auto_memory: crate::config::AutoMemoryConfig::default(),
-        api_client: crate::config::ApiClientConfig::default(),
-        force: false,
-        bypass_policy: false,
-        expand_context: false,
-    };
-
-    let client = ApiClient::new(&config).expect("client should build");
-    assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat);
-    assert_eq!(
-        client.request_url(),
-        "http://localhost:8000/v1/chat/completions"
-    );
-    assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
-}
-
-#[test]
-fn test_api_client_base_url_explicit_protocol_controls_request_url() {
-    let mut config = crate::config::Config::default_for_tui();
-    config.model_name = "local/test-model".to_string();
-    config.model_url.clear();
-    config.api_client.base_url = "http://127.0.0.1:8787".to_string();
-    config.api_client.explicit_protocol = Some(ModelProtocol::ChatCompat);
-
-    let client = ApiClient::new(&config).expect("client should build");
-
-    assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
-    assert_eq!(
-        client.request_url(),
-        "http://127.0.0.1:8787/v1/chat/completions"
-    );
-}
+mod protocol;
 
 #[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
@@ -219,6 +69,97 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
 
         Json(json!({
             "id": "chatcmpl-fallback",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "local/test-model",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "OK"
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 7,
+                "completion_tokens": 2,
+                "total_tokens": 9
+            }
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let request_log = requests.clone();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(handler))
+                .with_state(requests),
+        )
+        .await
+        .unwrap();
+    });
+
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/chat/completions"),
+        ModelProtocol::ChatCompat,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    let mut stream = client
+        .create_stream(&single_user_message("Reply exactly OK."))
+        .await
+        .expect("stream should build");
+
+    let mut envelopes = Vec::new();
+    while let Some(event) = stream.next().await {
+        envelopes.push(event.expect("runtime envelope"));
+    }
+
+    server.abort();
+
+    let requests = request_log.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "expected streaming request plus fallback retry"
+    );
+    assert_eq!(requests[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(requests[1].get("stream"), Some(&Value::Bool(false)));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "OK"
+    )));
+    assert!(envelopes.iter().any(|envelope| matches!(
+        &envelope.event,
+        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+    )));
+}
+
+#[tokio::test]
+async fn test_create_stream_falls_back_when_local_stream_closes_without_initial_sse_event() {
+    type RequestLog = Arc<Mutex<Vec<Value>>>;
+
+    async fn handler(
+        State(log): State<RequestLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        log.lock().unwrap().push(payload.clone());
+
+        if payload.get("stream").and_then(Value::as_bool) == Some(true) {
+            return Json(json!({
+                "error": "stream route returned JSON instead of SSE"
+            }))
+            .into_response();
+        }
+
+        Json(json!({
+            "id": "chatcmpl-fallback-no-sse",
             "object": "chat.completion",
             "created": 1,
             "model": "local/test-model",
@@ -470,6 +411,79 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_too
             ..
         } if status == "completed" && usage.input == 13 && usage.output == 4
     )));
+}
+
+#[tokio::test]
+async fn test_create_stream_rejects_malformed_chat_compat_non_stream_fallback_response() {
+    type RequestLog = Arc<Mutex<Vec<Value>>>;
+
+    async fn handler(
+        State(log): State<RequestLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        log.lock().unwrap().push(payload.clone());
+
+        if payload.get("stream").and_then(Value::as_bool) == Some(true) {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            return (
+                [(header::CONTENT_TYPE, "text/event-stream")],
+                "data: {\"choices\":[]}\n\n",
+            )
+                .into_response();
+        }
+
+        Json(json!({
+            "error": "too slow"
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let request_log = requests.clone();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(handler))
+                .with_state(requests),
+        )
+        .await
+        .unwrap();
+    });
+
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/chat/completions"),
+        ModelProtocol::ChatCompat,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    let error = match client
+        .create_stream(&single_user_message("Reply exactly OK."))
+        .await
+    {
+        Ok(_) => panic!("malformed non-stream fallback payload must be rejected"),
+        Err(error) => error,
+    };
+
+    server.abort();
+
+    let requests = request_log.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "expected streaming request plus fallback retry"
+    );
+    assert_eq!(requests[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(requests[1].get("stream"), Some(&Value::Bool(false)));
+    let message = error.to_string();
+    assert!(
+        message.contains("failed to normalize non-streaming fallback response")
+            || message.contains("error payload"),
+        "error message: {message}"
+    );
 }
 
 #[tokio::test]
@@ -899,6 +913,79 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
         .server_info()
         .expect("server info should be populated");
     assert_eq!(info.native_protocol, Some(ModelProtocol::ChatCompat));
+    assert_eq!(client.request_url(), format!("http://{addr}/v1/messages"));
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_populate_server_info_infers_chat_compat_from_server_props_when_sse_probes_fail() {
+    async fn missing_probe() -> impl IntoResponse {
+        StatusCode::NOT_FOUND
+    }
+
+    async fn server_props() -> impl IntoResponse {
+        (
+            [(header::SERVER, super::chat_compat_runtime_server_header())],
+            axum::Json(json!({
+                "default_generation_settings": {
+                    "n_ctx": 8192,
+                    "n_batch": 2048,
+                    "model": "local-chat-model"
+                },
+                "chat_template": "{% for message in messages %}{{ message.role }}{% endfor %}",
+                "chat_template_caps": {
+                    "supports_tools": true,
+                    "supports_tool_calls": true
+                }
+            })),
+        )
+    }
+
+    async fn models() -> impl IntoResponse {
+        (
+            [(header::SERVER, super::chat_compat_runtime_server_header())],
+            axum::Json(json!({
+                "data": [{
+                    "id": "local-chat-model",
+                    "owned_by": super::chat_compat_runtime_owner()
+                }]
+            })),
+        )
+    }
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/props", get(server_props))
+                .route("/v1/models", get(models))
+                .route("/v1/messages", get(missing_probe))
+                .route("/v1/chat/completions", get(missing_probe)),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url = format!("http://{addr}/v1/messages");
+    config.model_token = None;
+
+    let client = ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    let info = client
+        .server_info()
+        .expect("server info should be populated");
+    assert_eq!(info.native_protocol, Some(ModelProtocol::ChatCompat));
+    assert_eq!(info.n_ctx, 8192);
+    assert_eq!(info.n_batch, 2048);
+    assert_eq!(info.model, "local-chat-model");
     assert_eq!(client.request_url(), format!("http://{addr}/v1/messages"));
 
     server.abort();
@@ -1533,358 +1620,6 @@ async fn test_map_api_request_error_local_connect_mentions_retry_and_telemetry()
     );
     assert!(msg.contains("--display-internal-telemetry"), "got: {msg}");
     assert!(msg.contains("RUST_LOG=debug"), "got: {msg}");
-}
-
-// ── Rate-limit / Retry-After header detection ───────────────────────
-
-#[test]
-fn test_map_api_status_error_429_with_retry_after_header() {
-    let err = map_api_status_error(
-        reqwest::StatusCode::TOO_MANY_REQUESTS,
-        "rate limit exceeded",
-        "https://api.example.com/v1/messages",
-        Some("5"),
-    );
-    let msg = format!("{}", err);
-    assert!(msg.contains("rate limited"), "got: {msg}");
-    assert!(msg.contains("5.0s"), "got: {msg}");
-}
-
-#[test]
-fn test_map_api_status_error_429_with_retry_after_http_date_header() {
-    let retry_after =
-        httpdate::fmt_http_date(std::time::SystemTime::now() + std::time::Duration::from_secs(3));
-    let err = map_api_status_error(
-        reqwest::StatusCode::TOO_MANY_REQUESTS,
-        "rate limit exceeded",
-        "https://api.example.com/v1/messages",
-        Some(&retry_after),
-    );
-    let msg = format!("{}", err);
-    assert!(msg.contains("rate limited"), "got: {msg}");
-    assert!(msg.contains("Retry suggested after"), "got: {msg}");
-}
-
-#[test]
-fn test_map_api_status_error_429_body_fallback() {
-    let err = map_api_status_error(
-        reqwest::StatusCode::TOO_MANY_REQUESTS,
-        "try again in 30 seconds",
-        "https://api.example.com/v1/messages",
-        None,
-    );
-    let msg = format!("{}", err);
-    assert!(msg.contains("rate limited"), "got: {msg}");
-    assert!(msg.contains("30.0s"), "got: {msg}");
-}
-
-#[test]
-fn test_map_api_status_error_429_no_hint() {
-    let err = map_api_status_error(
-        reqwest::StatusCode::TOO_MANY_REQUESTS,
-        "too many requests",
-        "https://api.example.com/v1/messages",
-        None,
-    );
-    let msg = format!("{}", err);
-    assert!(msg.contains("rate limited"), "got: {msg}");
-    assert!(!msg.contains("Retry suggested"), "got: {msg}");
-}
-
-// ── URL adaptation: transposed /messages/v1 variant ──────────────────
-
-#[test]
-fn test_adapt_chat_compat_url_from_transposed_messages_v1() {
-    let adapted = adapt_to_chat_compat_url("http://127.0.0.1:8000/messages/v1");
-    assert_eq!(adapted, "http://127.0.0.1:8000/v1/chat/completions");
-}
-
-#[test]
-fn test_adapt_messages_v1_url_from_transposed_messages_v1() {
-    let adapted = adapt_to_messages_v1_url("http://127.0.0.1:8000/messages/v1");
-    assert_eq!(adapted, "http://127.0.0.1:8000/v1/messages");
-}
-
-#[test]
-fn test_adapt_chat_compat_url_from_transposed_messages_v1_with_trailing_slash() {
-    let adapted = adapt_to_chat_compat_url("http://127.0.0.1:8000/messages/v1/");
-    assert_eq!(adapted, "http://127.0.0.1:8000/v1/chat/completions");
-}
-
-#[test]
-fn test_adapt_messages_v1_url_from_transposed_messages_v1_with_trailing_slash() {
-    let adapted = adapt_to_messages_v1_url("http://127.0.0.1:8000/messages/v1/");
-    assert_eq!(adapted, "http://127.0.0.1:8000/v1/messages");
-}
-
-// ── Protocol inference: transposed /messages/v1 ──────────────────────
-
-#[test]
-fn test_protocol_inference_transposed_messages_v1_is_messages() {
-    let protocol = infer_api_protocol("http://127.0.0.1:8000/messages/v1");
-    assert_eq!(protocol, ApiProtocol::MessagesV1);
-}
-
-#[test]
-fn test_protocol_inference_standard_v1_messages_is_messages() {
-    let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
-    assert_eq!(protocol, ApiProtocol::MessagesV1);
-}
-
-#[test]
-fn test_protocol_inference_bare_v1_is_chat_compat() {
-    let protocol = infer_api_protocol("http://localhost:8000/v1");
-    assert_eq!(protocol, ApiProtocol::ChatCompat);
-}
-
-// ── Existing URL adaptations still correct ───────────────────────────
-
-#[test]
-fn test_adapt_messages_v1_url_from_chat_completions() {
-    let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1/chat/completions");
-    assert_eq!(adapted, "http://localhost:8000/v1/messages");
-}
-
-#[test]
-fn test_adapt_messages_v1_url_from_bare_v1() {
-    let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1");
-    assert_eq!(adapted, "http://localhost:8000/v1/messages");
-}
-
-#[test]
-fn test_adapt_messages_v1_url_already_correct() {
-    let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1/messages");
-    assert_eq!(adapted, "http://localhost:8000/v1/messages");
-}
-
-#[test]
-fn test_adapt_chat_compat_url_already_correct() {
-    let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1/chat/completions");
-    assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
-}
-
-#[test]
-fn test_apply_local_chat_compat_stream_flags_adds_progress_fields() {
-    let mut payload = serde_json::Map::new();
-
-    apply_local_chat_compat_stream_flags(&mut payload);
-
-    assert_eq!(payload.get("return_progress"), Some(&json!(true)));
-    assert_eq!(payload.get("timings_per_token"), Some(&json!(true)));
-    assert_eq!(
-        payload.get("cache_prompt"),
-        Some(&json!(true)),
-        "cache_prompt must be enabled for local servers to allow batch prompt evaluation"
-    );
-}
-
-// ── Connected-server smoke test (optional; skips if server unreachable) ───
-
-#[tokio::test]
-async fn test_live_server_chat_completions_reachable() {
-    let url = std::env::var("VEX_TEST_LIVE_SERVER_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
-    let endpoint = format!("{}/v1/chat/completions", url.trim_end_matches('/'));
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .expect("http client");
-
-    let payload = serde_json::json!({
-        "model": "test",
-        "max_tokens": 4,
-        "temperature": 0.0,
-        "stream": false,
-        "messages": [{"role": "user", "content": "Reply OK"}]
-    });
-
-    match client.post(&endpoint).json(&payload).send().await {
-        Ok(resp) => {
-            // Server is reachable — verify it doesn't 404 on the native endpoint.
-            assert_ne!(
-                resp.status().as_u16(),
-                404,
-                "connected server returned 404 on native chat/completions endpoint"
-            );
-        }
-        Err(_) => {
-            // Server not available — skip gracefully.
-            eprintln!(
-                "SKIP: server at {} not reachable, skipping connectivity check",
-                endpoint
-            );
-        }
-    }
-}
-
-#[tokio::test]
-async fn test_live_server_messages_v1_reachable() {
-    let url = std::env::var("VEX_TEST_LIVE_SERVER_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
-    let endpoint = format!("{}/v1/messages", url.trim_end_matches('/'));
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .expect("http client");
-
-    let payload = serde_json::json!({
-        "model": "test",
-        "max_tokens": 4,
-        "stream": false,
-        "system": "Reply OK",
-        "messages": [{"role": "user", "content": "OK"}]
-    });
-
-    match client.post(&endpoint).json(&payload).send().await {
-        Ok(resp) => {
-            assert_ne!(
-                resp.status().as_u16(),
-                404,
-                "connected server returned 404 on messages/v1 endpoint"
-            );
-        }
-        Err(_) => {
-            eprintln!(
-                "SKIP: server at {} not reachable, skipping connectivity check",
-                endpoint
-            );
-        }
-    }
-}
-
-// ── Protocol conversion boundary regression tests ────────────────────
-
-#[test]
-fn test_native_protocol_overrides_configured_protocol() {
-    // When server discovery detects native ChatCompat for a base URL, the
-    // client must use ChatCompat even if the fallback config says
-    // MessagesV1.
-    let client = ApiClient {
-        http: reqwest::Client::new(),
-        api_key: None,
-        model: Arc::new(RwLock::new("test".to_string())),
-        supplementary_system_prompt: Arc::new(RwLock::new(None)),
-        api_url: "http://localhost:8000/v1".to_string(),
-        api_client_explicit_protocol: None,
-        probe_timeout_ms: 2000,
-        model_backend: ModelBackendKind::LocalRuntime,
-        model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::Structured,
-        tool_policy: ToolPolicy::Full,
-        model_headers: reqwest::header::HeaderMap::new(),
-        temperature: 0.3,
-        top_p: 1.0,
-        max_tokens: 4096,
-        stop_sequences: Vec::new(),
-        reasoning_budget: 0,
-        project_instructions: None,
-        notes_content: None,
-        extra_tool_definitions: Vec::new(),
-        server_info: Arc::new(RwLock::new(Some(ServerInfo {
-            n_ctx: 65536,
-            n_batch: 2048,
-            model: "test".to_string(),
-            native_protocol: Some(ModelProtocol::ChatCompat),
-        }))),
-        tls_verification_disabled: false,
-        #[cfg(test)]
-        mock_stream_producer: None,
-    };
-
-    assert_eq!(
-        client.api_protocol(),
-        ApiProtocol::ChatCompat,
-        "client must use native ChatCompat for bare base URLs when server reports it"
-    );
-}
-
-#[test]
-fn test_explicit_chat_compat_model_url_path_overrides_discovered_messages_protocol() {
-    let config = local_stream_test_config(
-        "http://localhost:8000/v1/chat/completions".to_string(),
-        ModelProtocol::MessagesV1,
-    );
-    let client = ApiClient::new(&config).expect("client should build");
-    client.set_server_info(ServerInfo {
-        native_protocol: Some(ModelProtocol::MessagesV1),
-        ..ServerInfo::default()
-    });
-
-    assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat);
-    assert_eq!(
-        client.request_url(),
-        "http://localhost:8000/v1/chat/completions"
-    );
-}
-
-#[test]
-fn test_explicit_messages_model_url_path_overrides_discovered_chat_compat_protocol() {
-    let config = local_stream_test_config(
-        "http://localhost:8000/v1/messages".to_string(),
-        ModelProtocol::ChatCompat,
-    );
-    let client = ApiClient::new(&config).expect("client should build");
-    client.set_server_info(ServerInfo {
-        native_protocol: Some(ModelProtocol::ChatCompat),
-        ..ServerInfo::default()
-    });
-
-    assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
-    assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
-}
-
-#[test]
-fn test_no_native_protocol_falls_back_to_configured() {
-    // When server discovery did not detect a native protocol for a base URL,
-    // the client must respect the fallback configured protocol.
-    let client = ApiClient {
-        http: reqwest::Client::new(),
-        api_key: None,
-        model: Arc::new(RwLock::new("test".to_string())),
-        supplementary_system_prompt: Arc::new(RwLock::new(None)),
-        api_url: "http://localhost:8000/v1".to_string(),
-        api_client_explicit_protocol: None,
-        probe_timeout_ms: 2000,
-        model_backend: ModelBackendKind::LocalRuntime,
-        model_protocol: ModelProtocol::MessagesV1,
-        tool_call_mode: ToolCallMode::Structured,
-        tool_policy: ToolPolicy::Full,
-        model_headers: reqwest::header::HeaderMap::new(),
-        temperature: 0.3,
-        top_p: 1.0,
-        max_tokens: 4096,
-        stop_sequences: Vec::new(),
-        reasoning_budget: 0,
-        project_instructions: None,
-        notes_content: None,
-        extra_tool_definitions: Vec::new(),
-        server_info: Arc::new(RwLock::new(Some(ServerInfo {
-            n_ctx: 65536,
-            n_batch: 2048,
-            model: "test".to_string(),
-            native_protocol: None,
-        }))),
-        tls_verification_disabled: false,
-        #[cfg(test)]
-        mock_stream_producer: None,
-    };
-
-    assert_eq!(
-        client.api_protocol(),
-        ApiProtocol::MessagesV1,
-        "without native_protocol, client must fall back to configured MessagesV1"
-    );
-}
-
-#[test]
-fn test_server_info_native_protocol_field_default() {
-    let info = ServerInfo::default();
-    assert!(
-        info.native_protocol.is_none(),
-        "ServerInfo::default() must have native_protocol = None"
-    );
 }
 
 #[test]
