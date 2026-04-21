@@ -55,8 +55,31 @@ Three `#[serde(skip)]` fields are added to `Config` to carry CLI-only state:
 These fields are not persisted to TOML. They are wired in `apply_cli_overrides`
 after `Config::load()`.
 
+## Subcommand flag normalization (Phase 2)
+
+All per-subcommand optional `--flags` have been removed from the normalized
+surface. The following flags are deleted and must not be re-introduced without
+a further ADR amendment:
+
+| Subcommand | Removed flags | Replacement |
+| :--- | :--- | :--- |
+| `exec` | `--task`, `--task-file`, `--max-turns`, `--auto-approve`, `--output`, `--format` | task via `-p`; format via `-m`; auto-approve via `-f` |
+| `tasks list` | `--json` | `-m jsonl` |
+| `tasks watch` | `--json` | `-m jsonl` |
+| `doctor` | `--json` | `-m jsonl` |
+| `export` | `--format`, `--output`, `--force` | format via `-m`; output always stdout |
+| `serve` | `--host`, `--port` | read from `Config` |
+| `init` | `--dir` | use `cd` to target a different directory |
+| `credentials set` | `--stdin`, `--from-env` | stdin auto-detected by TTY state |
+| `skills install` | `--subdir` | skill root defaults to repository root |
+
+Secret acquisition for `credentials set` now follows automatic source selection:
+stdin is consumed when it is not a TTY; an interactive masked prompt is
+presented on a full TTY. The secret is never accepted as a positional argument.
+
 ## Compliance
 
-Agents must not reintroduce `--chat-compat` or any CLI flag not in the normative
-table above without a further ADR amendment. Protocol selection for non-native
+Agents must not reintroduce `--chat-compat`, any flag not in the normative
+top-level table above, or any subcommand flag listed in the Phase 2 removal
+table, without a further ADR amendment. Protocol selection for non-native
 endpoints remains automatic and must not be re-exposed as a user-facing flag.

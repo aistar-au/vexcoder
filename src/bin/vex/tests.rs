@@ -11,7 +11,6 @@ use super::{
 use clap::Parser;
 use clap_complete::Shell;
 use std::io::Cursor;
-use std::path::PathBuf;
 use std::process::Command;
 use vexcoder::app::TuiMode;
 use vexcoder::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
@@ -1133,9 +1132,15 @@ fn test_install_hooks_cli_parses() {
 }
 
 #[test]
-fn test_doctor_cli_parses_json_flag() {
-    let cli = Cli::parse_from(["vex", "doctor", "--json"]);
-    assert!(matches!(cli.command, Some(Commands::Doctor { json: true })));
+fn test_doctor_cli_parses() {
+    let cli = Cli::parse_from(["vex", "doctor"]);
+    assert!(matches!(cli.command, Some(Commands::Doctor)));
+}
+
+#[test]
+fn test_doctor_cli_rejects_obsolete_json_flag() {
+    // --json was removed from `doctor`; JSON output is selected via -m jsonl.
+    assert!(Cli::try_parse_from(["vex", "doctor", "--json"]).is_err());
 }
 
 #[test]
@@ -1145,50 +1150,40 @@ fn test_privacy_cli_parses() {
 }
 
 #[test]
-fn test_credentials_set_cli_parses_stdin_flag() {
-    let cli = Cli::parse_from(["vex", "credentials", "set", "model-token", "--stdin"]);
+fn test_credentials_set_cli_parses_account() {
+    // --stdin and --from-env have been removed from the normalized surface;
+    // secret source is determined automatically by stdin TTY state.
+    let cli = Cli::parse_from(["vex", "credentials", "set", "model-token"]);
     match cli.command {
         Some(Commands::Credentials {
-            sub:
-                CredentialsCommands::Set {
-                    account,
-                    stdin,
-                    from_env,
-                },
+            sub: CredentialsCommands::Set { account },
         }) => {
             assert_eq!(account, "model-token");
-            assert!(stdin);
-            assert!(from_env.is_none());
         }
-        _ => panic!("expected credentials set --stdin"),
+        _ => panic!("expected credentials set"),
     }
 }
 
 #[test]
-fn test_credentials_set_cli_parses_from_env_flag() {
-    let cli = Cli::parse_from([
-        "vex",
-        "credentials",
-        "set",
-        "model-token",
-        "--from-env",
-        "VEX_MODEL_TOKEN",
-    ]);
-    match cli.command {
-        Some(Commands::Credentials {
-            sub:
-                CredentialsCommands::Set {
-                    account,
-                    stdin,
-                    from_env,
-                },
-        }) => {
-            assert_eq!(account, "model-token");
-            assert!(!stdin);
-            assert_eq!(from_env.as_deref(), Some("VEX_MODEL_TOKEN"));
-        }
-        _ => panic!("expected credentials set --from-env"),
-    }
+fn test_credentials_set_cli_rejects_obsolete_stdin_flag() {
+    // --stdin was removed; piped stdin is accepted automatically.
+    assert!(Cli::try_parse_from(["vex", "credentials", "set", "model-token", "--stdin"]).is_err());
+}
+
+#[test]
+fn test_credentials_set_cli_rejects_obsolete_from_env_flag() {
+    // --from-env was removed from the normalized surface.
+    assert!(
+        Cli::try_parse_from([
+            "vex",
+            "credentials",
+            "set",
+            "model-token",
+            "--from-env",
+            "VEX_MODEL_TOKEN"
+        ])
+        .is_err()
+    );
 }
 
 #[test]
@@ -1198,9 +1193,18 @@ fn test_credentials_set_cli_rejects_positional_secret() {
 
 #[test]
 fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
+    // With no stdin source and no TTY prompt available, an error is required.
+    // The error must not suggest using argv (which is not a supported source).
     let err = resolve_credentials_secret("model-token", false, None, false, |_| unreachable!())
         .unwrap_err();
-    assert!(err.to_string().contains("--stdin") || err.to_string().contains("--from-env"));
+    assert!(
+        !err.to_string().is_empty(),
+        "expected a non-empty error describing the unavailable sources"
+    );
+    assert!(
+        err.to_string().contains("stdin") || err.to_string().contains("redirect"),
+        "error must describe the stdin redirect path: {err}"
+    );
 }
 
 #[test]
@@ -1230,31 +1234,27 @@ fn test_read_secret_from_env_var_reads_named_value() {
 }
 
 #[test]
-fn test_export_cli_parses_output_and_force() {
-    let cli = Cli::parse_from([
-        "vex",
-        "export",
-        "task-123",
-        "--format",
-        "markdown",
-        "--output",
-        "/tmp/export.md",
-        "--force",
-    ]);
+fn test_export_cli_parses_task_id() {
+    // --format, --output, and --force have been removed; format is controlled
+    // by -m/--set-map-encoding and output is always stdout.
+    let cli = Cli::parse_from(["vex", "export", "task-123"]);
     match cli.command {
-        Some(Commands::Export {
-            task_id,
-            format,
-            output,
-            force,
-        }) => {
+        Some(Commands::Export { task_id }) => {
             assert_eq!(task_id, "task-123");
-            assert_eq!(format, "markdown");
-            assert_eq!(output, Some(PathBuf::from("/tmp/export.md")));
-            assert!(force);
         }
         _ => panic!("expected export subcommand"),
     }
+}
+
+#[test]
+fn test_export_cli_rejects_obsolete_format_flag() {
+    // --format was removed; export format is now governed by -m.
+    assert!(Cli::try_parse_from(["vex", "export", "task-123", "--format", "markdown"]).is_err());
+}
+
+#[test]
+fn test_export_cli_rejects_obsolete_output_flag() {
+    assert!(Cli::try_parse_from(["vex", "export", "task-123", "--output", "/tmp/out.md"]).is_err());
 }
 
 #[test]
@@ -1301,33 +1301,29 @@ fn test_skills_install_cli_parses() {
     ]);
     match cli.command {
         Some(Commands::Skills {
-            sub: SkillsCommands::Install { source, subdir },
+            sub: SkillsCommands::Install { source },
         }) => {
             assert_eq!(source, "https://github.com/example/skills.git");
-            assert!(subdir.is_none());
         }
         _ => panic!("expected skills install"),
     }
 }
 
 #[test]
-fn test_skills_install_cli_parses_subdir() {
-    let cli = Cli::parse_from([
-        "vex",
-        "skills",
-        "install",
-        "https://github.com/example/skills.git",
-        "--subdir",
-        "skills/edit-loop",
-    ]);
-    match cli.command {
-        Some(Commands::Skills {
-            sub: SkillsCommands::Install { subdir, .. },
-        }) => {
-            assert_eq!(subdir, Some("skills/edit-loop".to_string()));
-        }
-        _ => panic!("expected skills install with subdir"),
-    }
+fn test_skills_install_cli_rejects_obsolete_subdir_flag() {
+    // --subdir was removed; the skill root always defaults to the repository
+    // root of the fetched source.
+    assert!(
+        Cli::try_parse_from([
+            "vex",
+            "skills",
+            "install",
+            "https://github.com/example/skills.git",
+            "--subdir",
+            "skills/edit-loop",
+        ])
+        .is_err()
+    );
 }
 
 #[test]
@@ -1346,14 +1342,15 @@ fn test_skills_remove_cli_parses() {
 // -- PJ-04: vex init ------------------------------------------------------
 
 #[test]
-fn test_init_cli_parses_dir_flag() {
-    let cli = Cli::parse_from(["vex", "init", "--dir", "/tmp/example"]);
-    match cli.command {
-        Some(Commands::Init { dir }) => {
-            assert_eq!(dir, Some(PathBuf::from("/tmp/example")));
-        }
-        _ => panic!("expected init command"),
-    }
+fn test_init_cli_parses() {
+    // --dir was removed; `init` always targets the current working directory.
+    let cli = Cli::parse_from(["vex", "init"]);
+    assert!(matches!(cli.command, Some(Commands::Init)));
+}
+
+#[test]
+fn test_init_cli_rejects_obsolete_dir_flag() {
+    assert!(Cli::try_parse_from(["vex", "init", "--dir", "/tmp/example"]).is_err());
 }
 
 #[test]
