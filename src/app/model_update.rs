@@ -623,7 +623,7 @@ impl TuiMode {
                 self.resolve_pending_patch_approval(false);
                 self.last_turn_duration = self.turn_started_at.map(|s| s.elapsed());
                 self.last_error_message = Some(msg.clone());
-                self.push_document_notice(format!("[error] {msg}"), NoticeSeverity::Error);
+                self.push_document_notice(msg.clone(), NoticeSeverity::Error);
                 if let Some(active) = self.task_doc.active_turn.as_mut() {
                     active.cancel_pending = false;
                 }

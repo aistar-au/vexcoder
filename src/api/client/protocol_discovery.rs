@@ -19,8 +19,10 @@
 //!
 //! ADR-047 §6 — Client-Side Protocol Discovery.
 
+use crate::api::logging::{debug_payload_enabled, emit_log_value};
 use crate::runtime::backend::ModelProtocol;
 use crate::runtime::rewrite_url_for_logs;
+use serde_json::json;
 use std::time::{Duration, Instant};
 
 /// Result of a successful protocol probe.
@@ -172,6 +174,13 @@ pub async fn discover_protocol(
     attempts.push(block_probe);
 
     if block_ok {
+        emit_protocol_discovery_result(
+            base,
+            "messages-v1",
+            &block_endpoint,
+            block_latency,
+            &attempts,
+        );
         return Ok(DiscoveryResult {
             protocol: ModelProtocol::MessagesV1,
             endpoint: block_endpoint,
@@ -193,6 +202,13 @@ pub async fn discover_protocol(
     attempts.push(choices_probe);
 
     if choices_ok {
+        emit_protocol_discovery_result(
+            base,
+            "chat-compat",
+            &choices_endpoint,
+            choices_latency,
+            &attempts,
+        );
         return Ok(DiscoveryResult {
             protocol: ModelProtocol::ChatCompat,
             endpoint: choices_endpoint,
@@ -200,7 +216,52 @@ pub async fn discover_protocol(
         });
     }
 
+    emit_protocol_discovery_failure(base, &attempts);
+
     Err(DiscoveryError::AllProbesFailed { attempts })
+}
+
+fn emit_protocol_discovery_result(
+    base_url: &str,
+    selected_protocol: &str,
+    endpoint: &str,
+    probe_latency_ms: u64,
+    attempts: &[ProbeAttempt],
+) {
+    if !debug_payload_enabled() {
+        return;
+    }
+
+    emit_log_value(&json!({
+        "event": "api.protocol_discovery",
+        "base_url": rewrite_url_for_logs(base_url),
+        "selected_protocol": selected_protocol,
+        "endpoint": rewrite_url_for_logs(endpoint),
+        "probe_latency_ms": probe_latency_ms,
+        "attempts": attempts.iter().map(probe_attempt_summary).collect::<Vec<_>>(),
+    }));
+}
+
+fn emit_protocol_discovery_failure(base_url: &str, attempts: &[ProbeAttempt]) {
+    if !debug_payload_enabled() {
+        return;
+    }
+
+    emit_log_value(&json!({
+        "event": "api.protocol_discovery_failed",
+        "base_url": rewrite_url_for_logs(base_url),
+        "attempts": attempts.iter().map(probe_attempt_summary).collect::<Vec<_>>(),
+    }));
+}
+
+fn probe_attempt_summary(attempt: &ProbeAttempt) -> serde_json::Value {
+    json!({
+        "endpoint": rewrite_url_for_logs(&attempt.endpoint),
+        "accept_header": attempt.accept_header,
+        "status": attempt.status,
+        "error": attempt.error,
+        "latency_ms": attempt.latency_ms,
+    })
 }
 
 #[cfg(test)]

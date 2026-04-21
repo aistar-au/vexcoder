@@ -5,20 +5,17 @@
 //! `GET`-only interface contract. Reconnect is disabled because retrying a
 //! non-idempotent streamed generation request would duplicate work and billing.
 
+mod non_stream;
+
 use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::stream::StreamParser;
 use crate::runtime::backend::EventStream;
 use crate::runtime::{ModelProtocol, RuntimeEnvelope, RuntimeEvent, TokenUsageEnvelope};
-use anyhow::{Context, Result, anyhow};
+use anyhow::Result;
 use backoff::ExponentialBackoffBuilder;
 use backoff::backoff::Backoff;
 use bytes::Bytes;
-use eventsource_client::{Client as _, ClientBuilder, ReconnectOptions, SSE};
 use futures::{StreamExt, stream};
-use launchdarkly_sdk_transport::{
-    ByteStream as TransportByteStream, HttpTransport, ResponseFuture, TransportError,
-};
-use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::time::{Duration, Instant};
@@ -38,6 +35,9 @@ const LOCAL_CONNECT_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(2);
 const LOCAL_CONNECT_RETRY_INITIAL_INTERVAL: Duration = Duration::from_millis(100);
 const LOCAL_CONNECT_RETRY_MAX_INTERVAL: Duration = Duration::from_millis(400);
 
+type UpstreamByteStream =
+    futures::stream::BoxStream<'static, std::result::Result<Bytes, anyhow::Error>>;
+
 pub(crate) async fn create_event_stream(
     http: reqwest::Client,
     request_url: &str,
@@ -48,60 +48,28 @@ pub(crate) async fn create_event_stream(
     request_id: &str,
 ) -> Result<EventStream> {
     let request_start = Instant::now();
-    let mut builder = ClientBuilder::for_url(request_url)
-        .map_err(|error| {
-            anyhow!(
-                "failed to build SSE client for '{}': {}",
+    let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
+    let (state, first_event) = if is_local_endpoint {
+        match tokio::time::timeout(LOCAL_STREAM_START_TIMEOUT, async {
+            let response = send_streaming_request(
+                http.clone(),
                 request_url,
-                error
+                serialized_payload.clone(),
+                headers,
+                request_id,
             )
-        })?
-        // Intentional deviation from the browser EventSource interface: the
-        // upstream APIs require POST bodies for streamed generation.
-        .method("POST".to_string())
-        .body(serialized_payload)
-        // Reconnect stays disabled for POST streaming requests. Replaying a
-        // partial generation would not be idempotent and could duplicate work.
-        .reconnect(ReconnectOptions::reconnect(false).build());
-
-    for (name, value) in headers {
-        let value = value
-            .to_str()
-            .with_context(|| format!("header '{}' is not valid UTF-8", name.as_str()))?;
-        builder = builder.header(name.as_str(), value).map_err(|error| {
-            anyhow!(
-                "failed to configure SSE header '{}' for '{}': {}",
-                name.as_str(),
+            .await?;
+            let mut state = build_event_stream_state(
+                response,
                 request_url,
-                error
-            )
-        })?;
-    }
-
-    let client = builder.build_with_transport(ReqwestEventSourceTransport {
-        client: http.clone(),
-        request_id: request_id.to_string(),
-    });
-    let mut state = EventStreamState {
-        upstream: client.stream(),
-        parser: StreamParser::new(),
-        pending: VecDeque::new(),
-        terminal_outcome: None,
-        request_url: request_url.to_string(),
-        request_id: request_id.to_string(),
-        protocol_name: protocol_name(protocol),
-        started_at: request_start,
-        envelope_count: 0,
-        tool_call_starts: 0,
-        tool_call_completions: 0,
-        tool_call_failures: 0,
-        last_usage: None,
-        final_status: None,
-        summary_emitted: false,
-    };
-
-    let first_event = if crate::util::is_local_endpoint_url(request_url) {
-        match tokio::time::timeout(LOCAL_STREAM_START_TIMEOUT, next_stream_event(&mut state)).await
+                request_id,
+                protocol,
+                request_start,
+            );
+            let first_event = next_stream_event(&mut state).await?;
+            Ok::<_, anyhow::Error>((state, first_event))
+        })
+        .await
         {
             Ok(result) => result?,
             Err(_) => {
@@ -113,7 +81,7 @@ pub(crate) async fn create_event_stream(
                     elapsed_ms = request_start.elapsed().as_millis() as u64,
                     "local streaming request emitted no initial SSE event; retrying as non-streaming JSON"
                 );
-                return create_non_stream_fallback_stream(
+                return non_stream::create_non_stream_fallback_stream(
                     http,
                     request_url,
                     payload,
@@ -126,8 +94,40 @@ pub(crate) async fn create_event_stream(
             }
         }
     } else {
-        next_stream_event(&mut state).await?
+        let response = send_streaming_request(
+            http.clone(),
+            request_url,
+            serialized_payload,
+            headers,
+            request_id,
+        )
+        .await?;
+        let mut state =
+            build_event_stream_state(response, request_url, request_id, protocol, request_start);
+        let first_event = next_stream_event(&mut state).await?;
+        (state, first_event)
     };
+
+    if is_local_endpoint && first_event.is_none() {
+        tracing::warn!(
+            target: "vex::http",
+            request_id = %request_id,
+            url = %crate::runtime::rewrite_url_for_logs(request_url),
+            elapsed_ms = request_start.elapsed().as_millis() as u64,
+            "local streaming request closed before the first SSE event; retrying as non-streaming JSON"
+        );
+        return non_stream::create_non_stream_fallback_stream(
+            http,
+            request_url,
+            payload,
+            headers,
+            protocol,
+            request_id,
+            "no_initial_sse_event",
+        )
+        .await;
+    }
+
     let tail = stream::try_unfold(state, |mut state| async move {
         match next_stream_event(&mut state).await {
             Ok(Some(event)) => Ok(Some((event, state))),
@@ -151,465 +151,8 @@ pub(crate) async fn create_event_stream(
     }
 }
 
-async fn create_non_stream_fallback_stream(
-    http: reqwest::Client,
-    request_url: &str,
-    payload: &serde_json::Value,
-    headers: &reqwest::header::HeaderMap,
-    protocol: ModelProtocol,
-    request_id: &str,
-    fallback_reason: &'static str,
-) -> Result<EventStream> {
-    let fallback_start = Instant::now();
-    let request_url_for_logs = crate::runtime::rewrite_url_for_logs(request_url);
-    let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
-    let mut request_headers = headers.clone();
-    request_headers.insert(
-        reqwest::header::ACCEPT,
-        reqwest::header::HeaderValue::from_static("application/json"),
-    );
-    let fallback_payload = non_stream_payload(payload);
-
-    tracing::info!(
-        target: "vex::http",
-        request_id = %request_id,
-        url = %request_url_for_logs,
-        fallback_reason = fallback_reason,
-        protocol = ?protocol,
-        local_endpoint = is_local_endpoint,
-        local_timeout_ms = if is_local_endpoint {
-            LOCAL_NON_STREAM_FALLBACK_TIMEOUT.as_millis() as u64
-        } else {
-            0
-        },
-        "issuing non-streaming fallback request"
-    );
-
-    let response =
-        retry_local_connect_errors(request_url, request_id, "non_stream_fallback", || {
-            let http = http.clone();
-            let request_headers = request_headers.clone();
-            let fallback_payload = fallback_payload.clone();
-            let request_url = request_url.to_string();
-            async move {
-                let mut request = http
-                    .post(&request_url)
-                    .headers(request_headers)
-                    .json(&fallback_payload);
-                if is_local_endpoint {
-                    request = request.timeout(LOCAL_NON_STREAM_FALLBACK_TIMEOUT);
-                }
-                request.send().await
-            }
-        })
-        .await
-        .map_err(|error| map_api_request_error(error, request_url))?;
-
-    let status = response.status();
-    let retry_after = response
-        .headers()
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned);
-    let body = response
-        .text()
-        .await
-        .unwrap_or_else(|error| format!("<failed to read non-streaming response body: {error}>"));
-
-    tracing::info!(
-        target: "vex::http",
-        request_id = %request_id,
-        url = %request_url_for_logs,
-        status = status.as_u16(),
-        fallback_reason = fallback_reason,
-        latency_ms = fallback_start.elapsed().as_millis() as u64,
-        body_bytes = body.len(),
-        retry_after = retry_after.as_deref().unwrap_or("none"),
-        "received non-streaming fallback response"
-    );
-
-    if !status.is_success() {
-        return Err(map_api_status_error(
-            status,
-            &body,
-            request_url,
-            retry_after.as_deref(),
-        ));
-    }
-
-    let envelopes =
-        normalize_non_stream_response(protocol, &body, request_id).with_context(|| {
-            format!(
-                "failed to normalize non-streaming fallback response from '{}'",
-                request_url_for_logs
-            )
-        })?;
-
-    Ok(Box::pin(stream::iter(envelopes.into_iter().map(Ok))))
-}
-
-fn non_stream_payload(payload: &serde_json::Value) -> serde_json::Value {
-    let mut payload = payload.clone();
-    if let Some(object) = payload.as_object_mut() {
-        object.insert("stream".to_string(), Value::Bool(false));
-    }
-    payload
-}
-
-fn normalize_non_stream_response(
-    protocol: ModelProtocol,
-    body: &str,
-    request_id: &str,
-) -> Result<Vec<RuntimeEnvelope>> {
-    tracing::debug!(
-        target: "vex::protocol",
-        request_id = %request_id,
-        protocol = ?protocol,
-        response_bytes = body.len(),
-        "normalizing non-streaming fallback response"
-    );
-    let response: Value =
-        serde_json::from_str(body).with_context(|| "response body was not valid JSON")?;
-    log_non_stream_response_shape(protocol, &response, request_id);
-    let mut parser = StreamParser::new();
-    let mut envelopes = Vec::new();
-
-    match protocol {
-        ModelProtocol::MessagesV1 => {
-            let content_blocks = messages_v1_content_blocks(&response);
-            feed_synthetic_event(
-                &mut parser,
-                &mut envelopes,
-                "message_start",
-                json!({
-                    "type": "message_start",
-                    "message": {
-                        "id": response
-                            .get("id")
-                            .cloned()
-                            .unwrap_or_else(|| json!("nonstream-message")),
-                        "type": response
-                            .get("type")
-                            .cloned()
-                            .unwrap_or_else(|| json!("message")),
-                        "role": response
-                            .get("role")
-                            .cloned()
-                            .unwrap_or_else(|| json!("assistant")),
-                        "model": response
-                            .get("model")
-                            .cloned()
-                            .unwrap_or_else(|| json!("unknown")),
-                        "content": content_blocks,
-                        "stop_reason": response
-                            .get("stop_reason")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                        "stop_sequence": response
-                            .get("stop_sequence")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                    }
-                }),
-            )?;
-
-            for (index, block) in messages_v1_content_blocks(&response)
-                .into_iter()
-                .enumerate()
-            {
-                feed_synthetic_event(
-                    &mut parser,
-                    &mut envelopes,
-                    "content_block_start",
-                    json!({
-                        "type": "content_block_start",
-                        "index": index,
-                        "content_block": block,
-                    }),
-                )?;
-            }
-
-            feed_synthetic_event(
-                &mut parser,
-                &mut envelopes,
-                "message_delta",
-                json!({
-                    "type": "message_delta",
-                    "delta": {
-                        "stop_reason": response
-                            .get("stop_reason")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                        "stop_sequence": response
-                            .get("stop_sequence")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                    },
-                    "usage": response.get("usage").cloned().unwrap_or(Value::Null),
-                }),
-            )?;
-        }
-        ModelProtocol::ChatCompat => {
-            let choices = response
-                .get("choices")
-                .and_then(Value::as_array)
-                .map(|choices| {
-                    choices
-                        .iter()
-                        .enumerate()
-                        .map(|(fallback_index, choice)| {
-                            let message = choice.get("message").cloned().unwrap_or(Value::Null);
-                            let mut delta = serde_json::Map::new();
-
-                            if let Some(role) = message.get("role").cloned() {
-                                delta.insert("role".to_string(), role);
-                            }
-                            if let Some(content) = message.get("content").cloned() {
-                                delta.insert("content".to_string(), content);
-                            }
-                            if let Some(reasoning) = message.get("reasoning_content").cloned() {
-                                delta.insert("reasoning_content".to_string(), reasoning);
-                            } else if let Some(thinking) = message.get("thinking").cloned() {
-                                delta.insert("thinking".to_string(), thinking);
-                            }
-                            if let Some(refusal) = message.get("refusal").cloned() {
-                                delta.insert("refusal".to_string(), refusal);
-                            }
-                            if let Some(tool_calls) = message.get("tool_calls").cloned() {
-                                delta.insert("tool_calls".to_string(), tool_calls);
-                            }
-
-                            json!({
-                                "index": choice
-                                    .get("index")
-                                    .and_then(Value::as_u64)
-                                    .unwrap_or(fallback_index as u64),
-                                "delta": Value::Object(delta),
-                                "finish_reason": choice
-                                    .get("finish_reason")
-                                    .cloned()
-                                    .unwrap_or(Value::Null),
-                                "logprobs": choice.get("logprobs").cloned().unwrap_or(Value::Null),
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            feed_synthetic_event(
-                &mut parser,
-                &mut envelopes,
-                "",
-                json!({
-                    "id": response.get("id").cloned().unwrap_or(Value::Null),
-                    "object": response.get("object").cloned().unwrap_or_else(|| json!("chat.completion")),
-                    "created": response.get("created").cloned().unwrap_or(Value::Null),
-                    "model": response.get("model").cloned().unwrap_or(Value::Null),
-                    "system_fingerprint": response
-                        .get("system_fingerprint")
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                    "service_tier": response.get("service_tier").cloned().unwrap_or(Value::Null),
-                    "choices": choices,
-                    "usage": response.get("usage").cloned().unwrap_or(Value::Null),
-                    "prompt_progress": response
-                        .get("prompt_progress")
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                    "timings": response.get("timings").cloned().unwrap_or(Value::Null),
-                }),
-            )?;
-        }
-    }
-
-    envelopes.extend(parser.finish());
-    tracing::debug!(
-        target: "vex::protocol",
-        request_id = %request_id,
-        protocol = ?protocol,
-        envelope_count = envelopes.len(),
-        "completed non-streaming fallback normalization"
-    );
-    Ok(envelopes)
-}
-
-fn messages_v1_content_blocks(response: &Value) -> Vec<Value> {
-    match response.get("content") {
-        Some(Value::Array(blocks)) => blocks.clone(),
-        Some(Value::String(text)) => vec![json!({ "type": "text", "text": text })],
-        _ => Vec::new(),
-    }
-}
-
-fn log_non_stream_response_shape(protocol: ModelProtocol, response: &Value, request_id: &str) {
-    match protocol {
-        ModelProtocol::MessagesV1 => {
-            let content_blocks = messages_v1_content_blocks(response);
-            let text_block_count = content_blocks
-                .iter()
-                .filter(|block| {
-                    block.get("type").and_then(Value::as_str) == Some("text")
-                        && block
-                            .get("text")
-                            .and_then(Value::as_str)
-                            .is_some_and(|text| !text.is_empty())
-                })
-                .count();
-            let empty_text_block_count = content_blocks
-                .iter()
-                .filter(|block| {
-                    block.get("type").and_then(Value::as_str) == Some("text")
-                        && block.get("text").and_then(Value::as_str) == Some("")
-                })
-                .count();
-            let tool_use_count = content_blocks
-                .iter()
-                .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_use"))
-                .count();
-
-            tracing::debug!(
-                target: "vex::protocol",
-                request_id = %request_id,
-                protocol = protocol_name(protocol),
-                content_block_count = content_blocks.len(),
-                text_block_count,
-                empty_text_block_count,
-                tool_use_count,
-                stop_reason = response
-                    .get("stop_reason")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("none"),
-                "inspected non-stream fallback payload shape"
-            );
-        }
-        ModelProtocol::ChatCompat => {
-            let choices = response
-                .get("choices")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let text_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .get("message")
-                        .and_then(|message| message.get("content"))
-                        .and_then(Value::as_str)
-                        .is_some_and(|text| !text.is_empty())
-                })
-                .count();
-            let reasoning_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .get("message")
-                        .and_then(|message| {
-                            message
-                                .get("reasoning_content")
-                                .or_else(|| message.get("thinking"))
-                        })
-                        .and_then(Value::as_str)
-                        .is_some_and(|text| !text.is_empty())
-                })
-                .count();
-            let tool_call_count: usize = choices
-                .iter()
-                .map(|choice| {
-                    choice
-                        .get("message")
-                        .and_then(|message| message.get("tool_calls"))
-                        .and_then(Value::as_array)
-                        .map(|tool_calls| tool_calls.len())
-                        .unwrap_or_default()
-                })
-                .sum();
-            let null_content_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .get("message")
-                        .and_then(|message| message.get("content"))
-                        .is_some_and(Value::is_null)
-                })
-                .count();
-            let empty_content_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .get("message")
-                        .and_then(|message| message.get("content"))
-                        .and_then(Value::as_str)
-                        == Some("")
-                })
-                .count();
-            let missing_content_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .get("message")
-                        .is_some_and(|message| message.get("content").is_none())
-                })
-                .count();
-            let tool_only_choice_count = choices
-                .iter()
-                .filter(|choice| {
-                    let message = choice.get("message");
-                    let has_text = message
-                        .and_then(|message| message.get("content"))
-                        .and_then(Value::as_str)
-                        .is_some_and(|text| !text.is_empty());
-                    let has_reasoning = message
-                        .and_then(|message| {
-                            message
-                                .get("reasoning_content")
-                                .or_else(|| message.get("thinking"))
-                        })
-                        .and_then(Value::as_str)
-                        .is_some_and(|text| !text.is_empty());
-                    let has_tool_calls = message
-                        .and_then(|message| message.get("tool_calls"))
-                        .and_then(Value::as_array)
-                        .is_some_and(|tool_calls| !tool_calls.is_empty());
-                    !has_text && !has_reasoning && has_tool_calls
-                })
-                .count();
-
-            tracing::debug!(
-                target: "vex::protocol",
-                request_id = %request_id,
-                protocol = protocol_name(protocol),
-                choice_count = choices.len(),
-                text_choice_count,
-                reasoning_choice_count,
-                tool_call_count,
-                null_content_choice_count,
-                empty_content_choice_count,
-                missing_content_choice_count,
-                tool_only_choice_count,
-                first_finish_reason = choices
-                    .first()
-                    .and_then(|choice| choice.get("finish_reason"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("none"),
-                "inspected non-stream fallback payload shape"
-            );
-        }
-    }
-}
-
-fn feed_synthetic_event(
-    parser: &mut StreamParser,
-    envelopes: &mut Vec<RuntimeEnvelope>,
-    event_type: &str,
-    payload: Value,
-) -> Result<()> {
-    let payload = serde_json::to_string(&payload)?;
-    envelopes.extend(parser.process_sse_event(event_type, &payload)?);
-    Ok(())
-}
-
 struct EventStreamState {
-    upstream: eventsource_client::BoxStream<eventsource_client::Result<SSE>>,
+    upstream: UpstreamByteStream,
     parser: StreamParser,
     pending: VecDeque<RuntimeEnvelope>,
     terminal_outcome: Option<&'static str>,
@@ -626,6 +169,31 @@ struct EventStreamState {
     summary_emitted: bool,
 }
 
+fn build_event_stream_state(
+    response: reqwest::Response,
+    request_url: &str,
+    request_id: &str,
+    protocol: ModelProtocol,
+    request_start: Instant,
+) -> EventStreamState {
+    EventStreamState {
+        upstream: response_to_upstream_bytes(response, request_url),
+        parser: StreamParser::new(),
+        pending: VecDeque::new(),
+        terminal_outcome: None,
+        request_url: request_url.to_string(),
+        request_id: request_id.to_string(),
+        protocol_name: protocol_name(protocol),
+        started_at: request_start,
+        envelope_count: 0,
+        tool_call_starts: 0,
+        tool_call_completions: 0,
+        tool_call_failures: 0,
+        last_usage: None,
+        final_status: None,
+        summary_emitted: false,
+    }
+}
 fn finish_pending_events(state: &mut EventStreamState) -> Option<RuntimeEnvelope> {
     state.pending.extend(state.parser.finish());
     state.pending.pop_front()
@@ -712,43 +280,18 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
         };
 
         match item {
-            Ok(SSE::Connected(_)) | Ok(SSE::Comment(_)) => continue,
-            Ok(SSE::Event(event)) => {
-                state.pending.extend(
-                    state
-                        .parser
-                        .process_sse_event(event.event_type.as_str(), event.data.as_str())?,
-                );
+            Ok(chunk) => {
+                if chunk.is_empty() {
+                    continue;
+                }
+                let parsed = state.parser.process(&chunk)?;
+                state.pending.extend(parsed);
+                if state.parser.protocol_stream_terminated() {
+                    state.pending.extend(state.parser.finish());
+                    state.terminal_outcome = Some("protocol_done");
+                }
             }
-            Err(eventsource_client::Error::Eof) => {
-                return Ok(finish_stream(state, "stream_eof"));
-            }
-            Err(eventsource_client::Error::UnexpectedResponse(response, body)) => {
-                let retry_after = response
-                    .get_header_value("retry-after")
-                    .ok()
-                    .flatten()
-                    .map(str::to_owned);
-                let status = reqwest::StatusCode::from_u16(response.status())
-                    .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
-                let body = read_error_body(body.into_stream()).await;
-                tracing::warn!(
-                    target: "vex::http",
-                    request_id = %state.request_id,
-                    url = %crate::runtime::rewrite_url_for_logs(&state.request_url),
-                    status = status.as_u16(),
-                    body_bytes = body.len(),
-                    "streaming endpoint returned an unexpected response"
-                );
-                emit_stream_summary(state, "unexpected_response");
-                return Err(map_api_status_error(
-                    status,
-                    &body,
-                    &state.request_url,
-                    retry_after.as_deref(),
-                ));
-            }
-            Err(eventsource_client::Error::Transport(error)) => {
+            Err(error) => {
                 tracing::warn!(
                     target: "vex::http",
                     request_id = %state.request_id,
@@ -757,31 +300,17 @@ async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<Runtim
                     "streaming transport error"
                 );
                 emit_stream_summary(state, "transport_error");
-                return Err(anyhow!(error.to_string()));
-            }
-            Err(eventsource_client::Error::TimedOut) => {
-                tracing::warn!(
-                    target: "vex::http",
-                    request_id = %state.request_id,
-                    url = %crate::runtime::rewrite_url_for_logs(&state.request_url),
-                    "streaming request timed out"
-                );
-                emit_stream_summary(state, "stream_timeout");
-                return Err(anyhow!("API request to '{}' timed out", state.request_url));
-            }
-            Err(error) => {
-                emit_stream_summary(state, "stream_error");
-                return Err(anyhow!(
-                    "SSE stream from '{}' failed: {}",
-                    state.request_url,
-                    error
-                ));
+                return Err(error);
             }
         }
     }
 }
 
-async fn read_error_body(mut stream: TransportByteStream) -> String {
+async fn read_error_body<S, E>(mut stream: S) -> String
+where
+    S: futures::Stream<Item = std::result::Result<Bytes, E>> + Unpin,
+    E: std::fmt::Display,
+{
     const MAX_ERROR_BODY_BYTES: usize = 16 * 1024;
 
     let mut body = Vec::new();
@@ -807,84 +336,83 @@ async fn read_error_body(mut stream: TransportByteStream) -> String {
     String::from_utf8_lossy(&body).into_owned()
 }
 
-#[derive(Clone)]
-struct ReqwestEventSourceTransport {
-    client: reqwest::Client,
-    request_id: String,
+async fn send_streaming_request(
+    http: reqwest::Client,
+    request_url: &str,
+    serialized_payload: String,
+    headers: &reqwest::header::HeaderMap,
+    request_id: &str,
+) -> Result<reqwest::Response> {
+    let revised_request_url = crate::runtime::rewrite_url_for_logs(request_url);
+    tracing::debug!(
+        target: "vex::http",
+        request_id = %request_id,
+        method = "POST",
+        url = %revised_request_url,
+        "sending streaming request"
+    );
+
+    let response = retry_local_connect_errors(request_url, request_id, "streaming_request", || {
+        let http = http.clone();
+        let request_url = request_url.to_string();
+        let headers = headers.clone();
+        let serialized_payload = serialized_payload.clone();
+        async move {
+            let mut request = http.post(request_url).body(serialized_payload);
+            for (name, value) in &headers {
+                request = request.header(name, value);
+            }
+            request.send().await
+        }
+    })
+    .await
+    .map_err(|error| map_api_request_error(error, request_url))?;
+
+    tracing::debug!(
+        target: "vex::http",
+        request_id = %request_id,
+        url = %revised_request_url,
+        status = response.status().as_u16(),
+        "streaming request connected"
+    );
+
+    if !response.status().is_success() {
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let status = response.status();
+        let body = read_error_body(response.bytes_stream()).await;
+        tracing::warn!(
+            target: "vex::http",
+            request_id = %request_id,
+            url = %revised_request_url,
+            status = status.as_u16(),
+            body_bytes = body.len(),
+            "streaming endpoint returned an unexpected response"
+        );
+        return Err(map_api_status_error(
+            status,
+            &body,
+            request_url,
+            retry_after.as_deref(),
+        ));
+    }
+
+    Ok(response)
 }
 
-impl HttpTransport for ReqwestEventSourceTransport {
-    fn request(&self, request: http::Request<Option<Bytes>>) -> ResponseFuture {
-        let client = self.client.clone();
-        let request_id = self.request_id.clone();
-
-        Box::pin(async move {
-            let (parts, body) = request.into_parts();
-            let request_url = parts.uri.to_string();
-            let revised_request_url = crate::runtime::rewrite_url_for_logs(&request_url);
-            let method = parts.method.clone();
-            let headers = parts.headers.clone();
-            let request_body = body.clone();
-
-            tracing::debug!(
-                target: "vex::http",
-                request_id = %request_id,
-                method = %parts.method,
-                url = %revised_request_url,
-                "sending streaming request"
-            );
-
-            let response =
-                retry_local_connect_errors(&request_url, &request_id, "streaming_request", || {
-                    let client = client.clone();
-                    let method = method.clone();
-                    let headers = headers.clone();
-                    let request_url = request_url.clone();
-                    let request_body = request_body.clone();
-                    async move {
-                        let mut reqwest_request = client.request(method, request_url);
-                        for (name, value) in &headers {
-                            reqwest_request = reqwest_request.header(name, value);
-                        }
-                        if let Some(body) = request_body {
-                            reqwest_request = reqwest_request.body(body);
-                        }
-                        reqwest_request.send().await
-                    }
-                })
-                .await
-                .map_err(|error| {
-                    TransportError::new(std::io::Error::other(
-                        map_api_request_error(error, &request_url).to_string(),
-                    ))
-                })?;
-
-            let status = response.status();
-            let headers = response.headers().clone();
-            let request_url_for_stream = request_url.clone();
-            tracing::debug!(
-                target: "vex::http",
-                request_id = %request_id,
-                url = %revised_request_url,
-                status = status.as_u16(),
-                "streaming request connected"
-            );
-            let body: TransportByteStream = Box::pin(response.bytes_stream().map(move |item| {
-                item.map_err(|error| {
-                    TransportError::new(std::io::Error::other(
-                        map_api_request_error(error, &request_url_for_stream).to_string(),
-                    ))
-                })
-            }));
-
-            let mut response_builder = http::Response::builder().status(status);
-            for (name, value) in &headers {
-                response_builder = response_builder.header(name, value);
-            }
-
-            response_builder.body(body).map_err(TransportError::new)
-        })
-    }
+fn response_to_upstream_bytes(
+    response: reqwest::Response,
+    request_url: &str,
+) -> UpstreamByteStream {
+    let request_url = request_url.to_string();
+    Box::pin(
+        response
+            .bytes_stream()
+            .map(move |item| item.map_err(|error| map_api_request_error(error, &request_url))),
+    )
 }
 
 fn local_connect_retry_backoff() -> backoff::ExponentialBackoff {
@@ -963,244 +491,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::runtime::RuntimeEvent;
-    use axum::Router;
-    use axum::routing::get;
-    use futures::stream;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[tokio::test]
-    async fn eof_still_flushes_provider_normalized_turn_end() {
-        let mut parser = StreamParser::new();
-        let _ = parser
-            .process(
-                b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
-            )
-            .unwrap();
-
-        let mut state = EventStreamState {
-            upstream: Box::pin(stream::iter(vec![Err(eventsource_client::Error::Eof)])),
-            parser,
-            pending: VecDeque::new(),
-            terminal_outcome: None,
-            request_url: "https://example.test/sse".to_string(),
-            request_id: "req-test-eof".to_string(),
-            protocol_name: "messages-v1",
-            started_at: Instant::now(),
-            envelope_count: 0,
-            tool_call_starts: 0,
-            tool_call_completions: 0,
-            tool_call_failures: 0,
-            last_usage: None,
-            final_status: None,
-            summary_emitted: false,
-        };
-
-        let event = next_stream_event(&mut state).await.unwrap().unwrap();
-
-        assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
-        assert!(next_stream_event(&mut state).await.unwrap().is_none());
-    }
-
-    #[tokio::test]
-    async fn eof_after_pending_turn_end_does_not_poll_upstream_again() {
-        let mut parser = StreamParser::new();
-        let _ = parser
-            .process(
-                b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
-            )
-            .unwrap();
-
-        let polls = Arc::new(AtomicUsize::new(0));
-        let polls_for_stream = Arc::clone(&polls);
-        let upstream = stream::poll_fn(move |_| {
-            let poll_index = polls_for_stream.fetch_add(1, Ordering::SeqCst);
-            match poll_index {
-                0 => std::task::Poll::Ready(Some(Err(eventsource_client::Error::Eof))),
-                _ => panic!("upstream polled again after EOF"),
-            }
-        });
-
-        let mut state = EventStreamState {
-            upstream: Box::pin(upstream),
-            parser,
-            pending: VecDeque::new(),
-            terminal_outcome: None,
-            request_url: "https://example.test/sse".to_string(),
-            request_id: "req-test-eof-once".to_string(),
-            protocol_name: "messages-v1",
-            started_at: Instant::now(),
-            envelope_count: 0,
-            tool_call_starts: 0,
-            tool_call_completions: 0,
-            tool_call_failures: 0,
-            last_usage: None,
-            final_status: None,
-            summary_emitted: false,
-        };
-
-        let event = next_stream_event(&mut state).await.unwrap().unwrap();
-
-        assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
-        assert!(next_stream_event(&mut state).await.unwrap().is_none());
-        assert_eq!(polls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn retry_local_connect_errors_retries_connect_failures_for_local_endpoints() {
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let failing_listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
-        failing_listener.set_nonblocking(true).unwrap();
-        let failing_addr = failing_listener.local_addr().unwrap();
-        drop(failing_listener);
-
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-            .await
-            .unwrap();
-        let server_addr = listener.local_addr().unwrap();
-
-        let server = tokio::spawn(async move {
-            axum::serve(
-                listener,
-                Router::new().route("/health", get(|| async { "ok" })),
-            )
-            .await
-            .unwrap();
-        });
-
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(1))
-            .build()
-            .unwrap();
-
-        let mut server_ready = false;
-        for _ in 0..20 {
-            match client
-                .get(format!("http://{server_addr}/health"))
-                .send()
-                .await
-            {
-                Ok(response) if response.status().is_success() => {
-                    server_ready = true;
-                    break;
-                }
-                Ok(_) | Err(_) => tokio::time::sleep(Duration::from_millis(50)).await,
-            }
-        }
-        assert!(server_ready, "expected local test server to become ready");
-
-        let result = retry_local_connect_errors(
-            &format!("http://{server_addr}/v1/messages"),
-            "req-local-retry",
-            "test_connect_retry",
-            || {
-                let client = client.clone();
-                let attempts = Arc::clone(&attempts);
-                async move {
-                    let target_addr = if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-                        failing_addr
-                    } else {
-                        server_addr
-                    };
-                    client
-                        .get(format!("http://{target_addr}/health"))
-                        .send()
-                        .await
-                }
-            },
-        )
-        .await;
-
-        assert!(
-            result.is_ok(),
-            "expected retry to eventually succeed: {result:?}"
-        );
-        assert!(attempts.load(Ordering::SeqCst) > 1);
-
-        server.abort();
-    }
-
-    #[tokio::test]
-    async fn retry_local_connect_errors_does_not_retry_non_local_connect_errors() {
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(20))
-            .build()
-            .unwrap();
-
-        let result = retry_local_connect_errors(
-            "https://model.example.internal/v1/messages",
-            "req-remote-connect",
-            "test_remote_no_retry",
-            || {
-                let client = client.clone();
-                let attempts = Arc::clone(&attempts);
-                async move {
-                    attempts.fetch_add(1, Ordering::SeqCst);
-                    client.get("http://127.0.0.1:9/health").send().await
-                }
-            },
-        )
-        .await;
-
-        assert!(result.is_err());
-        assert_eq!(attempts.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn retry_local_connect_errors_does_not_retry_non_connect_errors() {
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let client = reqwest::Client::new();
-
-        let result = retry_local_connect_errors(
-            "http://127.0.0.1:8000/v1/messages",
-            "req-local-non-connect",
-            "test_builder_error",
-            || {
-                let client = client.clone();
-                let attempts = Arc::clone(&attempts);
-                async move {
-                    attempts.fetch_add(1, Ordering::SeqCst);
-                    client.get("http://[").send().await
-                }
-            },
-        )
-        .await;
-
-        assert!(result.is_err());
-        assert_eq!(attempts.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn retry_local_connect_errors_stops_after_max_elapsed_time() {
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let start = Instant::now();
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(20))
-            .build()
-            .unwrap();
-
-        let result = retry_local_connect_errors(
-            "http://127.0.0.1:9/v1/messages",
-            "req-local-timeout",
-            "test_max_elapsed",
-            || {
-                let client = client.clone();
-                let attempts = Arc::clone(&attempts);
-                async move {
-                    attempts.fetch_add(1, Ordering::SeqCst);
-                    client.get("http://127.0.0.1:9/health").send().await
-                }
-            },
-        )
-        .await;
-
-        assert!(result.is_err());
-        assert_eq!(attempts.load(Ordering::SeqCst), 2);
-        assert!(start.elapsed() >= LOCAL_CONNECT_RETRY_INITIAL_INTERVAL);
-        assert!(start.elapsed() < LOCAL_CONNECT_RETRY_MAX_ELAPSED);
-    }
-}
+mod tests;

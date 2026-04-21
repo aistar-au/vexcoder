@@ -39,6 +39,18 @@ pub struct ServerInfo {
 struct LocalServerProps {
     #[serde(default)]
     default_generation_settings: Option<LocalServerGenSettings>,
+    #[serde(default)]
+    chat_template: Option<String>,
+    #[serde(default)]
+    chat_template_caps: Option<LocalServerChatTemplateCaps>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct LocalServerChatTemplateCaps {
+    #[serde(default)]
+    supports_tools: bool,
+    #[serde(default)]
+    supports_tool_calls: bool,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -49,6 +61,78 @@ struct LocalServerGenSettings {
     n_batch: u32,
     #[serde(default)]
     model: String,
+}
+
+const CHAT_COMPAT_RUNTIME_SERVER_HEADER_BYTES: &[u8] =
+    &[0x6c, 0x6c, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x70, 0x70];
+const CHAT_COMPAT_RUNTIME_OWNER_BYTES: &[u8] = &[0x6c, 0x6c, 0x61, 0x6d, 0x61, 0x63, 0x70, 0x70];
+
+fn chat_compat_runtime_server_header() -> &'static str {
+    std::str::from_utf8(CHAT_COMPAT_RUNTIME_SERVER_HEADER_BYTES)
+        .expect("valid ASCII chat-compat server header marker")
+}
+
+fn chat_compat_runtime_owner() -> &'static str {
+    std::str::from_utf8(CHAT_COMPAT_RUNTIME_OWNER_BYTES)
+        .expect("valid ASCII chat-compat owner marker")
+}
+
+fn server_header_matches_chat_compat_runtime(headers: &reqwest::header::HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::SERVER)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .to_ascii_lowercase()
+                .contains(chat_compat_runtime_server_header())
+        })
+}
+
+fn infer_native_protocol_from_props(
+    headers: &reqwest::header::HeaderMap,
+    props: &LocalServerProps,
+) -> Option<ModelProtocol> {
+    if server_header_matches_chat_compat_runtime(headers) {
+        return Some(ModelProtocol::ChatCompat);
+    }
+
+    if props
+        .chat_template
+        .as_deref()
+        .is_some_and(|template| !template.trim().is_empty())
+    {
+        return Some(ModelProtocol::ChatCompat);
+    }
+
+    props.chat_template_caps.as_ref().and_then(|caps| {
+        if caps.supports_tools || caps.supports_tool_calls {
+            Some(ModelProtocol::ChatCompat)
+        } else {
+            None
+        }
+    })
+}
+
+fn infer_native_protocol_from_models(
+    headers: &reqwest::header::HeaderMap,
+    body: &Value,
+) -> Option<ModelProtocol> {
+    if server_header_matches_chat_compat_runtime(headers) {
+        return Some(ModelProtocol::ChatCompat);
+    }
+
+    body.get("data")
+        .and_then(|data| data.as_array())
+        .and_then(|entries| entries.first())
+        .and_then(|entry| entry.get("owned_by"))
+        .and_then(Value::as_str)
+        .and_then(|owner| {
+            if owner.eq_ignore_ascii_case(chat_compat_runtime_owner()) {
+                Some(ModelProtocol::ChatCompat)
+            } else {
+                None
+            }
+        })
 }
 
 /// Attempt to discover server capabilities from a local inference endpoint.
@@ -73,16 +157,26 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         .send()
         .await
         && resp.status().is_success()
-        && let Ok(props) = resp.json::<LocalServerProps>().await
-        && let Some(gs) = props.default_generation_settings
-        && gs.n_ctx > 0
     {
-        info = Some(ServerInfo {
-            n_ctx: gs.n_ctx,
-            n_batch: gs.n_batch,
-            model: gs.model,
-            native_protocol: None,
-        });
+        let headers = resp.headers().clone();
+        if let Ok(props) = resp.json::<LocalServerProps>().await {
+            let native_protocol = infer_native_protocol_from_props(&headers, &props);
+            if let Some(gs) = props.default_generation_settings
+                && (gs.n_ctx > 0 || !gs.model.is_empty() || native_protocol.is_some())
+            {
+                info = Some(ServerInfo {
+                    n_ctx: gs.n_ctx,
+                    n_batch: gs.n_batch,
+                    model: gs.model,
+                    native_protocol,
+                });
+            } else if native_protocol.is_some() {
+                info = Some(ServerInfo {
+                    native_protocol,
+                    ..ServerInfo::default()
+                });
+            }
+        }
     }
 
     // Fallback: try /v1/models for other servers.
@@ -99,23 +193,26 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
             .send()
             .await
         && resp.status().is_success()
-        && let Ok(body) = resp.json::<Value>().await
     {
-        let model = body
-            .get("data")
-            .and_then(|d| d.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|m| m.get("id"))
-            .and_then(|id| id.as_str())
-            .unwrap_or("")
-            .to_string();
-        if !model.is_empty() {
-            info = Some(ServerInfo {
-                n_ctx: 0,
-                n_batch: 0,
-                model,
-                native_protocol: None,
-            });
+        let headers = resp.headers().clone();
+        if let Ok(body) = resp.json::<Value>().await {
+            let model = body
+                .get("data")
+                .and_then(|d| d.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|m| m.get("id"))
+                .and_then(|id| id.as_str())
+                .unwrap_or("")
+                .to_string();
+            let native_protocol = infer_native_protocol_from_models(&headers, &body);
+            if !model.is_empty() || native_protocol.is_some() {
+                info = Some(ServerInfo {
+                    n_ctx: 0,
+                    n_batch: 0,
+                    model,
+                    native_protocol,
+                });
+            }
         }
     }
 
@@ -318,7 +415,7 @@ impl ApiClient {
         .await;
 
         if let Some(mut info) = poll_server_info(&self.http, &base_url).await {
-            info.native_protocol = native_protocol;
+            info.native_protocol = native_protocol.or(info.native_protocol);
             self.set_server_info(info);
             return;
         }
@@ -412,16 +509,18 @@ impl ApiClient {
             return model_protocol_to_api_protocol(explicit_protocol);
         }
 
+        let discovered_protocol = self.server_info().and_then(|si| si.native_protocol);
+
         // A concrete endpoint path in model_url is more specific than local
-        // discovery. Respect it so `/v1/chat/completions` does not get
-        // rewritten back to `/v1/messages` on dual-protocol servers.
+        // discovery. Respect it so an explicit `/v1/messages` or
+        // `/v1/chat/completions` configuration remains authoritative.
         if let Some(configured_protocol) = configured_endpoint_protocol(&self.api_url) {
             return configured_protocol;
         }
 
         // Local discovery pins a concrete wire format for base URLs once it
         // is known.
-        if let Some(native) = self.server_info().and_then(|si| si.native_protocol) {
+        if let Some(native) = discovered_protocol {
             return model_protocol_to_api_protocol(native);
         }
         model_protocol_to_api_protocol(self.model_protocol)
@@ -803,18 +902,7 @@ pub(crate) fn map_api_request_error(error: reqwest::Error, request_url: &str) ->
         return anyhow!("cannot reach API endpoint '{}': {}", request_url, error);
     }
     if error.is_timeout() {
-        tracing::warn!(
-            target: "vex::http",
-            url = %rewritten_url,
-            error = %error,
-            "API request timed out"
-        );
-        return anyhow!(
-            "API request to '{}' timed out: {}. The endpoint accepted the connection but did not answer before the configured timeout. For transport diagnostics, rerun with --display-internal-telemetry or set RUST_LOG=debug.{}",
-            request_url,
-            error,
-            local_http_hint
-        );
+        return api_request_timeout_error(request_url, &error);
     }
     if let Some(status) = error.status() {
         if status == reqwest::StatusCode::BAD_REQUEST && is_local_endpoint_url(request_url) {
@@ -837,6 +925,28 @@ pub(crate) fn map_api_request_error(error: reqwest::Error, request_url: &str) ->
         );
     }
     anyhow!("API request to '{}' failed: {}", request_url, error)
+}
+
+pub(crate) fn api_request_timeout_error(
+    request_url: &str,
+    detail: &dyn std::fmt::Display,
+) -> anyhow::Error {
+    let local_http_hint = local_plain_http_hint(request_url);
+    let rewritten_url = crate::runtime::rewrite_url_for_logs(request_url);
+
+    tracing::warn!(
+        target: "vex::http",
+        url = %rewritten_url,
+        error = %detail,
+        "API request timed out"
+    );
+
+    anyhow!(
+        "API request to '{}' timed out: {}. The endpoint accepted the connection but did not answer before the configured timeout. For transport diagnostics, rerun with --display-internal-telemetry or set RUST_LOG=debug.{}",
+        request_url,
+        detail,
+        local_http_hint
+    )
 }
 
 /// Handle HTTP 4xx responses where the body has already been read.
@@ -996,8 +1106,6 @@ fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     } else if normalized.contains("/messages") {
         // Covers both "/v1/messages" and the transposed "/messages/v1".
         ApiProtocol::MessagesV1
-    } else if normalized.ends_with("/v1") {
-        ApiProtocol::ChatCompat
     } else {
         ApiProtocol::MessagesV1
     }

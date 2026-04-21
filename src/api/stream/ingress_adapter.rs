@@ -34,6 +34,10 @@ impl IngressProtocolAdapter {
     fn emit_protocol_error(&mut self, code: String, message: String) -> RuntimeEnvelope {
         self.normalizer.emit_protocol_ingress_error(code, message)
     }
+
+    fn protocol_stream_terminated(&self) -> bool {
+        self.normalizer.protocol_stream_terminated()
+    }
 }
 
 impl StreamParser {
@@ -79,6 +83,12 @@ impl StreamParser {
         self.output_mode = StreamOutputMode::ProtocolAdapter;
         self.protocol_adapter_mut()
             .emit_protocol_error(code.to_string(), message)
+    }
+
+    pub(crate) fn protocol_stream_terminated(&self) -> bool {
+        self.protocol_adapter
+            .as_ref()
+            .is_some_and(IngressProtocolAdapter::protocol_stream_terminated)
     }
 
     pub(super) fn enter_runtime_envelope_mode(

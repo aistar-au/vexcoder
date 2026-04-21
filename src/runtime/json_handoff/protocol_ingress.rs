@@ -318,6 +318,10 @@ impl RuntimeEnvelopeNormalizer {
         })
     }
 
+    pub(crate) fn protocol_stream_terminated(&self) -> bool {
+        self.protocol_ingress.chat_compat_stream_terminated
+    }
+
     fn ensure_protocol_ingress_turn_started(&mut self) -> Vec<RuntimeEnvelope> {
         if self.protocol_ingress.turn_started {
             return Vec::new();

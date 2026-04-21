@@ -117,6 +117,38 @@ fn error_reset_clears_live_changed_file_projection() {
     );
 }
 
+#[test]
+fn error_reset_records_single_error_marker_in_transcript_views() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("summarize the repository".to_string(), &mut ctx);
+    mode.on_model_update(UiUpdate::Error("transport timeout".to_string()), &mut ctx);
+
+    let history_lines = mode.history_lines();
+    assert!(
+        history_lines
+            .iter()
+            .any(|line| line == "[error] transport timeout"),
+        "history projection must retain a single error marker: {history_lines:?}"
+    );
+    assert!(
+        !history_lines
+            .iter()
+            .any(|line| line == "[error] [error] transport timeout"),
+        "history projection must not duplicate the error marker: {history_lines:?}"
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert!(
+        state.output_rows.iter().any(|row| {
+            matches!(row, TranscriptRow::Error(message) if message == "transport timeout")
+        }),
+        "task-surface projection must store the raw error text once: {:?}",
+        state.output_rows
+    );
+}
+
 // -- interrupt / feedback / quit ---------------------------------------------
 
 #[test]

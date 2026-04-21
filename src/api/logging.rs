@@ -34,6 +34,18 @@ pub fn emit_sse_parse_error(
     }));
 }
 
+pub(crate) fn emit_log_value(value: &Value) {
+    let encoded = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
+    if let Some(path) = resolve_log_path()
+        && append_log_file(&path, &format!("{encoded}\n")).is_ok()
+    {
+        return;
+    }
+
+    eprintln!("{encoded}");
+}
+
 fn summarize_debug_payload(payload: &Value) -> Value {
     let message_roles = payload
         .get("messages")
@@ -146,18 +158,6 @@ fn summarize_sse_payload(json_data: &str) -> Value {
             "contains_tool_use": json_data.contains("\"tool_use\""),
         }),
     }
-}
-
-fn emit_log_value(value: &Value) {
-    let encoded = serde_json::to_string(value)
-        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
-    if let Some(path) = resolve_log_path()
-        && append_log_file(&path, &format!("{encoded}\n")).is_ok()
-    {
-        return;
-    }
-
-    eprintln!("{encoded}");
 }
 
 fn resolve_log_path() -> Option<String> {

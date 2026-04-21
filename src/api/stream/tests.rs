@@ -1,6 +1,8 @@
 use super::{MAX_SSE_BUFFER_BYTES, StreamParser};
 use crate::runtime::RuntimeEvent;
 
+mod messages_v1;
+
 #[test]
 fn test_process_emits_ping_for_ping_frame() {
     let mut parser = StreamParser::new();
@@ -9,117 +11,6 @@ fn test_process_emits_ping_for_ping_frame() {
         .unwrap();
 
     assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_maps_chat_compat_usage_chunk() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(
-            b"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":7,\"total_tokens\":19}}\n\n",
-        )
-        .unwrap();
-
-    assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
-    assert!(matches!(
-        &events[1].event,
-        RuntimeEvent::UsageUpdated { usage }
-            if usage.input == 12 && usage.output == 7 && usage.cache_creation_input == 0 && usage.cache_read_input == 0
-    ));
-}
-
-#[test]
-fn test_process_messages_v1_message_delta_top_level_usage() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(
-            b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
-        )
-        .unwrap();
-
-    assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
-    assert!(matches!(
-        &events[1].event,
-        RuntimeEvent::UsageUpdated { usage } if usage.output == 15
-    ));
-}
-
-#[test]
-fn test_process_messages_v1_legacy_thinking_tag_emits_recoverable_error() {
-    let mut parser = StreamParser::new();
-    let frame = format!(
-        "event: content_block_start\ndata: {{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{{\"type\":\"{}\",\"data\":\"opaque\"}}}}\n\n",
-        "redacted_thinking"
-    );
-    let events = parser.process(frame.as_bytes()).unwrap();
-
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::Error {
-            code,
-            recoverable,
-            ..
-        } if code == "provider_content_block_start_decode" && *recoverable
-    )));
-    assert!(!events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "opaque"
-    )));
-}
-
-#[test]
-fn test_process_messages_v1_thinking_data_block_emits_thinking_delta() {
-    let mut parser = StreamParser::new();
-    let frame =
-        b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking_data\",\"data\":\"opaque\"}}\n\n";
-    let events = parser.process(frame).unwrap();
-
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "opaque"
-    )));
-    assert!(!events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::Error {
-            code,
-            recoverable,
-            ..
-        } if code == "provider_content_block_start_decode" && *recoverable
-    )));
-}
-
-#[test]
-fn test_process_messages_v1_tool_use_accepts_object_arguments_without_synthetic_delta() {
-    let mut parser = StreamParser::new();
-    let frame = b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_obj\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\",\"line\":7}}}\n\n";
-    let events = parser.process(frame).unwrap();
-
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::TranscriptBlockStart {
-            index: 1,
-            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
-        } if id == "toolu_obj"
-            && name == "read_file"
-            && input == &serde_json::json!({"path":"src/lib.rs","line":7})
-    )));
-    assert!(events.iter().any(|event| matches!(
-        &event.event,
-        RuntimeEvent::ToolCallStarted {
-            tool_name,
-            arguments,
-            ..
-        } if tool_name == "read_file"
-            && arguments == &serde_json::json!({"path":"src/lib.rs","line":7})
-    )));
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "materialized messages-v1 tool input should not emit a synthetic arguments delta",
-    );
 }
 
 #[test]
@@ -309,6 +200,43 @@ fn test_process_chat_compat_accepts_object_valued_tool_arguments() {
             .iter()
             .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
         "a materialized JSON value should not require a synthetic delta replay",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_accepts_array_valued_tool_arguments() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_arr","type":"function","function":{"name":"search","arguments":["src/main.rs",{"max_depth":2}]}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_arr"
+            && name == "search"
+            && input == &serde_json::json!(["src/main.rs", {"max_depth": 2}])
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            ..
+        } if tool_name == "search"
+            && arguments == &serde_json::json!(["src/main.rs", {"max_depth": 2}])
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "a materialized JSON array should not require a synthetic delta replay",
     );
 }
 
@@ -617,77 +545,10 @@ fn test_process_preserves_tab_after_single_space_strip() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: \t{\"type\":\"ping\"}\n\n").unwrap();
 
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_ignores_unknown_fields() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(b"custom-field: ignored\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
-        .unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_handles_cr_only_frame_delimiters() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(b"event: ping\rdata: {\"type\":\"ping\"}\r\r")
-        .unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_strips_utf8_bom_once() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(b"\xEF\xBB\xBFevent: ping\ndata: {\"type\":\"ping\"}\n\n")
-        .unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_recognises_id_and_retry_fields() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(b"id: evt-42\nretry: 1500\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
-        .unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_id_only_frame_emits_no_event() {
-    let mut parser = StreamParser::new();
-    let events = parser.process(b"id: evt-42\n\n").unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_colon_free_field_name_is_ignored() {
-    let mut parser = StreamParser::new();
-    let events = parser.process(b"custom-field\n\n").unwrap();
-
-    assert!(events.is_empty());
-}
-
-#[test]
-fn test_process_raw_json_frame_without_data_emits_error() {
-    let mut parser = StreamParser::new();
-    let events = parser.process(b"{\"type\":\"ping\"}\n\n").unwrap();
-
-    assert_eq!(events.len(), 1);
-    assert!(matches!(
-        &events[0].event,
-        RuntimeEvent::Error { code, message, .. }
-            if code == "sse_parse_error"
-                && message.contains("raw JSON chunk streams are unsupported")
-    ));
+    assert!(
+        events.is_empty(),
+        "leading tabs after the single optional post-colon space must be preserved and ignored for ping-like payloads"
+    );
 }
 
 use super::{NormalisedChunk, StreamTextNormaliser};

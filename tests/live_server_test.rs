@@ -14,6 +14,8 @@
 //! Run with:
 //!   VEX_LIVE_SERVER_URL=http://localhost:8000 cargo nextest run -p vexcoder --test live_server_test
 
+#![allow(unsafe_code)]
+
 use axum::{
     Json, Router,
     response::{
@@ -34,6 +36,10 @@ use vexcoder::runtime::{
     ModelBackend, ModelBackendKind, ModelProtocol, RuntimeEvent, ToolCallMode, ToolPolicy,
 };
 use vexcoder::types::{ApiMessage, Content, ModelProfile};
+
+mod test_support {
+    pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+}
 
 /// Resolve the live server URL from the environment or use the default.
 fn live_server_url() -> String {
@@ -99,6 +105,13 @@ macro_rules! require_live_server {
         }
     };
 }
+
+#[path = "live_server_test/logging.rs"]
+mod logging;
+#[path = "live_server_test/protocol.rs"]
+mod protocol;
+#[path = "live_server_test/tool_calls.rs"]
+mod tool_calls;
 
 fn build_chat_compat_config(base_url: &str, model_name: &str) -> Config {
     Config {
@@ -450,113 +463,6 @@ async fn test_live_server_model_listing() {
         !model.is_empty(),
         "model listing must return at least one model name"
     );
-}
-
-// ---------------------------------------------------------------------------
-// Tests — ChatCompat (/v1/chat/completions) config and protocol
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn test_chat_compat_config_builds_valid_api_client() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-
-    let config = build_chat_compat_config(&base_url, &model);
-    let result = vexcoder::api::ApiClient::new(&config);
-    assert!(
-        result.is_ok(),
-        "ApiClient::new must succeed for chat-compat config: {:?}",
-        result.err()
-    );
-
-    let client = result.unwrap();
-    assert!(
-        client.is_local_endpoint(),
-        "live server URL must be detected as local endpoint"
-    );
-    assert!(
-        client.https_local_startup_warning().is_none(),
-        "plain HTTP local server must not trigger HTTPS warning"
-    );
-    assert_eq!(
-        client.protocol(),
-        ModelProtocol::ChatCompat,
-        "client must use ChatCompat protocol"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Tests — MessagesV1 (/v1/messages) config and protocol
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn test_messages_v1_config_builds_valid_api_client() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-
-    let config = build_messages_v1_config(&base_url, &model);
-    let result = vexcoder::api::ApiClient::new(&config);
-    assert!(
-        result.is_ok(),
-        "ApiClient::new must succeed for messages-v1 config: {:?}",
-        result.err()
-    );
-
-    let client = result.unwrap();
-    assert!(
-        client.is_local_endpoint(),
-        "messages-v1 live server URL must be detected as local endpoint"
-    );
-    assert!(
-        client.https_local_startup_warning().is_none(),
-        "plain HTTP messages-v1 server must not trigger HTTPS warning"
-    );
-    assert_eq!(
-        client.protocol(),
-        ModelProtocol::MessagesV1,
-        "client must use MessagesV1 protocol"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Tests — protocol detection across both wire formats
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn test_chat_compat_and_messages_v1_use_different_protocols() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-
-    let chat_config = build_chat_compat_config(&base_url, &model);
-    let msg_config = build_messages_v1_config(&base_url, &model);
-
-    let chat_client = vexcoder::api::ApiClient::new(&chat_config).unwrap();
-    let msg_client = vexcoder::api::ApiClient::new(&msg_config).unwrap();
-
-    assert_eq!(chat_client.protocol(), ModelProtocol::ChatCompat);
-    assert_eq!(msg_client.protocol(), ModelProtocol::MessagesV1);
-}
-
-#[tokio::test]
-async fn test_messages_v1_url_resolves_correctly() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-
-    let config = build_messages_v1_config(&base_url, &model);
-    let expected_url = format!("{}/v1/messages", base_url.trim_end_matches('/'));
-    assert_eq!(config.model_url, expected_url);
-    assert_eq!(config.model_protocol, ModelProtocol::MessagesV1);
-}
-
-#[tokio::test]
-async fn test_chat_compat_url_resolves_correctly() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-
-    let config = build_chat_compat_config(&base_url, &model);
-    let expected_url = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
-    assert_eq!(config.model_url, expected_url);
-    assert_eq!(config.model_protocol, ModelProtocol::ChatCompat);
 }
 
 #[tokio::test]
@@ -1026,10 +932,10 @@ async fn spawn_auto_detect_messages_v1_tool_calls_server() -> (String, JoinHandl
 /// Verifies that a stalled stream followed by a slow non-stream POST resolves
 /// as an error instead of hanging or producing a bogus success result.
 ///
-/// The bounded timeout regressions live in `src/api/client/tests.rs`, where the
-/// library is compiled under `cfg(test)` and the short local timeout constants
-/// apply. This integration test exercises the same end-to-end path under the
-/// production timeout values used by `tests/live_server_test.rs`.
+/// The bounded timeout regressions are unit-tested in `src/api/client/tests.rs`.
+/// This integration test replays the same end-to-end path through the live
+/// server harness so the fallback deadline remains enforced outside the unit
+/// test-only fixtures.
 #[tokio::test]
 async fn test_local_fallback_post_slow_response_surfaces_error() {
     let (base_url, server) = spawn_slow_fallback_server().await;
@@ -1042,7 +948,7 @@ async fn test_local_fallback_post_slow_response_surfaces_error() {
 
     assert!(
         result.is_err(),
-        "slow fallback POST must surface a timeout error, got Ok"
+        "slow fallback POST must surface an error instead of a bogus success result"
     );
     assert!(
         elapsed < Duration::from_secs(2),
@@ -1122,106 +1028,6 @@ async fn test_stalled_stream_chat_compat_null_content_no_tools_produces_turn_end
             .iter()
             .any(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. })),
         "null-no-tools fallback must not emit ToolCallStarted"
-    );
-
-    server.abort();
-}
-
-// ---------------------------------------------------------------------------
-// Tests — JSON-form arguments normalization (item-5 in transport follow-up)
-// ---------------------------------------------------------------------------
-
-/// Verifies that the non-stream fallback normalizes tool calls whose
-/// `arguments` field is a JSON object (not a string), exercising the
-/// `ChatCompatFunctionArguments::Json` path in `apply_chat_compat_tool_delta`.
-///
-/// This path is only reachable from the non-stream fallback because streaming
-/// endpoints always emit string-form deltas.
-#[tokio::test]
-async fn test_stalled_stream_chat_compat_json_form_arguments_normalizes_correctly() {
-    let (base_url, server) = spawn_tool_calls_json_args_server().await;
-    let config = build_auto_detect_batch_config(&base_url, "json-args-model");
-    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
-    client.populate_server_info().await;
-
-    assert_eq!(
-        client.server_info().and_then(|info| info.native_protocol),
-        Some(ModelProtocol::ChatCompat),
-        "auto-detect should select chat-compat before issuing the request"
-    );
-
-    let mut stream = client
-        .create_stream(&single_user_message("Read main.rs."))
-        .await
-        .expect("json-args fallback must not error");
-
-    let mut envelopes = Vec::new();
-    while let Some(envelope) = stream.next().await {
-        envelopes.push(envelope.expect("envelope must not error"));
-    }
-
-    assert!(
-        envelopes.iter().any(|e| matches!(
-            &e.event,
-            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
-                if tool_name == "read_file"
-                    && arguments.get("path").and_then(Value::as_str) == Some("src/main.rs")
-        )),
-        "json-form arguments must materialize as ToolCallStarted with correct input; got {:?}",
-        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
-    );
-    assert!(
-        !envelopes
-            .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "json-form arguments must not emit argument deltas"
-    );
-
-    server.abort();
-}
-
-/// Verifies end-to-end auto-detect → messages-v1 → stalled-stream fallback →
-/// tool-call materialization. Confirms that `messages/v1` is selected by
-/// protocol discovery when the server serves both probe endpoints but only
-/// `/v1/messages` returns a valid SSE probe response.
-#[tokio::test]
-async fn test_run_batch_auto_detects_messages_v1_and_normalizes_fallback_tool_calls() {
-    let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;
-    let config = build_auto_detect_batch_config(&base_url, "tool-detect-model");
-    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
-    client.populate_server_info().await;
-
-    assert_eq!(
-        client.server_info().and_then(|info| info.native_protocol),
-        Some(ModelProtocol::MessagesV1),
-        "auto-detect should select messages-v1 before issuing the request"
-    );
-
-    let mut stream = client
-        .create_stream(&single_user_message("Read lib.rs."))
-        .await
-        .expect("messages-v1 tool-call fallback must not error");
-
-    let mut envelopes = Vec::new();
-    while let Some(envelope) = stream.next().await {
-        envelopes.push(envelope.expect("envelope must not error"));
-    }
-
-    assert!(
-        envelopes.iter().any(|e| matches!(
-            &e.event,
-            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
-                if tool_name == "read_file"
-                    && arguments.get("path").and_then(Value::as_str) == Some("src/lib.rs")
-        )),
-        "auto-detected messages-v1 tool call must materialize; got {:?}",
-        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
-    );
-    assert!(
-        !envelopes
-            .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "materialized messages-v1 tool calls must not emit argument deltas"
     );
 
     server.abort();
