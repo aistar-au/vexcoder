@@ -1,5 +1,5 @@
-// This module mutates process env vars in tests while holding
-// `test_support::ENV_LOCK`, which serializes access within this binary.
+// This module changes process env vars in tests while holding
+// `test_support::ENV_LOCK`, which serializes read within this binary.
 #![allow(unsafe_code)]
 
 use super::*;
