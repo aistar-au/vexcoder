@@ -153,8 +153,7 @@ Lists installed skills.
 
 ### `vex skills install SOURCE`
 
-Installs a skill from a git URL or tarball URL. The skill root defaults to the
-repository root of the fetched source.
+Installs a skill from a git URL or tarball URL.
 
 ### `vex skills remove NAME`
 
