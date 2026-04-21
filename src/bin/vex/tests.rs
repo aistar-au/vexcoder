@@ -8,7 +8,7 @@ use super::{
     read_secret_from_env_var, read_secret_from_reader, render_task_entries,
     resolve_credentials_secret, resolve_resume_state, tool_policy_from_cli,
 };
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use clap_complete::Shell;
 use std::io::Cursor;
 use std::process::Command;
@@ -463,6 +463,19 @@ fn test_cli_rejects_obsolete_json_map_encoding_alias() {
 }
 
 // -- PB-01 ----------------------------------------------------------------
+
+#[test]
+fn test_help_paths_emit_display_help_without_running_the_binary() {
+    for argv in [
+        &["vex", "--help"][..],
+        &["vex", "completions", "--help"][..],
+    ] {
+        let err = Cli::command()
+            .try_get_matches_from(argv)
+            .expect_err("help argv should short-circuit with DisplayHelp");
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayHelp);
+    }
+}
 
 #[test]
 fn test_completions_cli_parses_zsh() {
