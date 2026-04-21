@@ -94,7 +94,7 @@ git diff --numstat -- src/ui/editor/mod.rs src/app.rs src/bin/vex.rs src/ui.rs s
     triage should separate stale comments
     from still-useful rationale.
 
-## P2 — Live Duplication Claims
+## P2 —  Duplication Claims
 
 ### 9) Tool error dispatch block repeated in conversation core
 - **Status**: **Completed (2026-03-28)**
