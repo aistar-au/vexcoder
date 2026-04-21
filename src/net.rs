@@ -1,4 +1,4 @@
-//! RFC-compliant network utility modules.
+//! Network utility modules aligned with published protocol specifications.
 //!
 //! Each sub-module documents the specific RFC it implements and provides
 //! a focused, tested API over the underlying third-party crate.

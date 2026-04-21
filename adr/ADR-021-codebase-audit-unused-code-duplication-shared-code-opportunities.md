@@ -90,7 +90,8 @@ git diff --numstat -- src/ui/editor/mod.rs src/app.rs src/bin/vex.rs src/ui.rs s
 ### 8) Post-cutover comment debt
 - **Status**: **Partially accurate**
 - **Note**:
-  - There are transition-era comments; triage should separate stale comments
+  - There are comments inherited from the transition to the current design;
+    triage should separate stale comments
     from still-useful rationale.
 
 ## P2 — Live Duplication Claims

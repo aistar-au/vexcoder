@@ -157,7 +157,7 @@ impl TuiMode {
         ));
     }
     pub(crate) fn resolve_context_git_summary(&self) -> String {
-        let defaults = ContextAssembler::default();
+        let defaults = self.context_assembler.clone();
         let timeout_ms = resolve_git_timeout_ms(defaults.git_timeout_ms);
         match block_on_context_task(run_git_command_with_timeout(
             self.working_dir.clone(),

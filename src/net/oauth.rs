@@ -1,6 +1,6 @@
 //! OAuth 2.0 PKCE flow and Bearer token utilities.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|

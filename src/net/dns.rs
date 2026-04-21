@@ -1,6 +1,6 @@
 //! DNS resolution with DoH and Happy Eyeballs support.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|

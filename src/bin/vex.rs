@@ -10,15 +10,16 @@ use tracing::Instrument;
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
-use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
+use vexcoder::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, run_batch};
 use vexcoder::config::Config;
+use vexcoder::disk_policy::{self, DiskPolicyMode};
 use vexcoder::doctor::run_doctor;
 use vexcoder::exec::{parse_exec_command, run_exec};
-use vexcoder::export::{ExportFormat, render_task_export, write_export_output};
+use vexcoder::export::{ExportFormat, render_task_export};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::privacy::render_privacy_markdown;
-use vexcoder::runtime::{ModelProtocol, TaskState, TaskStatus, ToolPolicy};
+use vexcoder::runtime::{TaskState, TaskStatus, ToolPolicy};
 use vexcoder::serve_local_api;
 use vexcoder::startup::emit_model_endpoint_warnings;
 use vexcoder::tui_frontend::ManagedTuiFrontend;
@@ -29,25 +30,15 @@ mod cli;
 #[path = "vex/tests.rs"]
 mod tests;
 
-use self::cli::{
-    Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands, TaskCommands,
-};
+use self::cli::{Cli, Commands, CredentialsCommands, SkillsCommands, TaskCommands};
 
-fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
-    let fragment = vexcoder::config::migrate_config_from_env(&[]);
-    if let Some(path) = output_path {
-        std::fs::write(path, fragment)?;
-    } else {
-        print!("{}", fragment);
-    }
-    Ok(())
-}
+// ── Task-state resolution for -r/--recall-coordinates ────────────────────────
 
-// ── PM-01: resolve task state for --resume ────────────────────────────────────
-
-/// Load a `TaskState` for `--resume`.  An empty `task_id` means "pick the most
-/// recent saved task"; a non-empty `task_id` loads that specific task.
-/// Returns `None` only when no tasks exist yet (empty-id path).
+/// Load a [`TaskState`] for `-r/--recall-coordinates`.
+///
+/// An empty `task_id` selects the most-recently-modified state file in the
+/// process search path; a non-empty `task_id` loads that specific task.
+/// Returns `None` only on the empty-id path when no state files exist.
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     if task_id.is_empty() {
         let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -63,10 +54,13 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     }
 }
 
-// ── PM-03: --print one-shot mode ──────────────────────────────────────────────
+// ── Batch-turn dispatch for -p/--project-map-only ────────────────────────────
 
-/// Collect stdin when it is not a TTY (pipe / redirect) and prepend it to the
-/// prompt so that `vex -p "summarise" < file.txt` works naturally.
+/// Collect stdin content when stdin is not a TTY (pipe or redirect).
+///
+/// Returns `None` when stdin is a terminal or when the piped content is empty
+/// after trimming. The caller prepends the returned content to the prompt so
+/// that `vex -p "summarise" < file.txt` composes naturally.
 fn read_stdin_if_piped() -> Option<String> {
     if std::io::stdin().is_terminal() {
         return None;
@@ -103,11 +97,16 @@ fn read_secret_from_reader(mut reader: impl Read) -> Result<String> {
 fn read_secret_from_stdin() -> Result<String> {
     let stdin = std::io::stdin();
     if stdin.is_terminal() {
-        bail!("--stdin requires piped or redirected stdin");
+        bail!(
+            "reading a credential secret from stdin requires piped or redirected stdin; stdin is currently a TTY"
+        );
     }
     read_secret_from_reader(stdin.lock())
 }
 
+// Retained as a lower-level primitive exercised by unit tests; not called from
+// the normalized production credential path.
+#[cfg(test)]
 fn read_secret_from_env_var(name: &str) -> Result<String> {
     std::env::var(name)
         .with_context(|| format!("environment variable '{name}' is not set or is not valid UTF-8"))
@@ -128,6 +127,15 @@ fn read_secret_from_tty_prompt(account: &str) -> Result<String> {
         .context("failed to read credential secret interactively")
 }
 
+/// Resolve a credential secret from an explicit source.
+///
+/// Source priority: (1) stdin when `stdin` is `true`; (2) the named environment
+/// variable when `from_env` is `Some`; (3) an interactive TTY prompt when
+/// `can_prompt` is `true`; (4) error.
+///
+/// Retained as a lower-level primitive for unit tests. The normalized
+/// production path uses [`resolve_credentials_secret_auto`].
+#[cfg(test)]
 fn resolve_credentials_secret(
     account: &str,
     stdin: bool,
@@ -143,7 +151,30 @@ fn resolve_credentials_secret(
         prompt_secret(account)
     } else {
         bail!(
-            "refusing to read a credential secret from argv; use --stdin, --from-env VAR, or rerun on an interactive TTY"
+            "cannot acquire credential secret: stdin is attached to a TTY and \
+             interactive prompting is unavailable; redirect the secret via stdin"
+        )
+    }
+}
+
+/// Resolve a credential secret using automatic source selection.
+///
+/// Selection order:
+/// 1. Stdin, when stdin is not attached to a TTY (pipe or redirect).
+/// 2. Interactive masked TTY prompt via [`dialoguer::Password`], when both
+///    stdin and stderr are terminals.
+///
+/// Returns `Err` when neither source is applicable, preventing silent argv
+/// secret leakage.
+fn resolve_credentials_secret_auto(account: &str) -> Result<String> {
+    if !std::io::stdin().is_terminal() {
+        read_secret_from_stdin()
+    } else if can_prompt_for_secret() {
+        read_secret_from_tty_prompt(account)
+    } else {
+        bail!(
+            "cannot acquire credential secret: stdin is attached to a TTY and \
+             interactive prompting is unavailable; redirect the secret via stdin"
         )
     }
 }
@@ -154,18 +185,8 @@ fn credentials_action_from_cli(
     use vexcoder::credentials::CredentialsAction;
 
     match sub {
-        CredentialsCommands::Set {
-            account,
-            stdin,
-            from_env,
-        } => {
-            let secret = resolve_credentials_secret(
-                &account,
-                stdin,
-                from_env,
-                can_prompt_for_secret(),
-                read_secret_from_tty_prompt,
-            )?;
+        CredentialsCommands::Set { account } => {
+            let secret = resolve_credentials_secret_auto(&account)?;
             Ok(CredentialsAction::Set { account, secret })
         }
         CredentialsCommands::Get { account } => Ok(CredentialsAction::Get { account }),
@@ -178,6 +199,7 @@ async fn run_print(
     prompt: String,
     config: Config,
     resume_state: Option<TaskState>,
+    format: OutputFormat,
 ) -> Result<ExitCode> {
     let stdin_content = read_stdin_if_piped();
     let stdin_attached = stdin_content.is_some();
@@ -205,8 +227,8 @@ async fn run_print(
 
     let opts = BatchRunOpts {
         max_turns: Some(1),
-        auto_approve: None,
-        format: OutputFormat::Text,
+        auto_approve: default_auto_approve_scope(&config, None),
+        format,
         resume_state,
     };
 
@@ -378,7 +400,7 @@ fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-// ── main ───────────────────────────────────────────────────────────────────────
+// ── Entry point ───────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
@@ -395,29 +417,39 @@ async fn main() -> Result<ExitCode> {
             telemetry_json: cli.telemetry_json,
         },
     )?;
-    let chat_compat = cli.chat_compat;
-    let tool_policy = if cli.plan {
-        ToolPolicy::Plan
-    } else if cli.chat {
-        ToolPolicy::Chat
-    } else {
-        ToolPolicy::Full
+    let tool_policy =
+        tool_policy_from_cli(cli.view_intended_trajectory, cli.restrict_payload_tools);
+
+    let overrides = CliOverrides {
+        tool_policy,
+        use_alternate_navigator: cli.use_alternate_navigator.clone(),
+        expand_sector_view: cli.expand_sector_view,
+        force_unstable_alignment: cli.force_unstable_alignment,
+        bypass_integrity_locks: cli.bypass_integrity_locks,
+        recall_coordinates: cli.recall_coordinates.clone(),
+        project_map_only: cli.project_map_only.clone(),
+        set_map_encoding: cli.set_map_encoding.clone(),
     };
 
-    // Subcommands take unconditional priority.
+    // Subcommand dispatch: if a subcommand is present it always takes priority
+    // over top-level mode flags (-p, -r).
     match cli.command {
-        Some(Commands::Exec {
-            task,
-            task_file,
-            max_turns,
-            auto_approve,
-            output,
-            format,
-        }) => {
-            let exec_args =
-                parse_exec_command(task, task_file, max_turns, auto_approve, output, format)?;
+        Some(Commands::Exec) => {
+            // Task content from -p/--project-map-only; format from -m;
+            // auto-approval scope derived from -f/--force-unstable-alignment.
+            let exec_args = parse_exec_command(
+                overrides.project_map_only.clone(),
+                None,
+                None,
+                overrides
+                    .force_unstable_alignment
+                    .then_some("task".to_string()),
+                None,
+                overrides.set_map_encoding.clone(),
+            )?;
             let mut config = Config::load()?;
-            apply_cli_overrides(chat_compat, tool_policy, &mut config);
+            apply_cli_overrides(&overrides, &mut config);
+            apply_process_policy_overrides(&config);
             config.validate()?;
             return run_exec(exec_args, config).await;
         }
@@ -442,9 +474,6 @@ async fn main() -> Result<ExitCode> {
             let mut registry = vexcoder::skills::SkillsRegistry::load(&cwd)?;
             match sub {
                 SkillsCommands::List => registry.list(),
-                SkillsCommands::Install { source, subdir } => {
-                    registry.install(&source, subdir.as_deref())?;
-                }
                 SkillsCommands::Remove { name } => {
                     registry.remove(&name)?;
                 }
@@ -453,18 +482,20 @@ async fn main() -> Result<ExitCode> {
         }
         Some(Commands::Tasks { sub }) => {
             let cwd = std::env::current_dir()?;
+            // JSON output is governed by -m/--set-map-encoding rather than
+            // per-subcommand --json flags.
+            let json = overrides.set_map_encoding == "jsonl";
             return match sub {
-                TaskCommands::List { json } => run_tasks_list(&cwd, json),
-                TaskCommands::Watch { id, json } => run_tasks_watch(&cwd, &id, json),
+                TaskCommands::List => run_tasks_list(&cwd, json),
+                TaskCommands::Watch { id } => run_tasks_watch(&cwd, &id, json),
                 TaskCommands::ExportGraph => run_tasks_export_graph(&cwd),
                 TaskCommands::ExportTodos => run_tasks_export_todos(&cwd),
             };
         }
-        Some(Commands::Init { dir }) => {
-            let cwd = match dir {
-                Some(path) => path,
-                None => std::env::current_dir()?,
-            };
+        Some(Commands::Init) => {
+            // Target directory is always the current working directory on the
+            // normalized surface; use `cd` to target a different path.
+            let cwd = std::env::current_dir()?;
             let summary = run_init(&cwd)?;
             print_lines(&summary);
             return Ok(ExitCode::SUCCESS);
@@ -483,15 +514,11 @@ async fn main() -> Result<ExitCode> {
             print!("{rendered}");
             return Ok(ExitCode::SUCCESS);
         }
-        Some(Commands::Migrate { sub }) => match sub {
-            MigrateCommands::Config { output } => {
-                emit_migrate_config_output(output.as_deref())?;
-                return Ok(ExitCode::SUCCESS);
-            }
-        },
-        Some(Commands::Doctor { json }) => {
+        Some(Commands::Doctor) => {
             let cwd = std::env::current_dir()?;
             let report = run_doctor(&cwd).await;
+            // JSON output governed by -m/--set-map-encoding.
+            let json = overrides.set_map_encoding == "jsonl";
             let rendered = if json {
                 report.render_json()?
             } else {
@@ -508,25 +535,27 @@ async fn main() -> Result<ExitCode> {
             print!("{}", render_privacy_markdown());
             return Ok(ExitCode::SUCCESS);
         }
-        Some(Commands::Export {
-            task_id,
-            format,
-            output,
-            force,
-        }) => {
-            let format = ExportFormat::parse(&format)?;
+        Some(Commands::Export { task_id }) => {
+            // "jsonl" → JSONL batch-turn records; "text" → Markdown.
+            // Output is always written to stdout on the normalized surface.
+            let format = if overrides.set_map_encoding == "jsonl" {
+                ExportFormat::Jsonl
+            } else {
+                ExportFormat::Markdown
+            };
             let state = TaskState::load_from_search_dirs(&task_id)?;
             let rendered = render_task_export(&state, format)?;
-            if write_export_output(&rendered, output.as_deref(), force)?.is_none() {
-                print!("{rendered}");
-            }
+            print!("{rendered}");
             return Ok(ExitCode::SUCCESS);
         }
-        Some(Commands::Serve { host, port }) => {
+        Some(Commands::Serve) => {
+            // Bind address and port are read from Config; per-invocation
+            // overrides are not available on the normalized surface.
             let mut config = Config::load()?;
-            apply_cli_overrides(chat_compat, tool_policy, &mut config);
+            apply_cli_overrides(&overrides, &mut config);
+            apply_process_policy_overrides(&config);
             config.validate()?;
-            serve_local_api(config, host, port).await?;
+            serve_local_api(config, None, None).await?;
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Credentials { sub }) => {
@@ -539,9 +568,10 @@ async fn main() -> Result<ExitCode> {
     }
 
     let mut config = Config::load()?;
-    apply_cli_overrides(chat_compat, tool_policy, &mut config);
+    apply_cli_overrides(&overrides, &mut config);
+    apply_process_policy_overrides(&config);
 
-    let resume_state = match cli.resume.as_deref() {
+    let resume_state = match overrides.recall_coordinates.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
             Some(state) => Some(state),
             None => {
@@ -552,41 +582,114 @@ async fn main() -> Result<ExitCode> {
         None => None,
     };
 
-    // PM-03: -p/--print one-shot mode.
-    if let Some(prompt) = cli.print_prompt {
+    // Batch mode: dispatch a single turn and exit without starting the TUI.
+    if let Some(prompt) = overrides.project_map_only {
         config.validate()?;
         emit_model_endpoint_warnings(&config);
-        return run_print(prompt, config, resume_state).await;
+        let fmt = map_encoding_to_output_format(&overrides.set_map_encoding);
+        return run_print(prompt, config, resume_state, fmt).await;
     }
 
     config.validate()?;
     emit_model_endpoint_warnings(&config);
 
-    // PM-01: --resume startup option.
+    // Resume mode: start a TUI session from the restored task state.
     if let Some(state) = resume_state {
         let mut frontend = ManagedTuiFrontend::new()?;
         run_tui_session(config, Some(state), &mut frontend).await?;
         return Ok(ExitCode::SUCCESS);
     }
 
-    // Default: interactive TUI.
+    // Default: start the interactive TUI with no pre-loaded task state.
     let mut frontend = ManagedTuiFrontend::new()?;
     run_tui_session(config, None, &mut frontend).await?;
     Ok(ExitCode::SUCCESS)
 }
 
-/// Apply top-level CLI option overrides to a loaded config.
+/// Normalized CLI flag values extracted from [`Cli`] before the `match
+/// cli.command` destructuring that partially moves `cli`.
 ///
-/// This is called once per code path after `Config::load()` so that options such
-/// as `--chat-compat`, `--plan`, and `--chat` take effect regardless of which
-/// subcommand is active.
-fn apply_cli_overrides(chat_compat: bool, tool_policy: ToolPolicy, config: &mut Config) {
-    if chat_compat {
-        config.model_protocol = ModelProtocol::ChatCompat;
-    }
-    config.tool_policy = tool_policy;
+/// Fields map 1-to-1 to the ten top-level flags defined in `cli.rs`; the
+/// extraction step is separate to avoid Rust partial-move borrow errors inside
+/// subcommand match arms.
+struct CliOverrides {
+    tool_policy: ToolPolicy,
+    use_alternate_navigator: Option<String>,
+    expand_sector_view: bool,
+    force_unstable_alignment: bool,
+    bypass_integrity_locks: bool,
+    recall_coordinates: Option<String>,
+    project_map_only: Option<String>,
+    set_map_encoding: String,
 }
 
+/// Derive the active [`ToolPolicy`] from the two mutually exclusive plan-mode
+/// flags. Both `-v` and `-t` map to `ToolPolicy::Plan`; the absence of either
+/// yields `ToolPolicy::Full`.
+fn tool_policy_from_cli(
+    view_intended_trajectory: bool,
+    restrict_payload_tools: bool,
+) -> ToolPolicy {
+    if view_intended_trajectory || restrict_payload_tools {
+        ToolPolicy::Plan
+    } else {
+        ToolPolicy::Full
+    }
+}
+
+/// Apply [`CliOverrides`] to a freshly loaded [`Config`].
+///
+/// Called once after `Config::load()` and before `config.validate()` so that
+/// CLI flags take unconditional precedence over persisted TOML values.
+fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
+    config.tool_policy = o.tool_policy;
+    if let Some(ref name) = o.use_alternate_navigator {
+        config.model_name = name.clone();
+    }
+    if o.expand_sector_view {
+        config.expand_context = true;
+    }
+    if o.force_unstable_alignment {
+        config.force = true;
+    }
+    if o.bypass_integrity_locks {
+        config.bypass_policy = true;
+    }
+}
+
+/// Propagate the `bypass_policy` runtime flag to the process-global disk-policy
+/// override so that all downstream policy checks in the same process observe
+/// the correct mode.
+fn apply_process_policy_overrides(config: &Config) {
+    let mode = config.bypass_policy.then_some(DiskPolicyMode::Off);
+    disk_policy::set_process_policy_override(mode);
+}
+
+/// Return the effective [`AutoApproveScope`] for a batch turn.
+///
+/// `explicit` (from subcommand-level plumbing) takes unconditional precedence.
+/// When absent, `config.force = true` (set by `-f/--force-unstable-alignment`)
+/// implies `AutoApproveScope::Task`.
+fn default_auto_approve_scope(
+    config: &Config,
+    explicit: Option<AutoApproveScope>,
+) -> Option<AutoApproveScope> {
+    explicit.or(config.force.then_some(AutoApproveScope::Task))
+}
+
+/// Map a `set_map_encoding` value to the corresponding [`OutputFormat`].
+///
+/// `"jsonl"` → [`OutputFormat::Jsonl`]; any other value → [`OutputFormat::Text`].
+fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
+    match encoding {
+        "jsonl" => OutputFormat::Jsonl,
+        _ => OutputFormat::Text,
+    }
+}
+
+/// Map a [`TaskStatus`] to the process exit code.
+///
+/// `Completed` exits `0`; all other terminal states exit `1`.
 fn exit_code_for_status(status: TaskStatus) -> ExitCode {
     match status {
         TaskStatus::Completed => ExitCode::SUCCESS,

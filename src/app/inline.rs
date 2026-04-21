@@ -2,7 +2,7 @@ use super::*;
 
 impl TuiMode {
     pub(super) fn expand_inline_file_tokens(&self, input: &str) -> String {
-        let assembler = ContextAssembler::default();
+        let assembler = self.context_assembler.clone();
         let operator = ToolOperator::new(self.working_dir.clone());
 
         if input.starts_with('/') {

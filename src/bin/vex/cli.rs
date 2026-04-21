@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use clap_complete::Shell;
-use std::path::PathBuf;
+
+// PathBuf is not required here; subcommand variants use only String and Shell.
 
 #[derive(Parser)]
 #[command(name = "vex", about = "vexcoder -- zero-licensing-cost coding agent")]
@@ -8,129 +9,146 @@ pub(super) struct Cli {
     #[command(subcommand)]
     pub(super) command: Option<Commands>,
 
-    /// Resume a saved task by ID, or omit the value for an interactive
-    /// selection of the most-recent saved task.
-    /// Example: `vex --resume task-1234` or just `vex --resume`.
+    /// Grants `AutoApproveScope::Task` at startup, bypassing the per-tool
+    /// confirmation gate for the lifetime of the process.
+    #[arg(short = 'f', long = "force-unstable-alignment")]
+    pub(super) force_unstable_alignment: bool,
+
+    /// Executes a single batch turn with PROMPT text and terminates.
+    /// When stdin is not a TTY, stdin content is prepended to PROMPT before
+    /// dispatch. Example: `vex -p "summarise this file" < README.md`.
+    #[arg(short = 'p', long = "project-map-only", value_name = "PROMPT")]
+    pub(super) project_map_only: Option<String>,
+
+    /// Sets `expand_context = true` in the resolved `Config`, raising the
+    /// file-scan cardinality bound applied during context assembly.
+    #[arg(short = 'e', long = "expand-sector-view")]
+    pub(super) expand_sector_view: bool,
+
+    /// Loads a persisted `TaskState` before starting the session. When
+    /// TASK_ID is absent, the most-recently-modified state file in the
+    /// search path is selected. Example: `vex -r task-1234` or `vex -r`.
+    #[arg(short = 'r', long = "recall-coordinates", value_name = "TASK_ID",
+          num_args(0..=1), default_missing_value = "")]
+    pub(super) recall_coordinates: Option<String>,
+
+    /// Sets `bypass_policy = true`, disabling durable-state disk-policy
+    /// enforcement for the current process.
+    #[arg(short = 'b', long = "bypass-integrity-locks")]
+    pub(super) bypass_integrity_locks: bool,
+
+    /// Resolves `ToolPolicy::Plan`, restricting the active tool set to
+    /// read-only operations and enabling change-preview output. Mutually
+    /// exclusive with `-t/--restrict-payload-tools`.
     #[arg(
-        long,
-        num_args(0..=1),
-        default_missing_value = ""
+        short = 'v',
+        long = "view-intended-trajectory",
+        conflicts_with = "restrict_payload_tools"
     )]
-    pub(super) resume: Option<String>,
+    pub(super) view_intended_trajectory: bool,
 
-    /// Run a single prompt turn non-interactively and print the result to
-    /// stdout.  Reads additional content from stdin when stdin is not a TTY.
-    /// Example: `vex -p "summarise this file" < README.md`
-    #[arg(short = 'p', long = "print")]
-    pub(super) print_prompt: Option<String>,
+    /// Overrides `Config::model_name` with MODEL for this invocation.
+    #[arg(short = 'n', long = "use-alternate-navigator", value_name = "MODEL")]
+    pub(super) use_alternate_navigator: Option<String>,
 
-    /// Emit internal transport and normalization telemetry to stderr.
-    #[arg(long = "display-internal-telemetry")]
+    /// Configures the logging layer to emit `tracing` events at `DEBUG`
+    /// severity or above. Equivalent to setting `RUST_LOG=debug`.
+    #[arg(short = 'd', long = "display-internal-telemetry")]
     pub(super) display_internal_telemetry: bool,
 
-    /// Format internal telemetry as newline-delimited JSON.
+    /// Serializes the log stream as newline-delimited JSON. Requires
+    /// `-d/--display-internal-telemetry` to produce output.
     #[arg(long = "telemetry-json")]
     pub(super) telemetry_json: bool,
 
-    /// Use the chat/completions API format instead of the default messages/v1 format.
-    /// Required when connecting to endpoints that use the chat/completions schema
-    /// instead of the messages/v1 schema.
-    #[arg(long = "chat-compat")]
-    pub(super) chat_compat: bool,
+    /// Resolves `ToolPolicy::Plan`, restricting the active tool set to the
+    /// safe read-and-search subset. Mutually exclusive with
+    /// `-v/--view-intended-trajectory`.
+    #[arg(
+        short = 't',
+        long = "restrict-payload-tools",
+        conflicts_with = "view_intended_trajectory"
+    )]
+    pub(super) restrict_payload_tools: bool,
 
-    /// Restrict tools to read-only operations (search, read, list, git read
-    /// ops, codebase_search, MCP). Mutating and shell tools are excluded.
-    #[arg(long, conflicts_with = "chat")]
-    pub(super) plan: bool,
-
-    /// Disable all tool use. The model operates in plain conversation mode
-    /// without access to any file, search, or shell tools.
-    #[arg(long, conflicts_with = "plan")]
-    pub(super) chat: bool,
+    /// Selects the output encoding for batch and subcommand output.
+    /// `"jsonl"` emits newline-delimited JSON turn records; `"text"` (the
+    /// default) emits plain text or Markdown.
+    #[arg(short = 'm', long = "set-map-encoding", value_name = "FORMAT",
+        value_parser = ["jsonl", "text"], default_value = "text")]
+    pub(super) set_map_encoding: String,
 }
 
 #[derive(Subcommand)]
 pub(super) enum Commands {
-    /// Run a non-interactive batch task.
-    Exec {
-        #[arg(long, conflicts_with = "task_file")]
-        task: Option<String>,
-        #[arg(long = "task-file", conflicts_with = "task")]
-        task_file: Option<String>,
-        #[arg(long)]
-        max_turns: Option<usize>,
-        #[arg(long = "auto-approve", value_parser = ["once", "task"])]
-        auto_approve: Option<String>,
-        #[arg(long)]
-        output: Option<String>,
-        #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "text"])]
-        format: String,
-    },
-    /// Generate shell completion scripts and write them to stdout.
+    /// Execute a non-interactive single-turn batch task.
+    ///
+    /// Task content is supplied via `-p/--project-map-only`. Output format is
+    /// controlled by `-m/--set-map-encoding`. Auto-approval scope is derived
+    /// from `-f/--force-unstable-alignment`.
+    Exec,
+    /// Write shell completion scripts for the target shell to stdout.
     Completions {
-        /// Shell to generate completions for.
+        /// Target shell runtime.
         #[arg(value_enum)]
         shell: Shell,
     },
-    /// Install the vexcoder `prepare-commit-msg` hook.
+    /// Install the `prepare-commit-msg` git hook into the current repository.
     InstallHooks,
-    /// Remove the vexcoder `prepare-commit-msg` hook.
+    /// Remove the `prepare-commit-msg` git hook from the current repository.
     UninstallHooks,
-    /// Manage the workstation-scoped skills registry.
+    /// Manage the workstation-scoped skill registry.
     Skills {
         #[command(subcommand)]
         sub: SkillsCommands,
     },
-    /// Inspect persisted parent tasks and session tasks.
+    /// Enumerate persisted parent tasks and their nested session tasks.
+    ///
+    /// Output format is controlled by `-m/--set-map-encoding`.
     Tasks {
         #[command(subcommand)]
         sub: TaskCommands,
     },
     /// Scaffold a new vex workspace (`.vex/config.toml`, `AGENTS.md`,
-    /// `.vex/validate.toml`).  Non-destructive: skips files that already exist.
-    Init {
-        #[arg(long)]
-        dir: Option<PathBuf>,
+    /// `.vex/validate.toml`) in the current working directory.
+    ///
+    /// Non-destructive: files that already exist are skipped without error.
+    Init,
+    /// Create a new git branch from `HEAD` and record its name on the most
+    /// recent saved task.
+    Branch {
+        /// Target branch name.
+        name: String,
     },
-    /// Create a new git branch from HEAD and record it on the most recent task.
-    Branch { name: String },
-    /// Generate a proposed pull request title and body for the current branch.
+    /// Propose a pull request title and body for the current branch.
     PrSummary,
-    /// Configuration migration utilities.
-    Migrate {
-        #[command(subcommand)]
-        sub: MigrateCommands,
-    },
-    /// Check environment health without starting the agent loop.
-    Doctor {
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print the current privacy summary for the CLI and LocalApiServer surfaces.
+    /// Run a read-only environment health check.
+    ///
+    /// Output format is controlled by `-m/--set-map-encoding`. Exit code is
+    /// non-zero when one or more checks report failure.
+    Doctor,
+    /// Print the current privacy summary for the CLI and LocalApiServer
+    /// surfaces.
     Privacy,
     /// Export a saved task to JSONL or Markdown.
+    ///
+    /// Format is controlled by `-m/--set-map-encoding`: `"jsonl"` maps to
+    /// JSONL batch-turn records; `"text"` maps to Markdown. Output is always
+    /// written to stdout.
     Export {
+        /// Task identifier to export.
         task_id: String,
-        #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "markdown"])]
-        format: String,
-        #[arg(long)]
-        output: Option<PathBuf>,
-        #[arg(long)]
-        force: bool,
     },
-    /// Run the same-machine API transport adapter.
-    Serve {
-        #[arg(long)]
-        host: Option<String>,
-        #[arg(long)]
-        port: Option<u16>,
-    },
+    /// Start the same-machine HTTP API transport adapter.
+    ///
+    /// Bind address and port are read from `Config`; no per-invocation
+    /// overrides are accepted on the normalized CLI surface.
+    Serve,
     /// Manage OS-native credential store entries (ADR-024 Gap 38).
     ///
     /// Credentials are stored in the platform keyring under the service name
-    /// "vexcoder".
-    /// Set VEX_KEYRING_DISABLED=1 to bypass the keyring and use only
-    /// VEX_MODEL_TOKEN for token lookup.
+    /// `"vexcoder"`. Set `VEX_KEYRING_DISABLED=1` to bypass the keyring and
+    /// fall back to `VEX_MODEL_TOKEN` for token lookup.
     Credentials {
         #[command(subcommand)]
         sub: CredentialsCommands,
@@ -141,19 +159,13 @@ pub(super) enum Commands {
 pub(super) enum CredentialsCommands {
     /// Store a credential in the OS keyring.
     ///
-    /// Example:
-    /// `printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token --stdin`
-    /// If no option is passed on an interactive TTY, vex prompts for the secret
-    /// without echoing it.
+    /// When stdin is not a TTY (pipe or redirect), the secret is read from
+    /// stdin automatically. On an interactive TTY, a masked confirmation
+    /// prompt is presented. The secret is never accepted as a positional
+    /// argument, preventing leakage into shell history and process lists.
     Set {
         /// Account identifier (e.g., `model-token`).
         account: String,
-        /// Read the secret from piped or redirected stdin instead of argv.
-        #[arg(long, conflicts_with = "from_env")]
-        stdin: bool,
-        /// Read the secret from the named environment variable.
-        #[arg(long = "from-env", value_name = "VAR", conflicts_with = "stdin")]
-        from_env: Option<String>,
     },
     /// Read a credential from the OS keyring and print it to stdout.
     Get {
@@ -165,57 +177,39 @@ pub(super) enum CredentialsCommands {
         /// Account identifier (e.g., `model-token`).
         account: String,
     },
-    /// List known credential account identifiers for this service.
+    /// List known credential account identifiers for the `"vexcoder"` service.
     List,
 }
 
 #[derive(Subcommand)]
 pub(super) enum SkillsCommands {
-    /// List installed skills.
+    /// List installed skills and their installation sources.
     List,
-    /// Install a skill from a git repository URL or tarball URL.
-    Install {
-        /// Git repository URL or tarball URL.
-        source: String,
-        /// Select a subdirectory within the fetched source as the skill root.
-        #[arg(long)]
-        subdir: Option<String>,
-    },
     /// Remove an installed skill by name.
     Remove {
-        /// Name of the skill to remove.
+        /// Registry name of the skill to remove.
         name: String,
     },
 }
 
 #[derive(Subcommand)]
 pub(super) enum TaskCommands {
-    /// List persisted tasks and nested session tasks.
-    List {
-        #[arg(long)]
-        json: bool,
-    },
-    /// Show one persisted task or session-task snapshot.
+    /// List persisted tasks and their nested session tasks.
+    ///
+    /// Output format is controlled by `-m/--set-map-encoding`.
+    List,
+    /// Show the persisted state for one task or session-task snapshot.
+    ///
+    /// Output format is controlled by `-m/--set-map-encoding`.
     Watch {
+        /// Task or session-task identifier.
         id: String,
-        #[arg(long)]
-        json: bool,
     },
-    /// Write the task-graph projection to `.vex/state/projections/task-graph.json`
-    /// and print the file path.  Creates or replaces the file atomically.
+    /// Write the task-graph projection to
+    /// `.vex/state/projections/task-graph.json` and print the file path.
+    /// Creates or replaces the file atomically.
     ExportGraph,
     /// Write the todos projection to `.vex/state/projections/todos.json`
-    /// and print the file path.  Creates or replaces the file atomically.
+    /// and print the file path. Creates or replaces the file atomically.
     ExportTodos,
-}
-
-#[derive(Subcommand)]
-pub(super) enum MigrateCommands {
-    /// Map pre-ADR-022 VEX_* env var values to current config.toml keys.
-    /// Reads from the environment and writes a fragment to stdout by default.
-    /// Non-destructive unless `--output <path>` is passed explicitly.
-    Config {
-        #[arg(long)]
-        output: Option<PathBuf>,
-    },
 }

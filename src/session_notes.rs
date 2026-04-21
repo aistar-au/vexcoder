@@ -31,10 +31,6 @@ pub fn resolve_notes_path_for_read(explicit_path: Option<&Path>) -> Option<PathB
         if xdg_path.exists() {
             return Some(xdg_path);
         }
-        let legacy_path = PathBuf::from(home).join(".vex").join("memory.md");
-        if legacy_path.exists() {
-            return Some(legacy_path);
-        }
     }
     None
 }
@@ -118,6 +114,33 @@ mod tests {
         let resolved = resolve_notes_path_for_read(None);
 
         std::env::set_current_dir(old_cwd).unwrap();
+        match old_home {
+            Some(value) => crate::test_support::test_set_var(&_lock, "HOME", value),
+            None => crate::test_support::test_remove_var(&_lock, "HOME"),
+        }
+        match old_xdg {
+            Some(value) => crate::test_support::test_set_var(&_lock, "XDG_CONFIG_HOME", value),
+            None => crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME"),
+        }
+
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn test_resolve_notes_path_for_read_ignores_old_home_notes_path() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let old_home = std::env::var("HOME").ok();
+        let old_xdg = std::env::var("XDG_CONFIG_HOME").ok();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        let old_notes_path = home.join(".vex").join("memory.md");
+        std::fs::create_dir_all(old_notes_path.parent().unwrap()).unwrap();
+        std::fs::write(&old_notes_path, "older note\n").unwrap();
+        crate::test_support::test_set_var(&_lock, "HOME", &home);
+        crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME");
+
+        let resolved = resolve_notes_path_for_read(None);
+
         match old_home {
             Some(value) => crate::test_support::test_set_var(&_lock, "HOME", value),
             None => crate::test_support::test_remove_var(&_lock, "HOME"),

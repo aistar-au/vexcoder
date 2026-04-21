@@ -153,7 +153,7 @@ impl TuiMode {
         instruction: &str,
         ctx: &mut RuntimeContext,
     ) {
-        let defaults = ContextAssembler::default();
+        let defaults = self.context_assembler.clone();
         let timeout_ms = resolve_git_timeout_ms(defaults.git_timeout_ms);
 
         match block_on_context_task(run_git_command_with_timeout(
@@ -251,7 +251,7 @@ impl TuiMode {
                 return;
             }
         };
-        let render_assembler = ContextAssembler::default();
+        let render_assembler = self.context_assembler.clone();
         let diff_context = render_assembler.render(&assembled);
         let mut context_lines = vec![
             format!("[review files] pattern: {files_glob}"),
@@ -283,7 +283,7 @@ impl TuiMode {
                 return;
             }
         };
-        let render_assembler = ContextAssembler::default();
+        let render_assembler = self.context_assembler.clone();
         let rendered_context = render_assembler.render(&assembled);
         let prompt = render_plan_prompt(&instruction, &rendered_context, &scope_instruction);
         self.plan_turn_active = true;

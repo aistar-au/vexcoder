@@ -176,8 +176,10 @@ exposed to the model for a session:
   the dispatch layer as a defense-in-depth guard.
 - **Chat**: no tools. The model operates in plain conversation mode.
 
-The policy is set via `--plan` or `--chat` CLI options (mutually exclusive), or
-via `tool_policy` in `config.toml`. The CLI options override the config value.
+The policy is set via `--view-intended-trajectory` or
+`--restrict-payload-tools` for the existing read-only `Plan` lane, or via
+`tool_policy` in `config.toml`. `ToolPolicy::Chat` remains config-only; there is
+no top-level no-tools CLI flag. CLI options override the config value.
 
 The policy flows through `Config.tool_policy` → `ApiClient.tool_policy` →
 `tool_definitions_for_policy()` which filters the tool schema, and a

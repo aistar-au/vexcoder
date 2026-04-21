@@ -4,13 +4,18 @@
 //! [`discover_protocol`] probes the server once at connection time and
 //! returns a cached [`ModelProtocol`] for the session.
 //!
+//! The probe criteria follow ordinary HTTP representation negotiation: the
+//! client advertises `Accept: text/event-stream` and accepts a probe only when
+//! the server replies with `200 OK` and `Content-Type: text/event-stream`,
+//! consistent with RFC 9110 Section 12.5.1 and Section 8.3.
+//!
 //! Two probes are attempted in order:
 //! 1. `GET /v1/messages` with `Accept: text/event-stream`
 //! 2. `GET /v1/chat/completions` with `Accept: text/event-stream`
 //!
-//! The first probe that returns `200 OK` with a `text/event-stream`
-//! `Content-Type` wins. If both fail, [`DiscoveryError::AllProbesFailed`]
-//! is returned with per-probe diagnostics for debugging.
+//! The first probe that satisfies those conditions is selected. If both fail,
+//! [`DiscoveryError::AllProbesFailed`] is returned with per-probe diagnostics
+//! for debugging.
 //!
 //! ADR-047 §6 — Client-Side Protocol Discovery.
 

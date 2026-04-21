@@ -43,6 +43,9 @@ fn test_build_runtime_with_resume_restores_task() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let (runtime, _ctx) =

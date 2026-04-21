@@ -1,6 +1,6 @@
 //! SOCKS5 and HTTP proxy configuration for outbound connections.
 //!
-//! # RFC compliance
+//! # Referenced Specifications
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|

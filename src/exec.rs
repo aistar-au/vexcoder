@@ -55,7 +55,9 @@ pub fn parse_exec_command(
 pub async fn run_exec(exec: ExecArgs, config: Config) -> Result<ExitCode> {
     let opts = BatchRunOpts {
         max_turns: exec.max_turns,
-        auto_approve: exec.auto_approve,
+        auto_approve: exec
+            .auto_approve
+            .or(config.force.then_some(AutoApproveScope::Task)),
         format: exec.format,
         resume_state: None,
     };

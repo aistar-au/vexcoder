@@ -90,7 +90,7 @@ impl TuiMode {
         );
     }
 
-    /// Persist the current task document to disk via the legacy TaskState
+    /// Persist the current task document to disk via the older TaskState
     /// bridge format.  Persistence errors are non-fatal.
     pub(super) fn persist_task_document(&mut self) {
         let snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);

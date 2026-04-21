@@ -39,7 +39,7 @@ These keys are read by the current runtime from config files:
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
-| `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
+| `model_protocol` | `messages-v1` or `chat-compat`; used as the fallback when `model_url` or `api_client.base_url` does not already pin a concrete endpoint path and local discovery has not selected a native protocol yet. When a bare base URL exposes both protocols, discovery prefers `messages-v1`. | `messages-v1` |
 | `tool_call_mode` | `structured` only | inferred; resolves to `structured` in the current loader |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `api_client.base_url` | Scheme-and-host base URL used for automatic protocol discovery | unset |
@@ -110,8 +110,8 @@ used for live tool-call parsing.
 | Policy | Tools exposed | CLI option |
 | :--- | :--- | :--- |
 | `full` | All registered tools including mutating and shell tools | (default) |
-| `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--plan` |
-| `chat` | No tools — plain conversation mode | `--chat` |
+| `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--view-intended-trajectory` or `--restrict-payload-tools` |
+| `chat` | No tools — plain conversation mode | config-only (`tool_policy = "chat"`) |
 
 When `plan` is active, mutating tools (`write_file`, `apply_patch`, `edit_file`,
 `rename_file`, `git_add`, `git_commit`, `run_command`) are excluded from the
@@ -331,9 +331,6 @@ Overrides API-backend inference. Accepted values: `local-runtime`, `api-server`.
 
 Overrides tool-call encoding. Accepted value: `structured`.
 
-Compatibility aliases `structured-tool-calls` and
-`structured_tool_calls` normalize to the same setting.
-
 
 ### `VEX_MODEL_PROFILE`
 
@@ -417,7 +414,7 @@ Controls the disk-policy enforcement mode (ADR-038).
 ### `VEX_SANDBOX`
 
 Selects the command sandbox driver. Accepted values: `passthrough`,
-`macos-exec`, `container`, `bubblewrap`, `bwrap`, `linux-bwrap`.
+`macos-exec`, `container`, `bubblewrap`.
 
 - `passthrough` preserves the current process-spawn behavior.
 - `macos-exec` wraps commands with `sandbox-exec` on macOS.
@@ -427,7 +424,7 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
   mounts core system directories read-only, adds read-only mounts for common
   host toolchain roots derived from `PATH`, `CARGO_HOME`, and `RUSTUP_HOME`,
   and disables network by default.
-- The built-in `macos-exec` default is intentionally compatibility-first: it
+- The built-in `macos-exec` profile keeps broad access by default: it
   allows broad file access, network access, process spawning, IPC lookups, and
   signals so common development tools continue to work. Use a custom profile if
   you need stricter containment than process wrapping plus policy hooks.
@@ -437,7 +434,7 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
 Optional sandbox driver parameter.
 
 - For `macos-exec`, this is a profile path. When unset, the runtime uses a
-  built-in compatibility-focused policy string.
+  built-in permissive policy string.
 - For `container`, this is the image name passed to the container runtime.
   Startup runs a short `run --rm <image> true` probe through that runtime so
   the selected image is validated before the first wrapped command.
@@ -636,15 +633,21 @@ export VEX_MODEL_TOKEN="your-token"
 ## API Client Configuration (ADR-047)
 
 The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
-connection path, `explicit_protocol` can pin the accepted request protocol for the session,
-`probe_timeout_ms` controls the discovery-request ceiling, and
+connection path, `probe_timeout_ms` controls the discovery-request ceiling, and
 `delta_accumulator_memory_watermark_mb` bounds in-progress tool-call delta
-state.
+state. `explicit_protocol` remains available when an operator must pin request
+routing instead of using discovery, but the normal path is automatic discovery
+for both fullscreen and `vex -p` runs. Discovery probes `/v1/messages` first
+and only falls back to `/v1/chat/completions` when the messages-v1 probe fails,
+so dual-protocol servers stay on messages-v1 by default. When `model_url`
+already points at `/v1/messages` or
+`/v1/chat/completions`, that concrete endpoint path is preserved; discovery
+rewrites only bare base URLs.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `base_url` | string | `""` | Optional scheme-and-host base URL (for example `http://127.0.0.1:8000`). When set, the client discovers or applies the protocol and adapts requests to `/v1/messages` or `/v1/chat/completions`. |
-| `explicit_protocol` | `"messages-v1"` \| `"chat-compat"` | unset | Optional override that bypasses discovery and pins request routing to the selected protocol. Legacy `block_delta` and `choices_delta` aliases still parse for compatibility. |
+| `explicit_protocol` | `"messages-v1"` \| `"chat-compat"` | unset | Optional explicit protocol pin. When set, discovery is skipped and request routing stays on the selected protocol. |
 | `probe_timeout_ms` | integer | `2000` | Per-request timeout budget for each ADR-047 protocol-discovery probe (`/v1/messages`, then `/v1/chat/completions`). Raise this for slower local runtimes or remote tunnels. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-progress streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 

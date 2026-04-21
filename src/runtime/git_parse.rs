@@ -491,13 +491,17 @@ mod tests {
 
     #[test]
     fn test_parse_git_log_oneline_basic() {
-        let output = "f9d84db Merge pull request #341\n48f5d98 fix: replace legacy SystemTime";
+        let output =
+            "f9d84db Merge pull request #341\n48f5d98 fix: replace older SystemTime handling";
         let parsed = parse_git_log_oneline(output);
         assert_eq!(parsed.entries.len(), 2);
         assert_eq!(parsed.entries[0].hash, "f9d84db");
         assert_eq!(parsed.entries[0].subject, "Merge pull request #341");
         assert_eq!(parsed.entries[1].hash, "48f5d98");
-        assert_eq!(parsed.entries[1].subject, "fix: replace legacy SystemTime");
+        assert_eq!(
+            parsed.entries[1].subject,
+            "fix: replace older SystemTime handling"
+        );
     }
 
     #[test]

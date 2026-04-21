@@ -408,18 +408,23 @@ impl ApiClient {
     }
 
     fn api_protocol(&self) -> ApiProtocol {
-        // Local discovery and explicit protocol overrides pin a concrete wire
-        // format for the session. Prefer that route once it is known.
+        if let Some(explicit_protocol) = self.api_client_explicit_protocol {
+            return model_protocol_to_api_protocol(explicit_protocol);
+        }
+
+        // A concrete endpoint path in model_url is more specific than local
+        // discovery. Respect it so `/v1/chat/completions` does not get
+        // rewritten back to `/v1/messages` on dual-protocol servers.
+        if let Some(configured_protocol) = configured_endpoint_protocol(&self.api_url) {
+            return configured_protocol;
+        }
+
+        // Local discovery pins a concrete wire format for base URLs once it
+        // is known.
         if let Some(native) = self.server_info().and_then(|si| si.native_protocol) {
-            return match native {
-                ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
-                ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
-            };
+            return model_protocol_to_api_protocol(native);
         }
-        match self.model_protocol {
-            ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
-            ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
-        }
+        model_protocol_to_api_protocol(self.model_protocol)
     }
 
     fn effective_system_prompt(&self) -> String {
@@ -963,6 +968,24 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
         base.min(ceiling)
     } else {
         base.clamp(128, ceiling)
+    }
+}
+
+fn model_protocol_to_api_protocol(protocol: ModelProtocol) -> ApiProtocol {
+    match protocol {
+        ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
+        ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
+    }
+}
+
+fn configured_endpoint_protocol(api_url: &str) -> Option<ApiProtocol> {
+    let normalized = api_url.trim().to_ascii_lowercase();
+    if normalized.contains("/chat/completions") {
+        Some(ApiProtocol::ChatCompat)
+    } else if normalized.contains("/messages") {
+        Some(ApiProtocol::MessagesV1)
+    } else {
+        None
     }
 }
 

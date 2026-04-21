@@ -120,7 +120,7 @@ fn render_assistant_text(text: &str) -> Line<'static> {
     }
 }
 
-/// Render a `Plain` row — handles legacy runtime marker prefixes for command
+/// Render a `Plain` row — handles older runtime marker prefixes for command
 /// sessions, approval notices, and other free-form system strings.
 fn render_plain_row(row: &str) -> Line<'static> {
     if let Some(rest) = row.strip_prefix("[approval] ") {
@@ -593,7 +593,7 @@ fn is_structural_transcript_row(row: &TranscriptRow) -> bool {
         | TranscriptRow::Error(_)
         | TranscriptRow::UserInput(_)
         | TranscriptRow::WaitingPlaceholder(_) => true,
-        // Plain runtime strings: use the legacy string heuristic.
+        // Plain runtime strings: use the older marker-string heuristic.
         TranscriptRow::Plain(s) => is_structural_plain_str(s),
         // AssistantText is wrapped normally.
         TranscriptRow::AssistantText { .. } => false,

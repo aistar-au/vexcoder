@@ -40,7 +40,7 @@ pub(crate) const SSE_CACHE_CONTROL_HEADER: &str = "no-cache, no-store, must-reva
 pub(crate) const SSE_PROXY_BUFFERING_HEADER: &str = "x-accel-buffering";
 pub(crate) const SSE_PROXY_BUFFERING_DISABLED: &str = "no";
 // Axum prefixes keepalive text with ':' when emitting the wire frame, so the
-// heartbeat stays a WHATWG-compliant SSE comment (`:keepalive\n\n`).
+// heartbeat stays within the WHATWG-defined SSE comment syntax (`:keepalive\n\n`).
 const SSE_KEEPALIVE_TEXT: &str = "keepalive";
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 

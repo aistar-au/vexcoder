@@ -411,13 +411,14 @@ pub struct TuiMode {
     working_dir: PathBuf,
     model_url: String,
     search_config: crate::config::SearchConfig,
+    context_assembler: ContextAssembler,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
     // ── Shared task document ──────────────────────────────────────────────
     /// Single source of truth for all task state: turns, entries, session
-    /// grants, and metadata.  Replaces the legacy `TaskState` + per-turn
+    /// grants, and metadata.  Replaces the older `TaskState` + per-turn
     /// transcript buffers.
     task_doc: TaskDocument,
     task_doc_condenser: TaskDocumentCondenser,

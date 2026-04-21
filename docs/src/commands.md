@@ -25,46 +25,61 @@ targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
 #### Top-level options
 
-| Option | Effect |
-|------|--------|
-| `--chat-compat` | Use the `chat/completions` API format instead of the default `messages/v1` format. Required for endpoints that only expose the chat completions schema. |
-| `--plan` | Restrict tools to read-only operations (search, read, list, git read ops, `codebase_search`, MCP). Mutating and shell tools are excluded from the model schema and rejected at dispatch. Cannot be combined with `--chat`. |
-| `--chat` | Disable all tool use. The model operates in plain conversation mode without access to any file, search, or shell tools. Cannot be combined with `--plan`. |
+The normalized CLI surface defines exactly eleven top-level flags. No
+per-subcommand `--json`, `--format`, `--output`, `--force`, `--dir`,
+`--host`, `--port`, `--stdin`, `--from-env`, `--subdir`, `--task`,
+`--task-file`, `--max-turns`, or `--auto-approve` flags are accepted; the
+functionality of those removed flags is either subsumed by the flags below or
+is available through configuration.
 
-### `vex --resume [task-id]`
+| Option | Short | Effect |
+|:---|:---:|:---|
+| `--force-unstable-alignment` | `-f` | Grants `AutoApproveScope::Task` at startup, bypassing per-tool confirmation for the lifetime of the process. |
+| `--project-map-only PROMPT` | `-p` | Executes a single batch turn with PROMPT text and terminates. When stdin is not a TTY, stdin content is prepended to PROMPT before dispatch. |
+| `--expand-sector-view` | `-e` | Sets `expand_context = true` in the resolved `Config`, raising the file-scan cardinality bound during context assembly. |
+| `--recall-coordinates [TASK_ID]` | `-r` | Loads a persisted `TaskState` before starting the session. When TASK_ID is absent, the most-recently-modified state file in the search path is selected. |
+| `--bypass-integrity-locks` | `-b` | Sets `bypass_policy = true`, disabling durable-state disk-policy enforcement for the current process. |
+| `--view-intended-trajectory` | `-v` | Resolves `ToolPolicy::Plan`, restricting the tool set to read-only operations. Mutually exclusive with `-t`. |
+| `--use-alternate-navigator MODEL` | `-n` | Overrides `Config::model_name` with MODEL for this invocation. |
+| `--display-internal-telemetry` | `-d` | Configures the logging layer to emit `tracing` events at `DEBUG` severity or above. Equivalent to `RUST_LOG=debug`. |
+| `--telemetry-json` | — | Serializes the log stream as newline-delimited JSON. Requires `-d` to produce output. |
+| `--restrict-payload-tools` | `-t` | Resolves `ToolPolicy::Plan`, restricting the tool set to the safe read-and-search subset. Mutually exclusive with `-v`. |
+| `--set-map-encoding FORMAT` | `-m` | Selects the output encoding for batch and subcommand output. `"jsonl"` emits newline-delimited JSON turn records; `"text"` (default) emits plain text or Markdown. |
 
-Resumes a saved task. With no task id, VexCoder offers recent tasks for
-selection.
+### `vex -r [task-id]` or `vex --recall-coordinates [task-id]`
 
-### `vex -p "PROMPT"` or `vex --print "PROMPT"`
+Resumes a saved task. With no task id, resumes the most-recent saved task.
+
+### `vex -p "PROMPT"` or `vex --project-map-only "PROMPT"`
 
 Runs one prompt turn and prints the result to stdout. If stdin is piped, the
-stdin content is prepended to the prompt.
+stdin content is prepended to the prompt. For local inference endpoints,
+protocol discovery runs before the turn starts when you configure a bare
+`api_client.base_url`. On dual-protocol servers, discovery probes
+`/v1/messages` first and falls back to `/v1/chat/completions` only when the
+messages-v1 probe fails. If `model_url` already points at a concrete endpoint
+path, that explicit path remains authoritative for the turn.
 
-### `vex exec --task "TEXT"`
+### `vex exec`
 
-Runs a non-interactive batch task.
-
-Useful options:
-
-- `--task-file PATH`
-- `--max-turns N`
-- `--auto-approve once|task`
-- `--format jsonl|text`
-- `--output PATH`
+Runs a non-interactive single-turn batch task. Task content is supplied via
+`-p/--project-map-only`. Output format is controlled by
+`-m/--set-map-encoding`. Auto-approval scope is derived from
+`-f/--force-unstable-alignment`.
 
 Each JSONL turn record includes a `tokens` object with `input`, `output`, and
 `estimated` fields.
 
-### `vex doctor [--json]`
+### `vex doctor`
 
-Runs a read-only environment health check. It validates config loading, checks
+Runs a read-only environment health check. Validates config loading, checks
 model endpoint reachability, reports sandbox fallback status, probes configured
 MCP servers without starting them, inspects state-directory writability, and
 verifies that any present policy file parses cleanly.
 
-Exit code is non-zero only when one or more checks fail. `--json` emits a JSON
-array of `{check,status,message}` objects.
+Exit code is non-zero only when one or more checks fail. Pass
+`-m jsonl` to emit a JSON array of `{check,status,message}` objects instead
+of the default plain-text report.
 
 ### `vex privacy`
 
@@ -77,29 +92,35 @@ file, or copied into operator-workstation documentation.
 
 Manages the OS credential-store entries used by the runtime token fallback.
 
-- `vex credentials set <account> --stdin` reads the secret from piped or redirected stdin.
-- `vex credentials set <account> --from-env VAR` reads the secret from environment variable `VAR`.
-- `vex credentials get <account>` prints the stored secret.
-- `vex credentials delete <account>` removes the stored secret.
-- `vex credentials list` prints the known account identifiers for the `vexcoder` service.
+- `vex credentials set <account>` — acquires the secret using automatic source
+  selection: (1) reads from stdin when stdin is not a TTY (pipe or redirect);
+  (2) presents a masked interactive prompt when both stdin and stderr are
+  terminals. The secret is never accepted as a positional argument, preventing
+  leakage into shell history and process lists.
+  Example: `printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token`
+- `vex credentials get <account>` — prints the stored secret.
+- `vex credentials delete <account>` — removes the stored secret.
+- `vex credentials list` — prints the known account identifiers for the
+  `"vexcoder"` service.
 
-The current build uses platform-native credential stores. `set` intentionally
-refuses to read the secret from argv so the value does not leak into shell
-history or process lists.
+### `vex export <task-id>`
 
-### `vex export <task-id> [--format jsonl|markdown] [--output PATH] [--force]`
+Exports a saved task from `.vex/state` (or `VEX_STATE_DIR`) to stdout.
 
-Exports a saved task from `.vex/state` (or `VEX_STATE_DIR`).
+Format is governed by `-m/--set-map-encoding`:
+- `"jsonl"` — JSONL batch-turn records, matching the schema produced by `vex exec`.
+- `"text"` (default) — Markdown, omitting full assistant response text and
+  including only tool outcomes.
 
-- `jsonl` matches the batch-turn schema used by `vex exec`
-- `markdown` omits full assistant response text and only includes tool outcomes
-- `--output PATH` writes to a file instead of stdout
-- `--force` allows overwriting an existing output file
+Output is always written to stdout; redirect with shell operators when a file
+target is needed.
 
-### `vex init [--dir PATH]`
+### `vex init`
 
-Creates `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` without
-overwriting existing files.
+Scaffolds `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` in the
+current working directory. Non-destructive: files that already exist are
+skipped without error. To target a different directory, use `cd` before
+invoking `vex init`.
 
 ### `vex branch <name>`
 
@@ -118,10 +139,6 @@ The result prints to stdout. The current template starts with a `Title:` line
 followed by a Markdown body, so you can review it on your workstation or pipe it into your
 own git-hosting CLI workflow.
 
-### `vex migrate config [--output PATH]`
-
-Writes a TOML fragment based on legacy environment variables.
-
 ### `vex completions <bash|zsh|fish|powershell>`
 
 Writes shell completion scripts to stdout.
@@ -133,10 +150,6 @@ Installs or removes the repository `prepare-commit-msg` hook.
 ### `vex skills list`
 
 Lists installed skills.
-
-### `vex skills install SOURCE [--subdir PATH]`
-
-Installs a skill from a git URL or tarball URL.
 
 ### `vex skills remove NAME`
 

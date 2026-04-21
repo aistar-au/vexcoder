@@ -228,20 +228,42 @@ impl RuntimeEnvelopeNormalizer {
             ProviderStreamEvent::ContentBlockStart {
                 index,
                 content_block,
-            } => match decode_provider_content_block(content_block) {
+            } => match decode_provider_content_block(content_block.clone()) {
                 Ok(content_block) => self.open_provider_stream_block(index, content_block),
-                Err(err) => vec![self.emit_event(RuntimeEvent::Error {
-                    code: "provider_content_block_start_decode".to_string(),
-                    message: format!(
-                        "failed to decode provider content_block_start event at index {index}: {err}"
-                    ),
-                    recoverable: true,
-                })],
+                Err(err) => {
+                    // Log the raw JSON payload so that malformed content-block
+                    // shapes are diagnosable from `-d` output without requiring
+                    // RUST_LOG=trace. The payload is capped to 512 bytes to
+                    // bound log volume for unexpectedly large blocks.
+                    let raw = serde_json::to_string(&content_block)
+                        .unwrap_or_else(|_| "<non-serializable>".to_string());
+                    let truncated = if raw.len() > 512 {
+                        format!("{}…({}B total)", &raw[..512], raw.len())
+                    } else {
+                        raw
+                    };
+                    tracing::warn!(
+                        target: "vex::protocol",
+                        index,
+                        error = %err,
+                        raw_payload = %truncated,
+                        "failed to decode provider content_block_start; raw payload logged for diagnosis"
+                    );
+                    vec![self.emit_event(RuntimeEvent::Error {
+                        code: "provider_content_block_start_decode".to_string(),
+                        message: format!(
+                            "failed to decode provider content_block_start event at index {index}: {err}"
+                        ),
+                        recoverable: true,
+                    })]
+                }
             },
             ProviderStreamEvent::ContentBlockDelta { index, delta } => provider_block_delta(&delta)
                 .map(|delta| self.apply_provider_stream_delta(index, delta))
                 .unwrap_or_default(),
-            ProviderStreamEvent::ContentBlockStop { index } => self.close_provider_stream_block(index),
+            ProviderStreamEvent::ContentBlockStop { index } => {
+                self.close_provider_stream_block(index)
+            }
             ProviderStreamEvent::MessageDelta { delta, usage } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = delta.metadata {
@@ -345,10 +367,23 @@ impl RuntimeEnvelopeNormalizer {
         index: usize,
         block_delta: ProviderBlockDelta,
     ) -> Vec<RuntimeEnvelope> {
+        let is_text_delta = matches!(&block_delta, ProviderBlockDelta::Text(_));
+        let delta_kind = provider_delta_kind(&block_delta);
+        let delta = match block_delta {
+            ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => delta,
+        };
+        if delta.is_empty() {
+            tracing::trace!(
+                target: "vex::protocol",
+                index,
+                delta_kind,
+                "ignoring empty provider stream delta"
+            );
+            return Vec::new();
+        }
+
         let mut envelopes = self.ensure_protocol_ingress_turn_started();
-        if matches!(block_delta, ProviderBlockDelta::Text(_))
-            && !self.protocol_ingress.open_blocks.contains(&index)
-        {
+        if is_text_delta && !self.protocol_ingress.open_blocks.contains(&index) {
             self.protocol_ingress.open_blocks.insert(index);
             envelopes.extend(self.normalize_ui_update(
                 &super::UiUpdate::StreamBlockStart {
@@ -361,11 +396,6 @@ impl RuntimeEnvelopeNormalizer {
                 None,
             ));
         }
-
-        let delta_kind = provider_delta_kind(&block_delta);
-        let delta = match block_delta {
-            ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => delta,
-        };
         tracing::trace!(
             target: "vex::protocol",
             index,
@@ -441,6 +471,23 @@ impl RuntimeEnvelopeNormalizer {
                 refusal,
                 tool_calls,
             } = delta;
+
+            tracing::trace!(
+                target: "vex::protocol",
+                choice_index = choice_index.unwrap_or_default(),
+                content_state = text_field_state(content.as_deref()),
+                content_bytes = content.as_ref().map(|text| text.len()).unwrap_or_default(),
+                reasoning_state = text_field_state(reasoning_content.as_deref()),
+                reasoning_bytes = reasoning_content
+                    .as_ref()
+                    .map(|text| text.len())
+                    .unwrap_or_default(),
+                refusal_state = text_field_state(refusal.as_deref()),
+                tool_call_count = tool_calls.as_ref().map(|items| items.len()).unwrap_or_default(),
+                finish_reason = finish_reason.as_deref().unwrap_or("none"),
+                has_logprobs = logprobs.is_some(),
+                "normalizing chat-compatible choice"
+            );
 
             if let Some(content) = content {
                 envelopes
@@ -534,7 +581,7 @@ impl RuntimeEnvelopeNormalizer {
         tool_call: ChatCompatToolCallDelta,
     ) -> Vec<RuntimeEnvelope> {
         if self.protocol_ingress.chat_compat_stream_terminated {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 choice_index = choice_index.unwrap_or_default(),
                 "ignoring late chat-compatible tool delta after stream termination"
@@ -548,9 +595,47 @@ impl RuntimeEnvelopeNormalizer {
 
         let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
         let block_index = raw_index.saturating_add(1);
+        let has_id = tool_call.id.as_ref().is_some_and(|id| !id.is_empty());
+        let has_function = tool_call.function.is_some();
+        let has_name = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.name.as_ref())
+            .is_some_and(|name| !name.is_empty());
+        let arguments_shape = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.arguments.as_ref())
+            .map(chat_compat_arguments_shape)
+            .unwrap_or("none");
+        let arguments_bytes = tool_call
+            .function
+            .as_ref()
+            .and_then(|function| function.arguments.as_ref())
+            .map(chat_compat_arguments_bytes)
+            .unwrap_or_default();
         let _ = (choice_index, tool_call.call_type);
 
-        let (start_block, partial_json) = {
+        tracing::debug!(
+            target: "vex::protocol",
+            choice_index = choice_index.unwrap_or_default(),
+            raw_index,
+            block_index,
+            has_id,
+            has_function,
+            has_name,
+            arguments_shape,
+            arguments_bytes,
+            "processing chat-compatible tool delta"
+        );
+
+        let (
+            start_block,
+            partial_json,
+            lifecycle_after,
+            pending_argument_bytes,
+            has_materialized_arguments,
+        ) = {
             let state = self
                 .protocol_ingress
                 .chat_compat_tool_lifecycles
@@ -626,12 +711,30 @@ impl RuntimeEnvelopeNormalizer {
                 && !state.pending_arguments.is_empty())
             .then(|| std::mem::take(&mut state.pending_arguments));
 
-            (start_block, partial_json)
+            (
+                start_block,
+                partial_json,
+                state.lifecycle,
+                state.pending_arguments.len(),
+                state.materialized_arguments.is_some(),
+            )
         };
+
+        tracing::debug!(
+            target: "vex::protocol",
+            choice_index = choice_index.unwrap_or_default(),
+            block_index,
+            lifecycle = tool_call_lifecycle_name(lifecycle_after),
+            pending_argument_bytes,
+            has_materialized_arguments,
+            emitted_start_block = start_block.is_some(),
+            emitted_partial_argument_bytes = partial_json.as_ref().map(|json| json.len()).unwrap_or_default(),
+            "normalized chat-compatible tool delta"
+        );
 
         let mut envelopes = Vec::new();
         if let Some(content_block) = start_block {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 block_index,
                 "opening chat-compatible tool block"
@@ -639,7 +742,7 @@ impl RuntimeEnvelopeNormalizer {
             envelopes.extend(self.open_provider_stream_block(block_index, content_block));
         }
         if let Some(partial_json) = partial_json {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 block_index,
                 partial_bytes = partial_json.len(),
@@ -678,7 +781,7 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = Vec::new();
         for index in to_close {
-            tracing::trace!(
+            tracing::debug!(
                 target: "vex::protocol",
                 index,
                 "closing chat-compatible tool block"
@@ -686,6 +789,36 @@ impl RuntimeEnvelopeNormalizer {
             envelopes.extend(self.close_provider_stream_block(index));
         }
         envelopes
+    }
+}
+
+fn text_field_state(value: Option<&str>) -> &'static str {
+    match value {
+        Some("") => "empty",
+        Some(_) => "text",
+        None => "missing_or_null",
+    }
+}
+
+fn chat_compat_arguments_shape(arguments: &ChatCompatFunctionArguments) -> &'static str {
+    match arguments {
+        ChatCompatFunctionArguments::String(_) => "string",
+        ChatCompatFunctionArguments::Json(_) => "json",
+    }
+}
+
+fn chat_compat_arguments_bytes(arguments: &ChatCompatFunctionArguments) -> usize {
+    match arguments {
+        ChatCompatFunctionArguments::String(arguments) => arguments.len(),
+        ChatCompatFunctionArguments::Json(arguments) => arguments.to_string().len(),
+    }
+}
+
+fn tool_call_lifecycle_name(lifecycle: ToolCallLifecycle) -> &'static str {
+    match lifecycle {
+        ToolCallLifecycle::Discovered => "discovered",
+        ToolCallLifecycle::Opened => "opened",
+        ToolCallLifecycle::Closed => "closed",
     }
 }
 

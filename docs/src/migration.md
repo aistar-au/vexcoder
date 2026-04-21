@@ -1,14 +1,11 @@
-# Legacy Config Note
+# Config Update Note
 
-VexCoder keeps `vex migrate config` as a small compatibility helper for older
-local setups that still export legacy `VEX_*` values.
-
-There is no separate migration workflow documented for normal installs. For
-current setup guidance, use the main docs instead:
+Older `VEX_*` spellings are no longer translated by the CLI. Update local
+shell environments and config files to the current names documented here:
 
 - [Quick Start](quick-start.md)
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
 
-If you do need the compatibility helper, run `vex migrate config --help` to see
-its current CLI surface.
+There is no separate update command. Apply the current names directly in
+`.vex/config.toml` or your user config file.

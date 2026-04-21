@@ -15,6 +15,12 @@ impl TuiMode {
         let custom_commands =
             load_custom_commands(&config.working_dir, &builtin_slash_command_names());
         let task_doc_condenser = TaskDocumentCondenser::new();
+        let overlay_state = OverlayState {
+            auto_approve_session: config.force,
+            ..OverlayState::default()
+        };
+        let context_assembler =
+            ContextAssembler::default().with_expanded_scan(config.expand_context);
         let initial_meta = crate::runtime::TaskInfo {
             id: new_task_id(),
             status: TaskStatus::Ready,
@@ -34,7 +40,7 @@ impl TuiMode {
         };
         let task_doc = task_doc_condenser.begin_task(initial_meta);
         Self {
-            overlay_state: OverlayState::default(),
+            overlay_state,
             repo_label: resolve_repo_label(),
             git_branch: util::resolve_git_branch(),
             instructions_path: None,
@@ -49,6 +55,7 @@ impl TuiMode {
             working_dir: config.working_dir.clone(),
             model_url: config.model_url.clone(),
             search_config: config.search.clone(),
+            context_assembler,
             sandbox: ConfiguredSandbox::default(),
             file_prompt_entries: RefCell::new(None),
             custom_commands,

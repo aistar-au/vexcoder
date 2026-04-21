@@ -178,12 +178,12 @@ fn test_tui_memory_does_not_call_start_turn() {
     assert!(!mode.is_turn_in_progress(), "cancel must not start a turn");
 }
 #[test]
-fn test_tui_memory_reads_legacy_fallback_notes() {
+fn test_tui_memory_ignores_old_home_notes_path() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path().join("home");
     std::fs::create_dir_all(home.join(".vex")).unwrap();
-    std::fs::write(home.join(".vex/memory.md"), "legacy note\n").unwrap();
+    std::fs::write(home.join(".vex/memory.md"), "older note\n").unwrap();
 
     let old_home = std::env::var("HOME").ok();
     let old_xdg = std::env::var("XDG_CONFIG_HOME").ok();
@@ -204,10 +204,11 @@ fn test_tui_memory_reads_legacy_fallback_notes() {
     }
 
     assert!(
-        mode.history_lines()
+        !mode
+            .history_lines()
             .iter()
-            .any(|line| line.contains("legacy note")),
-        "expected legacy fallback notes to render"
+            .any(|line| line.contains("older note")),
+        "old home notes path must not be loaded"
     );
 }
 #[test]
@@ -260,6 +261,9 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let (runtime, _ctx) = build_runtime(config).expect("runtime should build");

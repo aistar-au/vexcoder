@@ -91,6 +91,38 @@ fn test_process_messages_v1_thinking_data_block_emits_thinking_delta() {
 }
 
 #[test]
+fn test_process_messages_v1_tool_use_accepts_object_arguments_without_synthetic_delta() {
+    let mut parser = StreamParser::new();
+    let frame = b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_obj\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\",\"line\":7}}}\n\n";
+    let events = parser.process(frame).unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "toolu_obj"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/lib.rs","line":7})
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            ..
+        } if tool_name == "read_file"
+            && arguments == &serde_json::json!({"path":"src/lib.rs","line":7})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized messages-v1 tool input should not emit a synthetic arguments delta",
+    );
+}
+
+#[test]
 fn test_process_chat_compat_emits_message_start_metadata() {
     let mut parser = StreamParser::new();
     let events = parser
@@ -277,6 +309,100 @@ fn test_process_chat_compat_accepts_object_valued_tool_arguments() {
             .iter()
             .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
         "a materialized JSON value should not require a synthetic delta replay",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_emits_text_and_materialized_tool_arguments_from_same_chunk() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"reading now","tool_calls":[{"index":0,"id":"call_mix","type":"function","function":{"name":"read_file","arguments":{"path":"src/main.rs"}}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "reading now"
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_mix"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized chat-compat tool arguments should stay materialized even when text and tool calls share a chunk",
+    );
+}
+
+#[test]
+fn test_process_chat_compat_ignores_empty_content_without_emitting_text_block() {
+    let mut parser = StreamParser::new();
+    let mut events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":"stop"}]}
+
+"#,
+        )
+        .unwrap();
+    events.extend(parser.finish());
+
+    assert!(
+        !events.iter().any(|event| matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart { index: 0, .. }
+                | RuntimeEvent::TranscriptBlockDelta { index: 0, .. }
+        )),
+        "empty chat-compatible content should not open or update a transcript block",
+    );
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+    )));
+}
+
+#[test]
+fn test_process_chat_compat_ignores_empty_content_when_tool_calls_are_present() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"","tool_calls":[{"index":0,"id":"call_empty_mix","type":"function","function":{"name":"read_file","arguments":{"path":"src/main.rs"}}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert!(
+        !events.iter().any(|event| matches!(
+            &event.event,
+            RuntimeEvent::TranscriptBlockStart { index: 0, .. }
+                | RuntimeEvent::TranscriptBlockDelta { index: 0, .. }
+        )),
+        "tool-only chat-compatible chunks must not emit an empty transcript block first",
+    );
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: crate::state::StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "call_empty_mix"
+            && name == "read_file"
+            && input == &serde_json::json!({"path":"src/main.rs"})
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(&event.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized tool-only chat-compatible chunks should stay materialized",
     );
 }
 
@@ -601,4 +727,193 @@ fn test_normaliser_is_stateless_across_calls() {
     let mut normaliser = StreamTextNormaliser::new();
     assert_eq!(collect_text(&normaliser.normalise("alpha")), "alpha");
     assert_eq!(collect_text(&normaliser.normalise("beta")), "beta");
+}
+
+// ---------------------------------------------------------------------------
+// Multi-block messages-v1 and JSON-variation tests (items 4-5 transport follow-up)
+// ---------------------------------------------------------------------------
+
+/// Verifies that two consecutive `tool_use` `content_block_start` events in a
+/// messages-v1 stream produce two independent `ToolCallStarted` envelopes with
+/// no cross-contamination of IDs, names, or inputs.
+#[test]
+fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_calls() {
+    let mut parser = StreamParser::new();
+
+    // First tool_use block at index 1.
+    let first = parser
+        .process(
+            b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_a\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\"}}}\n\n",
+        )
+        .unwrap();
+
+    assert!(
+        first.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::TranscriptBlockStart {
+                index: 1,
+                block: crate::state::StreamBlock::ToolCall { id, name, .. }
+            } if id == "toolu_a" && name == "read_file"
+        )),
+        "first tool block must open at index 1; got {:?}",
+        first.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+
+    // Second tool_use block at index 2.
+    let second = parser
+        .process(
+            b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_b\",\"name\":\"write_file\",\"input\":{\"path\":\"out.txt\",\"content\":\"done\"}}}\n\n",
+        )
+        .unwrap();
+
+    assert!(
+        second.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::TranscriptBlockStart {
+                index: 2,
+                block: crate::state::StreamBlock::ToolCall { id, name, .. }
+            } if id == "toolu_b" && name == "write_file"
+        )),
+        "second tool block must open at index 2; got {:?}",
+        second.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !second.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::TranscriptBlockStart {
+                block: crate::state::StreamBlock::ToolCall { id, .. },
+                ..
+            } if id == "toolu_a"
+        )),
+        "second block open must not re-emit the first block"
+    );
+
+    // Both ToolCallStarted events must have arrived (one per block).
+    let all: Vec<_> = first.iter().chain(second.iter()).collect();
+    let started_names: Vec<&str> = all
+        .iter()
+        .filter_map(|e| match &e.event {
+            RuntimeEvent::ToolCallStarted { tool_name, .. } => Some(tool_name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        started_names.contains(&"read_file"),
+        "ToolCallStarted for read_file expected; got {started_names:?}"
+    );
+    assert!(
+        started_names.contains(&"write_file"),
+        "ToolCallStarted for write_file expected; got {started_names:?}"
+    );
+}
+
+/// Verifies that a messages-v1 `tool_use` block with a deeply-nested JSON
+/// `input` object (arrays, nested objects) normalizes without data loss.
+#[test]
+fn test_process_messages_v1_tool_use_nested_json_input_normalizes_correctly() {
+    let mut parser = StreamParser::new();
+    let frame = br#"event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_deep","name":"apply_patch","input":{"operations":[{"op":"replace","path":"/src/lib.rs","content":"fn main() {}\n"},{"op":"delete","path":"/src/old.rs"}],"dry_run":false,"metadata":{"author":"ci","reason":"normalize"}}}}
+
+"#;
+    let events = parser.process(frame).unwrap();
+
+    let expected_input = serde_json::json!({
+        "operations": [
+            {"op": "replace", "path": "/src/lib.rs", "content": "fn main() {}\n"},
+            {"op": "delete", "path": "/src/old.rs"}
+        ],
+        "dry_run": false,
+        "metadata": {"author": "ci", "reason": "normalize"}
+    });
+
+    assert!(
+        events.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
+                if tool_name == "apply_patch" && arguments == &expected_input
+        )),
+        "deeply-nested tool input must materialize intact; got {:?}",
+        events.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "materialized nested input must not emit argument deltas"
+    );
+}
+
+/// Verifies that the chat-compat string-form argument accumulator correctly
+/// coalesces partial JSON fragments arriving across three separate SSE chunks
+/// into a single materialized tool call with the complete arguments object.
+///
+/// This covers the typical local chat-compatible streaming pattern where `"arguments"` is
+/// delivered as a fragmented JSON string: `"{\"path\":"`, `"\"src/lib.rs\""`,
+/// `"}"`.
+#[test]
+fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
+    let mut parser = StreamParser::new();
+
+    // Chunk 1: opening fragment with ID and partial arguments string.
+    let c1 = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_frag","type":"function","function":{"name":"read_file","arguments":"{\"path\":"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    assert!(
+        c1.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::TranscriptBlockStart {
+                index: 1,
+                block: crate::state::StreamBlock::ToolCall { id, name, .. }
+            } if id == "call_frag" && name == "read_file"
+        )),
+        "block must open on first chunk; got {:?}",
+        c1.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+
+    // Chunk 2: middle fragment.
+    let c2 = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"src/lib.rs\""}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+    assert!(
+        c2.iter().any(|e| matches!(
+            &e.event,
+            RuntimeEvent::ToolCallArgumentsDelta { tool_name, .. }
+                if tool_name.as_deref() == Some("read_file")
+        )),
+        "middle fragment must emit ToolCallArgumentsDelta; got {:?}",
+        c2.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+
+    // Chunk 3: closing fragment with finish_reason.
+    let c3 = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}
+
+"#,
+        )
+        .unwrap();
+    assert!(
+        c3.iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockComplete { index: 1 })),
+        "block must complete on final chunk with finish_reason; got {:?}",
+        c3.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
+
+    // ToolCallStarted (emitted at block-open) must carry the block ID.
+    let started = c1
+        .iter()
+        .find(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. }));
+    assert!(
+        started.is_some(),
+        "ToolCallStarted must be emitted when the block opens"
+    );
 }

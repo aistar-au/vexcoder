@@ -24,7 +24,7 @@ pub enum TranscriptRow {
     Error(String),
     /// Waiting-for-response placeholder line (may include elapsed time suffix).
     WaitingPlaceholder(String),
-    /// Free-form system notice.  May still carry legacy `[marker]` prefixes
+    /// Free-form system notice.  May still carry older `[marker]` prefixes
     /// from runtime strings; the renderer handles those inside this variant
     /// until they are promoted to dedicated `TurnEntry` types in a later PR.
     Plain(String),
@@ -64,7 +64,7 @@ impl TranscriptRow {
         }
     }
 
-    /// Convert back to the legacy marker-string representation.
+    /// Convert back to the earlier marker-string representation.
     ///
     /// Used by `history_lines()` and `handle_copy_command` which return
     /// `Vec<String>` and are relied on by existing tests.

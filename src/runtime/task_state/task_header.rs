@@ -83,16 +83,16 @@ mod tests {
     }
 
     #[test]
-    fn defaults_updated_at_to_zero_for_legacy_json() {
+    fn defaults_updated_at_to_zero_for_older_json() {
         let dir = TempDir::new().unwrap();
         // Pre-ADR-030 fixture: no updated_at field
         let path = write_state_file(
             &dir,
-            "legacy",
-            r#"{"id":"legacy","status":"Completed","active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#,
+            "older-format",
+            r#"{"id":"older-format","status":"Completed","active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#,
         );
         let header = TaskStateHeader::from_path(&path).unwrap();
-        assert_eq!(header.id, "legacy");
+        assert_eq!(header.id, "older-format");
         assert_eq!(header.modified_millis, 0);
     }
 

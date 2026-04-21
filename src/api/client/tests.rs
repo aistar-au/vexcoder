@@ -14,7 +14,7 @@ use futures::StreamExt;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn with_vex_max_tokens_env<T>(value: Option<&str>, run: impl FnOnce() -> T) -> T {
     let env_lock = ENV_LOCK.blocking_lock();
@@ -87,6 +87,9 @@ fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -124,6 +127,9 @@ fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -161,6 +167,9 @@ fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -464,6 +473,93 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_too
 }
 
 #[tokio::test]
+async fn test_create_stream_times_out_when_chat_compat_non_stream_fallback_stalls() {
+    type RequestLog = Arc<Mutex<Vec<Value>>>;
+
+    async fn handler(
+        State(log): State<RequestLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        log.lock().unwrap().push(payload.clone());
+
+        if payload.get("stream").and_then(Value::as_bool) == Some(true) {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            return (
+                [(header::CONTENT_TYPE, "text/event-stream")],
+                "data: {\"choices\":[]}\n\n",
+            )
+                .into_response();
+        }
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        Json(json!({
+            "id": "chatcmpl-too-late",
+            "object": "chat.completion",
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "late"},
+                "finish_reason": "stop"
+            }]
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let request_log = requests.clone();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/chat/completions", post(handler))
+                .with_state(requests),
+        )
+        .await
+        .unwrap();
+    });
+
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/chat/completions"),
+        ModelProtocol::ChatCompat,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    let started = Instant::now();
+    let error = match client
+        .create_stream(&single_user_message("Reply exactly OK."))
+        .await
+    {
+        Ok(_) => panic!("stalled non-stream fallback should time out"),
+        Err(error) => error,
+    };
+
+    let elapsed = started.elapsed();
+    let message = error.to_string();
+
+    server.abort();
+
+    let requests = request_log.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "expected streaming request plus fallback retry"
+    );
+    assert_eq!(requests[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(requests[1].get("stream"), Some(&Value::Bool(false)));
+    assert!(message.contains("timed out"), "error message: {message}");
+    assert!(
+        message.contains("did not answer before the configured timeout"),
+        "error message: {message}"
+    );
+    assert!(
+        elapsed >= Duration::from_millis(125) && elapsed < Duration::from_secs(1),
+        "expected bounded local fallback timeout, got elapsed={elapsed:?}"
+    );
+}
+
+#[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
     type RequestLog = Arc<Mutex<Vec<Value>>>;
 
@@ -579,12 +675,99 @@ async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
 }
 
 #[tokio::test]
+async fn test_create_stream_times_out_when_messages_v1_non_stream_fallback_stalls() {
+    type RequestLog = Arc<Mutex<Vec<Value>>>;
+
+    async fn handler(
+        State(log): State<RequestLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        log.lock().unwrap().push(payload.clone());
+
+        if payload.get("stream").and_then(Value::as_bool) == Some(true) {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            return (
+                [(header::CONTENT_TYPE, "text/event-stream")],
+                "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-late\",\"role\":\"assistant\",\"model\":\"local-test\"}}\n\n",
+            )
+                .into_response();
+        }
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        Json(json!({
+            "id": "msg-too-late",
+            "type": "message",
+            "role": "assistant",
+            "model": "local-test",
+            "content": [{"type": "text", "text": "late"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 3, "output_tokens": 1}
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let request_log = requests.clone();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", post(handler))
+                .with_state(requests),
+        )
+        .await
+        .unwrap();
+    });
+
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/messages"),
+        ModelProtocol::MessagesV1,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    let started = Instant::now();
+    let error = match client
+        .create_stream(&single_user_message("Reply exactly OK."))
+        .await
+    {
+        Ok(_) => panic!("stalled non-stream fallback should time out"),
+        Err(error) => error,
+    };
+
+    let elapsed = started.elapsed();
+    let message = error.to_string();
+
+    server.abort();
+
+    let requests = request_log.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "expected streaming request plus fallback retry"
+    );
+    assert_eq!(requests[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(requests[1].get("stream"), Some(&Value::Bool(false)));
+    assert!(message.contains("timed out"), "error message: {message}");
+    assert!(
+        message.contains("did not answer before the configured timeout"),
+        "error message: {message}"
+    );
+    assert!(
+        elapsed >= Duration::from_millis(125) && elapsed < Duration::from_secs(1),
+        "expected bounded local fallback timeout, got elapsed={elapsed:?}"
+    );
+}
+
+#[tokio::test]
 async fn test_populate_server_info_discovers_protocol_from_api_client_base_url() {
-    async fn block_delta_probe() -> impl IntoResponse {
+    async fn messages_v1_probe() -> impl IntoResponse {
         StatusCode::NOT_FOUND
     }
 
-    async fn choices_delta_probe() -> impl IntoResponse {
+    async fn chat_compat_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "data: {\"ok\":true}\n\n",
@@ -599,8 +782,8 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
         axum::serve(
             listener,
             Router::new()
-                .route("/v1/messages", get(block_delta_probe))
-                .route("/v1/chat/completions", get(choices_delta_probe)),
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
         )
         .await
         .unwrap();
@@ -628,12 +811,61 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
 }
 
 #[tokio::test]
+async fn test_populate_server_info_prefers_messages_v1_when_base_url_exposes_both_protocols() {
+    async fn messages_v1_probe() -> impl IntoResponse {
+        (
+            [(header::CONTENT_TYPE, "text/event-stream")],
+            "event: ping\ndata: {\"type\":\"ping\"}\n\n",
+        )
+    }
+
+    async fn chat_compat_probe() -> impl IntoResponse {
+        (
+            [(header::CONTENT_TYPE, "text/event-stream")],
+            "data: {\"choices\":[]}\n\n",
+        )
+    }
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url.clear();
+    config.model_token = None;
+    config.api_client.base_url = format!("http://{addr}");
+
+    let client = ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    let info = client
+        .server_info()
+        .expect("server info should be populated");
+    assert_eq!(info.native_protocol, Some(ModelProtocol::MessagesV1));
+    assert_eq!(client.request_url(), format!("http://{addr}/v1/messages"));
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn test_populate_server_info_discovers_protocol_from_local_model_url_session() {
-    async fn block_delta_probe() -> impl IntoResponse {
+    async fn messages_v1_probe() -> impl IntoResponse {
         StatusCode::NOT_FOUND
     }
 
-    async fn choices_delta_probe() -> impl IntoResponse {
+    async fn chat_compat_probe() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/event-stream")],
             "data: {\"ok\":true}\n\n",
@@ -648,8 +880,8 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
         axum::serve(
             listener,
             Router::new()
-                .route("/v1/messages", get(block_delta_probe))
-                .route("/v1/chat/completions", get(choices_delta_probe)),
+                .route("/v1/messages", get(messages_v1_probe))
+                .route("/v1/chat/completions", get(chat_compat_probe)),
         )
         .await
         .unwrap();
@@ -667,10 +899,7 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
         .server_info()
         .expect("server info should be populated");
     assert_eq!(info.native_protocol, Some(ModelProtocol::ChatCompat));
-    assert_eq!(
-        client.request_url(),
-        format!("http://{addr}/v1/chat/completions")
-    );
+    assert_eq!(client.request_url(), format!("http://{addr}/v1/messages"));
 
     server.abort();
 }
@@ -749,6 +978,9 @@ fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -786,6 +1018,9 @@ fn test_https_localhost_messages_endpoint_preserves_full_request_url() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -927,6 +1162,9 @@ fn test_structured_tool_protocol_env_off_does_not_disable_direct_client_config()
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -965,6 +1203,9 @@ fn test_structured_tool_protocol_defaults_on_for_local_endpoint() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -1000,6 +1241,9 @@ fn test_structured_tool_protocol_defaults_on_for_remote_endpoint() {
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
         api_client: crate::config::ApiClientConfig::default(),
+        force: false,
+        bypass_policy: false,
+        expand_context: false,
     };
 
     let client = ApiClient::new(&config).expect("client should build");
@@ -1514,15 +1758,15 @@ async fn test_live_server_messages_v1_reachable() {
 
 #[test]
 fn test_native_protocol_overrides_configured_protocol() {
-    // When server discovery detects native ChatCompat, the client must
-    // use ChatCompat even if the user configured MessagesV1 — this is
-    // the core boundary that prevents server-side conversion.
+    // When server discovery detects native ChatCompat for a base URL, the
+    // client must use ChatCompat even if the fallback config says
+    // MessagesV1.
     let client = ApiClient {
         http: reqwest::Client::new(),
         api_key: None,
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
-        api_url: "http://localhost:8000/v1/messages".to_string(),
+        api_url: "http://localhost:8000/v1".to_string(),
         api_client_explicit_protocol: None,
         probe_timeout_ms: 2000,
         model_backend: ModelBackendKind::LocalRuntime,
@@ -1552,21 +1796,55 @@ fn test_native_protocol_overrides_configured_protocol() {
     assert_eq!(
         client.api_protocol(),
         ApiProtocol::ChatCompat,
-        "client must use native ChatCompat when server reports it, \
-             even when user configured MessagesV1"
+        "client must use native ChatCompat for bare base URLs when server reports it"
     );
 }
 
 #[test]
+fn test_explicit_chat_compat_model_url_path_overrides_discovered_messages_protocol() {
+    let config = local_stream_test_config(
+        "http://localhost:8000/v1/chat/completions".to_string(),
+        ModelProtocol::MessagesV1,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    client.set_server_info(ServerInfo {
+        native_protocol: Some(ModelProtocol::MessagesV1),
+        ..ServerInfo::default()
+    });
+
+    assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat);
+    assert_eq!(
+        client.request_url(),
+        "http://localhost:8000/v1/chat/completions"
+    );
+}
+
+#[test]
+fn test_explicit_messages_model_url_path_overrides_discovered_chat_compat_protocol() {
+    let config = local_stream_test_config(
+        "http://localhost:8000/v1/messages".to_string(),
+        ModelProtocol::ChatCompat,
+    );
+    let client = ApiClient::new(&config).expect("client should build");
+    client.set_server_info(ServerInfo {
+        native_protocol: Some(ModelProtocol::ChatCompat),
+        ..ServerInfo::default()
+    });
+
+    assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+    assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
+}
+
+#[test]
 fn test_no_native_protocol_falls_back_to_configured() {
-    // When server discovery did not detect a native protocol, the
-    // client must respect the user-configured protocol.
+    // When server discovery did not detect a native protocol for a base URL,
+    // the client must respect the fallback configured protocol.
     let client = ApiClient {
         http: reqwest::Client::new(),
         api_key: None,
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
-        api_url: "http://localhost:8000/v1/messages".to_string(),
+        api_url: "http://localhost:8000/v1".to_string(),
         api_client_explicit_protocol: None,
         probe_timeout_ms: 2000,
         model_backend: ModelBackendKind::LocalRuntime,

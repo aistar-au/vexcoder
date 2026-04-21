@@ -49,7 +49,7 @@ impl TuiMode {
         &mut self,
         scope_instruction: &str,
     ) -> Result<AssembledContext> {
-        let assembler = ContextAssembler::default();
+        let assembler = self.context_assembler.clone();
         let operator = ToolOperator::new(self.working_dir.clone());
         let scope_instruction_for_task = scope_instruction.to_string();
         let assembled = block_on_context_task(async move {
@@ -62,7 +62,7 @@ impl TuiMode {
     }
 
     pub(super) fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
-        let render_assembler = ContextAssembler::default();
+        let render_assembler = self.context_assembler.clone();
         self.try_assemble_context(scope_instruction)
             .map(|context| render_assembler.render(&context))
             .unwrap_or_else(|_| "## Context\n[context: unavailable]\n".to_string())
