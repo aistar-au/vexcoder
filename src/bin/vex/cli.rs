@@ -185,11 +185,6 @@ pub(super) enum CredentialsCommands {
 pub(super) enum SkillsCommands {
     /// List installed skills and their installation sources.
     List,
-    /// Install a skill from a git repository URL or tarball URL.
-    Install {
-        /// Git repository URL or tarball URL of the skill source.
-        source: String,
-    },
     /// Remove an installed skill by name.
     Remove {
         /// Registry name of the skill to remove.

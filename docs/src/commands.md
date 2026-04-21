@@ -151,10 +151,6 @@ Installs or removes the repository `prepare-commit-msg` hook.
 
 Lists installed skills.
 
-### `vex skills install SOURCE`
-
-Installs a skill from a git URL or tarball URL.
-
 ### `vex skills remove NAME`
 
 Removes an installed skill by name.

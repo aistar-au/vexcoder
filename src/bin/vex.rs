@@ -474,11 +474,6 @@ async fn main() -> Result<ExitCode> {
             let mut registry = vexcoder::skills::SkillsRegistry::load(&cwd)?;
             match sub {
                 SkillsCommands::List => registry.list(),
-                SkillsCommands::Install { source } => {
-                    // Subdirectory selection is not available on the normalized
-                    // surface; the skill root defaults to the repository root.
-                    registry.install(&source, None)?;
-                }
                 SkillsCommands::Remove { name } => {
                     registry.remove(&name)?;
                 }

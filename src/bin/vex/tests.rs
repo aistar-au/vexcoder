@@ -1292,41 +1292,6 @@ fn test_skills_list_cli_parses() {
 }
 
 #[test]
-fn test_skills_install_cli_parses() {
-    let cli = Cli::parse_from([
-        "vex",
-        "skills",
-        "install",
-        "https://github.com/example/skills.git",
-    ]);
-    match cli.command {
-        Some(Commands::Skills {
-            sub: SkillsCommands::Install { source },
-        }) => {
-            assert_eq!(source, "https://github.com/example/skills.git");
-        }
-        _ => panic!("expected skills install"),
-    }
-}
-
-#[test]
-fn test_skills_install_cli_rejects_obsolete_subdir_flag() {
-    // --subdir was removed; the skill root always defaults to the repository
-    // root of the fetched source.
-    assert!(
-        Cli::try_parse_from([
-            "vex",
-            "skills",
-            "install",
-            "https://github.com/example/skills.git",
-            "--subdir",
-            "skills/edit-loop",
-        ])
-        .is_err()
-    );
-}
-
-#[test]
 fn test_skills_remove_cli_parses() {
     let cli = Cli::parse_from(["vex", "skills", "remove", "edit-loop"]);
     match cli.command {

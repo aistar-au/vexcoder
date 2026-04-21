@@ -71,7 +71,7 @@ a further ADR amendment:
 | `serve` | `--host`, `--port` | read from `Config` |
 | `init` | `--dir` | use `cd` to target a different directory |
 | `credentials set` | `--stdin`, `--from-env` | stdin auto-detected by TTY state |
-| `skills install` | `--subdir` | skill root defaults to repository root |
+| `skills install` | entire subcommand | remote installation from git URLs or tarballs removed; use local skill paths only |
 
 Secret acquisition for `credentials set` now follows automatic source selection:
 stdin is consumed when it is not a TTY; an interactive masked prompt is
@@ -80,6 +80,8 @@ presented on a full TTY. The secret is never accepted as a positional argument.
 ## Compliance
 
 Agents must not reintroduce `--chat-compat`, any flag not in the normative
-top-level table above, or any subcommand flag listed in the Phase 2 removal
-table, without a further ADR amendment. Protocol selection for non-native
-endpoints remains automatic and must not be re-exposed as a user-facing flag.
+top-level table above, any subcommand flag listed in the Phase 2 removal
+table, or the `skills install` subcommand, without a further ADR amendment.
+Remote skill installation via git URL or tarball is not part of the normalized
+surface. Protocol selection for non-native endpoints remains automatic and must
+not be re-exposed as a user-facing flag.
