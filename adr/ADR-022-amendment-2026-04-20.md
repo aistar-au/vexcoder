@@ -3,7 +3,7 @@
 **Date:** 2026-04-20
 **Status:** Amended
 **Amends:** ADR-022 (Decision items 1, 7)
-**Scope:** CLI flag naming and legacy API protocol removal
+**Scope:** CLI flag naming and CLI-level ChatCompat override removal
 
 ## Summary
 
