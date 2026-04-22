@@ -28,7 +28,9 @@ pub(crate) fn project_committed_transcript_rows(
     let mut rows: Vec<TranscriptRow> = Vec::new();
 
     for notice in pre_session_notices {
-        rows.push(TranscriptRow::Plain(notice.clone()));
+        for line in notice.lines() {
+            rows.push(TranscriptRow::Plain(line.to_string()));
+        }
     }
 
     let mut compaction_iter = task_doc.context_compaction.iter().peekable();
