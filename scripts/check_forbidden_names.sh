@@ -34,10 +34,10 @@ scan_targets() {
   if [[ "$SCAN_BACKEND" == "rg" ]]; then
     "$RG_BIN" -n --hidden -i \
       --glob '!.git' \
-      --glob '!.github/agents/vexcoder-ui-parity-orchestrator.agent.md' \
-      --glob '!.github/agents/vexcoder-ui-paragraph-renderer.agent.md' \
-      --glob '!.github/agents/vexcoder-transcript-renderer-overhaul.agent.md' \
-      --glob '!.github/agents/vexcoder-hybrid-retrieval.agent.md' \
+      --glob '!.github/agents/vexapi-ui-parity-orchestrator.agent.md' \
+      --glob '!.github/agents/vexapi-ui-paragraph-renderer.agent.md' \
+      --glob '!.github/agents/vexapi-transcript-renderer-overhaul.agent.md' \
+      --glob '!.github/agents/vexapi-hybrid-retrieval.agent.md' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
       --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
@@ -64,13 +64,13 @@ for root in roots:
             continue
         if rel == "TASKS/completed/REPO-RAW-URL-MAP.md":
             continue
-        if rel == ".github/agents/vexcoder-ui-parity-orchestrator.agent.md":
+        if rel == ".github/agents/vexapi-ui-parity-orchestrator.agent.md":
             continue
-        if rel == ".github/agents/vexcoder-ui-paragraph-renderer.agent.md":
+        if rel == ".github/agents/vexapi-ui-paragraph-renderer.agent.md":
             continue
-        if rel == ".github/agents/vexcoder-transcript-renderer-overhaul.agent.md":
+        if rel == ".github/agents/vexapi-transcript-renderer-overhaul.agent.md":
             continue
-        if rel == ".github/agents/vexcoder-hybrid-retrieval.agent.md":
+        if rel == ".github/agents/vexapi-hybrid-retrieval.agent.md":
             continue
         if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
             continue
