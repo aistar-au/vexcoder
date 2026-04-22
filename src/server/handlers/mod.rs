@@ -20,12 +20,12 @@ use crate::http_facade::{HeaderName, HeaderValue, StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
+use crate::observability::new_request_id;
 use crate::privacy::{PrivacyStatement, privacy_statement};
 use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
 };
-use crate::observability::new_request_id;
 
 use super::ControlResponse;
 
@@ -396,7 +396,9 @@ async fn submit_runtime_request(
     Ok(response)
 }
 
-fn normalize_run_compat_request(raw_request: Value) -> Result<RuntimeRequest, ProblemDetailsResponse> {
+fn normalize_run_compat_request(
+    raw_request: Value,
+) -> Result<RuntimeRequest, ProblemDetailsResponse> {
     if let Ok(request) = serde_json::from_value::<RuntimeRequest>(raw_request.clone()) {
         return Ok(request);
     }
