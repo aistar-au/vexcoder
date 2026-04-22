@@ -16,7 +16,7 @@
 
 ## Context
 
-`vexcoder` targets two distinct user groups:
+`vexapi` targets two distinct user groups:
 
 1. **Remote API users** who connect to a hosted `messages-v1` endpoint (`/v1/messages`). This group uses hosted models and expects streaming SSE with `content_block_start` / `content_block_delta` events and native `tool_use` blocks.
 

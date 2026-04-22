@@ -32,7 +32,7 @@ async fn test_live_server_protocol_specific_configs_build_valid_clients() {
             "{label} config must preserve its declared protocol"
         );
 
-        let client = vexcoder::api::ApiClient::new(&config).unwrap_or_else(|error| {
+        let client = vexapi::api::ApiClient::new(&config).unwrap_or_else(|error| {
             panic!("ApiClient::new must succeed for {label} config: {error:#}")
         });
 

@@ -254,7 +254,7 @@ When I fetched the raw file it came back as syntax-error fragments (missing `use
 `cargo check` or `cargo test` will probably fail here immediately.  
 Please run:
 ```bash
-cargo check -p vexcoder --bin vex
+cargo check -p vexapi --bin vex
 ```
 and paste the first few errors - I'll give you the exact patch.
 

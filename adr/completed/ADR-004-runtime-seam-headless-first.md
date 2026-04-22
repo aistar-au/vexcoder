@@ -10,7 +10,7 @@
 
 ## Context
 
-At v0.1.0-alpha, `vexcoder` has a single execution path: the `App` struct in `src/app/mod.rs` runs the conversation loop, reads keyboard input from a TTY, and renders directly to stdout. The TUI skeleton (`src/terminal/mod.rs`, `src/ui/`) uses `ratatui` and `crossterm` but is not wired into the main loop.
+At v0.1.0-alpha, `vexapi` has a single execution path: the `App` struct in `src/app/mod.rs` runs the conversation loop, reads keyboard input from a TTY, and renders directly to stdout. The TUI skeleton (`src/terminal/mod.rs`, `src/ui/`) uses `ratatui` and `crossterm` but is not wired into the main loop.
 
 Three problems stem from this architecture:
 

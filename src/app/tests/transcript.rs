@@ -16,8 +16,8 @@ fn test_ref_08_stream_delta_appends_to_assistant_placeholder_not_user_line() {
         hl.get(1)
     );
 }
-// Tests for TUI-layer function-tag stripping and history cap are removed;
-// tag stripping now occurs at the model layer and the cap feature was removed.
+
+
 #[test]
 fn test_transcript_history_cap_removed() {}
 #[test]
@@ -25,14 +25,14 @@ fn test_scrollback_retains_position_during_streaming() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Populate pre-session notices to have scrollable content.
+    
     use crate::runtime::task_document::NoticeSeverity;
     for i in 0..20 {
         mode.push_document_notice(format!("line-{i}"), NoticeSeverity::Info);
     }
-    // Start a turn so StreamDelta is not dropped.
+    
     mode.on_user_input("fix the import error".to_string(), &mut ctx);
-    // Simulate user having scrolled up by setting a non-zero transcript offset.
+    
     mode.transcript_scroll_offset = 5;
 
     mode.on_model_update(UiUpdate::StreamDelta(" assistant".to_string()), &mut ctx);
@@ -47,28 +47,28 @@ fn test_output_scroll_commands_update_scroll_state() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Populate history so the output pane has content to scroll.
+    
     mode.on_user_input("list the test failures".to_string(), &mut ctx);
     for i in 0..50 {
         mode.push_history_line(format!("line-{i}"));
     }
 
-    // Start at the live edge (auto-follow).
+    
     assert!(mode.auto_follow(), "initial state must be auto-following");
 
-    // Scroll up — should break auto-follow.
+    
     mode.apply_output_scroll_action(ScrollAction::LineUp);
     assert!(!mode.auto_follow(), "scrolling up must disable auto-follow");
 
-    // Scroll back to bottom — should restore auto-follow.
+    
     mode.apply_output_scroll_action(ScrollAction::End);
     assert!(mode.auto_follow(), "End must restore auto-follow");
 
-    // Home scrolls to the very top — breaks auto-follow.
+    
     mode.apply_output_scroll_action(ScrollAction::Home);
     assert!(!mode.auto_follow(), "Home must disable auto-follow");
 
-    // End restores it.
+    
     mode.apply_output_scroll_action(ScrollAction::End);
     assert!(mode.auto_follow(), "End must restore auto-follow again");
 }
@@ -188,7 +188,7 @@ fn test_consecutive_read_only_tools_fold_into_single_paragraph() {
     let mut ctx = setup_ctx();
     mode.on_user_input("analyze src/main.rs".to_string(), &mut ctx);
 
-    // First tool: codebase_search
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -213,7 +213,7 @@ fn test_consecutive_read_only_tools_fold_into_single_paragraph() {
         &mut ctx,
     );
 
-    // Second tool: read_file (different name, also read-only)
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 2,
@@ -238,8 +238,7 @@ fn test_consecutive_read_only_tools_fold_into_single_paragraph() {
         &mut ctx,
     );
 
-    // In the new projection layer, each tool call renders individually
-    // instead of folding consecutive read-only tools into a single paragraph.
+    
     let hl = mode.history_lines();
     let tool_headers: Vec<_> = hl
         .iter()

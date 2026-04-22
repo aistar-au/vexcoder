@@ -23,25 +23,20 @@ pub struct AssembledContext {
     pub file_rollups: Vec<FileRollup>,
     pub git_status_summary: Option<String>,
     pub recent_diff: Option<String>,
-    /// Whether the working tree has staged or unstaged changes according to
-    /// the most recent git rollup.  `false` when git context is disabled or
-    /// the directory is not a git repository.
+    
+    
     pub has_staged_changes: bool,
-    /// Whether the porcelain status contains at least one entry with
-    /// working-tree modifications (modified, deleted, or untracked files).
-    /// `false` when git context is disabled or the directory is not a git
-    /// repository.
+    
+    
     pub has_working_tree_changes: bool,
-    /// Path to the `.git` directory as resolved by the pure-Rust gitoxide
-    /// implementation.  `None` when git context is disabled or the directory
-    /// is not inside a git repository.
+    
+    
     pub git_dir: Option<PathBuf>,
-    /// Git committer name from the global git config.  `None` when git
-    /// context is disabled or `user.name` is not configured.
+    
+    
     pub committer_name: Option<String>,
-    /// Relative paths of files currently in the git staging area as read by
-    /// `gix-index`.  Empty when git context is disabled, no files are staged,
-    /// or the index cannot be read.
+    
+    
     pub staged_paths: Vec<PathBuf>,
     pub related_paths: Vec<PathBuf>,
     pub cache_hits: usize,
@@ -89,12 +84,7 @@ impl ContextAssembler {
         self
     }
 
-    /// Create a filesystem watcher on `working_dir` that calls `on_change`
-    /// whenever a file in the directory tree is created, modified, or removed.
-    ///
-    /// The returned watcher handle must be held by the caller; dropping it
-    /// stops the watch.  Session-lifetime components use this to schedule
-    /// context refreshes when the working directory changes.
+    
     pub fn watch_working_dir<F>(
         &self,
         working_dir: &Path,
@@ -106,7 +96,7 @@ impl ContextAssembler {
         watch_working_dir(working_dir, on_change)
     }
 
-    /// Assemble context for the given instruction.
+    
     pub fn assemble(&self, instruction: &str, operator: &ToolOperator) -> Result<AssembledContext> {
         let timeout_ms = resolve_git_timeout_ms(self.git_timeout_ms);
         let mut file_rollups = Vec::new();
@@ -115,8 +105,7 @@ impl ContextAssembler {
         let mut cache_hits = 0;
         let mut cache_misses = 0;
 
-        // All explicitly named paths are captured without a count cap.
-        // The max_related cap applies only to *inferred* related paths below.
+        
         for candidate in extract_candidate_paths(instruction) {
             let path = PathBuf::from(&candidate);
             if !seen_paths.insert(path.clone()) {
@@ -208,7 +197,7 @@ impl ContextAssembler {
         })
     }
 
-    /// Render an `AssembledContext` to a markdown string for injection into a turn.
+    
     pub fn render(&self, ctx: &AssembledContext) -> String {
         let mut out = String::new();
         out.push_str("## Context\n");

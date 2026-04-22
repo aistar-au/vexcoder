@@ -97,7 +97,7 @@ fn internal_anyhow(err: anyhow::Error) -> ProblemDetailsResponse {
 pub async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         ok: true,
-        service: "vexcoder-local-api",
+        service: "vexapi-local-api",
         version: 1,
     })
 }
@@ -200,12 +200,7 @@ pub async fn watch_handler(
     }))
 }
 
-/// Release a session task: transition it to `Completed` and drop the worktree
-/// lease.  The caller is responsible for ensuring that no agent process is
-/// still running in the worktree before calling this endpoint.
-///
-/// Returns 200 `{ ok: true }` on success, 404 when the session task is not
-/// found in any saved task-state file.
+
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn release_session_task_handler(
     State(state): State<LocalApiState>,
@@ -228,9 +223,6 @@ pub async fn release_session_task_handler(
     }
 }
 
-// ---------------------------------------------------------------------------
-// ADR-034 Phase C: subtask orchestration handlers
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 pub struct ScheduleTeamRequest {
@@ -262,9 +254,7 @@ pub struct JoinSummaryEntry {
     pub summary: String,
 }
 
-/// Split a parent task into session tasks for a named team.
-///
-/// `POST /v1/teams/{team_name}/schedule` with body `{ parent_task_id, prompt }`
+
 #[tracing::instrument(skip_all, fields(team_name = %team_name))]
 pub async fn schedule_team_handler(
     State(state): State<LocalApiState>,
@@ -295,9 +285,7 @@ pub async fn schedule_team_handler(
     }))
 }
 
-/// Check the fan-out join gate for a parent task.
-///
-/// `GET /v1/tasks/{task_id}/join-status`
+
 #[tracing::instrument(skip_all, fields(task_id = %task_id))]
 pub async fn join_status_handler(
     State(state): State<LocalApiState>,
@@ -516,9 +504,6 @@ pub fn new_server_task_id() -> String {
     format!("task-{millis}")
 }
 
-// ---------------------------------------------------------------------------
-// Phase E — LocalApi session-task projection response types and handlers
-// ---------------------------------------------------------------------------
 
 pub(crate) mod session;
 pub use self::session::*;

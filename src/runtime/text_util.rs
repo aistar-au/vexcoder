@@ -1,8 +1,5 @@
-/// Truncate `text` to at most `max_bytes` bytes from the **start**,
-/// respecting UTF-8 char boundaries. Returns the possibly shortened
-/// string and a boolean indicating whether any bytes were omitted.
-///
-/// Used by `ContextAssembler` for file-snapshot content.
+
+
 pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_string(), false);
@@ -14,11 +11,7 @@ pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     (text[..boundary].to_string(), true)
 }
 
-/// Truncate `text` to at most `max_bytes` bytes from the **end**,
-/// respecting UTF-8 char boundaries. Returns the possibly shortened
-/// string and a boolean indicating whether any bytes were omitted.
-///
-/// Used by `ValidationSuite` for stdout/stderr trailing-output capture.
+
 pub fn truncate_tail_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_string(), false);

@@ -110,7 +110,7 @@ Adopt a memory-first contract for turn assembly:
 
 ## Implementation status
 
-Phase 1 is implemented on `work/vexcoder-adr-038-memory-first-phase1` as of
+Phase 1 is implemented on `work/vexapi-adr-038-memory-first-phase1` as of
 2026-03-30. Merged in PR #276.
 
 Phase 1a: Search lane tightening merged in PR #277 (search config during index

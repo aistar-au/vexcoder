@@ -43,8 +43,6 @@ use crate::tools::ToolOperator;
 use crate::turn_evidence::ToolInvocationSummary;
 use crate::turn_evidence::note_changed_files_from_tool_call;
 use crate::types::ModelProfile;
-#[cfg(test)]
-use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::io::Write;
@@ -99,11 +97,7 @@ pub use crate::runtime::tokio as runtime_tokio;
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
-use self::overlay::{
-    RenderPass, overlay_event_to_user_input, parse_approval_selection, render_pass_order,
-};
-#[cfg(test)]
-use self::scroll::{RenderGuard, input_rows_for_buffer};
+use self::overlay::parse_approval_selection;
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
     list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
@@ -152,7 +146,7 @@ enum ApprovalSelection {
     Deny,
 }
 
-/// Fallback display column width when the host display width is unknown.
+
 const DISPLAY_COLUMN_WIDTH_FALLBACK: usize = usize::MAX;
 
 mod slash_commands;
@@ -181,44 +175,44 @@ struct OverlayState {
     pending_memory_clear: bool,
 }
 
-/// Lifecycle state of a single orchestration step visible in the timeline.
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StepLifecycle {
-    /// Tool call sent by the model, result not yet received.
+    
     Running,
-    /// Tool completed successfully.
+    
     Completed,
-    /// Tool completed with an error.
+    
     Failed,
-    /// Waiting for operator approval.
+    
     AwaitingApproval,
-    /// Operator approved the tool call; execution is proceeding.
+    
     Approved,
-    /// User prompt echo (not a tool step).
+    
     UserInput,
-    /// Active command session.
+    
     CommandSession,
 }
 
-/// A single row in the orchestration timeline, derived from task state.
+
 #[derive(Clone, Debug)]
 pub struct TimelineEntry {
-    /// Monotonic identity that survives timeline re-derivation across frames.
+    
     pub step_id: u64,
     pub lifecycle: StepLifecycle,
     pub label: String,
-    /// Detail text shown in the inspector/output pane when this entry is selected.
+    
     pub detail: String,
-    /// Links command-session entries to their [`CommandSessionState`].
+    
     pub session_id: Option<u64>,
 }
 
-/// Scroll semantics for the output pane.
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OutputScrollAnchor {
-    /// Scroll offsets count from the first visible row.
+    
     Top,
-    /// Scroll offsets count upward from the prompt/composer edge.
+    
     #[default]
     Bottom,
 }
@@ -228,42 +222,37 @@ pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
     pub telemetry: TaskTelemetryState,
-    /// Structured timeline entries derived from task state.
+    
     pub timeline_entries: Vec<TimelineEntry>,
-    /// Index of the selected timeline entry (for inspector focus).
+    
     pub selected_step: usize,
-    /// Total number of steps (including those scrolled out of view).
+    
     pub total_steps: usize,
-    /// Human-readable title for the output pane.
+    
     pub output_title: String,
     pub output_rows: Vec<TranscriptRow>,
-    /// Scroll amount for the output pane, interpreted using `output_scroll_anchor`.
+    
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub pending_approval: Option<String>,
-    /// Active composer buffer for the fullscreen task surface.
+    
     pub composer_text: String,
-    /// Cursor byte offset within `composer_text`.
+    
     pub composer_cursor: usize,
-    /// Whether the composer should render as the active focus target.
+    
     pub composer_focused: bool,
     pub changed_files: Vec<String>,
-    /// When true the timeline auto-advances to the latest entry.
+    
     pub follow_mode: bool,
-    /// Floating picker overlay rendered above the composer when a picker is active.
+    
     pub picker_overlay: Vec<PickerOverlayLine>,
-    /// Workspace working directory displayed at the prompt separator.
+    
     pub working_dir: String,
-    /// Model API endpoint URL shown at the prompt separator.
+    
     pub model_url: String,
 }
 
-/// Minimal projection of task state consumed exclusively by the renderer.
-///
-/// Contains only the fields that `render_task_layout` and its helpers in
-/// `src/ui/render/` actually read.  The full `TaskLayoutState` (with
-/// telemetry, timeline, inspector fields etc.) remains available for tests
-/// and the activity-pane inspector, but is never passed into the render path.
+
 #[derive(Clone, Debug, Default)]
 pub struct TaskViewProjection {
     pub status_line: String,
@@ -277,7 +266,7 @@ pub struct TaskViewProjection {
 }
 
 impl TaskLayoutState {
-    /// Build the renderer-facing subset into a `TaskViewProjection`.
+    
     pub fn into_view_projection(self) -> TaskViewProjection {
         TaskViewProjection {
             status_line: self.status_line,
@@ -311,19 +300,19 @@ pub struct TaskTelemetryState {
     pub context_summary: Option<TaskContextSummaryState>,
     pub history_rows: usize,
     pub total_tokens: u64,
-    /// Cumulative input (prompt) tokens sent across all turns.
+    
     pub tokens_sent: u64,
-    /// Cumulative output (completion) tokens received across all turns.
+    
     pub tokens_received: u64,
     pub active_tools: usize,
     pub active_commands: usize,
     pub waiting_summary: Option<String>,
     pub timing_summary: Option<String>,
-    /// Current git branch name (empty when not in a git repository).
+    
     pub git_branch: String,
 }
 
-/// A single line in the floating picker overlay.
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PickerOverlayLine {
     pub text: String,
@@ -378,9 +367,9 @@ fn directory_picker_context(prefix: &str) -> Option<(String, bool)> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlashPickerMatch {
-    /// Command text inserted on selection (e.g. "/edit ").
+    
     pub command: String,
-    /// Display label shown in the picker (e.g. "/edit <instruction> · start an edit loop").
+    
     pub label: String,
 }
 
@@ -391,20 +380,20 @@ pub struct SlashPickerState {
 }
 
 pub struct TuiMode {
-    // ── Overlay / approval state ──────────────────────────────────────────
+    
     overlay_state: OverlayState,
-    // ── Session metadata (set once at startup, rarely changed) ────────────
+    
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
     mcp_rollup: Option<McpRegistryRollup>,
-    /// Effective display column width used for word-wrap scroll math.
+    
     display_column_width: Cell<usize>,
-    // ── Persistence / quit flow ───────────────────────────────────────────
+    
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,
-    // ── Model config ──────────────────────────────────────────────────────
+    
     model_name: String,
     model_backend: crate::runtime::ModelBackendKind,
     model_profile: ModelProfile,
@@ -416,55 +405,52 @@ pub struct TuiMode {
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
-    // ── Shared task document ──────────────────────────────────────────────
-    /// Single source of truth for all task state: turns, entries, session
-    /// grants, and metadata.  Replaces the older `TaskState` + per-turn
-    /// transcript buffers.
+    
+    
     task_doc: TaskDocument,
     task_doc_condenser: TaskDocumentCondenser,
-    /// System notices that arrived before the first turn opened (e.g. notes
-    /// warnings, sandbox state).  Shown at the top of the transcript.
+    
+    
     pre_session_notices: Vec<String>,
-    /// Set to `true` once structured final-block updates have supplied the
-    /// visible assistant text, so that flat `StreamDelta` events are skipped
-    /// and the same content is not counted twice.
+    
+    
     stream_uses_structured_final_output: bool,
-    // ── Turn lifecycle settings ────────────────────────────────────────────
+    
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
-    // ── Timeline viewport ─────────────────────────────────────────────────
+    
     selected_timeline_index: usize,
-    /// When true, selection auto-advances to the latest timeline entry.
+    
     timeline_follow_mode: bool,
     transcript_scroll_offset: usize,
     inspector_scroll_offset: usize,
-    // ── Turn telemetry (wall-clock; not persisted in task_doc) ────────────
+    
     turn_started_at: Option<Instant>,
-    /// Client-side time-to-first-token for the active turn.
+    
     ttft: Option<Duration>,
-    /// TTFT from the most recently completed turn (kept for display).
+    
     last_turn_ttft: Option<Duration>,
-    /// Duration of the most recently completed or failed turn.
+    
     last_turn_duration: Option<Duration>,
-    /// Last visible error message for the task surface.
+    
     last_error_message: Option<String>,
-    // ── Turn flow control ─────────────────────────────────────────────────
-    /// Buffered turn-completion event waiting for command sessions to drain.
+    
+    
     turn_completion_pending: bool,
-    /// Tracks whether the current turn is a `/plan` command.
+    
     plan_turn_active: bool,
-    // ── Auto-memory config ────────────────────────────────────────────────
+    
     #[cfg(not(test))]
     auto_memory_enabled: bool,
     #[cfg(test)]
     pub auto_memory_enabled: bool,
-    /// Maximum notes to collect per turn (from config).
+    
     auto_memory_max_notes: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
 
-/// All capabilities in stable kebab order (used for /permissions display and round-trip tests).
+
 pub const ALL_CAPABILITIES: &[Capability] = &[
     Capability::ApplyPatch,
     Capability::Browser,

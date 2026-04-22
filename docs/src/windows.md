@@ -22,8 +22,8 @@ cargo --version
 ## 2. Clone the repository
 
 ```powershell
-git clone https://github.com/aistar-au/vexcoder.git
-Set-Location vexcoder
+git clone https://github.com/aistar-au/vexapi.git
+Set-Location vexapi
 ```
 
 ## 3. Build the release binary

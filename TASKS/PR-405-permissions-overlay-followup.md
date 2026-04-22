@@ -1,6 +1,6 @@
 # PR 405 Follow-Up -- Permissions Overlay Policy
 
-Branch: `work/vexcoder-permissions-overlay-followup`
+Branch: `work/vexapi-permissions-overlay-followup`
 
 This note records the remaining operator-policy work adjacent to PR #405.
 PR #405 adds a privacy disclosure surface. It does not add a new

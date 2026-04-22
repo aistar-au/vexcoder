@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-/// Result of a codebase search query.
+
 #[derive(Debug)]
 pub struct SearchResult {
     pub path: String,
@@ -22,7 +22,7 @@ pub struct SearchResult {
     pub snippet: String,
 }
 
-/// Maximum number of search results, configurable via `VEX_SEARCH_MAX_RESULTS`.
+
 fn max_results_default() -> usize {
     std::env::var("VEX_SEARCH_MAX_RESULTS")
         .ok()
@@ -31,12 +31,7 @@ fn max_results_default() -> usize {
         .unwrap_or(10)
 }
 
-/// Build a BM25 `SearchEngine` over all chunks in `index`.
-///
-/// Each chunk is indexed as its `name` concatenated with its `source` so the
-/// BM25 ranking captures both symbol name and code content.  The document id
-/// is the chunk position (`usize`) so callers can map results back to the
-/// original `index` slice in O(1).
+
 fn build_bm25_engine(index: &[IndexChunk]) -> bm25::SearchEngine<usize> {
     let docs = index
         .iter()
@@ -45,15 +40,7 @@ fn build_bm25_engine(index: &[IndexChunk]) -> bm25::SearchEngine<usize> {
     SearchEngineBuilder::<usize>::with_documents(Language::English, docs).build()
 }
 
-/// Search the structural index for items matching `query`.
-///
-/// Ranking pipeline (additive scores):
-/// 1. Structural scoring via `score_chunk` (exact/fuzzy name match, parent scope, keyword count).
-/// 2. BM25 term-frequency reranking layer — adds a weighted BM25 score to the
-///    structural score so frequently-matched terms boost results proportionally.
-///
-/// Results are sorted by combined score descending, capped at `max_results`
-/// (or `VEX_SEARCH_MAX_RESULTS` if `None`).
+
 pub fn codebase_search(
     query: &str,
     index: &[IndexChunk],
@@ -76,10 +63,7 @@ pub fn codebase_search(
         })
         .collect();
 
-    // BM25 reranking layer: build a Search engine over all index chunks and add
-    // BM25 term-frequency weight to the structural scores for each candidate.
-    // BM25 weight is scaled to the same order-of-magnitude as the structural
-    // scores so neither signal dominates when they diverge.
+    
     let engine = build_bm25_engine(index);
     let bm25_scores: HashMap<usize, f64> = engine
         .search(&query_lower, None)
@@ -94,8 +78,7 @@ pub fn codebase_search(
         })
         .collect();
 
-    // Merge BM25 weights into structural scores using a HashMap for O(1)
-    // lookup per entry instead of a linear scan.
+    
     let mut score_map: HashMap<usize, f64> = scored.into_iter().map(|(s, i)| (i, s)).collect();
     for (idx, bm25_weight) in &bm25_scores {
         *score_map.entry(*idx).or_insert(0.0) += bm25_weight;
@@ -215,20 +198,20 @@ fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f
     let mut score = 0.0;
     let name_lower = chunk.name.to_ascii_lowercase();
 
-    // Exact name match.
+    
     if name_lower == *query_lower {
         score += 100.0;
     }
-    // Case-insensitive name contains query.
+    
     else if name_lower.contains(query_lower) {
         score += 50.0;
     }
-    // Query contains name (useful when query is longer than the identifier).
+    
     else if query_lower.contains(&name_lower) && name_lower.len() > 2 {
         score += 30.0;
     }
 
-    // Parent scope match.
+    
     if let Some(ref scope) = chunk.parent_scope {
         let scope_lower = scope.to_ascii_lowercase();
         if scope_lower.contains(query_lower) || query_lower.contains(&scope_lower) {
@@ -236,7 +219,7 @@ fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f
         }
     }
 
-    // Content keyword match.
+    
     let source_lower = chunk.source.to_ascii_lowercase();
     for word in query_words {
         if word.len() >= 3 {
@@ -252,7 +235,7 @@ fn semantic_score_weight(score: f64) -> f64 {
     score.max(0.0) * 60.0
 }
 
-/// Truncate a snippet to at most `max_lines` lines.
+
 fn truncate_snippet(source: &str, max_lines: usize) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if lines.len() <= max_lines {
@@ -267,7 +250,7 @@ fn truncate_snippet(source: &str, max_lines: usize) -> String {
     }
 }
 
-/// Format search results for display as a tool response.
+
 pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
     if results.is_empty() {
         return format!("No results found for \"{query}\".");
@@ -284,7 +267,7 @@ pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
             r.start_line,
             r.end_line,
         ));
-        // Indent snippet.
+        
         for line in r.snippet.lines() {
             out.push_str("   ");
             out.push_str(line);
@@ -294,12 +277,7 @@ pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
     out
 }
 
-// ── Grep-based file search ────────────────────────────────────────────────────
 
-/// Search a single file for lines matching `pattern` using the grep-regex
-/// engine backed by the `regex` crate.  Returns `(line_number, matched_line)`
-/// tuples for every matching line.  The Vec is empty when the file cannot be
-/// read, the pattern is invalid, or there are no matches.
 pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
     let matcher = match RegexMatcher::new(pattern) {
         Ok(m) => m,
@@ -317,55 +295,36 @@ pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
     ) {
         Ok(_) => matches,
         Err(_) => {
-            // File may contain invalid UTF-8 (but no NUL bytes); fall back
-            // to an empty result rather than silently suppressing the error.
+            
+            
             Vec::new()
         }
     }
 }
 
-// ── Memory-mapped file reading ────────────────────────────────────────────────
 
-/// Read the byte contents of `path` using a read-only memory mapping.
-///
-/// Faster than buffered I/O for large files because the OS page cache is
-/// reused without copying.  Returns `None` when the file cannot be opened or
-/// mapped.
-#[allow(unsafe_code)] // memory-mapped read: no mutable alias during Mmap lifetime; see SAFETY below
+#[allow(unsafe_code)] 
 pub fn mmap_read_file(path: &Path) -> Option<Mmap> {
     let file = File::open(path).ok()?;
-    // SAFETY: the file is opened read-only; no mutable alias to these pages
-    // exists through this mapping during the lifetime of the returned Mmap.
+    
+    
     unsafe { Mmap::map(&file).ok() }
 }
 
-// ── Binary content detection ──────────────────────────────────────────────────
 
-/// Return `true` when `bytes` looks like binary (non-text) content.
-///
-/// Scans the first 8 KiB for null bytes — the same heuristic used by git and
-/// ripgrep.  Binary files are excluded from text-oriented search operations.
 pub fn is_binary_content(bytes: &[u8]) -> bool {
     let probe = &bytes[..bytes.len().min(8192)];
     probe.find_byte(b'\0').is_some()
 }
 
-// ── Parallel file search ──────────────────────────────────────────────────────
 
-/// Search `paths` in parallel for lines matching `pattern`.
-///
-/// Returns one `(path_string, line_number, line_text)` entry per match.
-/// Uses `rayon` for CPU-bound parallel iteration and `crossbeam_channel` to
-/// aggregate results from worker threads without contention.  Paths that
-/// cannot be memory-mapped or that look like binary content are silently
-/// skipped.
 pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u64, String)> {
     use crossbeam_channel::unbounded;
     let (tx, rx) = unbounded::<(String, u64, String)>();
 
     paths.par_iter().for_each(|path| {
         let tx = tx.clone();
-        // Skip unreadable or binary files before invoking the regex engine.
+        
         match mmap_read_file(path) {
             Some(mmap) => {
                 if is_binary_content(&mmap) {
@@ -378,7 +337,7 @@ pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u
             let _ = tx.send((path.to_string_lossy().into_owned(), line_num, text));
         }
     });
-    // Drop the last sender so `rx.into_iter()` terminates.
+    
     drop(tx);
     rx.into_iter().collect()
 }
@@ -508,8 +467,7 @@ mod tests {
         assert!(merged[0].score > 0.0);
     }
 
-    /// Anchor test: querying a rebuilt index must return ranked structural results
-    /// for known symbol names. Verifies that names rank above unrelated entries.
+    
     #[test]
     fn test_codebase_search_tool_returns_ranked_results() {
         let index = vec![

@@ -23,11 +23,7 @@ fn validate_working_dir(working_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Send SIGKILL to the process group identified by `pid`.
-///
-/// Streaming commands run in their own process group (`process_group(0)`).
-/// Killing just the leader leaves children holding pipe FDs open; this
-/// helper terminates the whole group so reader tasks see EOF.
+
 #[cfg(unix)]
 fn kill_process_group(pid: Option<u32>) {
     if let Some(raw_pid) = pid {
@@ -131,8 +127,7 @@ impl CommandHandle {
             .context("command session completion channel dropped")?
     }
 
-    /// Returns true if this handle has not yet sent a cancel signal.
-    /// Only used in tests to assert handle state after `cancel` is called.
+    
     #[cfg(test)]
     pub fn is_consumed(&self) -> bool {
         self.cancel_tx.is_none()
@@ -213,9 +208,7 @@ impl CommandRunner for DefaultCommandRunner {
             command.current_dir(working_dir);
         }
 
-        // Run the command in its own process group so that cancellation
-        // kills the entire tree (not just the shell, leaving children
-        // holding pipe FDs open).
+        
         #[cfg(unix)]
         command.process_group(0);
 
@@ -276,9 +269,8 @@ impl CommandRunner for DefaultCommandRunner {
             };
 
             if cancelled {
-                // Windows can keep pipe readers blocked briefly after the
-                // process tree has been torn down. Abort them so cancellation
-                // always releases the completion waiter promptly.
+                
+                
                 stdout_task.abort();
                 stderr_task.abort();
             }

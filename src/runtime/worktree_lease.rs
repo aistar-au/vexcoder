@@ -50,8 +50,7 @@ impl WorktreeLeaseManager {
 
         let path = self.lease_root().join(task_id);
 
-        // Attempt real git worktree; fall back to plain directory if not in a
-        // git repository (e.g. tests or non-git working directories).
+        
         let git_status = std::process::Command::new("git")
             .args(["worktree", "add", "--detach"])
             .arg(&path)
@@ -62,9 +61,9 @@ impl WorktreeLeaseManager {
             .status();
 
         match git_status {
-            Ok(status) if status.success() => { /* real worktree created */ }
+            Ok(status) if status.success() => {  }
             _ => {
-                // Fallback: plain directory (tests, non-git contexts).
+                
                 std::fs::create_dir_all(&path)
                     .with_context(|| format!("failed to create {}", path.display()))?;
             }
@@ -88,7 +87,7 @@ impl WorktreeLeaseManager {
         if metadata_path.exists() {
             let lease = self.load(task_id)?;
             if lease.path.exists() {
-                // Try git worktree remove first; fall back to plain removal.
+                
                 let removed_via_git = std::process::Command::new("git")
                     .args(["worktree", "remove", "--force"])
                     .arg(&lease.path)

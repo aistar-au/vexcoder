@@ -4,7 +4,7 @@ use super::*;
 async fn test_stalled_stream_chat_compat_json_form_arguments_normalizes_correctly() {
     let (base_url, server) = spawn_tool_calls_json_args_server().await;
     let config = build_auto_detect_batch_config(&base_url, "json-args-model");
-    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    let client = vexapi::api::ApiClient::new(&config).expect("client should build");
     client.populate_server_info().await;
 
     assert_eq!(
@@ -47,7 +47,7 @@ async fn test_stalled_stream_chat_compat_json_form_arguments_normalizes_correctl
 async fn test_run_batch_auto_detects_messages_v1_and_normalizes_fallback_tool_calls() {
     let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;
     let config = build_auto_detect_batch_config(&base_url, "tool-detect-model");
-    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    let client = vexapi::api::ApiClient::new(&config).expect("client should build");
     client.populate_server_info().await;
 
     assert_eq!(

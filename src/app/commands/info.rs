@@ -405,8 +405,8 @@ impl TuiMode {
                 }
             }
             Ok(None) => {
-                // facade_watch_rollup matches by task-id and session-task UUID.
-                // Fall back to searching by agent_id for human-readable selectors.
+                
+                
                 let by_agent = TaskState::state_files_from(&self.working_dir)
                     .into_iter()
                     .find_map(|file| {

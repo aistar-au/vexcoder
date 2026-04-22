@@ -143,5 +143,5 @@ surface.
 
 ## References
 
-- [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator surface UI overhaul
-- [ADR-015](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-015-local-endpoint-text-protocol-default.md) — local endpoint text protocol default
+- [ADR-031](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator surface UI overhaul
+- [ADR-015](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-015-local-endpoint-text-protocol-default.md) — local endpoint text protocol default

@@ -16,7 +16,7 @@ use merge::apply_over;
 use parse::*;
 use paths::*;
 
-// Re-exports for parent module (config.rs test-only imports)
+
 pub(super) use parse::infer_model_protocol;
 #[cfg(test)]
 pub(super) use parse::parse_model_headers_json;
@@ -278,10 +278,7 @@ where
         )
 }
 
-/// Read environment variables into a ConfigLayer and return the env token
-/// separately (token is forbidden in file layers).
-///
-/// VEX_MODEL_PROTOCOL is validated here so the error message names the env var.
+
 pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
     let env_token = model_token_from_env_or_keyring();
 
@@ -465,11 +462,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
     Ok((layer, env_token))
 }
 
-/// Load and validate a single TOML config file.
-///
-/// Returns `Ok(None)` when the file does not exist (not an error).
-/// Returns `Err` for: `model_token` present, unknown keys, malformed TOML,
-/// or invalid enum string values ΓÇö all with the file path in the message.
+
 fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -480,8 +473,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         }
     };
 
-    // First pass: parse to toml::Value to check for model_token before the
-    // typed parse so the diagnostic names the file, not a generic serde error.
+    
     let raw: toml::Value = toml::from_str(&content)
         .with_context(|| format!("malformed TOML in '{}'", path.display()))?;
     if raw.get("model_token").is_some() {
@@ -492,11 +484,11 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         );
     }
 
-    // Second pass: typed parse with deny_unknown_fields.
+    
     let layer: ConfigLayer = toml::from_str(&content)
         .with_context(|| format!("unknown or invalid key in config file '{}'", path.display()))?;
 
-    // Validate enum string values here so errors carry file-path context.
+    
     if let Some(ref s) = layer.model_backend
         && parse_model_backend(s.clone()).is_none()
     {

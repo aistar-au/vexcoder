@@ -101,7 +101,7 @@ Manages the OS credential-store entries used by the runtime token fallback.
 - `vex credentials get <account>` — prints the stored secret.
 - `vex credentials delete <account>` — removes the stored secret.
 - `vex credentials list` — prints the known account identifiers for the
-  `"vexcoder"` service.
+  `"vexapi"` service.
 
 ### `vex export <task-id>`
 

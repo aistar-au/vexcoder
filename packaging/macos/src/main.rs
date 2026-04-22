@@ -1,4 +1,4 @@
-//! macOS application launcher for vexcoder — ADR-024 Phase H (PH-01/PH-02).
+//! macOS application launcher for vexapi — ADR-024 Phase H (PH-01/PH-02).
 //!
 //! This binary is embedded in Vex.app at Contents/MacOS/vex-launcher.  Its
 //! sole responsibilities are:
@@ -13,7 +13,7 @@
 //!            written to disk by this launcher.
 //!
 //! Phase H boundary: this file must not contain model calls, conversation
-//! state, tool dispatch, or any import from the vexcoder library crate.
+//! state, tool dispatch, or any import from the vexapi library crate.
 
 mod bundle;
 mod keychain;

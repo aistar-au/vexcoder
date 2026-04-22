@@ -17,14 +17,12 @@ async fn test_watch_session_task_stream_returns_not_found_for_unknown_id() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-/// A session task that has already reached a final state causes the watch
-/// stream to emit exactly one snapshot event and then close, allowing the test
-/// to read the full body without an unbounded wait.
+
 #[tokio::test]
 async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal() {
     let temp = tempfile::tempdir().unwrap();
 
-    // Create a session task and immediately transition it to a final state.
+    
     let st_id = delegate_one(
         setup_phase_e_router(temp.path()),
         "watch-parent",
@@ -44,7 +42,7 @@ async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal(
         .await
         .unwrap();
 
-    // The watch stream should emit the "completed" snapshot then close.
+    
     let router = setup_phase_e_router(temp.path());
     let response = router
         .oneshot(

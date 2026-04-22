@@ -130,8 +130,8 @@ pub fn build_http_tls_config(
         .context(
             "api.tls_cert and api.tls_key must form a matching certificate/private-key pair",
         )?;
-    // Advertise both HTTP/2 and HTTP/1.1 over ALPN. The negotiated protocol is
-    // selected by TLS handshake, not implied by this list order.
+    
+    
     tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     Ok(Some(Arc::new(tls_config)))
 }
@@ -165,7 +165,7 @@ pub fn default_unix_socket_path() -> std::path::PathBuf {
     std::env::var_os("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("vexcoder.sock")
+        .join("vexapi.sock")
 }
 
 #[derive(Debug)]
@@ -179,7 +179,7 @@ impl ProblemDetailsResponse {
         Self {
             status,
             details: ProblemDetails {
-                r#type: format!("https://aistar-au.github.io/vexcoder/problems/{reason}"),
+                r#type: format!("https://aistar-au.github.io/vexapi/problems/{reason}"),
                 title: reason.replace('_', " "),
                 status: status.as_u16(),
                 detail: Some(reason.replace('_', " ")),

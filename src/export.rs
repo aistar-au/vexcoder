@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use base64::Engine as _;
 use std::path::Path;
 
-/// Encode arbitrary bytes as standard base64 for embedding in JSON exports.
+
 pub fn encode_base64(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }

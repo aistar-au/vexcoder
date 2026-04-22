@@ -57,7 +57,7 @@ pub struct UpdateSessionTaskStatusRequest {
     pub status: String,
 }
 
-/// `GET /v1/tasks`
+
 #[tracing::instrument(skip_all)]
 pub async fn list_tasks_handler(
     State(state): State<LocalApiState>,
@@ -78,7 +78,7 @@ pub async fn list_tasks_handler(
     ))
 }
 
-/// `GET /v1/session-tasks`
+
 #[tracing::instrument(skip_all)]
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
@@ -87,7 +87,7 @@ pub async fn list_session_tasks_handler(
     Ok(Json(tasks.into_iter().map(rollup_to_response).collect()))
 }
 
-/// `GET /v1/session-tasks/{id}`
+
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn get_session_task_handler(
     State(state): State<LocalApiState>,
@@ -100,7 +100,7 @@ pub async fn get_session_task_handler(
     }
 }
 
-/// `PATCH /v1/session-tasks/{id}/status`
+
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn update_session_task_status_handler(
     State(state): State<LocalApiState>,
@@ -145,22 +145,7 @@ fn lifecycle_state_is_terminal(state: &str) -> bool {
     matches!(state, "failed" | "cancelled" | "completed")
 }
 
-// ---------------------------------------------------------------------------
-// ADR-034 Phase E2 — watch-stream projection
-// ---------------------------------------------------------------------------
 
-/// `GET /v1/session-tasks/{id}/watch`
-///
-/// Returns an SSE stream.  The server emits a `session_task` event each time
-/// the session task's `updated_at_ms` timestamp advances.  The initial
-/// snapshot is always emitted on connect.  Updates are fanned out through
-/// `LocalApiState`'s in-process broadcast channel while the persisted
-/// task-state files remain the durable source of truth for reconnects.  The
-/// stream terminates automatically once the session task reaches a final
-/// state (`failed`, `cancelled`, or `completed`).
-///
-/// Returns 404 when no session task with the given id exists at connection
-/// time.
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn watch_session_task_handler(
     State(state): State<LocalApiState>,
@@ -238,9 +223,6 @@ pub async fn watch_session_task_handler(
     Ok(response)
 }
 
-// ---------------------------------------------------------------------------
-// Task graph — `GET /v1/task-graph`
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct TaskGraphNodeResponse {
@@ -256,9 +238,7 @@ pub struct TaskGraphResponse {
     pub nodes: Vec<TaskGraphNodeResponse>,
 }
 
-/// Return the full task graph: every parent task node with its session tasks.
-///
-/// `GET /v1/task-graph`
+
 #[tracing::instrument(skip_all)]
 pub async fn task_graph_handler(
     State(state): State<LocalApiState>,
@@ -282,9 +262,6 @@ pub async fn task_graph_handler(
     }))
 }
 
-// ---------------------------------------------------------------------------
-// Todos — `GET /v1/todos`
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct TodoItemResponse {
@@ -294,9 +271,7 @@ pub struct TodoItemResponse {
     pub lifecycle_state: String,
 }
 
-/// Return all active (non-final) session tasks as a flat todo list.
-///
-/// `GET /v1/todos`
+
 #[tracing::instrument(skip_all)]
 pub async fn list_todos_handler(
     State(state): State<LocalApiState>,
@@ -315,9 +290,6 @@ pub async fn list_todos_handler(
     ))
 }
 
-// ---------------------------------------------------------------------------
-// Projection status — `GET /v1/projection`
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct ProjectionStatusResponse {
@@ -338,10 +310,7 @@ fn file_modified_ms(path: &std::path::Path) -> Option<u64> {
         })
 }
 
-/// Return the paths and last-write timestamps of the persistent projection
-/// files, then refresh both files from the current task-state directory.
-///
-/// `GET /v1/projection`
+
 #[tracing::instrument(skip_all)]
 pub async fn projection_handler(
     State(state): State<LocalApiState>,
@@ -350,12 +319,11 @@ pub async fn projection_handler(
     let graph_path = task_graph_rollup_path(working_dir);
     let todos_path = todos_rollup_path(working_dir);
 
-    // Capture timestamps before the refresh so the response reflects the
-    // previous write (useful for callers that want to detect staleness).
+    
     let graph_written = file_modified_ms(&graph_path);
     let todos_written = file_modified_ms(&todos_path);
 
-    // Refresh the files; non-fatal on error.
+    
     if let Err(e) = write_projection_rollup(working_dir) {
         tracing::warn!(error = ?e, "projection refresh failed during GET /v1/projection");
     }
@@ -368,9 +336,6 @@ pub async fn projection_handler(
     }))
 }
 
-// ---------------------------------------------------------------------------
-// ADR-046: Peer message channel
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 pub struct PostPeerMessageRequest {
@@ -400,7 +365,7 @@ pub struct ReadPeerMessagesQuery {
     pub recipient: Option<String>,
 }
 
-/// `POST /v1/tasks/{parent_task_id}/messages`
+
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
 pub async fn post_peer_message_handler(
     State(state): State<LocalApiState>,
@@ -426,7 +391,7 @@ pub async fn post_peer_message_handler(
     }
 }
 
-/// `GET /v1/tasks/{parent_task_id}/messages`
+
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
 pub async fn read_peer_messages_handler(
     State(state): State<LocalApiState>,

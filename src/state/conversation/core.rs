@@ -48,7 +48,7 @@ impl ConversationManager {
             }
         }
 
-        // Capture undo snapshots before tools run (they may modify files).
+        
         let mut undo_snapshots: std::collections::HashMap<String, UndoCheckpoint> =
             std::collections::HashMap::new();
         if self.undo_enabled {
@@ -106,7 +106,7 @@ impl ConversationManager {
 
         let completed = join_all(executions).await;
 
-        // Push undo checkpoints for tools that succeeded.
+        
         for call in &completed {
             if call.result.is_ok()
                 && let Some(cp) = undo_snapshots.remove(&call.id)

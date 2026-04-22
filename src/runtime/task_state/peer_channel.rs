@@ -1,25 +1,4 @@
-//! Append-only file-backed message channel between session tasks.
-//!
-//! Each parent task owns a sidecar JSONL file at
-//! `.vex/state/{parent_task_id}.channel.jsonl`. Agents sharing a parent task
-//! post observations, corrections, and questions through this channel.
-//!
-//! ## Concurrency safety
-//!
-//! Writes use a two-layer locking pattern matching `task_facade.rs`:
-//!
-//! 1. **In-process `Mutex`** — serialises concurrent `append_message` calls
-//!    from threads in the same vexcoder process.
-//! 2. **Cross-process `flock`** via `fs2::FileExt` — serialises writes from
-//!    sibling agent processes sharing a parent task.
-//!
-//! Reads acquire a shared flock so they never observe a partially-written line.
-//!
-//! O_APPEND alone is insufficient for correctness on macOS and Windows where
-//! POSIX atomicity guarantees are weaker than on Linux (see ADR-046 research).
-//!
-//! All public operations go through the application facade (ADR-028).
-//! This module provides only types and low-level read/write primitives.
+
 
 use anyhow::{Context, Result};
 use fs2::FileExt;
@@ -32,19 +11,18 @@ use uuid::Uuid;
 
 use crate::runtime::session_task::now_millis;
 
-/// Maximum message body size in bytes.
+
 pub const MAX_PEER_MESSAGE_BYTES: usize = 4_096;
-/// Maximum messages stored in a single channel file.
+
 pub const MAX_CHANNEL_DEPTH: usize = 256;
-/// Maximum messages returned in a single read batch.
+
 pub const MAX_CHANNEL_READ_BATCH: usize = 64;
-/// Hard file-size safety valve (1 MiB). Rejects writes even if line count
-/// has not reached `MAX_CHANNEL_DEPTH` — guards against pathological message
-/// sizes that slip under the per-message byte limit after serialisation.
+
+
 const MAX_CHANNEL_FILE_BYTES: u64 = 1_048_576;
-/// Reader skips any JSONL line exceeding this length.
+
 const MAX_LINE_BYTES: usize = 8_192;
-/// Lock file suffix for the channel write lock.
+
 const CHANNEL_LOCK_SUFFIX: &str = ".channel.lock";
 
 #[derive(Debug, thiserror::Error)]
@@ -55,12 +33,7 @@ pub enum AppendMessageError {
     Internal(#[from] anyhow::Error),
 }
 
-// ---------------------------------------------------------------------------
-// Two-layer locking
-// ---------------------------------------------------------------------------
 
-/// In-process serialisation for channel writes.  Matches the
-/// `delegate_serialization_lock` pattern in `task_facade.rs`.
 fn channel_serialization_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -88,8 +61,7 @@ fn open_channel_lock_file(state_dir: &Path, parent_task_id: &str) -> Result<File
         .with_context(|| format!("failed to open channel lock: {}", lock_path.display()))
 }
 
-/// Acquire both the in-process mutex and the cross-process flock, then
-/// run `operation` under exclusive access to the channel file.
+
 fn with_channel_lock<T, E>(
     state_dir: &Path,
     parent_task_id: &str,
@@ -110,7 +82,7 @@ where
         .map_err(E::from)?;
 
     operation()
-    // lock released on drop of lock_file + _in_process_guard
+    
 }
 
 fn with_channel_shared_lock<T>(
@@ -130,25 +102,17 @@ fn with_channel_shared_lock<T>(
     operation()
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
-/// Semantic classification of a peer message.
-///
-/// Kinds are informational — the runtime does not act on them directly.
-/// The receiving agent decides how to incorporate the message based on
-/// its own reasoning.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PeerMessageKind {
-    /// The sender shares a factual observation relevant to the task.
+    
     Observation,
-    /// The sender proposes a correction to work in progress.
+    
     Correction,
-    /// The sender asks for input before proceeding.
+    
     Question,
-    /// The sender acknowledges a prior message and records its response.
+    
     Acknowledgement,
 }
 
@@ -163,24 +127,24 @@ impl std::fmt::Display for PeerMessageKind {
     }
 }
 
-/// A single peer message appended to a parent task's channel file.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerMessage {
-    /// Unique message identifier.
+    
     pub id: String,
-    /// Epoch milliseconds — used as the pagination cursor.
+    
     pub sent_at: u64,
-    /// Full session task ID of the sender (from `SessionTask.id`).
+    
     pub sender_id: String,
-    /// Human-readable agent name (from `SessionTask.agent_id`).
+    
     pub sender_agent_id: String,
-    /// `"*"` for broadcast, or a specific `agent_id` for point-to-point.
+    
     pub recipient: String,
-    /// Semantic kind — informational only.
+    
     pub kind: PeerMessageKind,
-    /// Message body. Must not exceed `MAX_PEER_MESSAGE_BYTES`.
+    
     pub content: String,
-    /// Parent task this channel belongs to.
+    
     pub parent_task_id: String,
 }
 
@@ -206,27 +170,12 @@ impl PeerMessage {
     }
 }
 
-// ---------------------------------------------------------------------------
-// File path helper
-// ---------------------------------------------------------------------------
 
-/// Returns the channel file path for the given state directory and parent
-/// task ID.
 pub fn channel_path(state_dir: &Path, parent_task_id: &str) -> PathBuf {
     state_dir.join(format!("{parent_task_id}.channel.jsonl"))
 }
 
-// ---------------------------------------------------------------------------
-// Write (locked)
-// ---------------------------------------------------------------------------
 
-/// Append one message to the channel file under two-layer locking.
-///
-/// Enforces both `MAX_CHANNEL_DEPTH` (line count) and
-/// `MAX_CHANNEL_FILE_BYTES` (file size) before writing.
-///
-/// Does NOT call `assert_durable_access` — callers must validate the path
-/// through the facade (ADR-028 boundary).
 pub fn append_message(
     state_dir: &Path,
     message: &PeerMessage,
@@ -236,7 +185,7 @@ pub fn append_message(
     })
 }
 
-/// Inner append — called while holding both locks.
+
 fn append_message_inner(
     state_dir: &Path,
     message: &PeerMessage,
@@ -244,13 +193,13 @@ fn append_message_inner(
     let path = channel_path(state_dir, &message.parent_task_id);
     crate::tools::operator::policy::assert_durable_access(&path)?;
 
-    // Depth guard: line count
+    
     let existing = count_lines(&path)?;
     if existing >= MAX_CHANNEL_DEPTH {
         return Err(AppendMessageError::ChannelFull);
     }
 
-    // Size safety valve
+    
     if let Ok(file_info) = std::fs::metadata(&path)
         && file_info.len() >= MAX_CHANNEL_FILE_BYTES
     {
@@ -271,19 +220,7 @@ fn append_message_inner(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Read (shared lock)
-// ---------------------------------------------------------------------------
 
-/// Read up to `MAX_CHANNEL_READ_BATCH` messages from the channel, optionally
-/// filtered by recipient and paginated by `after_ms`.
-///
-/// `after_ms` is the `sent_at` value of the last message the caller has
-/// already seen. Pass `0` to read from the beginning of the channel.
-///
-/// `recipient_filter` — when `Some(agent_id)`, returns only messages where
-/// `recipient == "*"` or `recipient == agent_id`. When `None`, returns all
-/// messages (used by the orchestrator for audit/watch surfaces).
 pub fn read_messages(
     state_dir: &Path,
     parent_task_id: &str,
@@ -313,7 +250,7 @@ pub fn read_messages(
                 break;
             }
 
-            // Skip oversized or empty lines.
+            
             if line_buf.len() > MAX_LINE_BYTES || line_buf.trim().is_empty() {
                 continue;
             }
@@ -351,9 +288,6 @@ pub fn read_messages(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 fn count_lines(path: &Path) -> Result<usize> {
     if !path.exists() {
@@ -378,9 +312,6 @@ pub fn parse_peer_message_kind(s: &str) -> Option<PeerMessageKind> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -539,7 +470,7 @@ mod tests {
     fn file_size_safety_valve_rejects_oversized_channel() {
         let dir = TempDir::new().unwrap();
         let path = channel_path(dir.path(), "p");
-        // Write a file that exceeds MAX_CHANNEL_FILE_BYTES
+        
         std::fs::create_dir_all(dir.path()).unwrap();
         let big_content = "x".repeat(MAX_CHANNEL_FILE_BYTES as usize + 1);
         std::fs::write(&path, big_content).unwrap();
@@ -553,7 +484,7 @@ mod tests {
     fn oversized_line_skipped_during_read() {
         let dir = TempDir::new().unwrap();
         let path = channel_path(dir.path(), "p");
-        // Write a valid message, then an oversized line, then another valid message
+        
         let valid1 = serde_json::to_string(&PeerMessage {
             id: "m1".into(),
             sent_at: 1,

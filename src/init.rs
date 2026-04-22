@@ -17,7 +17,7 @@ pub const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# sandbox = \"passthrough\"\n",
     "# sandbox_profile = \"\"\n",
     "# sandbox_require = false\n",
-    "# model_headers = '{\"X-Client-Id\":\"vexcoder\"}'\n",
+    "# model_headers = '{\"X-Client-Id\":\"vexapi\"}'\n",
     "\n",
     "# [api]\n",
     "# transport = \"http\"\n",

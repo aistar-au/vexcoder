@@ -9,7 +9,7 @@
     <key>CFBundleDisplayName</key>
     <string>Vex</string>
     <key>CFBundleIdentifier</key>
-    <string>au.aistar.vexcoder</string>
+    <string>au.aistar.vexapi</string>
 
     <!-- Version — substituted by build-app.sh at package time -->
     <key>CFBundleVersion</key>
@@ -33,6 +33,6 @@
 
     <!-- Copyright -->
     <key>NSHumanReadableCopyright</key>
-    <string>MIT License — https://github.com/aistar-au/vexcoder</string>
+    <string>MIT License — https://github.com/aistar-au/vexapi</string>
 </dict>
 </plist>

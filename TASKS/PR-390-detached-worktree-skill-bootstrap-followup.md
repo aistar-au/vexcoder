@@ -1,6 +1,6 @@
 # PR 390 Replacement Follow-Up -- Detached Worktree Skill Bootstrap
 
-Branch: `work/vexcoder-eventsource-pr390-replacement`
+Branch: `work/vexapi-eventsource-pr390-replacement`
 
 This note records a follow-up that is adjacent to the replacement PR but not
 part of the EventSource or runtime-envelope code diff.

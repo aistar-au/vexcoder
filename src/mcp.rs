@@ -18,10 +18,10 @@ use crate::runtime::tokio::{
     time::timeout,
 };
 
-/// Default MCP server connection timeout in seconds.
+
 const DEFAULT_MCP_TIMEOUT_SECS: u64 = 30;
 
-/// Resolve the effective connection timeout for one MCP server.
+
 fn resolve_mcp_timeout(per_server: Option<u64>) -> Duration {
     let secs = per_server
         .or_else(|| {
@@ -85,9 +85,8 @@ impl McpConnectedServer {
     async fn shutdown(&self) {
         let service = self.runtime.lock().await.take();
         if let Some(service) = service {
-            // The cancel path may fail if the underlying STDIO process has
-            // already exited (crash, signal, etc.).  A 5-second grace period
-            // prevents a hung server from blocking session teardown.
+            
+            
             let _ = timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
@@ -128,7 +127,7 @@ impl McpRegistry {
             let runtime = match connect_result {
                 Ok(rt) => rt,
                 Err(error) => {
-                    // Explicitly cancel already-connected servers before propagating.
+                    
                     shutdown_connected_servers(std::mem::take(&mut servers)).await;
                     return Err(error);
                 }

@@ -1,8 +1,8 @@
 use super::*;
 
 pub(crate) fn is_read_only_user_request(input: &str) -> bool {
-    // Env override: VEX_FORCE_MUTATING_TURN=1 treats every turn as mutating,
-    // bypassing the read-only heuristic entirely.
+    
+    
     if std::env::var("VEX_FORCE_MUTATING_TURN").as_deref() == Ok("1") {
         return false;
     }

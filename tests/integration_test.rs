@@ -1,15 +1,14 @@
-// Tests in this file use std::env::set_var/remove_var (unsafe in Rust 2024
-// edition). A module-local ENV_LOCK serialises all callers in this binary.
+
+
 #![allow(unsafe_code)]
 
 use reqwest::header::HeaderMap;
-use vexcoder::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, build_batch_runtime};
-use vexcoder::config::Config;
-use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
-use vexcoder::types::ModelProfile;
+use vexapi::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, build_batch_runtime};
+use vexapi::config::Config;
+use vexapi::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
+use vexapi::types::ModelProfile;
 
-// Each integration test binary needs its own ENV_LOCK to serialise
-// env-var mutations across tests within this binary.
+
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
@@ -159,18 +158,18 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         model_profile: ModelProfile::default_for_backend(ModelBackendKind::ApiServer),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
-        sandbox: vexcoder::runtime::SandboxConfig::default(),
+        sandbox: vexapi::runtime::SandboxConfig::default(),
         model_headers: HeaderMap::new(),
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
-        compaction: vexcoder::config::CompactionConfig::default(),
-        undo: vexcoder::config::UndoConfig::default(),
-        search: vexcoder::config::SearchConfig::default(),
+        compaction: vexapi::config::CompactionConfig::default(),
+        undo: vexapi::config::UndoConfig::default(),
+        search: vexapi::config::SearchConfig::default(),
         notes_path: None,
-        api: vexcoder::config::ApiConfig::default(),
+        api: vexapi::config::ApiConfig::default(),
         hooks: Vec::new(),
-        auto_memory: vexcoder::config::AutoMemoryConfig::default(),
-        api_client: vexcoder::config::ApiClientConfig::default(),
+        auto_memory: vexapi::config::AutoMemoryConfig::default(),
+        api_client: vexapi::config::ApiClientConfig::default(),
         force: false,
         bypass_policy: false,
         expand_context: false,
@@ -193,18 +192,18 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
-        sandbox: vexcoder::runtime::SandboxConfig::default(),
+        sandbox: vexapi::runtime::SandboxConfig::default(),
         model_headers: HeaderMap::new(),
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
-        compaction: vexcoder::config::CompactionConfig::default(),
-        undo: vexcoder::config::UndoConfig::default(),
-        search: vexcoder::config::SearchConfig::default(),
+        compaction: vexapi::config::CompactionConfig::default(),
+        undo: vexapi::config::UndoConfig::default(),
+        search: vexapi::config::SearchConfig::default(),
         notes_path: None,
-        api: vexcoder::config::ApiConfig::default(),
+        api: vexapi::config::ApiConfig::default(),
         hooks: Vec::new(),
-        auto_memory: vexcoder::config::AutoMemoryConfig::default(),
-        api_client: vexcoder::config::ApiClientConfig::default(),
+        auto_memory: vexapi::config::AutoMemoryConfig::default(),
+        api_client: vexapi::config::ApiClientConfig::default(),
         force: false,
         bypass_policy: false,
         expand_context: false,
@@ -273,7 +272,7 @@ fn test_config_user_overrides_system_and_defaults() {
     std::fs::create_dir_all(&cwd).unwrap();
     std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
-    // No repo-local config in cwd ancestry.
+    
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "user-model");
     unsafe { std::env::remove_var("VEX_MODEL_NAME") };
@@ -398,7 +397,7 @@ fn check_forbidden_names_sh_allows_repository_ui_orchestrator_agent_profile() {
     let temp = prepare_forbidden_names_fixture();
     std::fs::write(
         temp.path()
-            .join(".github/agents/vexcoder-ui-parity-orchestrator.agent.md"),
+            .join(".github/agents/vexapi-ui-parity-orchestrator.agent.md"),
         allowlisted_agent_profile_content(),
     )
     .unwrap();
@@ -421,7 +420,7 @@ fn check_forbidden_names_sh_allows_repository_ui_paragraph_agent_profile() {
     let temp = prepare_forbidden_names_fixture();
     std::fs::write(
         temp.path()
-            .join(".github/agents/vexcoder-ui-paragraph-renderer.agent.md"),
+            .join(".github/agents/vexapi-ui-paragraph-renderer.agent.md"),
         allowlisted_focus_agent_profile_content(),
     )
     .unwrap();
@@ -481,11 +480,6 @@ fn test_hook_repo_local_config_rejected_at_load() {
     );
 }
 
-// -- PE-01 / PE-02 public API contract -----------------------------------------
-//
-// The six async anchor tests that depend on MockApiClient are located in
-// src/batch_mode.rs #[cfg(test)] (MockApiClient is not pub to integration tests).
-// These tests cover the integration-layer contract using only pub API.
 
 #[test]
 fn test_batch_run_opts_default_format_is_jsonl() {
@@ -521,33 +515,33 @@ fn test_batch_output_format_jsonl_and_text_are_distinct() {
 async fn test_build_batch_runtime_succeeds_with_local_config() {
     let _lock = crate::test_support::ENV_LOCK.lock().await;
     let temp = tempfile::tempdir().unwrap();
-    let config = vexcoder::config::Config {
+    let config = vexapi::config::Config {
         model_token: None,
         model_name: "local/test-model".to_string(),
         model_url: "http://localhost:8080/v1/messages".to_string(),
         model_url_skip_tls_check: false,
         working_dir: temp.path().to_path_buf(),
-        model_backend: vexcoder::runtime::ModelBackendKind::LocalRuntime,
-        model_protocol: vexcoder::runtime::ModelProtocol::MessagesV1,
-        tool_call_mode: vexcoder::runtime::ToolCallMode::Structured,
-        tool_policy: vexcoder::runtime::ToolPolicy::Full,
+        model_backend: vexapi::runtime::ModelBackendKind::LocalRuntime,
+        model_protocol: vexapi::runtime::ModelProtocol::MessagesV1,
+        tool_call_mode: vexapi::runtime::ToolCallMode::Structured,
+        tool_policy: vexapi::runtime::ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(
-            vexcoder::runtime::ModelBackendKind::LocalRuntime,
+            vexapi::runtime::ModelBackendKind::LocalRuntime,
         ),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
-        sandbox: vexcoder::runtime::SandboxConfig::default(),
+        sandbox: vexapi::runtime::SandboxConfig::default(),
         model_headers: HeaderMap::new(),
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
-        compaction: vexcoder::config::CompactionConfig::default(),
-        undo: vexcoder::config::UndoConfig::default(),
-        search: vexcoder::config::SearchConfig::default(),
+        compaction: vexapi::config::CompactionConfig::default(),
+        undo: vexapi::config::UndoConfig::default(),
+        search: vexapi::config::SearchConfig::default(),
         notes_path: None,
-        api: vexcoder::config::ApiConfig::default(),
+        api: vexapi::config::ApiConfig::default(),
         hooks: Vec::new(),
-        auto_memory: vexcoder::config::AutoMemoryConfig::default(),
-        api_client: vexcoder::config::ApiClientConfig::default(),
+        auto_memory: vexapi::config::AutoMemoryConfig::default(),
+        api_client: vexapi::config::ApiClientConfig::default(),
         force: false,
         bypass_policy: false,
         expand_context: false,

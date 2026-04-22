@@ -1,16 +1,11 @@
-//! Agent definitions surface for `.vex/agents.toml`.
-//!
-//! ADR-034 Phase A: parsing, validation, team composition rules, and
-//! repo-local discovery.
+
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-// ── Types ──────────────────────────────────────────────────────────
 
-/// Top-level agents configuration file.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentsConfig {
@@ -20,7 +15,7 @@ pub struct AgentsConfig {
     pub team_definitions: Vec<TeamDefinition>,
 }
 
-/// A single named agent profile.
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentProfile {
@@ -35,29 +30,29 @@ pub struct AgentProfile {
     pub allowed_capabilities: Vec<String>,
 }
 
-/// Isolation policy per ADR-034 §3.
+
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum IsolationPolicy {
-    /// Dedicated git worktree — required for concurrent mutable agents.
+    
     #[default]
     Worktree,
-    /// Share parent worktree — only permitted for read-only tasks.
+    
     Shared,
 }
 
-/// Scheduler strategy for team execution.
+
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TeamScheduler {
-    /// Fan out to all members, then join results.
+    
     #[default]
     FanOutJoin,
-    /// Execute members sequentially in order.
+    
     Sequential,
 }
 
-/// Named team composed from agent profiles.
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TeamDefinition {
@@ -67,7 +62,6 @@ pub struct TeamDefinition {
     pub scheduler: TeamScheduler,
 }
 
-// ── Defaults ───────────────────────────────────────────────────────
 
 fn default_profile() -> String {
     "default".to_string()
@@ -77,9 +71,7 @@ fn default_max_parallel() -> u32 {
     1
 }
 
-// ── Loading ────────────────────────────────────────────────────────
 
-/// Locate `.vex/agents.toml` by walking ancestors from `cwd`.
 pub fn find_agents_config(cwd: &Path) -> Option<PathBuf> {
     let mut dir: &Path = cwd;
     loop {
@@ -91,10 +83,7 @@ pub fn find_agents_config(cwd: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Load and validate the agents configuration.
-///
-/// Returns `Ok(None)` when no `.vex/agents.toml` is found (the single-agent
-/// runtime path remains the default).
+
 pub fn load_agents_config(cwd: &Path) -> Result<Option<AgentsConfig>> {
     let path = match find_agents_config(cwd) {
         Some(p) => p,
@@ -103,7 +92,7 @@ pub fn load_agents_config(cwd: &Path) -> Result<Option<AgentsConfig>> {
     load_agents_config_from_path(&path)
 }
 
-/// Load from an explicit path (used by tests and `load_agents_config`).
+
 pub fn load_agents_config_from_path(path: &Path) -> Result<Option<AgentsConfig>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -118,7 +107,6 @@ pub fn load_agents_config_from_path(path: &Path) -> Result<Option<AgentsConfig>>
     Ok(Some(config))
 }
 
-// ── Validation ─────────────────────────────────────────────────────
 
 fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     validate_agent_names(config, path)?;
@@ -127,17 +115,14 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Agent and team names must be non-empty, within filesystem-safe length, and unique.
+
 const MAX_CONFIG_NAME_LEN: usize = 64;
 const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-/// Returns `true` when `name` is safe for use as a single filesystem path
-/// component. Rejects path separators, control characters (including NUL),
-/// reserved relative-directory names, Windows-invalid suffixes, and portable
-/// filesystem device names.
+
 fn is_filesystem_safe(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." || name.ends_with([' ', '.']) {
         return false;
@@ -187,10 +172,10 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Every team member must reference a declared agent profile.
+
 fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
-    // Safety: `agent_names` borrows from `config` which is held by shared
-    // reference for the entire function scope — no mutation is possible.
+    
+    
     let agent_names: HashSet<&str> = config
         .agent_profiles
         .iter()
@@ -260,14 +245,10 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Capabilities that mutate repository state — agents with shared isolation
-/// must not declare any of these (ADR-034 §3: "only permitted for read-only
-/// tasks").
+
 const MUTABLE_CAPABILITIES: &[&str] = &["apply-patch", "run-command", "write-file"];
 
-/// Shared isolation is only valid when max_parallel_tasks == 1 **and** the
-/// agent declares no mutable capabilities (read-only access guarantee per
-/// ADR-034 §3).
+
 fn validate_isolation_invariants(config: &AgentsConfig, path: &Path) -> Result<()> {
     for agent in &config.agent_profiles {
         if agent.isolation == IsolationPolicy::Shared {

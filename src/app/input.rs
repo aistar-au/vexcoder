@@ -74,9 +74,7 @@ impl TuiMode {
             }
         }
 
-        // Begin the turn; transcript_projection will render the waiting
-        // placeholder via TurnEntry::UserInput — no separate
-        // push_history_line needed.
+        
         self.begin_turn_capture(turn_input.clone());
 
         #[cfg(test)]

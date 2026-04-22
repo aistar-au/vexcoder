@@ -102,15 +102,14 @@ impl ConversationManager {
         }
     }
 
-    /// Insert or update a stream block in the active turn and emit a
-    /// `BlockStart` update to the TUI channel.
+    
     pub(super) fn upsert_turn_block(
         &mut self,
         index: usize,
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        // Apply the accepted block-start event to the condenser.
+        
         let event = match &block {
             StreamBlock::Thinking { content, collapsed } => {
                 Some(RuntimeEvent::TranscriptBlockStart {
@@ -127,8 +126,8 @@ impl ConversationManager {
                     content: content.clone(),
                 },
             }),
-            // ToolCall blocks use the dedicated tool lifecycle event instead
-            // of the generic transcript-block start path.
+            
+            
             StreamBlock::ToolCall {
                 id,
                 name,
@@ -154,21 +153,14 @@ impl ConversationManager {
         self.emit_stream_block_start_update(index, block, stream_delta_tx);
     }
 
-    /// Append `text` to the Thinking block at `index`, computing only the
-    /// incremental suffix relative to what is already stored.  Returns the
-    /// appended suffix so the caller can forward it to the stream.
-    ///
-    /// ADR-045 Invariant A: all writes to `task_doc` go through the condenser
-    /// via `apply_doc_event`.  We compute the deduplicated delta with a
-    /// read-only pass, then emit `TranscriptBlockDelta` so the condenser
-    /// performs the actual write.
+    
     pub(super) fn append_text_delta(
         &mut self,
         index: usize,
         text: &str,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> String {
-        // Read-only pass: find the block and compute the deduplicated delta.
+        
         let (delta, found_entry) = {
             let doc_opt = self.task_doc.as_ref();
             match doc_opt.and_then(|d| d.active_turn.as_ref()) {
@@ -197,7 +189,7 @@ impl ConversationManager {
         };
 
         if !found_entry {
-            // No existing entry at this index; create one via the condenser.
+            
             self.upsert_turn_block(
                 index,
                 StreamBlock::Thinking {
@@ -213,7 +205,7 @@ impl ConversationManager {
             return String::new();
         }
 
-        // Write via condenser (ADR-045 sole-writer).
+        
         self.apply_doc_event(RuntimeEvent::TranscriptBlockDelta {
             index,
             delta: delta.clone(),
@@ -230,19 +222,14 @@ impl ConversationManager {
         delta
     }
 
-    /// Update the status of a ToolCall entry and re-emit a BlockStart update.
-    ///
-    /// ADR-045 Invariant A: the status mutation is routed through the condenser
-    /// via `apply_doc_event(RuntimeEvent::ToolCallStatusUpdated)` so the
-    /// document has a single write path.  A read-only pass collects the
-    /// entry index and block shape needed for the stream update.
+    
     pub(super) fn set_tool_call_status(
         &mut self,
         tool_call_id: &str,
         status: ToolStatus,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        // Read-only pass: find the entry index and pre-update block shape.
+        
         let emit_info: Option<(usize, StreamBlock)> = {
             self.task_doc
                 .as_ref()
@@ -274,7 +261,7 @@ impl ConversationManager {
         };
 
         if let Some((index, block)) = emit_info {
-            // Write via condenser (ADR-045 sole-writer).
+            
             self.apply_doc_event(RuntimeEvent::ToolCallStatusUpdated {
                 tool_call_id: tool_call_id.to_string(),
                 status,
@@ -286,8 +273,7 @@ impl ConversationManager {
         }
     }
 
-    /// Push a ToolResult entry into the active turn and emit BlockStart +
-    /// BlockComplete updates.
+    
     pub(super) fn push_tool_result_block(
         &mut self,
         block: StreamBlock,
@@ -344,20 +330,14 @@ impl ConversationManager {
         );
     }
 
-    /// At the end of the final API round, change remaining Thinking entries
-    /// from this round to FinalText and emit stream updates.
-    ///
-    /// ADR-045 Invariant A: phase mutations are routed through the condenser
-    /// via `apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated)` so
-    /// the document has a single write path.  A read-only pass collects the
-    /// block indices and content needed for the stream updates.
+    
     pub(super) fn promote_thinking_blocks_to_final_text(
         &mut self,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
         let round_start = self.current_round_entry_start;
 
-        // Read-only pass: collect block indices for each Thinking block.
+        
         let promotions: Vec<usize> = {
             let Some(doc) = self.task_doc.as_ref() else {
                 return;
@@ -378,7 +358,7 @@ impl ConversationManager {
                 .collect()
         };
 
-        // Write via condenser + emit stream updates (ADR-045 sole-writer).
+        
         for block_index in promotions {
             self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
                 index: block_index,

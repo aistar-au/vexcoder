@@ -2,12 +2,12 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, timeout};
 use tokio_util::sync::CancellationToken;
-use vexcoder::api::ApiClient;
-use vexcoder::config::Config;
-use vexcoder::runtime::context::RuntimeContext;
-use vexcoder::runtime::{CommandRequest, CommandRunner, DefaultCommandRunner};
-use vexcoder::state::ConversationManager;
-use vexcoder::tools::ToolOperator;
+use vexapi::api::ApiClient;
+use vexapi::config::Config;
+use vexapi::runtime::context::RuntimeContext;
+use vexapi::runtime::{CommandRequest, CommandRunner, DefaultCommandRunner};
+use vexapi::state::ConversationManager;
+use vexapi::tools::ToolOperator;
 
 fn long_running_request() -> CommandRequest {
     if cfg!(windows) {

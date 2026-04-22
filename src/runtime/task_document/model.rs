@@ -11,9 +11,7 @@ use crate::state::{ToolStatus, TurnToolPolicy};
 use crate::types::{StreamPromptProgress, StreamTimings};
 use crate::usage::TurnTokens;
 
-/// Accepted in-process task document. All turn data are kept here; the renderer,
-/// local API, and batch mode each project from this type rather than
-/// maintaining a second copy.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskDocument {
     pub info: TaskInfo,
@@ -25,7 +23,7 @@ pub struct TaskDocument {
     pub last_error: Option<TaskErrorState>,
 }
 
-/// Stable task-level metadata that does not change turn-to-turn.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskInfo {
     pub id: String,
@@ -42,12 +40,12 @@ pub struct TaskInfo {
     pub updated_at_ms: u64,
     pub last_heartbeat_ms: Option<u64>,
     pub active_grants: HashMap<Capability, ApprovalScope>,
-    /// Monotonically increasing counter used to assign stable step IDs to
-    /// every ordered entry in a turn. Never resets across turns.
+    
+    
     pub next_step_id: u64,
 }
 
-/// Live state for a turn that is currently in progress.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ActiveTurnDocument {
     pub turn_index: usize,
@@ -66,7 +64,7 @@ pub struct ActiveTurnDocument {
     pub cancel_pending: bool,
 }
 
-/// Immutable record of a completed turn.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TurnDocument {
     pub turn_index: usize,
@@ -82,8 +80,7 @@ pub struct TurnDocument {
     pub timings: Option<StreamTimings>,
 }
 
-/// Ordered, typed record of one piece of turn content. The full turn
-/// transcript and timeline are both projected from this sequence.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TurnEntry {
@@ -130,10 +127,10 @@ pub enum TurnEntry {
     },
 }
 
-/// One assistant text block within a turn (thinking or final text).
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AssistantBlockEntry {
-    /// Index matching the `TranscriptBlockStart` index from the runtime stream.
+    
     pub block_index: usize,
     pub phase: AssistantPhase,
     pub content: String,
@@ -141,7 +138,7 @@ pub struct AssistantBlockEntry {
     pub streaming: bool,
 }
 
-/// Which phase of assistant output this block represents.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AssistantPhase {
@@ -149,7 +146,7 @@ pub enum AssistantPhase {
     Final,
 }
 
-/// Approval state for a capability request.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApprovalDocument {
     pub step_id: u64,
@@ -159,7 +156,7 @@ pub struct ApprovalDocument {
     pub input_preview: String,
 }
 
-/// In-process command session state tracked during a turn.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandSessionDocument {
     pub session_id: u64,
@@ -169,7 +166,7 @@ pub struct CommandSessionDocument {
     pub output_tail: Vec<String>,
 }
 
-/// How a completed turn ended.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TurnOutcome {
@@ -179,7 +176,7 @@ pub enum TurnOutcome {
     MaxTurnsReached,
 }
 
-/// Severity level for system notices appended to the turn entry stream.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NoticeSeverity {
@@ -188,7 +185,7 @@ pub enum NoticeSeverity {
     Error,
 }
 
-/// Non-recoverable task error state stored outside the turn list.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TaskErrorState {
     pub message: String,

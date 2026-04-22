@@ -9,7 +9,7 @@
 //! Operators store the credential once with the system `security` CLI:
 //!
 //!   security add-generic-password \
-//!     -s vexcoder \
+//!     -s vexapi \
 //!     -a VEX_MODEL_TOKEN \
 //!     -w <token>
 //!
@@ -18,7 +18,7 @@
 //! by this launcher.
 
 /// Service name registered in the keychain.
-const SERVICE: &str = "vexcoder";
+const SERVICE: &str = "vexapi";
 /// Account name used to identify the model-endpoint token item.
 const ACCOUNT: &str = "VEX_MODEL_TOKEN";
 

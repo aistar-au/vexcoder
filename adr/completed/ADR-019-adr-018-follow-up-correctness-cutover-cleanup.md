@@ -244,7 +244,7 @@ for the exact commit that closes the checklist item.
   - Removed unused legacy calculator program that was not part of any compiled target.
   - `autobins = false` with explicit `[[bin]] path = "src/bin/vex.rs"` remains the only binary build path.
 
-### Branding Follow-up - Standardize remaining non-vexcoder references
+### Branding Follow-up - Standardize remaining non-vexapi references
 - Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
@@ -256,8 +256,8 @@ for the exact commit that closes the checklist item.
 - Validation:
   - `cargo test --all-targets` : pass
 - Notes:
-  - Replaced remaining legacy org-name branding references in active source files with `vexcoder`.
-  - Updated docs source metadata URL to the vexcoder-branded GitHub path.
+  - Replaced remaining legacy org-name branding references in active source files with `vexapi`.
+  - Updated docs source metadata URL to the vexapi-branded GitHub path.
 
 ## Architecture Boundary Note (2026-03-15)
 

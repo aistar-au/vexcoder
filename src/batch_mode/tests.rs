@@ -388,9 +388,9 @@ async fn test_batch_mode_marks_second_turn_attempt_as_max_turns_reached() {
 #[tokio::test]
 async fn test_batch_mode_text_format_outputs_plain_response() {
     let output = capture_batch_text("echo hello", 3).await.unwrap();
-    // Text format must not begin with a JSON envelope character.
+    
     let trimmed = output.trim_start();
-    // Empty output is acceptable for a mock that produces no text delta.
+    
     if !trimmed.is_empty() {
         assert!(!trimmed.starts_with('{'));
     }
@@ -740,8 +740,8 @@ fn setup_batch_ctx() -> RuntimeContext {
 
 #[tokio::test]
 async fn test_batch_mode_zero_max_turns_stops_before_first_turn() {
-    // max_turns = Some(0): current_turn (0) >= max (0) fires immediately
-    // on the first on_user_input call, before start_turn is reached.
+    
+    
     let result = run_batch_mode_with_opts(
         "keep going",
         BatchRunOpts {

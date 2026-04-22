@@ -19,33 +19,28 @@ use super::git_parse::{ParsedGitStatus, parse_git_status};
 pub(crate) struct GitRollup {
     pub(crate) git_status_summary: Option<String>,
     pub(crate) recent_diff: Option<String>,
-    /// Structured parse of the raw `git status --porcelain` output.
-    /// Available for downstream consumers (context assembler, tool operators).
+    
+    
     pub(crate) parsed_status: Option<ParsedGitStatus>,
-    /// Path to the `.git` directory discovered via the pure-Rust gitoxide
-    /// implementation.  `None` when gix cannot open the repository (bare
-    /// repo without a worktree, or path outside any repo).
+    
+    
     pub(crate) git_dir: Option<PathBuf>,
-    /// Git committer name read from the global config without spawning a
-    /// subprocess.  `None` when `user.name` is not set or unreadable.
+    
+    
     pub(crate) committer_name: Option<String>,
-    /// Relative paths of every file currently in the staging area (git index)
-    /// as read by `gix-index`.  Empty when no files are staged or when the
-    /// index cannot be read.
+    
+    
     pub(crate) staged_paths: Vec<PathBuf>,
 }
 
 impl GitRollup {
-    /// Return `true` when the git index contains one or more staged paths.
-    /// Uses `staged_paths` so the result matches the method name and excludes
-    /// purely unstaged working tree changes.
+    
+    
     pub(crate) fn has_staged_changes(&self) -> bool {
         !self.staged_paths.is_empty()
     }
 
-    /// Return `true` when the porcelain status contains at least one entry
-    /// with a non-space worktree column, indicating uncommitted working-tree
-    /// modifications (modified, deleted, or untracked files).
+    
     pub(crate) fn has_working_tree_changes(&self) -> bool {
         self.parsed_status
             .as_ref()
@@ -60,16 +55,12 @@ pub(crate) struct GitCommandResult {
     pub(crate) timed_out: bool,
 }
 
-/// Resolve the path to the `git` executable, returning an error with a
-/// concrete message when `git` is not found on `$PATH`.
-///
-/// Uses `which::which("git")` so the caller gets a diagnosis ("git not found
-/// on PATH") rather than a cryptic spawn failure.
+
 pub(crate) fn resolve_git_path() -> Result<PathBuf> {
     which::which("git").map_err(|err| {
         anyhow!(
             "git executable not found on PATH: {}. \
-             Install git or add it to PATH before running vexcoder.",
+             Install git or add it to PATH before running vexapi.",
             err
         )
     })
@@ -80,15 +71,13 @@ pub(crate) fn collect_git_rollup(
     timeout_ms: u64,
     max_diff_lines: usize,
 ) -> Result<GitRollup> {
-    // Native pre-check using gix-discover: skip the subprocess when the
-    // directory is outside any git repository.  Zero subprocesses; no PATH
-    // dependency for this guard.
+    
+    
     if discover_git_root(&working_dir).is_none() {
         return Ok(GitRollup::default());
     }
 
-    // Capture the .git directory path and committer identity via pure-Rust
-    // implementations so downstream consumers have them without extra I/O.
+    
     let git_dir = gix_git_dir(&working_dir);
     let committer_name = configured_git_user_name();
     let staged_paths = read_staged_paths(&working_dir);
@@ -306,17 +295,7 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
     }
 }
 
-/// Start a filesystem watcher on `working_dir` and invoke `on_change` each
-/// time any file in the directory tree is created, modified, or removed.
-///
-/// The watcher runs until the returned `notify::RecommendedWatcher` is
-/// dropped.  Callers retain ownership of the watcher so the watch lifetime
-/// is tied to the owning context (e.g., a long-lived task or session).
-///
-/// This is the integration seam for `notify`-based watch mode in the git
-/// rollup layer. It is intentionally kept focused in scope: the callback receives only
-/// a `Vec<PathBuf>` of changed paths so the caller decides how to respond
-/// (e.g., schedule a fresh `collect_git_rollup` call).
+
 pub(crate) fn watch_working_dir<F>(
     working_dir: &Path,
     on_change: F,
@@ -353,52 +332,26 @@ fn limit_lines(text: &str, max_lines: usize) -> String {
     text.lines().take(max_lines).collect::<Vec<_>>().join("\n")
 }
 
-/// Locate the `.git` directory by walking up from `path` using the pure-Rust
-/// `gix-discover` implementation.  Returns the path to the `.git` directory
-/// (or the repository root for bare repos), or `None` if `path` is not inside
-/// a git repository.
-///
-/// This complements the subprocess-based git detection in `collect_git_rollup`
-/// with a zero-subprocess fallback that works from any working directory.
+
 pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
     let (git_path, _trust) = gix_discover::upwards(path).ok()?;
     Some(git_path.as_ref().to_path_buf())
 }
 
-/// Read `user.name` from the global git config using `gix-config`.
-///
-/// Returns the configured committer name, or `None` if it cannot be read (no
-/// config file, the key is absent, or the value is not valid UTF-8).  This is
-/// used to attribute AI-generated commits without spawning a `git config`
-/// subprocess.
+
 pub(crate) fn configured_git_user_name() -> Option<String> {
     let config = gix_config::File::from_globals().ok()?;
     let name = config.string("user.name")?;
     Some(String::from_utf8_lossy(name.as_ref()).into_owned())
 }
 
-/// Open the git repository at or above `path` using the pure-Rust gitoxide
-/// implementation and return the path to its `.git` directory.
-///
-/// `gix` provides fast, thread-safe repository access without spawning
-/// subprocesses.  This function is the integration seam; callers that need
-/// deeper object access (e.g., reading blobs or the commit graph) can open
-/// the repository themselves via `gix::open(path)`.
-///
-/// Returns `None` on any error (path not in a repo, I/O error, bare repo
-/// without a work-tree, etc.).
+
 pub(crate) fn gix_git_dir(path: &Path) -> Option<PathBuf> {
     let repo = gix::open(path).ok()?;
     Some(repo.git_dir().to_path_buf())
 }
 
-/// Read the relative file paths currently staged in the git index for the
-/// repository that contains `repo_path`.
-///
-/// Uses `gix` to open the repository and `gix-index` entry types to iterate
-/// the staging area without spawning any subprocess.  The staging index file
-/// at `.git/index` is read directly.  Returns an empty Vec when the path is
-/// not a git repository, the index file is absent, or no entries are staged.
+
 pub(crate) fn read_staged_paths(repo_path: &Path) -> Vec<PathBuf> {
     let repo = match gix::open(repo_path) {
         Ok(r) => r,
@@ -424,8 +377,7 @@ pub(crate) fn read_staged_paths(repo_path: &Path) -> Vec<PathBuf> {
 mod tests {
     use super::*;
 
-    /// Confirm `parsed_status` is populated when the rollup captures git output.
-    /// This exercises the field read-path so the compiler does not elide it.
+    
     #[test]
     fn test_parsed_status_is_populated_from_rollup() {
         let rollup = GitRollup {
@@ -439,13 +391,12 @@ mod tests {
         assert!(rollup.parsed_status.is_some());
     }
 
-    /// `discover_git_root` returns a usable repository root when the current
-    /// working directory is inside a git repository.
+    
     #[test]
     fn test_discover_git_root_finds_repo() {
         let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let Some(root) = discover_git_root(here) else {
-            // Not inside a git checkout (e.g. source tarball); skip.
+            
             return;
         };
         assert!(
@@ -455,8 +406,7 @@ mod tests {
         );
     }
 
-    /// `gix_git_dir` returns a usable `.git` directory when the current
-    /// working directory is inside a git repository.
+    
     #[test]
     fn test_gix_git_dir_returns_git_directory() {
         let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -470,16 +420,14 @@ mod tests {
         );
     }
 
-    /// `configured_git_user_name` succeeds or gracefully returns `None`; it
-    /// must not panic or return an error that propagates.
+    
     #[test]
     fn test_configured_git_user_name_does_not_panic() {
-        // The result is either Some(name) or None; neither is an error here.
+        
         let _ = configured_git_user_name();
     }
 
-    /// `has_working_tree_changes` returns `true` when `parsed_status` contains
-    /// an entry with a non-space worktree column.
+    
     #[test]
     fn test_has_working_tree_changes_detects_modified() {
         let rollup = GitRollup {
@@ -489,8 +437,7 @@ mod tests {
         assert!(rollup.has_working_tree_changes());
     }
 
-    /// `has_working_tree_changes` returns `false` when all entries are staged
-    /// (worktree column is a space).
+    
     #[test]
     fn test_has_working_tree_changes_false_for_staged_only() {
         let rollup = GitRollup {
@@ -500,12 +447,7 @@ mod tests {
         assert!(!rollup.has_working_tree_changes());
     }
 
-    /// `watch_working_dir` constructs a watcher without panicking.
-    /// The returned handle is dropped immediately to stop the watch.
-    ///
-    /// Uses a fresh empty tempdir rather than the workspace root to avoid
-    /// exhausting the kqueue file-descriptor limit on macOS CI runners when
-    /// watching a large recursive tree.
+    
     #[test]
     fn test_watch_working_dir_constructs_watcher() {
         let tmp = tempfile::tempdir().expect("failed to create tempdir");
@@ -515,6 +457,6 @@ mod tests {
             "watcher construction should succeed: {:?}",
             result
         );
-        // watcher (and tempdir) dropped here — watch stops cleanly
+        
     }
 }

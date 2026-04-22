@@ -3,9 +3,9 @@
 This task manifest records the repo-facing documentation alignment for PR #342
 after the Tier 4 ratatui-stack overhaul.
 
-The purpose is to keep vexcoder grounded in conventional Rust CLI patterns
+The purpose is to keep vexapi grounded in conventional Rust CLI patterns
 without copying wording or implementation material from any other project.
-Comparable public codebases can inform dependency choices, but vexcoder must
+Comparable public codebases can inform dependency choices, but vexapi must
 document its own rationale in neutral, repo-specific language.
 
 ## Scope
@@ -36,7 +36,7 @@ document its own rationale in neutral, repo-specific language.
   patterns: `bm25`, `which`, `notify`.
 - [x] Record overlap rejected now: `walkdir` duplicates `ignore`'s git-aware
   traversal and should not be added.
-- [x] Document `rmcp` version pin (`1.2.x`) in the vexcoder-specific crates table
+- [x] Document `rmcp` version pin (`1.2.x`) in the vexapi-specific crates table
   with a note that the version boundary matters for MCP wire protocol compatibility.
 
 ## Active Decisions Now
@@ -64,7 +64,7 @@ crate addition itself is still tied to a later code batch:
 
 ## Why Accepted Does Not Mean Unused Dependency Now
 
-For vexcoder, accepted means the design choice is settled. It does not mean a
+For vexapi, accepted means the design choice is settled. It does not mean a
 crate is added immediately and left unused.
 
 Dependency additions stay coupled to a live runtime seam and test coverage so

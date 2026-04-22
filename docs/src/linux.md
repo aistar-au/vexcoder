@@ -23,8 +23,8 @@ cargo --version
 ## 2. Clone the repository
 
 ```bash
-git clone https://github.com/aistar-au/vexcoder.git
-cd vexcoder
+git clone https://github.com/aistar-au/vexapi.git
+cd vexapi
 ```
 
 ## 3. Build the release binary

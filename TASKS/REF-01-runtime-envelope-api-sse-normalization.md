@@ -2,14 +2,14 @@
 
 ## Status
 
-Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
+Implemented on `work/vexapi-runtime-envelope-api-sse-normalization-plan`.
 
 Merged in PR #402. The whole-system consumer cleanup follow-up landed on
-`work/vexcoder-runtime-envelope-client-api-direct-consumption` in PR #403,
+`work/vexapi-runtime-envelope-client-api-direct-consumption` in PR #403,
 and the active structural-extraction follow-up is
-`work/vexcoder-api-stream-structural-extraction` in PR #404. The current
+`work/vexapi-api-stream-structural-extraction` in PR #404. The current
 consumer-boundary hardening follow-up is
-`work/vexcoder-cli-tui-envelope-consumer-audit`.
+`work/vexapi-cli-tui-envelope-consumer-audit`.
 
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into
@@ -51,7 +51,7 @@ Primary reference: `adr/ADR-047-amendment-2026-04-20.md`
 - Server SSE transport: `src/server/sse.rs` and `src/server/handlers/mod.rs`
 - API SSE boundary: `src/runtime/backend.rs`, `src/api/eventsource.rs`,
   `src/api/stream.rs`, `src/api/mock_client.rs`, `src/api/client/**`, and
-  `crates/vexcoder-api-types/src/lib.rs`
+  `crates/vexapi-types/src/lib.rs`
 - Runtime event parser and tool loop: `src/state/conversation/**`,
   `src/runtime/context.rs`, and `src/runtime/update.rs`
 - Consumer surfaces: `src/app.rs`, `src/app/model_update.rs`,

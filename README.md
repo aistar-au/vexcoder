@@ -9,8 +9,8 @@ Requires Git, a stable Rust toolchain with `cargo` on your `PATH`, write access 
 `vex` does not bundle a model runtime. For the fastest same-machine setup, point `.vex/config.toml` at a local server on `http://127.0.0.1:8080/v1`. Local and private-network endpoints can stay on plain HTTP and do not need `VEX_MODEL_TOKEN`; remote public endpoints must use `https://` and a token.
 
 ```bash
-git clone https://github.com/aistar-au/vexcoder.git
-cd vexcoder
+git clone https://github.com/aistar-au/vexapi.git
+cd vexapi
 cargo build --release
 ./target/release/vex init
 ```

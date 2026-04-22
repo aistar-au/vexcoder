@@ -24,7 +24,7 @@ Cargo.lock.report
 # TASKS/*.log
 
 # --- Reports & Corrections ---
-vexcoder-v0.1.0-fully-corrected.md
+vexapi-v0.1.0-fully-corrected.md
 
 # --- Local scratch files ---
 scratch-*

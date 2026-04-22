@@ -1,19 +1,14 @@
-//! Git hook installation for ADR-024 Gap 7 (PB-02).
-//!
-//! `vex install-hooks` writes a `prepare-commit-msg` hook that appends
-//! `Vex-Task-Id` and `Co-authored-by` trailers to manual commits made after a
-//! task records changed files. `vex uninstall-hooks` removes only hooks that
-//! were previously installed by vexcoder.
+
 
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const HOOK_FILENAME: &str = "prepare-commit-msg";
-const HOOK_MARKER: &str = "# installed by vexcoder";
+const HOOK_MARKER: &str = "# installed by vexapi";
 
 const HOOK_BODY: &str = r#"#!/bin/sh
-# installed by vexcoder
+# installed by vexapi
 # Appends Vex-Task-Id and Co-authored-by trailers for active tasks with recorded changes.
 # Remove with: vex uninstall-hooks
 
@@ -54,8 +49,8 @@ if ! grep -q '^Vex-Task-Id: ' "$COMMIT_MSG_FILE"; then
   printf "\nVex-Task-Id: %s\n" "$TASK_ID" >> "$COMMIT_MSG_FILE"
 fi
 
-if ! grep -q '^Co-authored-by: vexcoder <vexcoder@localhost>$' "$COMMIT_MSG_FILE"; then
-  printf "Co-authored-by: vexcoder <vexcoder@localhost>\n" >> "$COMMIT_MSG_FILE"
+if ! grep -q '^Co-authored-by: vexapi <vexapi@localhost>$' "$COMMIT_MSG_FILE"; then
+  printf "Co-authored-by: vexapi <vexapi@localhost>\n" >> "$COMMIT_MSG_FILE"
 fi
 "#;
 
@@ -91,8 +86,7 @@ fn git_output(working_dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Install the `prepare-commit-msg` hook for the git repository that contains
-/// `working_dir`.
+
 pub fn install_hooks(working_dir: &Path) -> Result<()> {
     let path = hook_path(working_dir)?;
     if let Some(parent) = path.parent() {
@@ -125,7 +119,7 @@ pub fn install_hooks(working_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Remove the vexcoder-installed `prepare-commit-msg` hook.
+
 pub fn uninstall_hooks(working_dir: &Path) -> Result<()> {
     let path = hook_path(working_dir)?;
     if !path.exists() {
@@ -136,7 +130,7 @@ pub fn uninstall_hooks(working_dir: &Path) -> Result<()> {
     let content = std::fs::read_to_string(&path)?;
     if !content.contains(HOOK_MARKER) {
         bail!(
-            "hook at {} was not installed by vexcoder; remove it manually",
+            "hook at {} was not installed by vexapi; remove it manually",
             path.display()
         );
     }
@@ -194,7 +188,7 @@ mod tests {
         let content = std::fs::read_to_string(&hook).unwrap();
         assert!(
             content.contains(HOOK_MARKER),
-            "hook must contain vexcoder marker"
+            "hook must contain vexapi marker"
         );
         assert!(
             content.contains("changed_files"),
@@ -238,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uninstall_hooks_removes_vexcoder_hook() {
+    fn test_uninstall_hooks_removes_vexapi_hook() {
         let repo = init_repo();
         install_hooks(repo.path()).unwrap();
         uninstall_hooks(repo.path()).unwrap();
@@ -257,7 +251,7 @@ mod tests {
 
         let message = run_git(repo.path(), &["log", "-1", "--pretty=%B"]);
         assert!(message.contains("Vex-Task-Id: task-123"));
-        assert!(message.contains("Co-authored-by: vexcoder <vexcoder@localhost>"));
+        assert!(message.contains("Co-authored-by: vexapi <vexapi@localhost>"));
     }
 
     #[test]
@@ -272,6 +266,6 @@ mod tests {
 
         let message = run_git(repo.path(), &["log", "-1", "--pretty=%B"]);
         assert!(!message.contains("Vex-Task-Id:"));
-        assert!(!message.contains("Co-authored-by: vexcoder <vexcoder@localhost>"));
+        assert!(!message.contains("Co-authored-by: vexapi <vexapi@localhost>"));
     }
 }

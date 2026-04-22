@@ -1,7 +1,7 @@
 # Releasing
 
 This document defines the versioning, tagging, and release process for
-`aistar-au/vexcoder`.
+`aistar-au/vexapi`.
 
 ---
 

@@ -1,15 +1,4 @@
-//! Secret revision using `regex-lite`.
-//!
-//! Scans text for common secret patterns (API keys, bearer tokens, AWS
-//! credentials, GitHub PATs, PEM private key headers, connection strings,
-//! and generic secret assignments) and replaces matches with
-//! pattern-specific revision text. All patterns are ASCII-only --
-//! `regex-lite`'s `\d`
-//! and `\w` metaclasses match `[0-9]` and `[0-9A-Za-z_]` respectively.
-//!
-//! Design boundary: this module handles *output* rewriting (log lines,
-//! debug traces, streamed assistant text).  Secret *resolution* from
-//! config values lives in `crate::config::load::resolve`.
+
 
 use std::sync::OnceLock;
 
@@ -21,50 +10,43 @@ const REWRITTEN_BEARER_TEXT: &str = "${1}[REWRITTEN]";
 const AMENDED_CONNECTION_TEXT: &str = "${1}[AMENDED]${3}";
 const EDITED_ASSIGNMENT_TEXT: &str = "${1}[EDITED]";
 
-/// A pattern entry with its compiled regex accessor and replacement template.
+
 struct SecretPattern {
     regex: fn() -> &'static regex_lite::Regex,
     replacement: &'static str,
 }
 
-// ---------------------------------------------------------------------------
-// Pattern registry — compile once via OnceLock
-// ---------------------------------------------------------------------------
 
-/// Vendor API key (sk-prefix style): `sk-` followed by 20+ alphanumeric characters.
 fn re_openai_key() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap())
 }
 
-/// AWS access key ID: `AKIA` followed by exactly 16 uppercase alphanumeric.
+
 fn re_aws_access_key() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap())
 }
 
-/// Bearer token: preserves the `Bearer ` prefix while replacing the token value.
+
 fn re_bearer_token() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"(?i)(bearer\s+)[A-Za-z0-9_.~+/=-]{20,}").unwrap())
 }
 
-/// GitHub personal access token: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`
-/// followed by 36+ alphanumeric characters.
+
 fn re_github_token() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b").unwrap())
 }
 
-/// PEM private key header line. Replaces the entire key block opener so
-/// downstream consumers never see even the algorithm identifier.
+
 fn re_private_key_header() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----").unwrap())
 }
 
-/// Connection string with embedded credentials:
-/// `protocol://user:password@host` -- replaces the password portion.
+
 fn re_connection_string() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -72,8 +54,7 @@ fn re_connection_string() -> &'static regex_lite::Regex {
     })
 }
 
-/// Generic secret assignment: `API_KEY=value`, `token: "value"`, etc.
-/// Preserves the key name and punctuation while replacing only the secret value.
+
 fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -84,14 +65,7 @@ fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
     })
 }
 
-/// Ordered pattern list.  Specific patterns come first to avoid the
-/// generic pattern partially matching a structured secret.  Bearer,
-/// generic-assignment, and connection-string patterns use capture-group
-/// backreferences in their replacement templates so the surrounding
-/// context is preserved.
-///
-/// Replacement terms follow a fixed mapping. The output stays deterministic so
-/// logs, tests, and transcripts remain stable.
+
 const PATTERNS: &[SecretPattern] = &[
     SecretPattern {
         regex: re_openai_key,
@@ -123,14 +97,7 @@ const PATTERNS: &[SecretPattern] = &[
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
-/// Rewrite all recognised secret patterns from `text`, replacing each match
-/// with a deterministic revised, edited, amended, emended, or rewritten
-/// form as appropriate. Returns the original string unmodified when no
-/// secrets are detected.
 pub fn revise_secrets(text: &str) -> String {
     let mut out = text.to_string();
     for pat in PATTERNS {
@@ -140,7 +107,7 @@ pub fn revise_secrets(text: &str) -> String {
     out
 }
 
-/// Rewrite sensitive URL components before logging.
+
 pub fn rewrite_url_for_logs(url: &str) -> String {
     match reqwest::Url::parse(url) {
         Ok(mut parsed) => {
@@ -154,14 +121,11 @@ pub fn rewrite_url_for_logs(url: &str) -> String {
     }
 }
 
-/// Returns `true` if `text` contains any recognised secret pattern.
+
 pub fn contains_secret(text: &str) -> bool {
     PATTERNS.iter().any(|pat| (pat.regex)().is_match(text))
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

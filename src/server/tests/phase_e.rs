@@ -22,9 +22,9 @@ pub(super) async fn delegate_one(
     parent_id: &str,
     temp: &std::path::Path,
 ) -> String {
-    // Re-build a fresh router for each oneshot call so we can reuse the
-    // working_dir without clone issues.
-    let _ = temp; // used by caller to ensure lifetime
+    
+    
+    let _ = temp; 
     let body =
         format!(r#"{{"parent_task_id":"{parent_id}","agent_id":"reviewer","prompt":"task"}}"#);
     let response = router
@@ -52,7 +52,7 @@ async fn test_list_tasks_returns_parent_tasks() {
     let temp = tempfile::tempdir().unwrap();
     let router = setup_phase_e_router(temp.path());
 
-    // Seed one session task so a parent task state file exists.
+    
     let st_id = delegate_one(
         setup_phase_e_router(temp.path()),
         "list-parent",
@@ -213,7 +213,7 @@ async fn test_update_session_task_status_rejects_transition_from_terminal() {
     )
     .await;
 
-    // Transition to completed via the release endpoint.
+    
     let release_router = setup_phase_e_router(temp.path());
     release_router
         .oneshot(
@@ -226,7 +226,7 @@ async fn test_update_session_task_status_rejects_transition_from_terminal() {
         .await
         .unwrap();
 
-    // Now try to transition again — must be rejected.
+    
     let router = setup_phase_e_router(temp.path());
     let response = router
         .oneshot(

@@ -9,7 +9,7 @@
 
 ## Context
 
-`vexcoder` already has the correct approval-first foundation for the first
+`vexapi` already has the correct approval-first foundation for the first
 release, but the current tree does not yet define a single operator-policy
 engine for overlay permission modes. The existing pieces are intentionally
 separate:

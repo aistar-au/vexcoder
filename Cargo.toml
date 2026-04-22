@@ -16,16 +16,6 @@ license = "MIT"
 # Direct third-party version requirements live here so `cargo upgrade` only
 # needs to touch one manifest section. Member crates inherit these entries with
 # `workspace = true`, following Cargo's workspace dependency guidance.
-crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
-ratatui = { version = "0.30", features = [
-  "scrolling-regions",
-  "unstable-backend-writer",
-  "unstable-rendered-line-info",
-  "unstable-widget-ref",
-  "crossterm_0_29",
-] }
-ansi-to-tui = "8"
-ratatui-macros = "0.7"
 aho-corasick = "1"
 anyhow = "1"
 axum = { version = "0.8", features = ["http1", "http2", "json", "tokio"] }
@@ -194,15 +184,6 @@ assert_cmd = "2"
 # Rust crate versions are resolved at compile time, not through runtime
 # variables. To avoid broad source sweeps on upgrades, keep each crate's API
 # surface behind the local seam files listed here and update those first.
-ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
-crossterm = [
-  "src/ui/tui.rs",
-  "src/tui_frontend.rs",
-  "src/ui/editor/mod.rs",
-  "src/app.rs",
-  "src/app/overlay.rs",
-  "src/app/tests/mod.rs",
-]
 async-compression = ["src/net/compression.rs"]
 jsonwebtoken = ["src/net/jwt.rs"]
 oauth2 = ["src/net/oauth.rs"]
@@ -233,19 +214,13 @@ tokio = [
   "src/app/turn_start.rs",
 ]
 serde = [
-  "derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs",
+  "derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexapi-types/src/lib.rs",
 ]
 arboard = ["src/clipboard.rs", "src/app/commands/session.rs"]
-# Markdown rendering stack — both crates are consumed together at one site.
-pulldown-cmark = ["src/ui/render/markdown.rs"]
-palette = ["src/ui/render/markdown.rs"]
-syntect = ["src/ui/render/markdown.rs"]
 # CLI panic/reporting polish — release panic hook and interactive task table.
 human-panic = ["src/bin/vex.rs"]
 dialoguer = ["src/bin/vex.rs"]
 tabled = ["src/bin/vex.rs"]
-# TUI text bridge — converts ANSI escape sequences to ratatui spans.
-ansi-to-tui = ["src/ui/tui.rs"]
 # Network wrappers — focused seams for transport-related helper crates.
 hickory-resolver = ["src/net/dns.rs"]
 reqwest = [
@@ -305,7 +280,7 @@ dialoguer = "Interactive credential-secret entry stays localized in src/bin/vex.
 tabled = "Interactive task-list rendering stays localized in src/bin/vex.rs; non-TTY and --json output remain separate compatibility paths."
 
 [package]
-name = "vexcoder"
+name = "vexapi"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -321,7 +296,7 @@ name = "vex"
 path = "src/bin/vex.rs"
 
 [dependencies]
-vexcoder-api-types = { version = "0.1.0-rc.9", path = "crates/vexcoder-api-types" }
+vexapi-types = { version = "0.1.0-rc.9", path = "crates/vexapi-types" }
 aho-corasick.workspace = true
 anyhow.workspace = true
 axum.workspace = true
@@ -329,14 +304,12 @@ clap.workspace = true
 clap_complete.workspace = true
 bytes.workspace = true
 eventsource-client.workspace = true
-crossterm.workspace = true
 fs2.workspace = true
 futures.workspace = true
 hyper.workspace = true
 http.workspace = true
 http-api-problem.workspace = true
 hyper-util.workspace = true
-ratatui.workspace = true
 reqwest.workspace = true
 async-compression.workspace = true
 backoff.workspace = true
@@ -370,7 +343,6 @@ textwrap.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
 x509-parser.workspace = true
-ansi-to-tui.workspace = true
 # arboard: used by the /copy slash command (src/app/commands/session.rs) for
 # system clipboard access. default-features = false avoids pulling in the
 # image feature and its heavy transitive deps.
@@ -386,7 +358,6 @@ tracing-appender.workspace = true
 similar.workspace = true
 
 # --- rich terminal rendering ---
-ratatui-macros.workspace = true
 pulldown-cmark.workspace = true
 palette.workspace = true
 syntect.workspace = true

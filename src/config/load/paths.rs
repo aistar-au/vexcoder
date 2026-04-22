@@ -4,9 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::runtime::ModelBackendKind;
 use crate::types::ModelProfile;
 
-/// Walk ancestors of `cwd` to find the nearest `.vex/config.toml`.
-/// The resolved `working_dir` from the merged config must not influence
-/// which file is selected — always walk from the actual process cwd.
+
 pub(crate) fn find_repo_local_config(cwd: &Path) -> Option<PathBuf> {
     let mut dir: &Path = cwd;
     loop {

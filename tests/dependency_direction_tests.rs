@@ -1,20 +1,9 @@
-//! ADR-028 dependency-direction enforcement tests.
-//!
-//! These tests scan Rust source files to verify that the layered architecture
-//! enforces inward-only dependency direction:
-//!
-//!   CLI (src/bin/) -> Application facade (src/app/) -> Runtime (src/runtime/)
-//!   Transport (src/server/, src/local_api.rs) -> Application facade (src/app/)
-//!
-//! Forbidden directions:
-//!   - Runtime must NOT import CLI, transport, terminal, or the TUI interaction surface
-//!   - State/conversation must NOT import CLI, transport, terminal, or TUI
-//!   - Application facade must NOT import CLI (src/bin/) or transport (src/server/)
+
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Collect all `.rs` files under a directory, recursively.
+
 fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     if !dir.is_dir() {
@@ -32,11 +21,7 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Collect tracked imports from a Rust source file.
-///
-/// `super::...` imports are resolved back to crate-root paths so the boundary
-/// scan still catches forbidden cross-layer references that bypass `crate::`.
-/// Lines that are comments (`//`) are filtered out to avoid false positives.
+
 fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
     let mut imports = Vec::new();
@@ -44,7 +29,7 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
 
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
-        // Skip single-line comments and doc comments.
+        
         if trimmed.starts_with("//") {
             continue;
         }
@@ -117,9 +102,8 @@ fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
 
         while let Some(next) = remainder.strip_prefix("super::") {
             if module_path.pop().is_none() {
-                // More super:: levels than the module depth — the import
-                // reaches at least the crate root.  Resolve from there so
-                // the boundary scanner can inspect the target module.
+                
+                
                 remainder = next;
                 break;
             }
@@ -266,7 +250,7 @@ fn runtime_item_is_allowed(item: &str) -> bool {
     false
 }
 
-/// Check that no file in `dir` imports any of the `forbidden_modules`.
+
 fn assert_no_forbidden_imports(
     dir: &Path,
     forbidden_modules: &[&str],
@@ -344,17 +328,12 @@ fn relative_super_import_detection_resolves_to_crate_root_modules() {
     assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: Runtime must NOT import CLI, transport, terminal, or TUI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn runtime_must_not_import_cli_transport_terminal_or_tui() {
     let runtime_dir = src_dir().join("runtime");
-    // Include both legacy `local_api` and the extracted `server` transport
-    // module; `bin` covers the CLI entrypoint.  All of these sit above the
-    // runtime in the layered dependency graph and must never be reached from
-    // within runtime.
+    
+    
     let forbidden = &[
         "local_api",
         "server",
@@ -372,9 +351,6 @@ fn runtime_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: State/conversation must NOT import CLI, transport, or TUI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn state_must_not_import_cli_transport_terminal_or_tui() {
@@ -396,9 +372,6 @@ fn state_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: API client must NOT import CLI, transport, terminal, or TUI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn api_must_not_import_cli_transport_terminal_or_tui() {
@@ -420,9 +393,6 @@ fn api_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: Tools must NOT import CLI, transport, terminal, or TUI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn tools_must_not_import_cli_transport_terminal_or_tui() {
@@ -444,9 +414,6 @@ fn tools_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: Application facade must NOT import the CLI binary
-// ---------------------------------------------------------------------------
 
 #[test]
 fn app_facade_must_not_import_cli_binary() {
@@ -460,9 +427,6 @@ fn app_facade_must_not_import_cli_binary() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: Transport (server) reaches runtime ONLY through facade
-// ---------------------------------------------------------------------------
 
 #[test]
 fn server_uses_facade_entrypoint() {
@@ -484,10 +448,6 @@ fn server_uses_facade_entrypoint() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: server must not reach runtime types directly (except
-// json_handoff which is the transport-level envelope contract).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn server_must_not_import_runtime_directly() {
@@ -514,9 +474,6 @@ fn server_must_not_import_runtime_directly() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Structural: key facade entrypoints must exist
-// ---------------------------------------------------------------------------
 
 #[test]
 fn facade_module_exports_required_entrypoints() {
@@ -553,9 +510,6 @@ fn facade_error_types_exist() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: server module must not import TUI, terminal, or UI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn server_must_not_import_tui_terminal_or_ui() {
@@ -573,23 +527,17 @@ fn server_must_not_import_tui_terminal_or_ui() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// ADR-028 Rule: CLI binary must NOT import the transport layer directly
-// ---------------------------------------------------------------------------
 
 #[test]
 fn cli_binary_must_not_import_transport_layer() {
     let vex_src = fs::read_to_string(src_dir().join("bin").join("vex.rs"))
         .expect("src/bin/vex.rs must exist");
     assert!(
-        !vex_src.contains("vexcoder::server"),
-        "ADR-028: src/bin/vex.rs must not import vexcoder::server directly — use the crate-root re-export instead"
+        !vex_src.contains("vexapi::server"),
+        "ADR-028: src/bin/vex.rs must not import vexapi::server directly — use the crate-root re-export instead"
     );
 }
 
-// ---------------------------------------------------------------------------
-// Structural: server module must exist (transport extraction complete)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn server_module_exists() {

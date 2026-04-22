@@ -4,12 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::runtime::CommandRequest;
 
-/// Default macOS sandbox profile. Denies most operations by default but
-/// allows broad file access because sandbox-exec'd commands need to read
-/// and write project files. Network, IPC, and sysctl-read are required for
-/// common development tools (cargo build, git fetch, npm install).
-/// Operators who need tighter containment should supply a custom profile
-/// via `sandbox_profile`.
+
 const DEFAULT_MACOS_PROFILE: &str = "(version 1)\n\
     (deny default)\n\
     (allow process*)\n\
@@ -27,11 +22,8 @@ pub enum SandboxKind {
     Passthrough,
     MacosExec,
     Container,
-    /// Linux userspace sandbox via bubblewrap (`bwrap`).
-    ///
-    /// Requires the `bwrap` binary on `PATH`. Falls back to passthrough on
-    /// non-Linux platforms or when `bwrap` is not installed (unless
-    /// `sandbox_require = true`).
+    
+    
     Bubblewrap,
 }
 
@@ -205,25 +197,10 @@ impl SandboxDriver for ContainerSandbox {
     }
 }
 
-/// Linux userspace sandbox using `bwrap` (bubblewrap).
-///
-/// Wraps the target command so that it runs inside a `bwrap` invocation with
-/// a minimal bind-mount layout. The working directory is bind-mounted
-/// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc` are
-/// bind-mounted read-only; `/proc`, `/dev`, and `/tmp` are mounted as
-/// pseudo-filesystems so that standard toolchains can function. Common host
-/// toolchain roots derived from `CARGO_HOME`, `RUSTUP_HOME`, and absolute
-/// `PATH` entries are also bind-mounted read-only so installed toolchains stay
-/// available inside the sandbox.
-///
-/// `profile` is an optional whitespace-separated list of additional `bwrap`
-/// arguments. The string is split with `split_whitespace()` (no shell quoting
-/// or escaping) and injected after the fixed bind mounts and before the `--`
-/// separator. Operators can use this to add extra mounts, set env vars
-/// (`--setenv`), or opt back in to network access (`--share-net`).
+
 #[derive(Debug, Clone, Default)]
 pub struct BubblewrapSandbox {
-    /// Extra bwrap arguments parsed from the whitespace-split `profile` string.
+    
     extra_args: Vec<String>,
 }
 
@@ -304,17 +281,16 @@ impl BubblewrapSandbox {
         extra_roots
     }
 
-    /// Build the fixed bind-mount argument list that establishes a usable
-    /// root filesystem inside the sandbox.
+    
     fn fixed_bwrap_args(working_dir: &std::path::Path) -> Vec<String> {
         let wd = working_dir.to_string_lossy().into_owned();
         let mut args = vec![
-            // Bind the working directory read-write so the command can mutate it.
+            
             "--bind".to_string(),
             wd.clone(),
             wd,
-            // Read-only system directories required by most toolchains.
-            // Set working directory inside the sandbox.
+            
+            
             "--chdir".to_string(),
             working_dir.to_string_lossy().into_owned(),
         ];
@@ -325,7 +301,7 @@ impl BubblewrapSandbox {
             Self::push_ro_bind_try(&mut args, &root);
         }
         args.extend([
-            // Pseudo-filesystems that tools expect to exist.
+            
             "--proc".to_string(),
             "/proc".to_string(),
             "--dev".to_string(),
@@ -333,8 +309,8 @@ impl BubblewrapSandbox {
             "--tmpfs".to_string(),
             "/tmp".to_string(),
         ]);
-        // Unshare network by default for tighter containment.  Operators who
-        // need network access should pass `--share-net` via `profile`.
+        
+        
         args.push("--unshare-net".to_string());
         args
     }
@@ -547,7 +523,7 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_wraps_with_default_profile() {
-        // When no profile path is provided, wrap must use `-p <inline-profile>`.
+        
         let sandbox = super::MacosSandboxExec::new(None);
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -558,12 +534,12 @@ mod tests {
             .expect("wrap request");
         assert_eq!(wrapped.program, "sandbox-exec");
         let args = &wrapped.args;
-        // First option must be -p (inline profile), not -f (profile file).
+        
         assert_eq!(
             args[0], "-p",
             "expected -p option for inline profile, got: {args:?}"
         );
-        // The original command and its argument must follow the profile value.
+        
         assert!(
             args.contains(&"cat".to_string()),
             "original program missing: {args:?}"
@@ -576,7 +552,7 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_wraps_with_explicit_profile_file() {
-        // When a non-empty profile path is supplied, wrap must use `-f <path>`.
+        
         let profile_path = "/etc/vex-sandbox.sb";
         let sandbox = super::MacosSandboxExec::new(Some(profile_path.to_string()));
         let wrapped = sandbox
@@ -601,8 +577,8 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_treats_whitespace_only_profile_as_default() {
-        // A profile string that is only whitespace must use the default inline
-        // profile (same behaviour as None).
+        
+        
         let sandbox = super::MacosSandboxExec::new(Some("   ".to_string()));
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -659,14 +635,14 @@ mod tests {
             "original arg missing: {:?}",
             wrapped.args
         );
-        // working_dir is expressed via --chdir inside the bwrap args, not as a
-        // field on CommandRequest.
+        
+        
         assert!(wrapped.working_dir.is_none());
     }
 
     #[test]
     fn bubblewrap_places_separator_before_command() {
-        // `--` must separate bwrap options from the sandboxed command.
+        
         let sandbox = super::BubblewrapSandbox::new(None);
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -693,7 +669,7 @@ mod tests {
 
     #[test]
     fn bubblewrap_extra_profile_args_are_included() {
-        // profile args are injected before `--` and the sandboxed command.
+        
         let sandbox = super::BubblewrapSandbox::new(Some("--share-net --setenv FOO bar".into()));
         let wrapped = sandbox
             .wrap(CommandRequest {

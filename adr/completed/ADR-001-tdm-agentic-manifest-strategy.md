@@ -9,7 +9,7 @@
 
 ## Context
 
-`vexcoder` is itself a coding agent, and its own development is conducted with heavy use of CLI-based LLM coding agents. This creates a unique self-referential problem:
+`vexapi` is itself a coding agent, and its own development is conducted with heavy use of CLI-based LLM coding agents. This creates a unique self-referential problem:
 
 **How do you maintain engineering discipline — no regressions, clear ownership, auditable changes — when the implementor is a stateless language model that forgets everything between sessions?**
 
@@ -74,7 +74,7 @@ Anchor tests alone do not give an agent enough context to understand *what* to i
 
 ### Single large AGENTS-style bootstrap file
 
-Popularised by local-model and other agent-native projects. Works well for stable conventions but degrades for per-task context because the file grows unbounded. `vexcoder` uses `CONTRIBUTING.md` for stable workflow conventions and `TASKS/` for per-task ephemeral context — separating the two concerns.
+Popularised by local-model and other agent-native projects. Works well for stable conventions but degrades for per-task context because the file grows unbounded. `vexapi` uses `CONTRIBUTING.md` for stable workflow conventions and `TASKS/` for per-task ephemeral context — separating the two concerns.
 
 ### Monorepo-style ADR for every decision
 

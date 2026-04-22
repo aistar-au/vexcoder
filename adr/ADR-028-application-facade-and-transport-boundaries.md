@@ -320,8 +320,8 @@ Where older ADRs blur distinctions, update them to reflect:
 ## Debug fixes recorded 2026-03-17
 
 Three bugs surfaced during review of the Phase 1 / Phase 2 branch series
-(`work/vexcoder-adr-028-phase1-facade-skeleton`,
-`work/vexcoder-adr-028-phase2-tui-latency-facade`).  Each is patched
+(`work/vexapi-adr-028-phase1-facade-skeleton`,
+`work/vexapi-adr-028-phase2-tui-latency-facade`).  Each is patched
 in the debug commit on this date and recorded here for traceability.
 
 ### Bug 1 — local protocol routing mismatch

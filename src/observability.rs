@@ -24,7 +24,7 @@ pub const TELEMETRY_ENVIRONMENT_ENV: &str = "VEX_TELEMETRY_ENVIRONMENT";
 pub const TELEMETRY_TENANT_ENV: &str = "VEX_TELEMETRY_TENANT_ID";
 
 const DEFAULT_TELEMETRY_FILTER: &str =
-    "vex=debug,vexcoder=debug,tower_http=info,axum_tracing_opentelemetry=info";
+    "vex=debug,vexapi=debug,tower_http=info,axum_tracing_opentelemetry=info";
 const DEFAULT_TELEMETRY_FILENAME: &str = "internal-telemetry.log";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,7 @@ pub fn init_cli_observability(options: CliTelemetryOptions) -> Result<Option<Tel
     let (writer, writer_guard) = build_telemetry_writer(options.display_internal_telemetry)?;
     let tracer_provider = SdkTracerProvider::builder().build();
     global::set_tracer_provider(tracer_provider.clone());
-    let tracer = tracer_provider.tracer("vexcoder.internal");
+    let tracer = tracer_provider.tracer("vexapi.internal");
     let otel_layer = tracing_opentelemetry::layer()
         .with_context_activation(true)
         .with_tracer(tracer);

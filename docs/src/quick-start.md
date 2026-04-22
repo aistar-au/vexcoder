@@ -5,8 +5,8 @@ This page gets you from clone to a first verified response in the fewest steps.
 ## 1. Build the binary
 
 ```bash
-git clone https://github.com/aistar-au/vexcoder.git
-cd vexcoder
+git clone https://github.com/aistar-au/vexapi.git
+cd vexapi
 cargo build --release
 ```
 

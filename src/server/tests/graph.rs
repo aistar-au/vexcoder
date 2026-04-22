@@ -158,7 +158,7 @@ async fn test_task_graph_endpoint_returns_nodes() {
             .any(|n| n.get("id") == Some(&Value::String("graph-parent".into()))),
         "expected graph-parent node in task graph"
     );
-    // Each node should carry a session_tasks array.
+    
     let node = nodes
         .iter()
         .find(|n| n.get("id") == Some(&Value::String("graph-parent".into())))
@@ -216,7 +216,7 @@ async fn test_list_todos_endpoint_excludes_completed_tasks() {
     )
     .await;
 
-    // Complete the session task.
+    
     let router = setup_phase_e_router(temp.path());
     let patch = router
         .clone()
@@ -349,15 +349,12 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
     );
 }
 
-// ---------------------------------------------------------------------------
-// Persistent projection rollup tests
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn test_delegate_writes_task_graph_rollup_file() {
     let temp = tempfile::tempdir().unwrap();
 
-    // Delegating via the HTTP endpoint triggers write_projection_rollup.
+    
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
         "snap-parent",
@@ -425,7 +422,7 @@ async fn test_status_update_refreshes_todos_rollup() {
     )
     .await;
 
-    // Completing the task should remove it from the todos snapshot.
+    
     let router = setup_phase_e_router(temp.path());
     let patch = router
         .oneshot(
@@ -456,7 +453,7 @@ async fn test_status_update_refreshes_todos_rollup() {
 async fn test_projection_endpoint_returns_file_paths() {
     let temp = tempfile::tempdir().unwrap();
 
-    // Seed one session task so the state dir exists and snapshots can be written.
+    
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
         "proj-endpoint-parent",

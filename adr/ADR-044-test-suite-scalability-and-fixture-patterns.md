@@ -66,7 +66,7 @@ and a shared support surface under `tests/common/test_support.rs`.
 The aggregator keeps integration-test entry points discoverable and stable:
 
 - `mod suite;`
-- `use vexcoder as _;`
+- `use vexapi as _;`
 
 The shared support surface owns reusable SSE fixtures, tagged tool-call
 round-trip helpers, and any future builder types needed by renderer and

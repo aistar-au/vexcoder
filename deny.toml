@@ -1,4 +1,4 @@
-# deny.toml — cargo-deny configuration for vexcoder
+# deny.toml — cargo-deny configuration for vexapi
 #
 # cargo-deny provides three orthogonal safety layers on top of the
 # cargo-upgrade / cargo-outdated workflow documented in

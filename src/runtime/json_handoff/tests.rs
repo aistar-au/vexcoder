@@ -55,11 +55,11 @@ fn test_pi_11_schema_assets_parse_as_json() {
 
     assert_eq!(
         envelope_schema["$id"],
-        "https://vexcoder.com/schemas/runtime_envelope_v1.json"
+        "https://vexapi.com/schemas/runtime_envelope_v1.json"
     );
     assert_eq!(
         request_schema["$id"],
-        "https://vexcoder.com/schemas/runtime_request_v1.json"
+        "https://vexapi.com/schemas/runtime_request_v1.json"
     );
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
     assert_eq!(
@@ -255,8 +255,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEnvelopeSource::Model
     );
 
-    // TranscriptBlockDelta is emitted first (accepted protocol event),
-    // followed by ToolCallArgumentsDelta for tool blocks.
+    
     let block_delta_envelopes = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockDelta {
             index: 0,
@@ -579,8 +578,8 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    // seq is process-lifetime monotonic: turn 1 starts at seq 1; turn 2
-    // continues without a reset so its TurnStart seq > 1.
+    
+    
     assert_eq!(turn_start_seqs.len(), 2);
     assert_eq!(turn_start_seqs[0], (1, 1));
     assert_eq!(turn_start_seqs[1].0, 2);

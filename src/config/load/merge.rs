@@ -4,7 +4,7 @@ use super::{
 };
 use crate::config::AutoMemoryConfig;
 
-/// Apply `over` on top of `base`: any Some field in `over` wins.
+
 pub(super) fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
     ConfigLayer {
         model_name: over.model_name.or(base.model_name),

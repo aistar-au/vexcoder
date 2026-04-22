@@ -22,12 +22,7 @@ pub use self::types::{
     ScheduleTeamError, SessionTaskStatusError,
 };
 
-// ---------------------------------------------------------------------------
-// Maximum prompt length accepted by facade_delegate_session_task and
-// facade_schedule_team.  Guards against pathological inputs that would
-// bloat persisted task-state payloads and request bodies carried through
-// the operator surfaces.
-// ---------------------------------------------------------------------------
+
 const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
 const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";
 
@@ -119,10 +114,6 @@ fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
     DelegateRaceHookGuard
 }
 
-// ---------------------------------------------------------------------------
-// Typed error for facade_delegate_session_task — replaces fragile string
-// matching at the handler level (O-2).
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Error)]
 pub enum DelegateError {
@@ -132,23 +123,17 @@ pub enum DelegateError {
     AgentsConfigMissing,
     #[error("parent_task_id_required")]
     ParentTaskIdRequired,
-    /// The agent's `max_parallel_tasks` limit is already reached.
-    ///
-    /// ADR-034 §1 requires the orchestrator to enforce per-agent concurrency
-    /// limits at delegation time.  The caller must wait for an active session task
-    /// to complete before retrying.
+    
+    
     #[error("concurrency_limit_reached")]
     ConcurrencyLimitReached,
-    /// The supplied prompt exceeds `MAX_DELEGATE_PROMPT_BYTES`.
+    
     #[error("prompt_too_long")]
     PromptTooLong,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
 
-// ---------------------------------------------------------------------------
-// Facade entrypoints — called by handlers, never by-passed.
-// ---------------------------------------------------------------------------
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
@@ -203,7 +188,7 @@ pub fn facade_delegate_session_task(
         _ => return Err(DelegateError::ParentTaskIdRequired),
     };
 
-    // Prompt length guard — prevents pathological inputs.
+    
     if prompt.len() > MAX_DELEGATE_PROMPT_BYTES {
         return Err(DelegateError::PromptTooLong);
     }
@@ -221,9 +206,8 @@ pub fn facade_delegate_session_task(
     let isolation = agent.isolation;
 
     with_delegate_lock(&state_dir, || {
-        // Per-agent concurrency enforcement (ADR-034 §1) must be uninterruptible
-        // with session-task creation so concurrent callers cannot both observe
-        // the same active-count snapshot and over-allocate a shared agent slot.
+        
+        
         let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
         let live = *live_counts.get(agent_id).unwrap_or(&0);
         if live >= max_parallel_tasks {
@@ -306,18 +290,7 @@ pub fn facade_watch_rollup(working_dir: &Path, id: &str) -> Result<Option<Facade
     Ok(None)
 }
 
-/// Mark a session task as `Completed` and release its worktree lease.
-///
-/// Returns `true` when the session task was found; `false` when no matching
-/// session task exists in any saved task-state file.
-///
-/// If the task is in an active (non-final) state it is transitioned to `Completed` before
-/// the lease is released.  If the task is already in a final state
-/// (`Completed`, `Failed`, `Cancelled`) the lease is released without
-/// re-transitioning.
-///
-/// The caller must not re-use the worktree path after this call returns
-/// successfully.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) -> Result<bool> {
     let state_dir = TaskState::state_dir_from(working_dir);
@@ -328,7 +301,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         return Ok(false);
     };
 
-    // Transition to Completed only when currently in a non-final state.
+    
     if parent_state
         .session_task(session_task_id)
         .map(|t| t.lifecycle_state.is_live())
@@ -338,8 +311,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         parent_state.save(&state_dir)?;
     }
 
-    // Release the worktree lease regardless of prior lifecycle state so that
-    // stale leases from interrupted processes are cleaned up on explicit release.
+    
     let lease_manager = WorktreeLeaseManager::new(&state_dir);
     if lease_manager.load(session_task_id).is_ok() {
         lease_manager.release(session_task_id)?;
@@ -352,16 +324,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
     Ok(true)
 }
 
-// ---------------------------------------------------------------------------
-// Phase C facade entrypoints — subtask orchestration
-// ---------------------------------------------------------------------------
 
-/// Split a parent task into session tasks for a named team.
-///
-/// `team_name` must match a `[[teams]]` entry in `.vex/agents.toml`.
-/// Returns `Err` with `agents_config_missing` when no config is found,
-/// `team_not_found` when the team name does not match, and `Internal` for
-/// unexpected I/O errors.
 #[tracing::instrument(skip(working_dir, prompt), fields(working_dir = %working_dir.display()))]
 pub fn facade_schedule_team(
     working_dir: &Path,
@@ -431,12 +394,7 @@ pub fn facade_schedule_team(
     })
 }
 
-/// Check the fan-out join gate for a parent task.
-///
-/// Returns `Ok(None)` when at least one session task is still active.  Returns
-/// `Ok(Some(FacadeJoinOutcome))` when every session task has reached a
-/// final state.  When the outcome is returned, the caller should call the
-/// apply-join endpoint to persist the merged handoff summary.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_poll_join(
     working_dir: &Path,
@@ -454,14 +412,7 @@ pub fn facade_poll_join(
     }))
 }
 
-// ---------------------------------------------------------------------------
-// Phase E facade entrypoints — LocalApi session-task projection
-// ---------------------------------------------------------------------------
 
-/// Return a summary for every persisted parent-task state file.
-///
-/// Results are bounded by `StartupBudget::max_scans` to prevent unbounded
-/// allocation from large state directories.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
     let files = TaskState::state_files_from(working_dir);
@@ -485,9 +436,7 @@ pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
     Ok(out)
 }
 
-/// Return a snapshot for every session task across all persisted parent states.
-///
-/// Bounded by `StartupBudget::max_scans`.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskRollup>> {
     let files = TaskState::state_files_from(working_dir);
@@ -501,7 +450,7 @@ pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSession
     Ok(out)
 }
 
-/// Return the snapshot for a single session task identified by its UUID.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_get_session_task(
     working_dir: &Path,
@@ -515,15 +464,7 @@ pub fn facade_get_session_task(
     Ok(Some(session_task_to_rollup(task)))
 }
 
-/// Transition a session task to a new lifecycle state reported by an external
-/// agent.
-///
-/// Accepted `status_str` values: `running`, `blocked`, `failed`,
-/// `cancelled`, `completed`.
-///
-/// Transitions from final states (`Failed`, `Cancelled`, `Completed`) are
-/// rejected with `TransitionNotAllowed` — use
-/// `facade_release_session_task` to clean up a completed task instead.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_update_session_task_status(
     working_dir: &Path,
@@ -560,9 +501,7 @@ pub fn facade_update_session_task_status(
     Ok(snapshot)
 }
 
-/// Return the full task graph: every parent task with its session tasks.
-///
-/// Bounded by `StartupBudget::max_scans`.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
     let files = TaskState::state_files_from(working_dir);
@@ -584,9 +523,7 @@ pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
     Ok(FacadeTaskGraph { nodes })
 }
 
-/// Return all active (non-final) session tasks as todo items.
-///
-/// Bounded by `StartupBudget::max_scans`.
+
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
     let files = TaskState::state_files_from(working_dir);
@@ -632,21 +569,12 @@ fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// ADR-046: Peer message channel facade
-// ---------------------------------------------------------------------------
 
 use crate::runtime::task_state::peer_channel::{
     self, AppendMessageError, MAX_PEER_MESSAGE_BYTES, PeerMessage, parse_peer_message_kind,
 };
 
-/// Post a message to the peer channel for a parent task.
-///
-/// Validates:
-/// 1. The parent task exists in the state directory.
-/// 2. The sender is a session task belonging to that parent task.
-/// 3. The message content does not exceed `MAX_PEER_MESSAGE_BYTES`.
-/// 4. The message kind is a recognised `PeerMessageKind` variant.
+
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, sender_id = %sender_id))]
 pub fn facade_post_peer_message(
     working_dir: &Path,
@@ -657,10 +585,10 @@ pub fn facade_post_peer_message(
     kind: &str,
     content: &str,
 ) -> std::result::Result<PeerMessage, PeerChannelError> {
-    // Validate kind
+    
     let kind = parse_peer_message_kind(kind).ok_or(PeerChannelError::InvalidKind)?;
 
-    // Validate content size
+    
     if content.len() > MAX_PEER_MESSAGE_BYTES {
         return Err(PeerChannelError::ContentTooLong);
     }
@@ -702,9 +630,7 @@ pub fn facade_post_peer_message(
     Ok(message)
 }
 
-/// Read messages from a parent task's peer channel.
-///
-/// Returns up to `MAX_CHANNEL_READ_BATCH` messages after the given cursor.
+
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, after_ms = after_ms))]
 pub fn facade_read_peer_messages(
     working_dir: &Path,

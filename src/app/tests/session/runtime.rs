@@ -2,7 +2,6 @@ use super::*;
 use crate::config::CompactionConfig;
 use crate::config::UndoConfig;
 
-// -- PM-01 (app side): build_runtime_with_resume ---------------------------
 
 #[test]
 fn test_build_runtime_with_resume_restores_task() {
@@ -71,7 +70,6 @@ fn test_build_runtime_with_resume_restores_task() {
     );
 }
 
-// -- additional /new and /compact edge cases --------------------------------
 
 #[test]
 fn test_tui_new_clears_active_edit_loop_field() {
@@ -109,7 +107,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Simulate a completed turn with token usage.
+    
     mode.task_doc
         .completed_turns
         .push(crate::runtime::task_document::TurnDocument {
@@ -137,7 +135,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
         ..Default::default()
     });
 
-    // Verify tokens are non-zero before compact.
+    
     let status_before = mode.status_line();
     assert!(
         status_before.contains("tokens:1500"),
@@ -146,7 +144,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
 
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
-    // After compact, turns must be cleared so the status line shows tokens:0.
+    
     assert!(
         mode.task_doc.completed_turns.is_empty(),
         "/compact must clear turn evidence to reset token counter"

@@ -1,13 +1,4 @@
-//! ADR-028 transport layer.
-//!
-//! This module owns the network and IPC transport wiring for the LocalApiServer
-//! surface authorized by ADR-026.  It consumes the application facade
-//! (`crate::app`) and frames ADR-025 `RuntimeEnvelope` events for
-//! concrete transports (HTTP/SSE, Unix-domain socket).
-//!
-//! Transport code must not contain runtime logic, tool semantics, or
-//! task orchestration.  It reaches the runtime exclusively through
-//! facade-owned entrypoints.
+
 
 pub mod handlers;
 pub mod http;
@@ -39,8 +30,8 @@ const HSTS_HEADER_VALUE: &str = "max-age=31536000";
 pub(crate) const SSE_CACHE_CONTROL_HEADER: &str = "no-cache, no-store, must-revalidate";
 pub(crate) const SSE_PROXY_BUFFERING_HEADER: &str = "x-accel-buffering";
 pub(crate) const SSE_PROXY_BUFFERING_DISABLED: &str = "no";
-// Axum prefixes keepalive text with ':' when emitting the wire frame, so the
-// heartbeat stays within the WHATWG-defined SSE comment syntax (`:keepalive\n\n`).
+
+
 const SSE_KEEPALIVE_TEXT: &str = "keepalive";
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 

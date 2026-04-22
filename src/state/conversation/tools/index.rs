@@ -2,7 +2,7 @@ use crate::config::SearchConfig;
 use crate::tools::index::{self, IndexChunk};
 use std::sync::{Mutex, OnceLock};
 
-/// Lazily-built structural index for the codebase_search tool.
+
 pub(super) static CODEBASE_INDEX: OnceLock<Mutex<Vec<IndexChunk>>> = OnceLock::new();
 
 pub(super) fn build_codebase_index(
@@ -16,7 +16,7 @@ pub(super) fn build_codebase_index(
     )
 }
 
-/// Refresh the structural index for a single changed file (if the index exists).
+
 pub(super) fn refresh_codebase_index(
     rel_path: &str,
     workspace_root: &std::path::Path,
@@ -93,11 +93,7 @@ pub(crate) fn warm_codebase_index_with_config(
     ))
 }
 
-/// Force a full rebuild of the structural codebase index.
-/// Used by the `/reindex` slash command.
-///
-/// Pass `&[]` and `usize::MAX` to apply no filtering (equivalent to default
-/// `SearchConfig` values).
+
 pub(crate) fn force_full_reindex_with_config(
     workspace_root: &std::path::Path,
     exclude: &[String],

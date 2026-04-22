@@ -1,6 +1,5 @@
 use super::*;
 
-// -- PI-01 / PI-02 / PI-03 -------------------------------------------------
 
 #[test]
 fn test_permissions_empty_grants() {

@@ -2,11 +2,11 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use tempfile::TempDir;
-use vexcoder::tools::ToolOperator;
+use vexapi::tools::ToolOperator;
 
 #[test]
 fn test_path_traversal_blocked() {
-    // Integration scope: end-to-end public tool APIs reject traversal attempts.
+    
     let temp = TempDir::new().expect("temp dir");
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
@@ -126,7 +126,7 @@ fn test_edit_file_rejects_oversized_snippets() {
 #[cfg(unix)]
 #[test]
 fn test_symlink_escape_is_blocked_for_file_tools() {
-    // Integration scope: file-oriented tool calls must reject symlink escapes.
+    
     use std::os::unix::fs::symlink;
 
     let workspace = TempDir::new().expect("workspace");
@@ -281,8 +281,7 @@ fn test_empty_path_rejected_for_all_tool_operations() {
     let temp = TempDir::new().expect("temp dir");
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    // read_file — empty string (matches a regression observed where @-mention
-    // resolves to "" when the model omits the path argument)
+    
     let err = executor
         .read_file("")
         .expect_err("empty path should fail for read_file");
@@ -291,11 +290,11 @@ fn test_empty_path_rejected_for_all_tool_operations() {
         "read_file error: {err}"
     );
 
-    // write_file
+    
     let result = executor.write_file("", "content");
     assert!(result.is_err(), "empty path should fail for write_file");
 
-    // edit_file
+    
     let err = executor
         .edit_file("", "old", "new")
         .expect_err("empty path should fail for edit_file");
@@ -304,14 +303,13 @@ fn test_empty_path_rejected_for_all_tool_operations() {
         "edit_file error: {err}"
     );
 
-    // list_files with empty string falls back to workspace root (by design —
-    // resolve_optional_path treats empty as None)
+    
     assert!(
         executor.list_files(Some(""), 10).is_ok(),
         "list_files with empty path should fall back to workspace root"
     );
 
-    // search_files with empty dir also falls back to workspace root
+    
     executor
         .write_file("searchable.txt", "hello world")
         .expect("seed file for search");
@@ -327,8 +325,7 @@ fn test_empty_path_variants_all_rejected() {
     let temp = TempDir::new().expect("temp dir");
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    // Test every whitespace variant the model might produce when the path
-    // argument is missing or malformed.
+    
     let empty_variants = ["", " ", "  ", "\t", "\n", " \t\n "];
     for variant in &empty_variants {
         let err = executor
@@ -363,8 +360,8 @@ fn test_rename_file_rejects_empty_paths() {
 
 fn init_git_repo(path: &Path) {
     run_git(path, &["init"]);
-    run_git(path, &["config", "user.email", "vexcoder@example.com"]);
-    run_git(path, &["config", "user.name", "vexcoder test"]);
+    run_git(path, &["config", "user.email", "vexapi@example.com"]);
+    run_git(path, &["config", "user.name", "vexapi test"]);
 }
 
 fn run_git(path: &Path, args: &[&str]) {

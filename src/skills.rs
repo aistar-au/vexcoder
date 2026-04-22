@@ -1,7 +1,4 @@
-//! Skills registry for ADR-024 Gap 10 (PB-03).
-//!
-//! Skills are directories containing a `SKILL.md` entrypoint. The registry is
-//! a flat TOML manifest at `.agents/skills/registry.toml`.
+
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -17,7 +14,7 @@ enum InstallSourceKind {
     Tarball,
 }
 
-/// Single skill entry in `registry.toml`.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SkillEntry {
     pub name: String,
@@ -26,7 +23,7 @@ pub struct SkillEntry {
     pub path: String,
 }
 
-/// Flat registry; maps to the `[[skills]]` TOML array.
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SkillsRegistry {
     #[serde(default)]
@@ -38,8 +35,8 @@ pub struct SkillsRegistry {
 }
 
 impl SkillsRegistry {
-    /// Load the registry from `<workspace>/.agents/skills/registry.toml`.
-    /// Returns a fresh empty registry if the file does not exist.
+    
+    
     pub fn load(working_dir: &Path) -> Result<Self> {
         let workspace_root = crate::workspace::workspace_root(working_dir);
         let path = workspace_root.join(REGISTRY_REL_PATH);
@@ -77,7 +74,7 @@ impl SkillsRegistry {
         self.skills.iter().find(|skill| skill.name == name)
     }
 
-    /// Validate that a skill source URL is an accepted form and classify it.
+    
     fn detect_source_kind(source: &str) -> Result<InstallSourceKind> {
         if source.contains("raw.githubusercontent.com")
             || source.contains("/raw/")
@@ -103,10 +100,7 @@ impl SkillsRegistry {
         Self::detect_source_kind(source).map(|_| ())
     }
 
-    /// Install a skill from `source` into `.agents/skills/<name>/`.
-    ///
-    /// `source` must be a git repository URL or a tarball URL. `subdir`
-    /// selects a subdirectory within the fetched content as the skill root.
+    
     pub fn install(&mut self, source: &str, subdir: Option<&str>) -> Result<String> {
         let source_kind = Self::detect_source_kind(source)?;
         let staging = tempfile::tempdir()?;
@@ -136,7 +130,7 @@ impl SkillsRegistry {
         Ok(name)
     }
 
-    /// Remove a skill from the registry and delete its directory.
+    
     pub fn remove(&mut self, name: &str) -> Result<()> {
         let entry = self
             .get(name)
@@ -152,7 +146,7 @@ impl SkillsRegistry {
         Ok(())
     }
 
-    /// Print all registered skills to stdout.
+    
     pub fn list(&self) {
         if self.skills.is_empty() {
             println!("no skills installed");

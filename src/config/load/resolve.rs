@@ -94,9 +94,7 @@ pub(super) fn load_doctor_layer(path: &Path) -> Result<Option<DoctorConfigLayer>
     }))
 }
 
-/// Resolve a fully-merged ConfigLayer into a concrete Config.
-/// Compiled defaults fill any field not set by any layer.
-/// `fallback_cwd` is used as the default `working_dir` when no layer sets it.
+
 pub(super) fn resolve_config(
     merged: ConfigLayer,
     env_token: Option<String>,
@@ -258,9 +256,7 @@ pub(super) fn resolve_search_config(layer: Option<SearchConfigLayer>) -> SearchC
     }
 }
 
-/// Ensure every exclude entry ends with `/` so `starts_with` prefix matching
-/// in the index cannot false-positive on paths that merely share a common
-/// stem (e.g. `"src"` must not match `"src_utils/foo.rs"`).
+
 pub(super) fn normalize_exclude_prefixes(entries: Vec<String>) -> Vec<String> {
     entries
         .into_iter()

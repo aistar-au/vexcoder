@@ -8,7 +8,7 @@
 
 ## Context
 
-`vexcoder` is already a Rust cli coding assistant, but the current product
+`vexapi` is already a Rust cli coding assistant, but the current product
 shape is still closer to a chat-first TUI than a full coding agent.
 
 The roadmap target is a cli-first coding agent built only around free/open
@@ -49,7 +49,7 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is cli-agent-first for the first release. The cli runtime is the primary execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the opening stage and must not be allowed to drive architectural changes to the runtime core.
+1. `vexapi` is cli-agent-first for the first release. The cli runtime is the primary execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the opening stage and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
 3. The first iteration supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
@@ -471,7 +471,7 @@ In other words:
 
 ### Benefits
 
-- moves `vexcoder` toward a real coding-agent loop
+- moves `vexapi` toward a real coding-agent loop
 - removes provider coupling from the public architecture
 - improves auditability: every tool invocation, approval, and mutation is
   recorded as structured evidence

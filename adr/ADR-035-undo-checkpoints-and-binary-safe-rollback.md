@@ -59,7 +59,7 @@ left implicit:
 
 ## Implementation status
 
-Implemented on `work/vexcoder-undo-checkpoints` as of 2026-03-30.
+Implemented on `work/vexapi-undo-checkpoints` as of 2026-03-30.
 
 Key source files:
 - `src/state/conversation/state.rs`
@@ -70,6 +70,6 @@ Key source files:
 
 ## References
 
-- [ADR-024](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md) — parity gap tracker and formal deferment of Gap 14
-- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — session-local runtime state
-- [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — slash-command operator surface
+- [ADR-024](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md) — parity gap tracker and formal deferment of Gap 14
+- [ADR-030](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — session-local runtime state
+- [ADR-031](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — slash-command operator surface

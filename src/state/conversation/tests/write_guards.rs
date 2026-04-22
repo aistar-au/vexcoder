@@ -170,7 +170,7 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
 
-    // Populate an active turn with a successful write_file call.
+    
     manager.ensure_task_doc();
     manager.begin_turn_doc("prompt".to_string(), TurnToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
@@ -191,7 +191,7 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     });
     assert!(manager.current_turn_has_successful_mutation());
 
-    // Replace active turn with a read-only call.
+    
     manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
     manager.begin_turn_doc("prompt2".to_string(), TurnToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
@@ -215,7 +215,7 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
         "read-only tools must not count as a patch-applied turn"
     );
 
-    // Replace active turn with a failed mutating call.
+    
     manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
     manager.begin_turn_doc("prompt3".to_string(), TurnToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
@@ -239,9 +239,7 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
         "failed mutating tools must not count as an applied patch"
     );
 }
-// ---------------------------------------------------------------------------
-// Phase 3 — write_file guards
-// ---------------------------------------------------------------------------
+
 
 #[test]
 fn test_write_file_rejects_content_above_max_lines() {

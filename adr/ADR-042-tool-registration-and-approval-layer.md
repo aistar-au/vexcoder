@@ -219,7 +219,7 @@ paths, explicit deny or allow rules, and mode defaults.
   Mitigated: every alias routes through `tool_requires_confirmation()` and
   the `request_tool_approval()` gate before any command runs.
 - The `PassthroughSandbox` default provides no filesystem or network
-  isolation. Shell commands run with the same permissions as the vexcoder
+  isolation. Shell commands run with the same permissions as the vexapi
   process. Operators who need stronger isolation must configure a
   `SandboxConfig` with a restricted sandbox driver.
 - Extending `tool_requires_confirmation()` to cover aliases adds five

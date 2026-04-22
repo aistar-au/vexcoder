@@ -1,4 +1,4 @@
-use vexcoder::ui::layout::{Rect, split_four_region_layout, split_three_pane_layout};
+use vexapi::ui::layout::{Rect, split_four_region_layout, split_three_pane_layout};
 
 fn assert_rect_within(area: Rect, rect: Rect) {
     assert!(

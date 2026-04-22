@@ -394,7 +394,7 @@ fn active_slash_picker_non_slash_returns_none() {
 
 #[test]
 fn render_slash_picker_hint_shows_commands() {
-    use vexcoder::app::SlashPickerMatch;
+    use vexapi::app::SlashPickerMatch;
 
     let matches = vec![
         SlashPickerMatch {
@@ -423,7 +423,7 @@ fn render_slash_picker_hint_empty() {
 
 #[test]
 fn render_slash_picker_hint_clamps_selected() {
-    use vexcoder::app::SlashPickerMatch;
+    use vexapi::app::SlashPickerMatch;
 
     let matches = vec![SlashPickerMatch {
         command: "/edit ".into(),
@@ -522,7 +522,7 @@ fn build_file_overlay_navigates_selection() {
 
 #[test]
 fn build_slash_overlay_returns_entries_with_selection() {
-    use vexcoder::app::SlashPickerMatch;
+    use vexapi::app::SlashPickerMatch;
 
     let matches = vec![
         SlashPickerMatch {

@@ -69,16 +69,14 @@ pub enum RuntimeEvent {
     TranscriptBlockComplete {
         index: usize,
     },
-    /// Update the status of an in-flight tool call without a full ToolResult.
-    /// Emitted by the streaming layer when a tool transitions from Pending to
-    /// Executing so the sole-writer condenser can track all status mutations.
+    
+    
     ToolCallStatusUpdated {
         tool_call_id: String,
         status: ToolStatus,
     },
-    /// Promote a Thinking block to Final phase and mark it as no longer
-    /// streaming.  Emitted at the end of an API round so the sole-writer
-    /// condenser is the only code path that mutates block phase.
+    
+    
     TranscriptBlockPhaseUpdated {
         index: usize,
         phase: AssistantPhase,
@@ -235,20 +233,7 @@ pub struct DerivedBatchRecords {
 
 pub type ToolCallId = String;
 
-/// Generates a `tx_`-prefixed tool call ID suitable for use as a
-/// [`ToolCallId`] anywhere in the runtime pipeline.
-///
-/// `counter` must be an [`AtomicU32`] owned or shared by the caller and
-/// monotonically incremented per call. `entropy` is a 16-bit time- or
-/// task-derived salt that reduces collision risk across counter resets.
-///
-/// The resulting format is `tx_{counter}_{entropy:04x}` — a decimal monotonic
-/// counter followed by a 4-hex-digit entropy field — matching the pattern
-/// `^tx_[0-9]+_[0-9a-f]{4}$` enforced by `schemas/runtime_envelope_v1.json`.
-///
-/// IDs are generated once in `src/runtime/json_handoff.rs` and passed
-/// pre-generated to [`super::delta_accumulator::DeltaAccumulator`] — the
-/// accumulator never creates its own IDs.
+
 pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
     let count = counter.fetch_add(1, Ordering::SeqCst).saturating_add(1);
     format!("tx_{}_{entropy:04x}", count)
@@ -306,9 +291,8 @@ impl RuntimeEnvelopeNormalizer {
 
     pub fn start_turn(&mut self, turn: u32, input: Option<String>) -> RuntimeEnvelope {
         self.turn = turn;
-        // next_seq is intentionally NOT reset here: the seq counter is
-        // process-lifetime monotonic so that event_ids remain unique across
-        // turn boundaries within the same RuntimeEventEmitter instance.
+        
+        
         self.pending_tool_calls.clear();
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
@@ -423,9 +407,8 @@ impl RuntimeEnvelopeNormalizer {
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
                 let mut envelopes = Vec::new();
-                // TranscriptBlockDelta is the accepted protocol event and is
-                // emitted first so consumers see the raw stream before the
-                // derived ToolCallArgumentsDelta that follows for tool blocks.
+                
+                
                 envelopes.push(self.next_envelope_with_source(
                     RuntimeEvent::TranscriptBlockDelta {
                         index: *index,
@@ -816,10 +799,8 @@ fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
         | RuntimeEvent::ToolCallArgumentsDelta { .. }
         | RuntimeEvent::ServerMetadata { .. }
         | RuntimeEvent::UsageUpdated { .. } => RuntimeEnvelopeSource::Model,
-        // TranscriptBlockDelta callers always supply the block's recorded
-        // source via next_envelope_with_source; this fallback only fires if a
-        // delta arrives for an unregistered block index, in which case Runtime
-        // is a safer default than assuming Model.
+        
+        
         RuntimeEvent::TranscriptBlockDelta { .. } => RuntimeEnvelopeSource::Runtime,
         RuntimeEvent::ToolCallStatusUpdated { .. }
         | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }

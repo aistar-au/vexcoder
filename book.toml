@@ -6,5 +6,5 @@ language = "en"
 src = "docs/src"
 
 [output.html]
-git-repository-url = "https://github.com/aistar-au/vexcoder"
-edit-url-template = "https://github.com/aistar-au/vexcoder/edit/main/{path}"
+git-repository-url = "https://github.com/aistar-au/vexapi"
+edit-url-template = "https://github.com/aistar-au/vexapi/edit/main/{path}"

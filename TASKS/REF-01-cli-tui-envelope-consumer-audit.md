@@ -2,7 +2,7 @@
 
 ## Status
 
-Active on `work/vexcoder-cli-tui-envelope-consumer-audit`.
+Active on `work/vexapi-cli-tui-envelope-consumer-audit`.
 
 This branch closes the remaining consumer-boundary seam discovered after
 PR #404: the ratatui/crossterm-backed TUI still buffered and reparsed raw

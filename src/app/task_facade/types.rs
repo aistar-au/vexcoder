@@ -1,7 +1,7 @@
 use serde::Serialize;
 use thiserror::Error;
 
-/// Summary of one persisted parent task returned by `facade_list_tasks`.
+
 #[derive(Debug, Clone)]
 pub struct FacadeTaskSummary {
     pub id: String,
@@ -12,8 +12,7 @@ pub struct FacadeTaskSummary {
     pub live_session_task_count: usize,
 }
 
-/// Full projection of one session task returned by the listing and detail
-/// endpoints.
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeSessionTaskRollup {
     pub id: String,
@@ -26,7 +25,7 @@ pub struct FacadeSessionTaskRollup {
     pub handoff_summary: Option<String>,
 }
 
-/// Typed error for `facade_update_session_task_status`.
+
 #[derive(Debug, Error)]
 pub enum SessionTaskStatusError {
     #[error("session_task_not_found")]
@@ -39,7 +38,7 @@ pub enum SessionTaskStatusError {
     Internal(#[from] anyhow::Error),
 }
 
-/// Thin domain structs the transport layer maps to JSON.
+
 #[derive(Debug, Clone)]
 pub struct FacadeAgentDescriptor {
     pub name: String,
@@ -79,28 +78,28 @@ pub struct FacadeWatchRollup {
     pub worktree_path: Option<String>,
 }
 
-/// Result returned by `facade_schedule_team`.
+
 #[derive(Debug, Clone)]
 pub struct FacadeScheduleTeamResult {
     pub parent_task_id: String,
-    /// IDs of session tasks created in this call.
+    
     pub session_task_ids: Vec<String>,
-    /// Scheduler used: `"fan_out_join"` or `"sequential"`.
+    
     pub scheduler: String,
 }
 
-/// Fan-out status snapshot returned by `facade_poll_join`.
+
 #[derive(Debug, Clone)]
 pub struct FacadeJoinOutcome {
     pub all_done: bool,
     pub completed: usize,
     pub failed: usize,
     pub cancelled: usize,
-    /// `(agent_id, summary)` pairs from tasks that recorded a handoff summary.
+    
     pub summaries: Vec<(String, String)>,
 }
 
-/// Typed error for `facade_schedule_team`.
+
 #[derive(Debug, Error)]
 pub enum ScheduleTeamError {
     #[error("agents_config_missing")]
@@ -119,7 +118,7 @@ pub enum ScheduleTeamError {
     Internal(#[from] anyhow::Error),
 }
 
-/// One node in the task graph: a parent task plus its session tasks.
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeTaskGraphNode {
     pub id: String,
@@ -128,13 +127,13 @@ pub struct FacadeTaskGraphNode {
     pub session_tasks: Vec<FacadeSessionTaskRollup>,
 }
 
-/// Top-level task graph returned by `facade_task_graph`.
+
 #[derive(Debug, Clone)]
 pub struct FacadeTaskGraph {
     pub nodes: Vec<FacadeTaskGraphNode>,
 }
 
-/// One active (non-final) session task returned by `facade_list_todos`.
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeTodoItem {
     pub id: String,
@@ -143,7 +142,7 @@ pub struct FacadeTodoItem {
     pub lifecycle_state: String,
 }
 
-/// Typed error for `facade_post_peer_message`.
+
 #[derive(Debug, Error)]
 pub enum PeerChannelError {
     #[error("parent_task_not_found")]

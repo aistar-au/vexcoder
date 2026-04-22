@@ -267,7 +267,7 @@ Candidate implementation areas:
 ### Tier 12 -- Crate Expansion (next batch planned) -- 4 items
 
 Grounded in comparable open-source Rust CLI patterns without reusing external
-wording or implementation material. Each crate either fills a gap in vexcoder's
+wording or implementation material. Each crate either fills a gap in vexapi's
 current dependency tree or is rejected with design rationale.
 Full decisions documented in
 `TASKS/PM-05-crate-boundaries-and-tool-calls.md`.
@@ -283,7 +283,7 @@ dependencies.
 | `which` | `git_rollup.rs` | Next batch planned | Clear error when `git` binary is not on `$PATH` |
 | `notify` | `git_rollup.rs` watch mode | Next batch planned | Filesystem event watching replaces polling for working-tree changes |
 
-**Rejected:** `walkdir` -- vexcoder uses `ignore` (ripgrep ecosystem) which
+**Rejected:** `walkdir` -- vexapi uses `ignore` (ripgrep ecosystem) which
 already provides recursive git-aware directory traversal.  Adding `walkdir`
 would duplicate traversal logic.
 
@@ -295,32 +295,32 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| REF-01 consumer hardening | `work/vexcoder-cli-tui-envelope-consumer-audit` | -- | **In Progress** | Post-PR #404 follow-up that removes ratatui-side tool-call JSON reassembly, emits runtime-owned typed tool-argument updates for downstream CLI/TUI consumers, and preserves raw block deltas only for envelope and local-API projection |
-| Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
-| TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce the shared `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
-| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
+| REF-01 consumer hardening | `work/vexapi-cli-tui-envelope-consumer-audit` | -- | **In Progress** | Post-PR #404 follow-up that removes ratatui-side tool-call JSON reassembly, emits runtime-owned typed tool-argument updates for downstream CLI/TUI consumers, and preserves raw block deltas only for envelope and local-API projection |
+| Ratatui-C1 | `work/vexapi-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
+| TaskDoc-PR1 | `work/vexapi-task-document-pr1` | #349 | **In Progress** | Introduce the shared `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
+| Ratatui-T4 | `work/vexapi-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 
 ### Recently Merged / Closed
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| REF-01 follow-up | `work/vexcoder-api-stream-structural-extraction` | #404 | **Merged** | Provider-edge parsing, compatibility ingress handling, and normalized envelope emission now live in focused `src/api/stream/` modules while direct internal consumers stay downstream of `RuntimeEnvelope` |
-| Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
-| Tier13-crate | `work/vexcoder-tier13-crate-expansion` | #344 | **Merged** | Tier 13 crate expansion: 11 crates wired, unused-code suppression removed, seam functions wired into production |
-| EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | ~~Closed~~ | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
-| Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
-| Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
-| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | ~~Closed~~ | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
-| ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
-| ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
-| ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
-| PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
-| PM-01 | `work/vexcoder-conversation-compaction` | #271 | **Merged** | In-memory summarization of older turns when token count exceeds threshold |
-| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | **Merged** | `/undo` slash command and per-change checkpoint stack |
-| PM-03 | `work/vexcoder-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
-| PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
-| ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
-| ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
+| REF-01 follow-up | `work/vexapi-api-stream-structural-extraction` | #404 | **Merged** | Provider-edge parsing, compatibility ingress handling, and normalized envelope emission now live in focused `src/api/stream/` modules while direct internal consumers stay downstream of `RuntimeEnvelope` |
+| Ratatui-T1T3 | `work/vexapi-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
+| Tier13-crate | `work/vexapi-tier13-crate-expansion` | #344 | **Merged** | Tier 13 crate expansion: 11 crates wired, unused-code suppression removed, seam functions wired into production |
+| EL-extract | `work/vexapi-edit-loop-tui-extract` | #311 | ~~Closed~~ | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
+| Batch-3-4 | `work/vexapi-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
+| Batch-5-6 | `work/vexapi-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
+| ADR-amendments | `work/vexapi-adr-amendments` | #318 | ~~Closed~~ | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
+| ADR-038-EF | `work/vexapi-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
+| ADR-038-G | `work/vexapi-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
+| ADR-038-H | `work/vexapi-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
+| PL-01-ext | `work/vexapi-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
+| PM-01 | `work/vexapi-conversation-compaction` | #271 | **Merged** | In-memory summarization of older turns when token count exceeds threshold |
+| PM-02 | `work/vexapi-undo-checkpoints` | #272 | **Merged** | `/undo` slash command and per-change checkpoint stack |
+| PM-03 | `work/vexapi-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
+| PM-04 | `work/vexapi-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
+| ADR-041-D8D13 | `work/vexapi-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
+| ADR-041-D15 | `work/vexapi-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
 | ADR-041-D17D22 | PR #363 / #364 | #363, #364 | **Merged** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus inline viewport wiring, ratatui `scrolling-regions` enablement, and resize hardening for committed-history insertion |
 
 Each branch had a task manifest in `TASKS/` defining scope, constraints, and anchor tests.

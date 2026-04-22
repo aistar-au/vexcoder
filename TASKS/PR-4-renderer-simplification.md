@@ -1,7 +1,7 @@
 # PR 4 — Simplify Renderer and Remove Sticky Bottom Surface
 
-**Branch:** `work/vexcoder-task-document-pr4`
-**Follows:** PR 3 (`work/vexcoder-task-document-pr3`, PR #351)
+**Branch:** `work/vexapi-task-document-pr4`
+**Follows:** PR 3 (`work/vexapi-task-document-pr3`, PR #351)
 **Source spec:** batch-start.txt PR 4
 
 **Current status (2026-04-07):** Implemented across PR #352 and PR #353 and

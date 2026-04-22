@@ -76,8 +76,8 @@ Phase I supports exactly two transports:
    - default port: `6274`
    - non-loopback TCP exposure is permitted only when TLS is enabled
 2. **Unix-domain socket**
-   - default path: `${XDG_RUNTIME_DIR}/vexcoder.sock` when available
-   - fallback path: `/tmp/vexcoder.sock`
+   - default path: `${XDG_RUNTIME_DIR}/vexapi.sock` when available
+   - fallback path: `/tmp/vexapi.sock`
 
 Loopback remains the default bind mode. Non-loopback TCP exposure requires explicit operator configuration and the TLS rules below.
 
@@ -118,7 +118,7 @@ When HTTPS is enabled, responses should emit a `Strict-Transport-Security` heade
 Returns:
 
 ```json
-{"ok":true,"service":"vexcoder-local-api","version":1}
+{"ok":true,"service":"vexapi-local-api","version":1}
 ```
 
 Purpose: local readiness and client startup probe.
@@ -140,7 +140,7 @@ The JSON below is an abbreviated extract showing the bundle shape only; it is no
 {
   "version": 1,
   "request_schema": {
-    "$id": "https://vexcoder.com/schemas/runtime_request_v1.json",
+    "$id": "https://vexapi.com/schemas/runtime_request_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "RuntimeRequest v1",
     "oneOf": [
@@ -150,7 +150,7 @@ The JSON below is an abbreviated extract showing the bundle shape only; it is no
     ]
   },
   "envelope_schema": {
-    "$id": "https://vexcoder.com/schemas/runtime_envelope_v1.json",
+    "$id": "https://vexapi.com/schemas/runtime_envelope_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "RuntimeEnvelope v1",
     "type": "object",

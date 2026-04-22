@@ -112,10 +112,7 @@ impl RuntimeContext {
                 }
             }
 
-            // Close any open transcript blocks when the stream ends naturally.
-            // The text normaliser is stateless, so only block completion is
-            // required here. Skip when cancelled – the turn was aborted and
-            // partial output is noise.
+            
             if !cancelled {
                 for (index, _) in textual_block_by_index.drain() {
                     let _ = tx.send(UiUpdate::StreamBlockComplete { index });
@@ -202,12 +199,7 @@ impl RuntimeContext {
         });
     }
 
-    /// Drive a single model turn within the current async task and wait for
-    /// completion, forwarding stream events to the TUI while the turn runs.
-    ///
-    /// Used by `EditLoop::run` to execute assemble→model→apply cycles without
-    /// spawning a detached task. The conversation lock is held only for the
-    /// duration of `send_message_with_policy`.
+    
     pub(crate) async fn drive_edit_turn(&self, input: String) -> anyhow::Result<EditTurnResult> {
         let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
         let conversation = Arc::clone(&self.conversation);
@@ -228,7 +220,7 @@ impl RuntimeContext {
         while let Some(update) = delta_rx.recv().await {
             forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
         }
-        // Close any open transcript blocks after the edit stream ends.
+        
         for (index, _) in textual_block_by_index.drain() {
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
@@ -380,9 +372,7 @@ impl RuntimeContext {
             .unwrap_or(0)
     }
 
-    /// Poll the configured local inference server for capabilities and cache
-    /// the result on the shared `ApiClient`. No-op for remote endpoints or
-    /// when the server does not expose a discovery endpoint.
+    
     pub async fn populate_local_server_info(&self) {
         let client = {
             let manager = self.conversation.lock().await;
@@ -578,19 +568,15 @@ fn forward_conversation_update(
                 summary,
             });
         }
-        // Surface stream errors (API errors, SSE parse failures) to the UI.
-        // ADR-021 Item 19.
+        
+        
         ConversationStreamUpdate::StreamError(msg) => {
             let _ = tx.send(UiUpdate::Error(msg));
         }
     }
 }
 
-/// Route standalone text through the normaliser before sending it to the UI.
-///
-/// The normaliser is stateless: it preserves streamed text boundaries but does
-/// not interpret or buffer tool-call markup. Tool lifecycle semantics are
-/// normalized upstream into runtime envelopes before the TUI sees them.
+
 fn emit_normalised_text(
     normaliser: &mut crate::api::stream::StreamTextNormaliser,
     text: &str,

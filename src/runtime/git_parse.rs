@@ -1,35 +1,25 @@
-//! Structured parsing of git command output using `regex-lite`.
-//!
-//! Design boundary: `regex-lite` handles ASCII-only internal text processing
-//! on git's machine-readable output formats.  This is distinct from
-//! `aho-corasick` (multi-pattern literal matching in file content),
-//! `tree-sitter` (structural AST indexing), and `globset`/`ignore`
-//! (filesystem traversal).  None of these crates overlap in purpose.
+
 
 use std::sync::OnceLock;
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
-/// A single entry from `git status --porcelain`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusEntry {
-    /// Index (staging area) status character.
+    
     pub index: char,
-    /// Worktree status character.
+    
     pub worktree: char,
-    /// File path (includes ` -> new` suffix for renames).
+    
     pub path: String,
 }
 
-/// Parsed result from `git status --porcelain`.
+
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitStatus {
     pub entries: Vec<StatusEntry>,
 }
 
-/// Outcome classification for a single line in `git apply` output.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApplyOutcome {
     Applied { path: String },
@@ -41,21 +31,21 @@ pub enum ApplyOutcome {
     Failed { message: String },
 }
 
-/// Parsed result from `git apply` combined stdout+stderr.
+
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitApply {
     pub outcomes: Vec<ApplyOutcome>,
     pub has_errors: bool,
 }
 
-/// A single file entry from `git diff --stat`.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffStatEntry {
     pub path: String,
     pub changes: u32,
 }
 
-/// Parsed `git diff --stat` output with per-file entries and summary.
+
 #[derive(Debug, Clone, Default)]
 pub struct ParsedDiffStat {
     pub entries: Vec<DiffStatEntry>,
@@ -64,42 +54,39 @@ pub struct ParsedDiffStat {
     pub total_deletions: u32,
 }
 
-/// A single entry from `git log --oneline` or `git log --format="%h %s"`.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogEntry {
-    /// Abbreviated commit hash.
+    
     pub hash: String,
-    /// Subject line (first line of commit message).
+    
     pub subject: String,
 }
 
-/// Parsed result from `git log --oneline`.
+
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitLog {
     pub entries: Vec<LogEntry>,
 }
 
-/// A single file entry from `git diff --name-status`.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NameStatusEntry {
-    /// Status character: A (added), M (modified), D (deleted), R (renamed),
-    /// C (copied), T (type changed), U (unmerged), X (unknown).
+    
+    
     pub status: char,
-    /// Primary file path.
+    
     pub path: String,
-    /// Rename/copy destination path (only present for R/C status).
+    
     pub new_path: Option<String>,
 }
 
-/// Parsed result from `git diff --name-status`.
+
 #[derive(Debug, Clone, Default)]
 pub struct ParsedNameStatus {
     pub entries: Vec<NameStatusEntry>,
 }
 
-// ---------------------------------------------------------------------------
-// Regex compilation helpers -- compile once via OnceLock
-// ---------------------------------------------------------------------------
 
 fn re_status_line() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -158,23 +145,19 @@ fn re_apply_binary() -> &'static regex_lite::Regex {
     })
 }
 
-/// Matches `git log --oneline` lines: `<hash> <subject>`.
+
 fn re_log_oneline() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^([0-9a-f]{7,40})\s+(.+)$").unwrap())
 }
 
-/// Matches `git diff --name-status` lines: `<status>\t<path>[\t<new_path>]`.
+
 fn re_name_status_line() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^([AMDRTCUX])\d*\t(.+?)(?:\t(.+))?$").unwrap())
 }
 
-// ---------------------------------------------------------------------------
-// Parsers
-// ---------------------------------------------------------------------------
 
-/// Parse `git status --porcelain` output into structured entries.
 pub fn parse_git_status(output: &str) -> ParsedGitStatus {
     let re = re_status_line();
     let entries = output
@@ -191,7 +174,7 @@ pub fn parse_git_status(output: &str) -> ParsedGitStatus {
     ParsedGitStatus { entries }
 }
 
-/// Parse `git diff --stat` output into structured entries and a summary.
+
 pub fn parse_diff_stat(output: &str) -> ParsedDiffStat {
     let re_line = re_diff_stat_line();
     let re_summary = re_diff_stat_summary();
@@ -222,7 +205,7 @@ pub fn parse_diff_stat(output: &str) -> ParsedDiffStat {
     result
 }
 
-/// Parse `git apply` combined stdout+stderr into structured outcomes.
+
 pub fn parse_git_apply(output: &str) -> ParsedGitApply {
     let mut outcomes = Vec::new();
     let mut has_errors = false;
@@ -274,7 +257,7 @@ pub fn parse_git_apply(output: &str) -> ParsedGitApply {
     }
 }
 
-/// Parse `git log --oneline` output into structured entries.
+
 pub fn parse_git_log_oneline(output: &str) -> ParsedGitLog {
     let re = re_log_oneline();
     let entries = output
@@ -290,7 +273,7 @@ pub fn parse_git_log_oneline(output: &str) -> ParsedGitLog {
     ParsedGitLog { entries }
 }
 
-/// Parse `git diff --name-status` output into structured entries.
+
 pub fn parse_name_status(output: &str) -> ParsedNameStatus {
     let re = re_name_status_line();
     let entries = output
@@ -307,9 +290,6 @@ pub fn parse_name_status(output: &str) -> ParsedNameStatus {
     ParsedNameStatus { entries }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -487,8 +467,7 @@ mod tests {
         assert!(!parsed.has_errors);
     }
 
-    // -- git log --oneline ---------------------------------------------------
-
+    
     #[test]
     fn test_parse_git_log_oneline_basic() {
         let output =
@@ -521,8 +500,7 @@ mod tests {
         assert!(parsed.entries.is_empty());
     }
 
-    // -- git diff --name-status ----------------------------------------------
-
+    
     #[test]
     fn test_parse_name_status_basic() {
         let output = "M\tsrc/main.rs\nA\tsrc/new.rs\nD\tsrc/old.rs";

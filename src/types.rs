@@ -1,4 +1,4 @@
-pub use vexcoder_api_types::*;
+pub use vexapi_types::*;
 mod model_profile;
 
 pub use model_profile::*;

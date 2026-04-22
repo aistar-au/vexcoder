@@ -25,11 +25,7 @@ pub enum ToolCallMode {
     Structured,
 }
 
-/// Controls which tools are exposed to the model for a session.
-///
-/// - `Full`: all registered tools including mutating and shell tools.
-/// - `Plan`: read-only tools only (search, read, list, git read ops, codebase_search, MCP).
-/// - `Chat`: no tools — plain conversation mode.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ToolPolicy {
     #[default]

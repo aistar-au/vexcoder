@@ -50,10 +50,8 @@ struct ValidateConfig {
 }
 
 impl ValidationSuite {
-    /// Run all commands in the suite **concurrently** and collect results.
-    ///
-    /// Commands are spawned in parallel; results are collected in declaration
-    /// order so retry formatting is stable.
+    
+    
     pub async fn run<R>(&self, runner: &R) -> Result<ValidationResult>
     where
         R: CommandRunner + ?Sized,
@@ -76,7 +74,7 @@ impl ValidationSuite {
             });
         }
 
-        // Launch all validation commands concurrently.
+        
         let futures: Vec<_> = self
             .commands
             .iter()
@@ -136,7 +134,7 @@ impl ValidationSuite {
         Ok(ValidationResult { passed, outputs })
     }
 
-    /// Format a failed `ValidationResult` as a structured retry-context block.
+    
     pub fn format_for_retry(&self, result: &ValidationResult) -> String {
         if result.passed {
             return "[validation passed]".to_string();
@@ -181,7 +179,7 @@ impl ValidationSuite {
         out
     }
 
-    /// Infer a validation suite from standard project files at `root`.
+    
     pub fn infer_from_repo(root: &Path) -> Self {
         let mut commands = Vec::new();
         let has_cargo = root.join("Cargo.toml").is_file();
@@ -223,7 +221,7 @@ impl ValidationSuite {
         Self { commands }
     }
 
-    /// Load from `.vex/validate.toml` if present and valid, otherwise fall back to inference.
+    
     pub fn load_or_infer(root: &Path) -> Self {
         let config_path = root.join(".vex/validate.toml");
         if config_path.is_file() {
@@ -401,8 +399,7 @@ fn normalize_timeout(timeout_secs: u64) -> u64 {
     }
 }
 
-/// Returns true only when a `test:` target appears at column zero in the Makefile.
-/// Indented lines (e.g. recipe lines that happen to contain `test:`) are not matched.
+
 fn makefile_has_test_target(root: &Path) -> bool {
     let makefile = root.join("Makefile");
     if !makefile.is_file() {

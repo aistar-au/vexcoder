@@ -1,10 +1,10 @@
 [package]
-name = "vexcoder-api-types"
+name = "vexapi-types"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "API wire types for the vexcoder coding agent"
+description = "API wire types for the vexapi coding agent"
 
 [dependencies]
 serde.workspace = true

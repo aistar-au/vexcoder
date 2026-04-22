@@ -1,5 +1,5 @@
-// Tests in this module use std::env::set_var/remove_var (unsafe in Rust 2024
-// edition) via EnvLockGuard, which serialises access with ENV_LOCK.
+
+
 #![allow(unsafe_code)]
 
 use super::{
@@ -12,24 +12,24 @@ use clap::{CommandFactory, Parser};
 use clap_complete::Shell;
 use std::io::Cursor;
 use std::process::Command;
-use vexcoder::app::TuiMode;
-use vexcoder::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
-use vexcoder::config::Config;
-use vexcoder::disk_policy::DiskPolicyMode;
-use vexcoder::init::{
+use vexapi::app::TuiMode;
+use vexapi::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
+use vexapi::config::Config;
+use vexapi::disk_policy::DiskPolicyMode;
+use vexapi::init::{
     INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE, extract_init_template_keys, run_init,
 };
-use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
-use vexcoder::runtime::{TaskState, TaskStatus, ToolPolicy};
-use vexcoder::startup::{looks_like_session_output, should_ignore_startup_paste_text};
-use vexcoder::tui_frontend::{
+use vexapi::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
+use vexapi::runtime::{TaskState, TaskStatus, ToolPolicy};
+use vexapi::startup::{looks_like_session_output, should_ignore_startup_paste_text};
+use vexapi::tui_frontend::{
     active_file_picker, active_slash_picker, apply_file_picker_selection,
     apply_slash_picker_selection, build_file_overlay, build_slash_overlay,
     file_picker_is_dismissed, render_file_picker_hint, render_slash_picker_hint,
     slash_prefix_token,
 };
-use vexcoder::ui::editor::InputEditor;
-use vexcoder::ui::editor::file_mention_range;
+use vexapi::ui::editor::InputEditor;
+use vexapi::ui::editor::file_mention_range;
 
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -186,7 +186,6 @@ fn startup_paste_filter_still_ignores_transcript_noise_during_startup() {
     );
 }
 
-// -- PM-01 ----------------------------------------------------------------
 
 #[test]
 fn test_recall_coordinates_flag_cli_parses_with_id() {
@@ -197,7 +196,7 @@ fn test_recall_coordinates_flag_cli_parses_with_id() {
 
 #[test]
 fn test_recall_coordinates_flag_cli_parses_without_id() {
-    // --recall-coordinates with no argument should default to empty string (most-recent path).
+    
     let cli = Cli::parse_from(["vex", "--recall-coordinates"]);
     assert_eq!(cli.recall_coordinates, Some(String::new()));
 }
@@ -242,7 +241,7 @@ fn test_resolve_resume_state_empty_dir_returns_none() {
 #[test]
 fn test_resolve_resume_state_most_recent() {
     use filetime::{FileTime, set_file_mtime};
-    use vexcoder::runtime::TaskState;
+    use vexapi::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
@@ -275,7 +274,7 @@ fn test_resolve_resume_state_most_recent() {
 
 #[test]
 fn test_resolve_resume_state_explicit_id() {
-    use vexcoder::runtime::TaskState;
+    use vexapi::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
@@ -293,7 +292,7 @@ fn test_resolve_resume_state_explicit_id() {
 
 #[test]
 fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
-    use vexcoder::runtime::TaskState;
+    use vexapi::runtime::TaskState;
 
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let old_cwd = std::env::current_dir().unwrap();
@@ -362,7 +361,6 @@ fn task_list_noninteractive_render_keeps_line_mode_and_origin_copy() {
     );
 }
 
-// -- PM-03 ----------------------------------------------------------------
 
 #[test]
 fn test_project_map_only_flag_cli_parses() {
@@ -435,11 +433,11 @@ fn test_bypass_integrity_locks_forces_disk_policy_off_for_process() {
     apply_process_policy_overrides(&config);
 
     assert_eq!(
-        vexcoder::disk_policy::resolve_policy_mode(),
+        vexapi::disk_policy::resolve_policy_mode(),
         DiskPolicyMode::Off
     );
 
-    vexcoder::disk_policy::set_process_policy_override(None);
+    vexapi::disk_policy::set_process_policy_override(None);
     unsafe { std::env::remove_var("VEX_DISK_POLICY") };
 }
 
@@ -462,7 +460,6 @@ fn test_cli_rejects_obsolete_json_map_encoding_alias() {
     );
 }
 
-// -- PB-01 ----------------------------------------------------------------
 
 #[test]
 fn test_help_paths_emit_display_help_without_running_the_binary() {
@@ -515,7 +512,6 @@ fn test_completions_cli_parses_powershell() {
     ));
 }
 
-// -- PB-02 ----------------------------------------------------------------
 
 #[test]
 fn test_install_hooks_cli_parses() {
@@ -531,7 +527,7 @@ fn test_doctor_cli_parses() {
 
 #[test]
 fn test_doctor_cli_rejects_obsolete_json_flag() {
-    // --json was removed from `doctor`; JSON output is selected via -m jsonl.
+    
     assert!(Cli::try_parse_from(["vex", "doctor", "--json"]).is_err());
 }
 
@@ -543,8 +539,8 @@ fn test_privacy_cli_parses() {
 
 #[test]
 fn test_credentials_set_cli_parses_account() {
-    // --stdin and --from-env have been removed from the normalized surface;
-    // secret source is determined automatically by stdin TTY state.
+    
+    
     let cli = Cli::parse_from(["vex", "credentials", "set", "model-token"]);
     match cli.command {
         Some(Commands::Credentials {
@@ -558,13 +554,13 @@ fn test_credentials_set_cli_parses_account() {
 
 #[test]
 fn test_credentials_set_cli_rejects_obsolete_stdin_flag() {
-    // --stdin was removed; piped stdin is accepted automatically.
+    
     assert!(Cli::try_parse_from(["vex", "credentials", "set", "model-token", "--stdin"]).is_err());
 }
 
 #[test]
 fn test_credentials_set_cli_rejects_obsolete_from_env_flag() {
-    // --from-env was removed from the normalized surface.
+    
     assert!(
         Cli::try_parse_from([
             "vex",
@@ -585,8 +581,8 @@ fn test_credentials_set_cli_rejects_positional_secret() {
 
 #[test]
 fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
-    // With no stdin source and no TTY prompt available, an error is required.
-    // The error must not suggest using argv (which is not a supported source).
+    
+    
     let err = resolve_credentials_secret("model-token", false, None, false, |_| unreachable!())
         .unwrap_err();
     assert!(
@@ -627,8 +623,8 @@ fn test_read_secret_from_env_var_reads_named_value() {
 
 #[test]
 fn test_export_cli_parses_task_id() {
-    // --format, --output, and --force have been removed; format is controlled
-    // by -m/--set-map-encoding and output is always stdout.
+    
+    
     let cli = Cli::parse_from(["vex", "export", "task-123"]);
     match cli.command {
         Some(Commands::Export { task_id }) => {
@@ -640,7 +636,7 @@ fn test_export_cli_parses_task_id() {
 
 #[test]
 fn test_export_cli_rejects_obsolete_format_flag() {
-    // --format was removed; export format is now governed by -m.
+    
     assert!(Cli::try_parse_from(["vex", "export", "task-123", "--format", "markdown"]).is_err());
 }
 
@@ -670,7 +666,6 @@ fn test_uninstall_hooks_cli_parses() {
     assert!(matches!(cli.command, Some(Commands::UninstallHooks)));
 }
 
-// -- PB-03 ----------------------------------------------------------------
 
 #[test]
 fn test_skills_list_cli_parses() {
@@ -696,11 +691,10 @@ fn test_skills_remove_cli_parses() {
     }
 }
 
-// -- PJ-04: vex init ------------------------------------------------------
 
 #[test]
 fn test_init_cli_parses() {
-    // --dir was removed; `init` always targets the current working directory.
+    
     let cli = Cli::parse_from(["vex", "init"]);
     assert!(matches!(cli.command, Some(Commands::Init)));
 }
@@ -797,7 +791,6 @@ fn test_vex_init_writes_validate_commands_stub() {
     );
 }
 
-// -- PK-08: vex branch / vex pr-summary ------------------------------------
 
 #[tokio::test]
 async fn test_vex_branch_creates_git_branch() {

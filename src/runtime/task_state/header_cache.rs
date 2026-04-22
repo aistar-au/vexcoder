@@ -5,13 +5,10 @@ use std::time::SystemTime;
 
 use super::task_header::TaskStateHeader;
 
-/// Maximum number of header entries held in the process-global cache.
-/// Sized at 2.5x the default VEX_MAX_STARTUP_TASK_SCANS cap (200) to
-/// hold one full scan cycle plus headroom for repeated accesses.
+
 const MAX_HEADER_CACHE_ENTRIES: usize = 512;
 
-/// Fingerprint sufficient to detect that a file has changed since it was
-/// last cached. Uses filesystem mtime + size, matching context_cache.rs.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileFingerprint {
     len: u64,
@@ -34,8 +31,8 @@ struct CacheEntry {
     header: TaskStateHeader,
     fingerprint: FileFingerprint,
     last_access: u64,
-    /// Mirrors `TaskStateHeader.modified_millis` (JSON `updated_at`) for
-    /// tiebreak eviction: equal-tick entries prefer evicting older task files.
+    
+    
     updated_at: u64,
 }
 
@@ -73,13 +70,7 @@ fn global_header_cache() -> &'static Mutex<HeaderLruCache> {
     CACHE.get_or_init(|| Mutex::new(HeaderLruCache::default()))
 }
 
-/// Retrieve the task-state header for a task, using the process-global LRU
-/// cache. Falls back to `TaskStateHeader::from_path` on a cache miss
-/// or fingerprint mismatch (file changed since last read).
-///
-/// Returns `None` if the file cannot be read or parsed; callers should
-/// log a tracing::debug and skip the file, matching existing persist.rs
-/// error-handling conventions.
+
 pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
     let fingerprint = match FileFingerprint::from_path(path) {
         Ok(fingerprint) => fingerprint,
@@ -94,14 +85,13 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
     };
     let cache_key = path.to_path_buf();
 
-    // --- cache probe ---
+    
     {
         let mut cache = global_header_cache()
             .lock()
             .expect("header cache mutex poisoned");
 
-        // Clone the header while holding a shared borrow, then drop the entry
-        // reference before calling `tick()` (which takes &mut self).
+        
         let cached_header = cache.entries.get(&cache_key).and_then(|e| {
             if e.fingerprint == fingerprint {
                 Some(e.header.clone())
@@ -111,7 +101,7 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
         });
 
         if let Some(header) = cached_header {
-            // cache hit: update LRU access tick
+            
             let tick = cache.tick();
             if let Some(entry) = cache.entries.get_mut(&cache_key) {
                 entry.last_access = tick;
@@ -119,11 +109,11 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
             return Some(header);
         }
 
-        // fingerprint mismatch or entry absent: evict if present
+        
         cache.entries.remove(&cache_key);
     }
 
-    // --- cache miss: parse from disk ---
+    
     let header = match TaskStateHeader::from_path(path) {
         Ok(h) => h,
         Err(err) => {
@@ -201,10 +191,10 @@ mod tests {
 
         cached_task_header(&path);
 
-        // Overwrite with different content and bump mtime
+        
         std::fs::write(&path, r#"{"id":"t2","status":"Completed","updated_at":999,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#).unwrap();
-        // Touch mtime explicitly via filetime so the fingerprint changes
-        // even on fast file systems.
+        
+        
         filetime::set_file_mtime(&path, filetime::FileTime::from_unix_time(9_999_999, 0)).unwrap();
 
         let after = cached_task_header(&path);
@@ -216,7 +206,7 @@ mod tests {
         reset_header_cache_for_tests();
         let dir = TempDir::new().unwrap();
 
-        // Fill cache to MAX+1
+        
         for i in 0..=MAX_HEADER_CACHE_ENTRIES {
             let id = format!("evict-{i}");
             let path = write_header_file(&dir, &id, i as u64);

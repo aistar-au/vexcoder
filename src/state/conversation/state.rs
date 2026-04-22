@@ -19,16 +19,16 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
 
-/// A snapshot of a single file's content before a mutating tool call.
+
 #[derive(Debug, Clone)]
 pub struct UndoCheckpoint {
-    /// The tool name that triggered this checkpoint (write_file, edit_file, etc.).
+    
     pub tool_name: String,
-    /// Absolute path of the affected file.
+    
     pub path: PathBuf,
-    /// Optional path that must be removed when the checkpoint is restored.
+    
     pub cleanup_path: Option<PathBuf>,
-    /// Previous file bytes (None if the file did not exist).
+    
     pub previous_content: Option<Vec<u8>>,
 }
 
@@ -66,14 +66,14 @@ pub enum ConversationStreamUpdate {
     CommandSessionFinished {
         session_id: u64,
     },
-    /// Emitted when conversation history is compacted (ADR-029 session persistence).
+    
     ContextCompacted {
         messages_before: usize,
         messages_after: usize,
         summary: String,
     },
-    /// A structured stream error (API error or SSE parse failure) that the
-    /// runtime must surface to the UI.  ADR-021 Item 19.
+    
+    
     StreamError(String),
 }
 
@@ -99,18 +99,15 @@ pub struct ConversationManager {
     pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
-    /// Accepted in-process task document. Owned by the condenser; replaces the
-    /// former `current_turn_blocks` parallel live-turn model.
+    
+    
     pub(super) task_doc: Option<TaskDocument>,
     pub(super) condenser: TaskDocumentCondenser,
-    /// Entry index in `active_turn.entries` where the current API round began.
-    /// Reset at the start of every round so that per-round operations such as
-    /// `promote_thinking_blocks_to_final_text` only touch the current round's
-    /// entries rather than entries from earlier rounds of the same turn.
+    
+    
     pub(super) current_round_entry_start: usize,
-    /// Number of stream `BlockStart` events emitted in the current API round,
-    /// used by `upsert_turn_block` to pad with empty Thinking placeholders when
-    /// the model sends a block at a non-zero index without prior blocks.
+    
+    
     pub(super) current_round_stream_block_count: usize,
     pub(super) tool_call_started_at: HashMap<String, DateTime<Utc>>,
     pub(super) last_turn_tokens: TurnTokens,
@@ -229,7 +226,7 @@ impl ConversationManager {
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {
             client: Arc::new(client),
-            tool_operator: ToolOperator::new(std::env::temp_dir()), // Cross-platform temp dir
+            tool_operator: ToolOperator::new(std::env::temp_dir()), 
             mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
@@ -292,9 +289,8 @@ impl ConversationManager {
         let Some(doc) = &self.task_doc else {
             return false;
         };
-        // Prefer the active turn (mid-send guards); fall back to the most
-        // recently completed turn so callers that check AFTER send_message
-        // returns (e.g. edit-loop context) still see the correct value.
+        
+        
         use crate::runtime::task_document::TurnEntry;
         let entries: &[TurnEntry] = if let Some(active) = &doc.active_turn {
             &active.entries
@@ -323,15 +319,12 @@ impl ConversationManager {
         })
     }
 
-    /// Expose the accepted task document for read-only callers (local API,
-    /// batch mode, snapshot adapters).
+    
     pub fn task_doc(&self) -> Option<&TaskDocument> {
         self.task_doc.as_ref()
     }
 
-    /// Ensure a `TaskDocument` exists. Called once at the start of every
-    /// `send_message_with_policy` invocation. Creates a minimal document when
-    /// no task info has been supplied by the caller.
+    
     pub(super) fn ensure_task_doc(&mut self) {
         if self.task_doc.is_some() {
             return;
@@ -362,8 +355,7 @@ impl ConversationManager {
         self.task_doc = Some(self.condenser.begin_task(info));
     }
 
-    /// Begin a new turn inside the document. The caller must have called
-    /// `ensure_task_doc` first.
+    
     pub(super) fn begin_turn_doc(
         &mut self,
         input: String,
@@ -377,7 +369,7 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    /// Commit the active turn and mark it completed.
+    
     pub(super) fn finish_turn_doc(&mut self, outcome: TurnOutcome, tokens: TurnTokens) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
@@ -386,7 +378,7 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    /// Apply one `RuntimeEvent` to the document.
+    
     pub(super) fn apply_doc_event(&mut self, event: RuntimeEvent) -> TaskMutationSummary {
         if let Some(doc) = self.task_doc.as_mut() {
             self.condenser.apply_runtime_event(doc, event)
@@ -395,9 +387,7 @@ impl ConversationManager {
         }
     }
 
-    /// Record the current number of active-turn entries as the start point for
-    /// the new API round. Called at the top of every round in the send loop so
-    /// that per-round helpers only see blocks from the current round.
+    
     pub(super) fn advance_round_start(&mut self) {
         self.current_round_entry_start = self
             .task_doc
@@ -408,7 +398,7 @@ impl ConversationManager {
         self.current_round_stream_block_count = 0;
     }
 
-    /// Push a checkpoint onto the undo stack, evicting the oldest if at capacity.
+    
     pub fn push_undo_checkpoint(&mut self, checkpoint: UndoCheckpoint) {
         if self.max_undo_checkpoints == 0 {
             return;
@@ -419,18 +409,17 @@ impl ConversationManager {
         self.undo_stack.push(checkpoint);
     }
 
-    /// Pop the most recent checkpoint from the undo stack.
+    
     pub fn pop_undo_checkpoint(&mut self) -> Option<UndoCheckpoint> {
         self.undo_stack.pop()
     }
 
-    /// Number of checkpoints currently buffered.
+    
     pub fn undo_stack_len(&self) -> usize {
         self.undo_stack.len()
     }
 
-    /// Capture a pre-mutation snapshot for undo. Returns `None` for non-mutating
-    /// tools or when the target path cannot be resolved from the tool input.
+    
     pub fn capture_undo_snapshot(
         &self,
         tool_name: &str,

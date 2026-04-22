@@ -1,6 +1,5 @@
 use super::*;
 
-// -- waiting indicators ------------------------------------------------------
 
 #[test]
 fn test_waiting_indicator_appears_on_turn_start() {
@@ -76,7 +75,6 @@ fn test_waiting_indicator_cleared_on_tool_block() {
     );
 }
 
-// -- verb-first patterns -----------------------------------------------------
 
 #[test]
 fn test_verb_first_read_file_empty_path() {
@@ -170,7 +168,6 @@ fn test_verb_first_list_files_empty_path() {
     );
 }
 
-// -- tool block rendering ----------------------------------------------------
 
 #[test]
 fn test_tool_blocks_emit_paragraph_rows_into_history() {
@@ -230,7 +227,6 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
     );
 }
 
-// -- streaming deltas --------------------------------------------------------
 
 #[test]
 fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
@@ -239,7 +235,7 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
 
     mode.begin_turn_capture("test".to_string());
 
-    // Start a ToolCall block with empty input.
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -253,8 +249,7 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         &mut ctx,
     );
 
-    // In the new document model, pending tool calls are stored as TurnEntry::ToolCall
-    // inside active_turn.entries rather than in a separate pending map.
+    
     assert!(
         mode.task_doc.active_turn.as_ref().is_some_and(|t| {
             t.entries.iter().any(|e| {
@@ -266,8 +261,7 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         "StreamBlockStart must register pending tool call in active turn entries"
     );
 
-    // Raw block deltas should no longer mutate the pending tool call input in
-    // the TUI layer.
+    
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -275,7 +269,7 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         },
         &mut ctx,
     );
-    // Input should remain the initial empty object while the JSON is incomplete.
+    
     let tc1_input_partial = mode.task_doc.active_turn.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
             if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
@@ -324,7 +318,6 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
     );
 }
 
-// -- scroll preservation -----------------------------------------------------
 
 #[test]
 fn test_tool_call_arguments_updated_preserves_scroll_by_net_growth() {
@@ -386,8 +379,7 @@ fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Prime the transcript with 18 pre-session notices so the viewport is
-    // "full" before the turn starts (simulates the old history_state.lines).
+    
     for index in 0..18 {
         mode.push_document_notice(
             format!("history row {index}"),
@@ -444,7 +436,6 @@ fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
     );
 }
 
-// -- duplicate tool-call folding ---------------------------------------------
 
 fn tool_call_start(index: usize, id: &str, name: &str, input: serde_json::Value) -> UiUpdate {
     UiUpdate::StreamBlockStart {
@@ -477,13 +468,13 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
 
     let input = serde_json::json!({"path": "src/main.rs"});
 
-    // First call
+    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", input.clone()),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
-    // Second identical call
+    
     mode.on_model_update(
         tool_call_start(2, "t2", "read_file", input.clone()),
         &mut ctx,
@@ -491,8 +482,8 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
     mode.on_model_update(tool_result(3, "t2", "fn main() {}"), &mut ctx);
 
     let lines = &mode.history_lines();
-    // The second identical completed tool call folds into a "(repeated ×N)" indicator;
-    // only the first call renders a full [tool] header paragraph.
+    
+    
     let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] read_file"))
@@ -516,14 +507,14 @@ fn test_different_consecutive_tool_calls_not_folded() {
     let mut ctx = setup_ctx();
     mode.on_user_input("task".to_string(), &mut ctx);
 
-    // First call: read_file
+    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", serde_json::json!({"path": "a.rs"})),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "content of a"), &mut ctx);
 
-    // Second call: different tool
+    
     mode.on_model_update(
         tool_call_start(
             2,
@@ -541,8 +532,8 @@ fn test_different_consecutive_tool_calls_not_folded() {
         "different tool calls must not produce a folded-duplicate line; got:\n{:#?}",
         lines
     );
-    // Each unique tool result must produce its own completed [tool] header row.
-    // Pending rows also emit [tool] headers, so we expect 4 total (2 pending + 2 completed).
+    
+    
     let tool_headers: Vec<_> = lines.iter().filter(|l| l.starts_with("[tool]")).collect();
     assert!(
         tool_headers.len() >= 2,
@@ -556,7 +547,7 @@ fn test_tool_fold_state_resets_after_turn_ends() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Turn 1: complete a tool call.
+    
     mode.on_user_input("first".to_string(), &mut ctx);
     let input = serde_json::json!({"path": "src/main.rs"});
     mode.on_model_update(
@@ -564,13 +555,11 @@ fn test_tool_fold_state_resets_after_turn_ends() {
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "content"), &mut ctx);
-    // NOTE: duplicate_tool_count / last_completed_tool_header were removed in
-    // the document-projector refactor.  Fold state is verified via history_lines().
-
-    // End the turn via Error (causes reset_turn_capture).
+    
+    
     mode.on_model_update(UiUpdate::Error("test reset".to_string()), &mut ctx);
 
-    // Turn 2: same tool call in a fresh turn must not fold.
+    
     mode.on_user_input("second".to_string(), &mut ctx);
     mode.on_model_update(
         tool_call_start(0, "t2", "read_file", input.clone()),
@@ -592,14 +581,14 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
     let mut ctx = setup_ctx();
     mode.on_user_input("list project".to_string(), &mut ctx);
 
-    // First list_files call for path "src"
+    
     mode.on_model_update(
         tool_call_start(0, "t1", "list_files", serde_json::json!({"path": "src"})),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "src/main.rs\nsrc/lib.rs"), &mut ctx);
 
-    // Second list_files call for a different path "tests"
+    
     mode.on_model_update(
         tool_call_start(2, "t2", "list_files", serde_json::json!({"path": "tests"})),
         &mut ctx,
@@ -608,14 +597,7 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 
     let lines = &mode.history_lines();
 
-    // The second completed call must NOT produce its own [tool] header —
-    // it should be folded into the paragraph started by the first call.
-    // Expect exactly 2 completed [tool] headers: 1 pending for t1 (before
-    // its result), 1 completed for t1, and t2's pending and completed
-    // headers are both folded. The pending header for t1 is emitted before
-    // t2 exists, so 2 pending + 1 completed = 3 max.
-    // NOTE: The document-projector refactor removed same-name-tool folding.
-    // Each tool call now renders its own paragraph.
+    
     let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] list_files"))
@@ -627,7 +609,7 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
         lines
     );
 
-    // Both results must have their evidence rows in the transcript.
+    
     assert!(
         lines.iter().any(|l| l.contains("src/main.rs")),
         "first tool result evidence must be preserved; got:\n{:#?}",
@@ -639,25 +621,21 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
         lines
     );
 
-    // NOTE: same_name_tool_count was removed in the document-projector refactor;
-    // folding behaviour is verified via the history_lines() assertions above.
+    
 }
 
-// -- transcript rendering ----------------------------------------------------
 
 #[test]
 fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
-    // Regression test: the model sends an empty or whitespace-only
-    // AssistantBlock(FinalText) between each tool-call round.  The dedup
-    // tracker must navigate those empty blocks so that identical consecutive
-    // tool calls across rounds are folded.
+    
+    
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("read release workflow".to_string(), &mut ctx);
 
     let input = serde_json::json!({"path": ".github/workflows/release.yml"});
 
-    // Round 1: assistant says "I'll read..." → tool call → tool result
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -673,7 +651,7 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
     );
     mode.on_model_update(tool_result(2, "t1", "name: release"), &mut ctx);
 
-    // Round 2: empty assistant block → identical tool call → same result
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 3,
@@ -689,7 +667,7 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
     );
     mode.on_model_update(tool_result(5, "t2", "name: release"), &mut ctx);
 
-    // Round 3: another empty assistant block → third identical call
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 6,
@@ -725,22 +703,22 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
 
 #[test]
 fn test_substantive_assistant_block_resets_dedup_tracker() {
-    // When the model sends a non-empty assistant text block between tool
-    // calls, the dedup tracker should reset so the next call renders fully.
+    
+    
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("examine files".to_string(), &mut ctx);
 
     let input = serde_json::json!({"path": "src/main.rs"});
 
-    // Round 1
+    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", input.clone()),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
 
-    // Non-empty assistant text resets the tracker
+    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 2,
@@ -751,7 +729,7 @@ fn test_substantive_assistant_block_resets_dedup_tracker() {
         &mut ctx,
     );
 
-    // Round 2: identical tool call, but preceded by substantive text
+    
     mode.on_model_update(
         tool_call_start(3, "t2", "read_file", input.clone()),
         &mut ctx,
@@ -782,7 +760,7 @@ fn test_long_transcript_line_marks_omitted_characters() {
     let mut ctx = setup_ctx();
     mode.on_user_input("task".to_string(), &mut ctx);
 
-    // Simulate a very long transcript line (e.g. large git diff output).
+    
     let long_line = "x".repeat(1024);
     mode.on_model_update(UiUpdate::TranscriptLine(long_line.clone()), &mut ctx);
 
@@ -804,7 +782,7 @@ fn test_edit_loop_lines_rendered_as_transcript() {
     let mut ctx = setup_ctx();
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
-    // Edit loop turn markers must be stored in history.
+    
     mode.on_model_update(
         UiUpdate::TranscriptLine("[edit loop turn 1/6]".to_string()),
         &mut ctx,
@@ -886,7 +864,7 @@ fn test_edit_loop_complete_emits_telemetry_line() {
     let mut ctx = setup_ctx();
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
-    // Simulate server metadata arriving during the edit loop turn.
+    
     mode.turn_started_at = Some(Instant::now());
     mode.ttft = Some(std::time::Duration::from_millis(200));
     if let Some(active) = mode.task_doc.active_turn.as_mut() {
@@ -899,7 +877,7 @@ fn test_edit_loop_complete_emits_telemetry_line() {
         });
     }
 
-    // EditLoopComplete should capture and emit telemetry.
+    
     mode.on_model_update(
         UiUpdate::EditLoopComplete {
             outcome: EditLoopOutcome::Success {
@@ -912,7 +890,7 @@ fn test_edit_loop_complete_emits_telemetry_line() {
     );
 
     let lines = &mode.history_lines();
-    // Must contain the timing summary line.
+    
     assert!(
         lines
             .iter()

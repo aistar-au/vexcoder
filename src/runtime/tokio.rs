@@ -1,6 +1,4 @@
-// Keep common Tokio runtime helpers behind one local seam.
-// Attribute macros such as `#[tokio::test]` still remain direct in tests and
-// binaries because proc-macro call sites are already explicit and stable.
+
 
 pub mod net {
     pub use tokio::net::TcpListener;

@@ -1,5 +1,5 @@
 # ==============================================================================
-# vexcoder — Makefile v0
+# vexapi — Makefile v0
 #
 # Wraps the exact gates that run across ci.yml and arch-contracts.yml,
 # plus the release packaging entrypoint used by release.yml.
@@ -224,9 +224,9 @@ lint:
 # by the dispatcher in the internal devops repo at ../vexdraft relative to this
 # repo root. The dispatcher invokes it as part of the loop cycle before push.
 # This target runs gate-fast only — the local Rust gate. It is intentionally
-# self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
+# self-contained so vexapi's Makefile carries no cross-repo path assumptions.
 #
-# Adjacent local layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
+# Adjacent local layout (required): ~/git-repo/vexapi and ~/git-repo/vexdraft must
 # exist side by side. The dispatcher calls commit-debug.py from vexdraft directly.
 # ------------------------------------------------------------------------------
 commit-debug-gate: gate-fast

@@ -1,9 +1,6 @@
 use std::path::Path;
 
-/// A set of `.gitignore` patterns loaded from the workspace root.
-///
-/// Uses the `ignore` crate's gitignore parser for correct, battle-tested
-/// pattern matching (negation, `**`, character classes, anchoring, etc.).
+
 pub struct WorkspaceIgnore {
     matcher: ignore::gitignore::Gitignore,
 }
@@ -16,8 +13,8 @@ impl Default for WorkspaceIgnore {
 }
 
 impl WorkspaceIgnore {
-    /// Load `.gitignore` from `workspace_root`.  Returns an empty ignore set
-    /// on any read or parse error so the walk always continues safely.
+    
+    
     pub fn load(workspace_root: &Path) -> Self {
         let path = workspace_root.join(".gitignore");
         let mut builder = ignore::gitignore::GitignoreBuilder::new(workspace_root);
@@ -30,8 +27,7 @@ impl WorkspaceIgnore {
         }
     }
 
-    /// Returns `true` when `relative_path` (forward-slash separated, no
-    /// leading slash) should be excluded from a workspace walk.
+    
     pub fn is_ignored(&self, relative_path: &str, is_dir: bool) -> bool {
         self.matcher
             .matched_path_or_any_parents(relative_path, is_dir)
@@ -63,7 +59,7 @@ mod tests {
         let dir = workspace_with("*.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
         assert!(file_ignored(&ign, "error.log"));
-        assert!(file_ignored(&ign, "dir/error.log")); // gitignore *.log matches in subdirs
+        assert!(file_ignored(&ign, "dir/error.log")); 
         assert!(!file_ignored(&ign, "error.rs"));
     }
 

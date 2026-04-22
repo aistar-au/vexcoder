@@ -128,6 +128,6 @@ with the already-implemented Phases 1-4 behavior.
 
 ## References
 
-- [ADR-032](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md) — prompt area interactivity and context guard
-- [ADR-029](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-029-stream-parser-completeness-and-session-persistence.md) — stream parser and session persistence
-- [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator surface UI overhaul
+- [ADR-032](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md) — prompt area interactivity and context guard
+- [ADR-029](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-029-stream-parser-completeness-and-session-persistence.md) — stream parser and session persistence
+- [ADR-031](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator surface UI overhaul

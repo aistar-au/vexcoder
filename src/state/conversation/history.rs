@@ -10,9 +10,7 @@ use crate::types::{ApiMessage, Content, ContentBlock};
 use anyhow::Result;
 use std::time::Duration;
 
-/// Fixed summarization prompt used when building a heuristic compaction summary.
-/// The prompt is intentionally not user-configurable to prevent prompt injection
-/// via config (PM-01 constraint).
+
 const COMPACTION_SUMMARY_PROMPT: &str = "\
 You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary \
 for the next turn. Include: current progress and key decisions made, important \
@@ -45,8 +43,7 @@ impl ConversationManager {
         let len = self.api_messages.len();
         let mut keep_start = len.saturating_sub(max_api_messages);
 
-        // MessagesV1 requires history to begin with a user message.
-        // Additionally, a leading user tool_result is invalid without its preceding assistant tool_use.
+        
         while keep_start < len {
             let message = &self.api_messages[keep_start];
             if message.role == "user" && !message_contains_tool_result(message) {
@@ -111,10 +108,7 @@ impl ConversationManager {
         }
     }
 
-    /// Aggressively compact conversation history after a context-overflow
-    /// error from the server.  Keeps only the last 4 messages (the current
-    /// user message plus the most recent context), ensuring the history
-    /// starts with a plain user message (no tool_result).
+    
     pub(super) fn compact_for_context_overflow(&mut self) {
         const KEEP_MESSAGES: usize = 4;
         if self.api_messages.len() <= KEEP_MESSAGES {
@@ -123,7 +117,7 @@ impl ConversationManager {
         let len = self.api_messages.len();
         let mut keep_start = len.saturating_sub(KEEP_MESSAGES);
 
-        // MessagesV1 requires the first message to be a plain user message.
+        
         while keep_start < len {
             let msg = &self.api_messages[keep_start];
             if msg.role == "user" && !message_contains_tool_result(msg) {
@@ -137,8 +131,7 @@ impl ConversationManager {
         }
     }
 
-    /// Estimate the total token count of the current message history using
-    /// a byte-based heuristic (4 bytes per token).
+    
     pub(super) fn estimate_history_tokens(&self) -> usize {
         self.api_messages
             .iter()
@@ -158,8 +151,7 @@ impl ConversationManager {
             / 4
     }
 
-    /// Check whether proactive compaction should trigger based on the
-    /// configured threshold and an estimated context window size.
+    
     pub(super) fn should_compact_proactively(
         &self,
         config: &CompactionConfig,
@@ -172,15 +164,7 @@ impl ConversationManager {
         self.estimate_history_tokens() > threshold
     }
 
-    /// Run proactive compaction: replace all messages before the most recent
-    /// `keep_recent_turns` turns with a single user message containing
-    /// `summary_text`. Returns the number of messages removed.
-    ///
-    /// If `summary_text` is empty, falls back to the existing
-    /// keep-recent pruning without a summary prefix.
-    ///
-    /// Preserves the MessagesV1 invariant that history starts with a
-    /// plain user message.
+    
     pub(super) fn compact_with_summary(
         &mut self,
         keep_recent_turns: usize,
@@ -191,8 +175,7 @@ impl ConversationManager {
             return 0;
         }
 
-        // Find the boundary: count user messages from the end to find the
-        // start of the most recent `keep_recent_turns` turns.
+        
         let mut user_count = 0usize;
         let mut boundary = 0;
         for i in (0..len).rev() {
@@ -214,9 +197,7 @@ impl ConversationManager {
         let removed = boundary;
         self.api_messages.drain(0..boundary);
 
-        // Fold the summary into the first preserved user message so the
-        // compacted history still starts with a plain user message and does
-        // not create consecutive user-role entries.
+        
         if !summary_text.is_empty()
             && let Some(first_message) = self.api_messages.first_mut()
             && first_message.role == "user"
@@ -229,10 +210,7 @@ impl ConversationManager {
         removed
     }
 
-    /// Run proactive compaction if the threshold is exceeded. Builds a
-    /// heuristic summary from the evicted messages (no LLM call) and calls
-    /// `compact_with_summary`. Returns `Some((messages_before, messages_after, summary))`
-    /// when compaction was performed, or `None` if it was not needed.
+    
     pub(super) fn run_proactive_compaction(
         &mut self,
         context_window_tokens: usize,
@@ -255,17 +233,14 @@ impl ConversationManager {
         Some((messages_before, messages_after, summary))
     }
 
-    /// Condense tool results in messages older than `keep_turns` recent
-    /// message pairs. Each affected tool result keeps its first 5 lines plus
-    /// a `(N more lines)` indicator.
+    
     pub(super) fn condense_old_tool_results(&mut self, keep_turns: usize) {
         let len = self.api_messages.len();
         if len == 0 {
             return;
         }
-        // Count backwards to find the boundary. Each "turn" is roughly a
-        // user message followed by an assistant message, but the exact
-        // interleaving varies. We count user-role messages from the end.
+        
+        
         let mut user_count = 0usize;
         let mut boundary = len;
         for i in (0..len).rev() {
@@ -280,7 +255,7 @@ impl ConversationManager {
         if boundary >= len || boundary == 0 {
             return;
         }
-        // Condense tool results in messages before the boundary.
+        
         for message in &mut self.api_messages[..boundary] {
             if message.role != "user" {
                 continue;
@@ -294,9 +269,8 @@ impl ConversationManager {
                     }
                 }
                 Content::Text(text) => {
-                    // Text-protocol tool results are embedded as
-                    // "tool_result <name>:\n<content>". Condense the content
-                    // portion after each header.
+                    
+                    
                     if text.contains("tool_result ") || text.contains("tool_error ") {
                         *text = condense_text_protocol_tool_results(text);
                     }
@@ -320,8 +294,8 @@ impl ConversationManager {
         };
 
         if name == "read_file" {
-            // read_file_path returns None if the "path" key is absent or non-string.
-            // The fallback "<missing>" is a display-layer decision kept here, not baked into the helper.
+            
+            
             let path = read_file_path(input).unwrap_or_else(|| "<missing>".to_string());
             let summary = self.read_file_history_cache.summarize(&path, output);
             return self.format_read_file_result_for_model_context(&path, output, summary);
@@ -445,9 +419,7 @@ pub(super) fn env_override_usize(key: &str, default: usize, min: usize, max: usi
         .unwrap_or(default)
 }
 
-/// Number of recent user messages to keep at full fidelity.  Tool results
-/// in messages older than this threshold are condensed to their first 5
-/// lines.  Configurable via `VEX_HISTORY_KEEP_TURNS`.
+
 const DEFAULT_HISTORY_KEEP_TURNS: usize = 10;
 const CONDENSED_TOOL_RESULT_LINES: usize = 5;
 const ENRICHED_TOOL_RESULT_PREVIEW_LINES: usize = 5;
@@ -458,10 +430,7 @@ pub(super) fn resolve_history_keep_turns() -> usize {
     env_override_usize("VEX_HISTORY_KEEP_TURNS", DEFAULT_HISTORY_KEEP_TURNS, 2, 64)
 }
 
-/// Truncate a tool result to its first `max_lines` lines, appending a
-/// `(N more lines)` indicator when content is trimmed.  Idempotent: if the
-/// last line already matches the indicator pattern, the text is returned
-/// unchanged.
+
 pub(super) fn truncate_to_lines(text: &str, max_lines: usize) -> String {
     if text
         .lines()
@@ -512,11 +481,7 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
     format!("{head}{indicator}{suffix}")
 }
 
-/// Condense text-protocol tool results. Each result block starts with a
-/// header line like `tool_result read_file:` followed by content lines.
-/// We keep the header and the first `CONDENSED_TOOL_RESULT_LINES` content
-/// lines, appending a `(N more lines)` indicator for the rest.
-/// Idempotent: existing `(N more lines)` indicators are preserved as-is.
+
 fn condense_text_protocol_tool_results(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut content_lines_since_header = 0usize;
@@ -525,7 +490,7 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
 
     for line in text.lines() {
         let is_header = line.starts_with("tool_result ") || line.starts_with("tool_error ");
-        // Idempotency: treat existing indicators as pass-through.
+        
         if line.ends_with("more lines)") && line.starts_with('(') {
             if in_tool_result {
                 out.push('\n');
@@ -724,10 +689,7 @@ fn indent_block(text: &str, indent: &str) -> String {
         .join("\n")
 }
 
-/// Build a heuristic summary from the messages that will be evicted
-/// (everything before the most recent `keep_recent_turns` turns).
-/// Extracts the first line of each user message and the first line of
-/// each assistant response, capped at `max_tokens * 4` bytes.
+
 fn build_heuristic_summary(
     messages: &[ApiMessage],
     keep_recent_turns: usize,
@@ -738,7 +700,7 @@ fn build_heuristic_summary(
         return String::new();
     }
 
-    // Find the boundary the same way compact_with_summary does.
+    
     let mut user_count = 0usize;
     let mut boundary = 0;
     for i in (0..len).rev() {

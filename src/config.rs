@@ -54,8 +54,8 @@ pub struct McpServerConfig {
     pub url: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    /// Per-server connection timeout in seconds.  Falls back to
-    /// `VEX_MCP_TIMEOUT` env var, then the built-in default (30 s).
+    
+    
     pub timeout_secs: Option<u64>,
 }
 
@@ -109,17 +109,17 @@ impl Default for ApiConfig {
     }
 }
 
-/// Proactive conversation compaction configuration.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompactionConfig {
-    /// Whether proactive compaction is enabled. Default: false.
+    
     pub enabled: bool,
-    /// Trigger compaction when estimated token count exceeds this percentage
-    /// of the model context window. Default: 80.
+    
+    
     pub threshold_percent: u8,
-    /// Number of most-recent turns to keep verbatim after compaction. Default: 4.
+    
     pub keep_recent_turns: usize,
-    /// Maximum tokens for the compaction summary message. Default: 1024.
+    
     pub summary_max_tokens: usize,
 }
 
@@ -134,16 +134,13 @@ impl Default for CompactionConfig {
     }
 }
 
-/// Configuration for the automatic memory-extraction feature.
-///
-/// Maps to the `[auto_memory]` section in `.vex/config.toml` or
-/// `~/.config/vex/config.toml`.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoMemoryConfig {
-    /// Whether auto-extraction is active.  Defaults to `false` ΓÇö users must
-    /// opt in explicitly.
+    
+    
     pub enabled: bool,
-    /// Maximum number of notes extracted per turn.  Clamped to `1..=10`.
+    
     pub max_notes_per_turn: usize,
 }
 
@@ -156,12 +153,12 @@ impl Default for AutoMemoryConfig {
     }
 }
 
-/// Per-session undo/checkpoint configuration.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UndoConfig {
-    /// Whether the `/undo` command is available. Default: true.
+    
     pub enabled: bool,
-    /// Maximum number of checkpoints kept in-memory per session. Default: 20.
+    
     pub max_checkpoints: usize,
 }
 
@@ -176,13 +173,13 @@ impl Default for UndoConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchConfig {
-    /// Whether codebase search indexing is enabled.
+    
     pub enabled: bool,
-    /// Rebuild the structural index at session start.
+    
     pub auto_index: bool,
-    /// Workspace-relative path prefixes to exclude from indexing.
+    
     pub exclude: Vec<String>,
-    /// Skip files larger than this byte count (default 1 MiB).
+    
     pub max_file_size: usize,
 }
 
@@ -258,25 +255,15 @@ where
         })
 }
 
-/// Client-side configuration for the same-machine inference API.
-///
-/// Simplifies user configuration to `base_url` only; protocol is discovered
-/// automatically unless `explicit_protocol` is set (ADR-047).
-///
-/// Example TOML fragment:
-/// ```toml
-/// [api_client]
-/// base_url = "http://127.0.0.1:8000"
-/// delta_accumulator_memory_watermark_mb = 512
-/// ```
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ApiClientConfig {
-    /// Server address. Protocol and endpoint path are discovered automatically.
-    /// Only `scheme://host:port` is required (e.g. `http://127.0.0.1:8000`).
+    
+    
     pub base_url: String,
-    /// Optional explicit protocol override. When set, protocol discovery is
-    /// skipped and the selected protocol is used for the entire session.
+    
+    
     #[serde(
         default,
         deserialize_with = "deserialize_api_client_protocol_override",
@@ -284,13 +271,11 @@ pub struct ApiClientConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub explicit_protocol: Option<ModelProtocol>,
-    /// Timeout budget in milliseconds for each protocol-discovery probe.
-    /// The client probes `/v1/messages` and `/v1/chat/completions` separately;
-    /// this ceiling applies to each individual request.
+    
+    
     pub probe_timeout_ms: u64,
-    /// Memory ceiling for the delta accumulator in mebibytes (default: 256).
-    /// When the in-flight tool-delta map exceeds this threshold, the oldest
-    /// pending entry is evicted to stay within the bound.
+    
+    
     pub delta_accumulator_memory_watermark_mb: usize,
 }
 
@@ -306,7 +291,7 @@ impl Default for ApiClientConfig {
 }
 
 impl ApiClientConfig {
-    /// Returns the watermark in bytes for use with [`DeltaAccumulator`](crate::runtime::delta_accumulator::DeltaAccumulator).
+    
     pub fn delta_accumulator_memory_watermark_bytes(&self) -> usize {
         self.delta_accumulator_memory_watermark_mb
             .saturating_mul(1024 * 1024)
@@ -325,11 +310,11 @@ pub struct Config {
     pub tool_call_mode: ToolCallMode,
     pub tool_policy: ToolPolicy,
     pub model_profile: ModelProfile,
-    /// Estimated token budget for project instructions injection (byte len / 4).
-    /// Controlled by `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`. Default: 4096.
+    
+    
     pub max_project_instructions_tokens: usize,
-    /// Estimated token budget for notes injection (byte len / 4).
-    /// Controlled by `VEX_MAX_MEMORY_TOKENS`. Default: 2048.
+    
+    
     pub max_memory_tokens: usize,
     pub sandbox: SandboxConfig,
     #[serde(skip)]
@@ -347,21 +332,20 @@ pub struct Config {
     pub undo: UndoConfig,
     pub search: SearchConfig,
     pub auto_memory: AutoMemoryConfig,
-    /// Client-side API configuration: `base_url`, optional protocol override,
-    /// and delta-accumulator memory watermark.  Discovery runs automatically
-    /// when `explicit_protocol` is not set (ADR-047).
+    
+    
     #[serde(default)]
     pub api_client: ApiClientConfig,
-    /// Set by `-f/--force-unstable-alignment`. Enables session-wide or task-wide
-    /// auto-approval for the current process.
+    
+    
     #[serde(skip)]
     pub force: bool,
-    /// Set by `-b/--bypass-integrity-locks`. Disables durable-state disk-policy
-    /// enforcement for the current process.
+    
+    
     #[serde(skip)]
     pub bypass_policy: bool,
-    /// Set by `-e/--expand-sector-view`. Expands inferred related-path and
-    /// directory scan limits for context assembly.
+    
+    
     #[serde(skip)]
     pub expand_context: bool,
 }
@@ -383,8 +367,7 @@ pub struct DoctorMcpServer {
     pub url: Option<String>,
 }
 
-/// Intermediate per-layer config built from a TOML file.
-/// `deny_unknown_fields` ensures any unrecognized key is an immediate failure.
+
 #[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ConfigLayer {
@@ -453,44 +436,28 @@ struct DoctorConfigLayer {
 }
 
 impl Config {
-    /// Load config from the five-layer resolution chain.
-    ///
-    /// Precedence (highest ΓåÆ lowest):
-    ///   environment > repo-scoped `.vex/config.toml` > user > system > compiled defaults
-    ///
-    /// Repo-scoped discovery walks ancestors of `std::env::current_dir()`.
-    /// Missing files are silently ignored. Malformed TOML, unknown keys,
-    /// invalid enum values, and `model_token` in any file are immediate failures
-    /// with file-path context in the error message.
+    
+    
     pub fn load() -> Result<Self> {
         load::load()
     }
 
-    /// Load config using an explicit workspace cwd instead of the process cwd.
+    
     pub(crate) fn load_from_cwd(cwd: &Path) -> Result<Self> {
         load::load_from_cwd(cwd)
     }
 
-    /// Load config with process-level caching (ADR-038).
-    ///
-    /// First call runs the full five-layer resolution chain.
-    /// Subsequent calls return a clone of the cached value.
+    
     pub fn load_cached() -> Result<Self> {
         cache::load_cached()
     }
 
-    /// Test-only helper. Accepts explicit user and system config paths so
-    /// tests can inject fixtures without touching the operator's real home
-    /// directory or `/etc`. Repo-scoped config is still discovered by walking
-    /// ancestors of `cwd`.
+    
     pub fn load_for_tests(cwd: &Path, user: Option<&Path>, system: Option<&Path>) -> Result<Self> {
         load::load_for_tests(cwd, user, system)
     }
 
-    /// Sensible defaults for interactive TUI startup ΓÇö used when no config
-    /// file or environment variables are present.  Avoids the full five-layer
-    /// resolution chain so callers that already hold a `Config` (e.g. tests)
-    /// can build a `TuiMode` without side-effects.
+    
     pub fn default_for_tui() -> Self {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {

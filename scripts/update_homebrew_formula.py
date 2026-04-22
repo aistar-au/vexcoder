@@ -31,7 +31,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-REPO = "aistar-au/vexcoder"
+REPO = "aistar-au/vexapi"
 FORMULA_TEMPLATE = Path(__file__).parent.parent / "packaging" / "homebrew" / "vex.rb"
 
 PLACEHOLDER_MAP = {

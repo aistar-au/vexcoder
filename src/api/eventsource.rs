@@ -1,9 +1,4 @@
-//! Reqwest-backed EventSource bridge.
-//!
-//! The upstream streaming endpoints require `POST` request bodies, so this
-//! module intentionally uses EventSource framing without the browser
-//! `GET`-only interface contract. Reconnect is disabled because retrying a
-//! non-idempotent streamed generation request would duplicate work and billing.
+
 
 mod non_stream;
 

@@ -1,8 +1,4 @@
-//! SSE framing for the local API server.
-//!
-//! The server emits accepted RuntimeEnvelope JSON as ordinary
-//! `text/event-stream` data frames. Event IDs remain intentionally omitted
-//! pending future resumable replay support.
+
 
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::{Stream, StreamExt};

@@ -84,7 +84,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn bind_unix_listener_applies_0600_permissions() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let socket_path = temp.path().join("vexcoder.sock");
+        let socket_path = temp.path().join("vexapi.sock");
 
         let listener = bind_unix_listener(&socket_path).expect("bind unix listener");
         let mode = std::fs::metadata(&socket_path)

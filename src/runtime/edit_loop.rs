@@ -90,7 +90,7 @@ impl EditLoop {
         ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
-        // Workspace-dirty warning: alert if there are uncommitted changes before edits land.
+        
         match Self::check_workspace_dirty(&self.working_dir, &[]) {
             Ok(true) => {
                 ctx.emit_transcript_line(
@@ -106,7 +106,7 @@ impl EditLoop {
             }
         }
 
-        // Core assemble → model → apply → validate → retry cycle.
+        
         let root = self.working_dir.clone();
         let validation_suite = ValidationSuite::load_or_infer(&root);
         let runner = DefaultCommandRunner::new();
@@ -117,11 +117,10 @@ impl EditLoop {
                 return Ok(EditLoopOutcome::Cancelled);
             }
 
-            // Yield between turns so the TUI, tests, and other tasks can
-            // observe intermediate state (e.g. system-prompt injection).
+            
             tokio::task::yield_now().await;
 
-            // Assemble: instruction + validation retry context (if any).
+            
             let message = if retry_context.is_empty() {
                 instruction.clone()
             } else {
@@ -130,7 +129,7 @@ impl EditLoop {
 
             ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
 
-            // Model: drive a full tool-loop turn (read/edit/write/command).
+            
             let patch_applied = match ctx.drive_edit_turn(message).await {
                 Ok(turn_result) => turn_result.patch_applied,
                 Err(err) => {
@@ -152,7 +151,7 @@ impl EditLoop {
                 continue;
             }
 
-            // Validate: run the project validation suite concurrently.
+            
             ctx.emit_transcript_line("[edit loop: running validation]".to_string());
             let validation_result = validation_suite
                 .run_in_dir_with_sandbox(&runner, &self.sandbox, Some(&root))
@@ -168,7 +167,7 @@ impl EditLoop {
                     });
                 }
             } else {
-                // Retry: format failure output as context for the next turn.
+                
                 retry_context = validation_suite.format_for_retry(&validation_result);
                 ctx.emit_transcript_line("[edit loop: validation failed, retrying]".to_string());
             }

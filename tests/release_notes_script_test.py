@@ -58,7 +58,7 @@ class RenderNotesTests(unittest.TestCase):
         with mock.patch.object(MODULE, "get_release_date", return_value="2026-04-02"):
             notes = MODULE.render_release_notes(
                 "nightly",
-                "aistar-au/vexcoder",
+                "aistar-au/vexapi",
                 "v0.1.0-rc.8",
                 [("feat: auto-tag on merge", "bfb531d")],
             )
@@ -72,7 +72,7 @@ class RenderNotesTests(unittest.TestCase):
         with mock.patch.object(MODULE, "get_release_date", return_value="2026-04-02"):
             notes = MODULE.render_release_notes(
                 "bfb531d",
-                "aistar-au/vexcoder",
+                "aistar-au/vexapi",
                 "v0.1.0-rc.8",
                 [("ci: update workflow", "abc1234")],
             )

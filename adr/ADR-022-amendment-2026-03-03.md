@@ -11,10 +11,10 @@
 ### Decision item 1 — amended
 
 **Before:**
-> `vexcoder` remains cli-agent-first, not editor-first.
+> `vexapi` remains cli-agent-first, not editor-first.
 
 **After:**
-> `vexcoder` is cli-agent-first for phase 1. The cli runtime is the primary execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for phase 1 and must not be allowed to drive architectural changes to the runtime core.
+> `vexapi` is cli-agent-first for phase 1. The cli runtime is the primary execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for phase 1 and must not be allowed to drive architectural changes to the runtime core.
 
 ### Decision item 11 — added
 
@@ -32,7 +32,7 @@
 
 ## Rationale
 
-The original wording was written to prevent scope creep during phase 1, which was the correct intent. However, permanently ruling out native packaging and editor surfaces would make `vexcoder` harder to distribute and adopt — both of which are required for it to function as a viable, self-hostable coding agent whose dependency chain carries no per-call licensing fee or royalty obligation.
+The original wording was written to prevent scope creep during phase 1, which was the correct intent. However, permanently ruling out native packaging and editor surfaces would make `vexapi` harder to distribute and adopt — both of which are required for it to function as a viable, self-hostable coding agent whose dependency chain carries no per-call licensing fee or royalty obligation.
 
 This amendment preserves the sequencing intent (cli core first, packaging layers second) while leaving room for:
 

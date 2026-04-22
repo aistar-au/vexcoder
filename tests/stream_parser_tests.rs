@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
-use vexcoder::api::stream::StreamParser;
-use vexcoder::runtime::RuntimeEvent;
-use vexcoder::state::StreamBlock;
+use vexapi::api::stream::StreamParser;
+use vexapi::runtime::RuntimeEvent;
+use vexapi::state::StreamBlock;
 
 #[test]
 fn test_messages_v1_message_start_event_parsed() {

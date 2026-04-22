@@ -69,7 +69,7 @@ struct CapabilityTable {
 impl FileApprovalPolicy {
     fn default_rules() -> HashMap<Capability, PolicyAction> {
         let mut rules = HashMap::new();
-        // Default policy: ReadFile -> Allow, all others -> Prompt(Once)
+        
         rules.insert(Capability::ReadFile, PolicyAction::Allow);
         rules.insert(
             Capability::WriteFile,
@@ -163,7 +163,7 @@ impl ApprovalPolicy for FileApprovalPolicy {
     }
 }
 
-/// Load policy from VEX_POLICY_FILE env var (default: .vex/policy.toml)
+
 pub fn load_policy_from_env() -> FileApprovalPolicy {
     let policy_path =
         std::env::var("VEX_POLICY_FILE").unwrap_or_else(|_| ".vex/policy.toml".to_string());

@@ -70,7 +70,7 @@ fn test_max_checkpoint_eviction() {
             previous_content: None,
         });
     }
-    // Only 3 remain (tools 2, 3, 4); oldest were evicted.
+    
     assert_eq!(mgr.undo_stack_len(), 3);
 
     let cp = mgr.pop_undo_checkpoint().unwrap();
@@ -175,7 +175,7 @@ fn test_checkpoint_with_none_content() {
         cleanup_path: None,
         previous_content: None,
     };
-    // None means the file did not exist before the mutation
+    
     assert!(cp.previous_content.is_none());
     assert_eq!(cp.tool_name, "write_file");
 }

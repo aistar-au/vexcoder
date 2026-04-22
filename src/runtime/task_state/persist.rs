@@ -101,7 +101,7 @@ fn visit_state_files_in_dir(dir: &Path, mut visit: impl FnMut(TaskStateFile)) {
     }
 }
 
-/// Delegates to [`crate::util::write_json_safe`].
+
 fn write_pretty_json_safe(path: &Path, value: &TaskState, label: &str) -> Result<()> {
     crate::util::write_json_safe(path, value, label)
 }
@@ -186,12 +186,7 @@ impl TaskState {
         )
     }
 
-    /// Return up to `limit` task-state files (newest by filesystem mtime).
-    ///
-    /// When `limit` is `None`, falls back to `StartupBudget::default().max_scans`
-    /// so no call site can accidentally materialise an unbounded directory buffer.
-    /// All paths stream directory entries directly into the in-memory top-k
-    /// selector via `insert_bounded_state_file`.
+    
     pub fn state_files_from_with_limit(
         working_dir: &Path,
         limit: Option<usize>,
@@ -238,8 +233,7 @@ impl TaskState {
         for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
             let path = file.dir.join(format!("{}.json", file.id));
 
-            // Header pass: check whether this file could contain the target
-            // session task before paying the cost of a full TaskState::load().
+            
             let header = match cached_task_header(&path) {
                 Some(h) => h,
                 None => {
@@ -252,12 +246,9 @@ impl TaskState {
                 }
             };
 
-            // The session task id format is "{parent_task_id}-{agent_id}-{uuid}"
-            // (see SessionTask::new). A file is a candidate when its header lists
-            // a session task whose composite id matches, or when session_tasks
-            // is None (pre-ADR-034 file: fall through to full load to be safe).
+            
             let is_candidate = match &header.session_tasks {
-                None => true, // legacy file: always check
+                None => true, 
                 Some(tasks) => tasks.iter().any(|t| {
                     session_task_id.starts_with(&format!("{}-{}-", header.id, t.agent_id))
                 }),
@@ -267,7 +258,7 @@ impl TaskState {
                 continue;
             }
 
-            // Full load only on the candidate file.
+            
             let state = Self::load(&file.dir, &file.id)?;
             if let Some(task) = state.session_task(session_task_id).cloned() {
                 return Ok(Some((state, task)));
@@ -676,8 +667,7 @@ mod tests {
         assert!(!counts.contains_key("repo-reviewer"));
     }
 
-    // --- ADR-038 amendment: bounded scan + header-projection tests ---
-
+    
     #[test]
     fn state_files_from_with_limit_returns_newest_n() {
         use filetime::{FileTime, set_file_mtime};
@@ -686,7 +676,7 @@ mod tests {
         let state_dir = dir.path().join(".vex/state");
         std::fs::create_dir_all(&state_dir).unwrap();
 
-        // Write 5 task files with distinct mtimes
+        
         for i in 0..5u32 {
             let id = format!("scan-task-{i}");
             let state = TaskState::new(id.clone());
@@ -703,7 +693,7 @@ mod tests {
         crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         assert_eq!(files.len(), 3);
-        // Newest first
+        
         assert_eq!(files[0].id, "scan-task-4");
         assert_eq!(files[1].id, "scan-task-3");
         assert_eq!(files[2].id, "scan-task-2");
@@ -727,7 +717,7 @@ mod tests {
         let with_explicit = TaskState::state_files_from(dir.path());
         crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
-        // Both paths now use the same bounded selector; results must match.
+        
         assert_eq!(with_none.len(), with_explicit.len());
         assert_eq!(with_none.len(), 4);
     }
@@ -739,7 +729,7 @@ mod tests {
         let state_dir = dir.path().join(".vex/state");
         std::fs::create_dir_all(&state_dir).unwrap();
 
-        // Write a task with a session task so we have something to find.
+        
         let mut root = TaskState::new("legacy-root".to_string());
         let session_task = SessionTask::new("legacy-root", "bot", "do work", None);
         let expected_id = session_task.id.clone();

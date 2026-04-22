@@ -2,29 +2,25 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-/// Categorizes filesystem access per ADR-038 Memory-First Architecture.
-///
-/// Persistent disk I/O is permitted only for search index and task state.
-/// Everything else (config, file rollups, git summaries, conversation
-/// history) must be RAM-resident after first load.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskPermission {
-    /// Codebase search/index persistence (`.vex/index/`).
+    
     SearchIndex,
-    /// Task state map JSONs (`.vex/state/*.json`).
+    
     TaskStateMap,
-    /// Path does not match any permitted disk-I/O category.
+    
     Forbidden,
 }
 
-/// Controls how forbidden disk access is handled at runtime.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskPolicyMode {
-    /// No enforcement (default).
+    
     Off,
-    /// Log a warning on forbidden access.
+    
     Warn,
-    /// Panic on forbidden access (CI gate via `VEX_DISK_POLICY=strict`).
+    
     Strict,
 }
 
@@ -39,7 +35,7 @@ fn current_process_policy_override() -> Option<DiskPolicyMode> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Override the disk policy mode for the current process.
+
 pub fn set_process_policy_override(mode: Option<DiskPolicyMode>) {
     let mut guard = process_policy_override()
         .lock()
@@ -47,7 +43,7 @@ pub fn set_process_policy_override(mode: Option<DiskPolicyMode>) {
     *guard = mode;
 }
 
-/// Enforce the ADR-038 disk policy for a path under an explicit mode.
+
 pub fn enforce(path: &Path, mode: DiskPolicyMode) -> Result<DiskPermission> {
     let permission = check_path(path);
     if permission != DiskPermission::Forbidden {
@@ -69,23 +65,23 @@ pub fn enforce(path: &Path, mode: DiskPolicyMode) -> Result<DiskPermission> {
     }
 }
 
-/// Enforce the ADR-038 disk policy for a path using the current process mode.
+
 pub fn enforce_runtime(path: &Path) -> Result<DiskPermission> {
     enforce(path, resolve_policy_mode())
 }
 
-/// Classify a path according to the ADR-038 disk permission model.
+
 pub fn check_path(path: &Path) -> DiskPermission {
-    // Fast path: component-based match (works when the OS treats the separator
-    // natively, i.e. backslash on Windows, forward-slash everywhere).
+    
+    
     for component in path.components() {
         let segment = component.as_os_str().to_string_lossy();
         if segment == ".vex" {
             return classify_vex_subpath(path);
         }
     }
-    // Fallback: string-based match handles paths that embed the non-native
-    // separator (e.g. a Windows-style `.vex\index\…` string processed on Unix).
+    
+    
     let lossy = path.to_string_lossy();
     if lossy.contains(".vex\\") || lossy.contains(".vex/") {
         return classify_vex_subpath(path);
@@ -107,7 +103,7 @@ fn classify_vex_subpath(path: &Path) -> DiskPermission {
     DiskPermission::Forbidden
 }
 
-/// Resolve the disk policy mode from the process override or `VEX_DISK_POLICY`.
+
 pub fn resolve_policy_mode() -> DiskPolicyMode {
     if let Some(mode) = current_process_policy_override() {
         return mode;
@@ -223,7 +219,7 @@ mod tests {
 
     #[test]
     fn index_prefix_without_separator_is_forbidden() {
-        // Regression: ".vex/indexing.txt" must NOT match SearchIndex.
+        
         assert_eq!(
             check_path(&PathBuf::from(".vex/indexing.txt")),
             DiskPermission::Forbidden,
@@ -236,7 +232,7 @@ mod tests {
 
     #[test]
     fn state_prefix_without_separator_is_forbidden() {
-        // Symmetric check: ".vex/stateful.bin" must NOT match TaskStateMap.
+        
         assert_eq!(
             check_path(&PathBuf::from(".vex/stateful.bin")),
             DiskPermission::Forbidden,

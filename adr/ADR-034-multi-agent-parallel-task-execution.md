@@ -241,7 +241,7 @@ This ADR does not:
 ## Implementation notes (debug-pass fixes — PR #234)
 
 A debug-pass analysis of the Phase B-E baseline identified nine observations
-patched in `work/vexcoder-debug-pass-fixes` (commit `0ba8351`):
+patched in `work/vexapi-debug-pass-fixes` (commit `0ba8351`):
 
 In the 2026-03-26 remaining-work inventory, PR `#234` is one of the four Tier 2
 open PRs and serves as the ADR-034 follow-up hardening batch on top of the

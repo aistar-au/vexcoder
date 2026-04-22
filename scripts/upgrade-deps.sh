@@ -69,7 +69,7 @@ Review these local seams when an upgraded crate needs source changes:
     sites listed under [workspace.metadata.upgrade-seams] in Cargo.toml
   - arboard: src/clipboard.rs, src/app/commands/session.rs
   - serde: derives and #[serde(...)] attributes stay next to their owning
-    types; review src/** and crates/vexcoder-api-types/src/lib.rs directly
+    types; review src/** and crates/vexapi-types/src/lib.rs directly
   - rust / MSRV: update package.rust-version and CI toolchain declarations
     together
   - quick-xml: src/state/conversation/tool_call_parser.rs

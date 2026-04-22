@@ -1,6 +1,6 @@
 # PR 348 — Transcript-First Audit TODO
 
-Branch: `work/vexcoder-tool-call-ratatui-overhaul`
+Branch: `work/vexapi-tool-call-ratatui-overhaul`
 Head: `50995ce479eb6396aae896c5feb08a646e36d71f`
 
 This note records the audited state of PR 348 after the transcript-first

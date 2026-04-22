@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress — PR #349 (`work/vexcoder-task-document-pr1`) introduces the
+In progress — PR #349 (`work/vexapi-task-document-pr1`) introduces the
 accepted `TaskDocument` runtime module rooted at `src/runtime/task_document.rs`
 with focused submodules in `src/runtime/task_document/{model,condenser,task_state_bridge,tests}.rs`.
 All core types (`TaskDocument`, `TaskInfo`, `ActiveTurnDocument`,

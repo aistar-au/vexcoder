@@ -279,7 +279,7 @@ async fn test_release_session_task_route_returns_not_found_for_unknown_id() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/session_task_not_found".to_string()
+            "https://aistar-au.github.io/vexapi/problems/session_task_not_found".to_string()
         ))
     );
     assert_eq!(payload.get("status"), Some(&Value::Number(404u64.into())));
@@ -373,7 +373,7 @@ async fn test_http_router_rejects_invalid_bearer_token() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/unauthorized".to_string()
+            "https://aistar-au.github.io/vexapi/problems/unauthorized".to_string()
         ))
     );
     assert_eq!(payload.get("status"), Some(&Value::Number(401u64.into())));
@@ -411,7 +411,7 @@ async fn test_turns_invalid_request_uses_problem_details_content_type() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/invalid_request_type".to_string()
+            "https://aistar-au.github.io/vexapi/problems/invalid_request_type".to_string()
         ))
     );
 }
@@ -871,7 +871,7 @@ async fn test_interrupt_handler_returns_not_found_for_unknown_task() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/task_not_found".to_string()
+            "https://aistar-au.github.io/vexapi/problems/task_not_found".to_string()
         ))
     );
     assert_eq!(content_type.as_deref(), Some("application/problem+json"));
@@ -916,7 +916,7 @@ async fn test_approve_handler_returns_not_found_for_unknown_task() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/task_not_found".to_string()
+            "https://aistar-au.github.io/vexapi/problems/task_not_found".to_string()
         ))
     );
     assert_eq!(content_type.as_deref(), Some("application/problem+json"));
@@ -982,7 +982,7 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
     assert_eq!(
         payload.get("type"),
         Some(&Value::String(
-            "https://aistar-au.github.io/vexcoder/problems/no_pending_approval".to_string()
+            "https://aistar-au.github.io/vexapi/problems/no_pending_approval".to_string()
         ))
     );
     assert_eq!(content_type.as_deref(), Some("application/problem+json"));

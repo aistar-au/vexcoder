@@ -34,8 +34,8 @@ done
 
 # ADR-028: CLI binary must not import the transport layer directly.
 if [ -f src/bin/vex.rs ]; then
-    if grep -n 'vexcoder::server' src/bin/vex.rs; then
-        echo "FAIL: src/bin/vex.rs imports vexcoder::server directly — use crate-root re-export (ADR-028)"
+    if grep -n 'vexapi::server' src/bin/vex.rs; then
+        echo "FAIL: src/bin/vex.rs imports vexapi::server directly — use crate-root re-export (ADR-028)"
         FAIL=1
     fi
 fi

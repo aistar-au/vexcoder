@@ -48,7 +48,7 @@ fn test_config_allows_private_network_http_model_url() {
     let _name = EnvRestore::capture(&_lock, "VEX_MODEL_NAME");
     let _token = EnvRestore::capture(&_lock, "VEX_MODEL_TOKEN");
 
-    // LAN-reachable model server on a private RFC 1918 address
+    
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://192.168.1.100:11434/v1");
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_NAME", "local-model");
     crate::test_support::test_remove_var(&_lock, "VEX_MODEL_TOKEN");
@@ -690,9 +690,6 @@ fn test_model_profile_loaded_from_layered_config() {
     assert_eq!(cfg.tool_call_mode, cfg.model_profile.tool_call_mode());
 }
 
-// ---------------------------------------------------------------------------
-// TOML file layer validation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_unknown_toml_key_is_rejected() {
@@ -845,9 +842,6 @@ fn test_invalid_api_transport_in_config_file_is_rejected() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Layer merge precedence (system < user < repo-local < env)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_user_layer_overrides_system_layer() {
@@ -915,9 +909,6 @@ fn test_env_layer_overrides_repo_layer() {
     assert_eq!(cfg.model_name, "env-model");
 }
 
-// ---------------------------------------------------------------------------
-// Repo-local config rejection (notes_path, hooks, mcp_servers)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_repo_local_notes_path_is_rejected() {
@@ -1003,9 +994,6 @@ fn test_system_mcp_servers_are_rejected() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// MCP server validation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_mcp_server_duplicate_name_is_rejected() {
@@ -1221,14 +1209,11 @@ fn test_valid_mcp_http_server_loads() {
     assert!(cfg.mcp_servers[0].command.is_none());
 }
 
-// ---------------------------------------------------------------------------
-// Protocol and backend inference
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_infer_model_protocol_messages_v1_for_completions_url() {
-    // messages-v1 is the default regardless of the URL path; ChatCompat is
-    // only active when explicitly configured or detected by server probing.
+    
+    
     assert_eq!(
         super::infer_model_protocol("https://api.example.internal/v1/chat/completions"),
         crate::runtime::ModelProtocol::MessagesV1
@@ -1237,8 +1222,8 @@ fn test_infer_model_protocol_messages_v1_for_completions_url() {
 
 #[test]
 fn test_infer_model_protocol_messages_v1_for_v1_url() {
-    // /v1 suffix now defaults to messages-v1; poll_server_info() overrides to
-    // ChatCompat at session start when the server only exposes chat/completions.
+    
+    
     assert_eq!(
         super::infer_model_protocol("https://api.example.internal/v1"),
         crate::runtime::ModelProtocol::MessagesV1
@@ -1301,9 +1286,6 @@ fn test_default_tool_call_mode_structured_for_remote() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Config resolution defaults
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_empty_config_resolves_compiled_defaults() {
@@ -1342,9 +1324,6 @@ fn test_working_dir_defaults_to_cwd() {
     assert_eq!(cfg.working_dir, cwd);
 }
 
-// ---------------------------------------------------------------------------
-// Ancestor walk for repo-local config
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_find_repo_local_config_walks_ancestors() {
@@ -1370,9 +1349,6 @@ fn test_find_repo_local_config_walks_ancestors() {
     assert_eq!(cfg.model_name, "ancestor-found");
 }
 
-// ---------------------------------------------------------------------------
-// Env var edge cases
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_empty_env_model_token_is_treated_as_absent() {
@@ -1512,9 +1488,6 @@ fn test_http_hook_loaded_from_user_config() {
     assert_eq!(config.http_hooks[0].tool, "apply_patch");
 }
 
-// ---------------------------------------------------------------------------
-// Transposed /messages/v1 URL inference
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_infer_model_protocol_messages_v1_for_transposed_messages_v1_url() {

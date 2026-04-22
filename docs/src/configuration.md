@@ -270,7 +270,7 @@ Bearer token for authenticated endpoints.
 Lookup order for authenticated endpoints:
 
 1. `VEX_MODEL_TOKEN` when it is set and non-empty
-2. OS credential store entry `service = "vexcoder"`, `account = "model-token"`
+2. OS credential store entry `service = "vexapi"`, `account = "model-token"`
 
 The credential-store fallback is disabled when `VEX_KEYRING_DISABLED=1`.
 The current build uses platform-native credential stores.
@@ -352,7 +352,7 @@ not already present.
 Example:
 
 ```bash
-export VEX_MODEL_HEADERS_JSON='{"X-Client-Id":"vexcoder"}'
+export VEX_MODEL_HEADERS_JSON='{"X-Client-Id":"vexapi"}'
 ```
 
 ### `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`

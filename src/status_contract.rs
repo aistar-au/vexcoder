@@ -7,7 +7,7 @@ pub enum StatusTone {
 }
 
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
-/// Accepted completed-status label shown after the model finishes a turn.
+
 pub const RESPONSE_COMPLETE: &str = "Response complete.";
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 
@@ -38,9 +38,8 @@ fn is_waiting_placeholder(line: &str) -> bool {
     ) {
         return true;
     }
-    // Match the formatted waiting status with elapsed time and progress
-    // counters appended by format_waiting_status() (e.g.
-    // "[thinking] Mapping adjacent sectors... 2.5s | ↑:512/2641").
+    
+    
     line.starts_with(WAITING_FOR_RESPONSE_LINE)
 }
 

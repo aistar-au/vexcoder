@@ -263,8 +263,8 @@ Facade integration tests (`src/app/task_facade/tests.rs`):
 
 ## References
 
-- [ADR-034](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-034-multi-agent-parallel-task-execution.md) — multi-agent parallel task execution
-- [ADR-025](https://github.com/aistar-au/vexcoder/blob/main/adr/completed/ADR-025-runtime-json-handoff-contract.md) — runtime JSON handoff contract
-- [ADR-028](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-028-application-facade-and-transport-boundaries.md) — application facade and transport boundaries
-- [ADR-038](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md) — memory-first architecture with minimal disk I/O
-- [ADR-045](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-045-replay-first-task-document-and-single-writer-state.md) — replay-first task document and single-writer state
+- [ADR-034](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-034-multi-agent-parallel-task-execution.md) — multi-agent parallel task execution
+- [ADR-025](https://github.com/aistar-au/vexapi/blob/main/adr/completed/ADR-025-runtime-json-handoff-contract.md) — runtime JSON handoff contract
+- [ADR-028](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-028-application-facade-and-transport-boundaries.md) — application facade and transport boundaries
+- [ADR-038](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md) — memory-first architecture with minimal disk I/O
+- [ADR-045](https://github.com/aistar-au/vexapi/blob/main/adr/ADR-045-replay-first-task-document-and-single-writer-state.md) — replay-first task document and single-writer state

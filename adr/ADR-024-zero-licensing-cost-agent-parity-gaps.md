@@ -17,18 +17,18 @@ ADR-022 covers command execution, diff-native writes, capability-based approval,
 
 ## Context
 
-ADR-022 locked the first-release roadmap for `vexcoder` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals the following gaps.
+ADR-022 locked the first-release roadmap for `vexapi` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals the following gaps.
 
 ### Dependency licensing constraint
 
-Every direct dependency of `vexcoder` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. Crates introduced directly by this ADR: `clap_complete` (Gap 6, MIT/Apache 2.0). All satisfy the constraint. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is not allowed without a dedicated ADR recording an explicit exception and its legal basis.
+Every direct dependency of `vexapi` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. Crates introduced directly by this ADR: `clap_complete` (Gap 6, MIT/Apache 2.0). All satisfy the constraint. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is not allowed without a dedicated ADR recording an explicit exception and its legal basis.
 
 **Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — a container runtime (licensed under MIT in the reference setup, used by `ContainerSandbox`), npm-distributed MCP server packages (licenses vary per package), a package-manager tap ecosystem (BSD 2-Clause in the reference setup), and CI-platform workflow tooling (license varies per component). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
 
 - **Container runtime (`ContainerSandbox`):** the reference container runtime is licensed under MIT in the reference setup, while some desktop distributions have separate commercial terms for certain business uses. The ADR does not bundle any container runtime; operators install it independently. Documentation must note that operators are responsible for verifying the licensing terms of the specific distribution they use.
-- **MCP server packages:** The `[[mcp_servers]]` config allows operators to configure arbitrary npm packages as tool servers. `vexcoder` makes no representation about the licenses of third-party MCP packages. Documentation must note that operators are responsible for verifying the license of any MCP server package they configure.
+- **MCP server packages:** The `[[mcp_servers]]` config allows operators to configure arbitrary npm packages as tool servers. `vexapi` makes no representation about the licenses of third-party MCP packages. Documentation must note that operators are responsible for verifying the license of any MCP server package they configure.
 - **CI tooling (CI platform workflows, cross-compilation tool, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations. **mingw runtime library exception:** the mingw runtime libraries (`libgcc`, `libwinpthread`) are distributed under the GCC Runtime Library Exception, which explicitly permits static linking into permissively-licensed binaries without copyleft propagation. No licensing obligation is imposed on the distributed `vex` binary by the mingw toolchain.
-- **Package-manager tap:** The tap formula is maintained under the same license as the `vexcoder` repository.
+- **Package-manager tap:** The tap formula is maintained under the same license as the `vexapi` repository.
 
 ### Gaps addressed by this ADR
 
@@ -113,7 +113,7 @@ implementation, documentation, user-facing copy, pane labels, screenshots,
 icons, keybinding summaries, layout ratios, or source code may be copied,
 closely paraphrased, or visually derived from external products.
 
-Shipped behavior must be derived from `vexcoder` runtime contracts,
+Shipped behavior must be derived from `vexapi` runtime contracts,
 task-state requirements, renderer tests, and the repository's own operator
 language decisions. External products may be used only as neutral category
 anchors such as transcript-first layout, compact footer budgeting,
@@ -279,7 +279,7 @@ Add `vex completions <shell>` using `clap_complete`. Supported shells: `bash`, `
 
 ### Gap 7 — Git Commit Attribution
 
-Add `vex install-hooks` that writes a `prepare-commit-msg` hook to `.git/hooks/`. When a `vex` task has recorded changed files in the active `TaskState`, the hook appends a `Co-authored-by: vexcoder <vexcoder@localhost>` trailer and a `Vex-Task-Id: <task_id>` trailer to the commit message. The hook is a minimal POSIX shell script with no external dependencies beyond `git`. `vex uninstall-hooks` removes it. Hook installation is opt-in and never automatic.
+Add `vex install-hooks` that writes a `prepare-commit-msg` hook to `.git/hooks/`. When a `vex` task has recorded changed files in the active `TaskState`, the hook appends a `Co-authored-by: vexapi <vexapi@localhost>` trailer and a `Vex-Task-Id: <task_id>` trailer to the commit message. The hook is a minimal POSIX shell script with no external dependencies beyond `git`. `vex uninstall-hooks` removes it. Hook installation is opt-in and never automatic.
 
 ---
 
@@ -328,7 +328,7 @@ A native macOS application under `packaging/macos/` that:
 
 This constraint applies to Phase H specifically. It does not rule out a future native macOS client that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` (see Phase I below). That path involves adding a new `RuntimeMode` implementation to `src/` — which is an intended use of the runtime module API — and a native macOS client that connects to it over a local socket or scoped TCP interface. The architectural relationship is the same as any API client to a local server; the network path may stay private IPC or extend across a LAN, but the interface contract is identical. Phase I is specified in ADR-026 and is implemented in `src/local_api.rs`.
 
-**OS-vendor API licensing note (Phase H):** `Security.framework` (keychain access) and `xcrun notarytool` (notarisation) are Apple proprietary APIs available under Apple's macOS SDK terms. Their use in the Phase H packaging layer imposes no additional licensing obligation on the Rust binary itself — the binary's MIT license is unaffected. Phase H is macOS-exclusive by design; the Apple SDK terms are accepted by operators at OS installation time, not imposed by `vexcoder`'s distribution.
+**OS-vendor API licensing note (Phase H):** `Security.framework` (keychain access) and `xcrun notarytool` (notarisation) are Apple proprietary APIs available under Apple's macOS SDK terms. Their use in the Phase H packaging layer imposes no additional licensing obligation on the Rust binary itself — the binary's MIT license is unaffected. Phase H is macOS-exclusive by design; the Apple SDK terms are accepted by operators at OS installation time, not imposed by `vexapi`'s distribution.
 
 #### Phase I — Local API server surface
 
@@ -387,7 +387,7 @@ The `vex skills` commands are thin CLI utilities; they do not start the agent lo
 
 ### Gap 11 — Migration Tooling
 
-Add a `vex migrate config` sub-command that reads the environment for legacy variable names used in pre-ADR-022 vexcoder deployments and emits a `.vex/config.toml` fragment using the current ADR-022 neutral names. The command is non-destructive: it writes to stdout by default; `--output <path>` writes to a file.
+Add a `vex migrate config` sub-command that reads the environment for legacy variable names used in pre-ADR-022 vexapi deployments and emits a `.vex/config.toml` fragment using the current ADR-022 neutral names. The command is non-destructive: it writes to stdout by default; `--output <path>` writes to a file.
 
 **Legacy → current variable mapping:**
 
@@ -399,7 +399,7 @@ Add a `vex migrate config` sub-command that reads the environment for legacy var
 | `VEX_STRUCTURED_TOOL_PROTOCOL=off` | `tool_call_mode = "tagged-fallback"` | |
 | `VEX_MODEL_URL` (full endpoint path) | `model_url` (base URL, endpoint stripped) | Strip `/v1/messages` or `/v1/chat/completions` suffix |
 
-These are vexcoder's own pre-ADR-022 variable names. No third-party SDK variable names are mapped. Any migration from third-party tooling is the operator's responsibility and is documented in `docs/src/migration.md` but not automated.
+These are vexapi's own pre-ADR-022 variable names. No third-party SDK variable names are mapped. Any migration from third-party tooling is the operator's responsibility and is documented in `docs/src/migration.md` but not automated.
 
 `docs/src/migration.md` must include the complete legacy-to-current variable mapping table, the `vex migrate config` usage guide, and a command alias reference (`/help` → `/commands`, etc.). The migration doc is the authoritative source of truth; `vex migrate config` is a convenience generator that must match it exactly.
 
@@ -1015,7 +1015,7 @@ vex --resume <task-id>       # loads the named TaskState
 
 ### Gap 31 — MCP HTTP Server Authentication Headers (extends Gap 5)
 
-Gap 5 specifies HTTP-transport MCP servers by URL only. Self-hosted or LAN-hosted MCP servers commonly require an authentication header (e.g. `Authorization: Bearer <token>`). Without a header configuration field, any HTTP MCP server that requires authentication cannot be used with `vexcoder`.
+Gap 5 specifies HTTP-transport MCP servers by URL only. Self-hosted or LAN-hosted MCP servers commonly require an authentication header (e.g. `Authorization: Bearer <token>`). Without a header configuration field, any HTTP MCP server that requires authentication cannot be used with `vexapi`.
 
 **Configuration** (user config only — same layer restriction as `[[mcp_servers]]`):
 
@@ -1029,7 +1029,7 @@ url       = "https://mcp.example.internal/mcp"
 
 [mcp_servers.headers]
 Authorization = "${MCP_PRIVATE_SEARCH_TOKEN}"   # env-var reference — value is never stored in config
-X-Client-Id   = "vexcoder"
+X-Client-Id   = "vexapi"
 ```
 
 **Secret handling:** Header values support `${ENV_VAR_NAME}` substitution. The substitution is resolved from the environment at session start, not stored in the config file. A header value that contains a literal `${}` reference to an unset environment variable is a hard startup failure with a diagnostic naming the missing variable and the server. A header value with no `${}` syntax is used verbatim — this permits non-secret headers such as `X-Client-Id`. Secrets must never be written to any config file layer; header values containing sensitive tokens must always use env-var references.
@@ -1517,15 +1517,15 @@ This applies to file-based and CLI editor surfaces. A native GUI application tha
 
 ### Why does the macOS wrapper require code signing?
 
-An unsigned binary distributed as a `.dmg` will be quarantined and blocked by Gatekeeper on every macOS version since 10.15. A user presented with "vexcoder cannot be opened because the developer cannot be verified" will not reach a working installation. Distribution without signing is not a viable path for adoption and must not be treated as an acceptable fallback.
+An unsigned binary distributed as a `.dmg` will be quarantined and blocked by Gatekeeper on every macOS version since 10.15. A user presented with "vexapi cannot be opened because the developer cannot be verified" will not reach a working installation. Distribution without signing is not a viable path for adoption and must not be treated as an acceptable fallback.
 
 ### Why is the skills registry a flat manifest with no dependency resolution?
 
 Skills are workflow documents, not compiled libraries. They have no transitive dependencies, version conflicts, or ABI requirements. A flat manifest with local paths and optional source URLs is sufficient. Adding a semver solver would be solving a problem that does not exist and would make the system significantly harder to audit and maintain.
 
-### Why is `vex migrate config` limited to vexcoder's own legacy variables?
+### Why is `vex migrate config` limited to vexapi's own legacy variables?
 
-The migration tooling exists to help operators who were running `vexcoder` before ADR-022. Third-party SDK or CLI configurations are the operator's responsibility to translate and are outside the scope of automated migration. Claiming to migrate third-party configurations would require testing against those tools' variable schemas, which introduces a maintenance dependency on external projects.
+The migration tooling exists to help operators who were running `vexapi` before ADR-022. Third-party SDK or CLI configurations are the operator's responsibility to translate and are outside the scope of automated migration. Claiming to migrate third-party configurations would require testing against those tools' variable schemas, which introduces a maintenance dependency on external projects.
 
 ### Why is code indexing a formal deferral gate rather than simply unscheduled?
 
@@ -1553,7 +1553,7 @@ Rejected for the first release. Requires a Windows CI runner and Visual Studio t
 
 ### Map third-party SDK variable names in `vex migrate config`
 
-Rejected. The migration command exists for operators running vexcoder before ADR-022, not for operators migrating from unrelated tools. Including third-party variable mappings would introduce a maintenance dependency on external projects' naming conventions.
+Rejected. The migration command exists for operators running vexapi before ADR-022, not for operators migrating from unrelated tools. Including third-party variable mappings would introduce a maintenance dependency on external projects' naming conventions.
 
 ---
 
@@ -1904,7 +1904,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - PD-02 (`MacosSandboxExec`) and PD-03 (`ContainerSandbox`) merged in this branch.
 
 ### [PD-02] - MacosSandboxExec driver (best-effort + require option)
-- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Operator: this branch (`work/vexapi-adr024-sandbox-drivers`)
 - Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
 - Files:
   - `src/runtime/sandbox.rs` — `MacosSandboxExec` driver implementation using `sandbox-exec`
@@ -1921,7 +1921,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Custom sandbox profiles are specified via `sandbox.sandbox_profile` in config.
 
 ### [PD-03] - ContainerSandbox driver
-- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Operator: this branch (`work/vexapi-adr024-sandbox-drivers`)
 - Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
 - Files:
   - `src/runtime/sandbox.rs` — `ContainerSandbox` struct + `SandboxDriver` impl; wraps commands through the container runtime
@@ -1956,7 +1956,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
   - Implementation was merged as part of an earlier batch but not added to the ADR checklist.
-  - Maps only vexcoder's own pre-ADR-022 variable names; no third-party SDK mappings.
+  - Maps only vexapi's own pre-ADR-022 variable names; no third-party SDK mappings.
   - docs/src/migration.md is the authoritative source of truth; vex migrate config output matches it exactly.
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
 
@@ -2152,7 +2152,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - This branch also updates stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
 
 ### [PF-01] - McpRegistry with STDIO and HTTP transports
-- Operator: this branch (`work/vexcoder-adr024-mcp-runtime`)
+- Operator: this branch (`work/vexapi-adr024-mcp-runtime`)
 - Commit: `bd58471` (Activate MCP runtime with timeout and tool management surface)
 - Files:
   - `src/mcp.rs` — `McpRegistry`: STDIO subprocess management, HTTP transport, tool table merge with `mcp.<server>.<tool>` namespace prefixing
@@ -2173,7 +2173,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `McpRegistry` is read-only after session start; `/mcp` commands observe only, never mutate.
 
 ### [PF-02] - Capability::McpTool and approval wiring
-- Operator: this branch (`work/vexcoder-adr024-mcp-runtime`)
+- Operator: this branch (`work/vexapi-adr024-mcp-runtime`)
 - Commit: `bd58471` (Activate MCP runtime with timeout and tool management surface)
 - Files:
   - `src/runtime/approval.rs` — `Capability::McpTool` variant; default approval scope `once`
@@ -2190,8 +2190,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Phase F (PF-01 + PF-02) is now complete; PI-06/PI-07 (`/mcp list`/`/mcp tools` read-only surface) merged in the same batch.
 
 ### [PI-06] - /mcp list slash command
-- Operator: work/vexcoder-adr024-tier2
-- Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Operator: work/vexapi-adr024-tier2
+- Commit: merged in Phase F batch (PR 232 / work/vexapi-adr024-mcp-runtime)
 - Files changed:
   - `src/app/commands/mod.rs` — `handle_mcp_command` handles `list` subcommand
 - Validation:
@@ -2200,8 +2200,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `/mcp` and `/mcp list` both trigger the list path; renders server count, tool count, and per-server summary.
 
 ### [PI-07] - /mcp show <server> slash command
-- Operator: work/vexcoder-adr024-tier2
-- Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Operator: work/vexapi-adr024-tier2
+- Commit: merged in Phase F batch (PR 232 / work/vexapi-adr024-mcp-runtime)
 - Files changed:
   - `src/app/commands/mod.rs` — `handle_mcp_command` handles `show <server>` subcommand
 - Validation:
@@ -2219,8 +2219,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Tracked in ADR-023; listed here for cross-reference only.
 
 ### [PM-02] - MCP HTTP headers env-var substitution + STDIO rejection
-- Operator: work/vexcoder-adr024-tier2
-- Commit: merged in Phase M batch (PR 236 / work/vexcoder-adr024-mcp-followup)
+- Operator: work/vexapi-adr024-tier2
+- Commit: merged in Phase M batch (PR 236 / work/vexapi-adr024-mcp-followup)
 - Files changed:
   - `src/mcp.rs` — `resolve_mcp_header_env` expands `${VAR}` in header values; fails on unset or empty var
   - `src/config.rs` — STDIO server with non-empty `headers` rejected at config validation time
@@ -2233,7 +2233,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - STDIO rejection is enforced during the structural config validation pass.
 
 ### [PP-01] - search_files, list_dir, glob_files workspace exploration tools
-- Operator: work/vexcoder-adr024-tier2
+- Operator: work/vexapi-adr024-tier2
 - Commit: this branch
 - Files changed:
   - `src/tools/workspace_ignore.rs` (+195 lines) — `WorkspaceIgnore` parses workspace-root `.gitignore`; pure std; no subprocess
