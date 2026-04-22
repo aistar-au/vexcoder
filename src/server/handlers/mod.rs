@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -25,6 +25,7 @@ use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
 };
+use crate::observability::new_request_id;
 
 use super::ControlResponse;
 
@@ -77,6 +78,22 @@ pub struct DelegateResponse {
     ok: bool,
     parent_task_id: String,
     session_task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyRunCompatRequest {
+    #[serde(default)]
+    request_id: Option<String>,
+    #[serde(default)]
+    task_id: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    input: Option<String>,
+    #[serde(default)]
+    task: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -316,7 +333,22 @@ pub async fn join_status_handler(
 pub async fn turns_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<RuntimeRequest>,
-) -> Result<impl IntoResponse, ProblemDetailsResponse> {
+) -> Result<Response, ProblemDetailsResponse> {
+    submit_runtime_request(state, request).await
+}
+
+pub async fn run_compat_handler(
+    State(state): State<LocalApiState>,
+    Json(raw_request): Json<Value>,
+) -> Result<Response, ProblemDetailsResponse> {
+    let request = normalize_run_compat_request(raw_request)?;
+    submit_runtime_request(state, request).await
+}
+
+async fn submit_runtime_request(
+    state: LocalApiState,
+    request: RuntimeRequest,
+) -> Result<Response, ProblemDetailsResponse> {
     let RuntimeRequest::SubmitInput { task_id, input, .. } = request else {
         return Err(bad_request("invalid_request_type"));
     };
@@ -362,6 +394,36 @@ pub async fn turns_handler(
     );
 
     Ok(response)
+}
+
+fn normalize_run_compat_request(raw_request: Value) -> Result<RuntimeRequest, ProblemDetailsResponse> {
+    if let Ok(request) = serde_json::from_value::<RuntimeRequest>(raw_request.clone()) {
+        return Ok(request);
+    }
+
+    let legacy: LegacyRunCompatRequest =
+        serde_json::from_value(raw_request).map_err(|_| bad_request("invalid_request_type"))?;
+
+    let input = [legacy.input, legacy.task, legacy.prompt]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
+        .ok_or_else(|| bad_request("invalid_request_type"))?;
+
+    let request_id = legacy
+        .request_id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(new_request_id);
+    let task_id = legacy
+        .task_id
+        .or(legacy.session_id)
+        .filter(|value| !value.trim().is_empty());
+
+    Ok(RuntimeRequest::SubmitInput {
+        request_id,
+        task_id,
+        input,
+    })
 }
 
 pub async fn interrupt_handler(
@@ -498,6 +560,54 @@ async fn run_local_api_task(
 pub fn new_server_task_id() -> String {
     let millis = Utc::now().timestamp_millis();
     format!("task-{millis}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_run_compat_request_maps_legacy_payload_to_submit_input() {
+        let request = normalize_run_compat_request(serde_json::json!({
+            "task": "review src/main.rs",
+            "session_id": "aoz-session-1",
+            "stream": true,
+        }))
+        .expect("legacy request should normalize");
+
+        match request {
+            RuntimeRequest::SubmitInput {
+                request_id,
+                task_id,
+                input,
+            } => {
+                assert!(!request_id.is_empty());
+                assert_eq!(task_id.as_deref(), Some("aoz-session-1"));
+                assert_eq!(input, "review src/main.rs");
+            }
+            other => panic!("unexpected request variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn normalize_run_compat_request_preserves_canonical_submit_input() {
+        let request = normalize_run_compat_request(serde_json::json!({
+            "type": "submit_input",
+            "request_id": "req-42",
+            "task_id": "task-42",
+            "input": "hello",
+        }))
+        .expect("canonical request should pass through");
+
+        assert_eq!(
+            request,
+            RuntimeRequest::SubmitInput {
+                request_id: "req-42".to_string(),
+                task_id: Some("task-42".to_string()),
+                input: "hello".to_string(),
+            }
+        );
+    }
 }
 
 pub(crate) mod session;

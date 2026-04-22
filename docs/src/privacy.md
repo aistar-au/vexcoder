@@ -73,8 +73,9 @@ HTTP or Unix sockets and applies a dedicated auth and transport boundary.
 ### What may cross a configured boundary
 
 - Authorized LocalApiServer clients receive prompts, transcript rows, tool
-  results, and turn metadata over `POST /v1/turns` and the related control
-  routes.
+  results, and turn metadata over `POST /v1/turns`; `POST /v1/run` remains a
+  compatibility alias for legacy consumers and forwards into the same runtime
+  path.
 - If the server is bound beyond loopback, those payloads travel over the
   configured TLS surface.
 - Metadata endpoints such as `/v1/health`, `/v1/schema`, and `/v1/privacy`

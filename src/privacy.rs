@@ -32,7 +32,7 @@ const SERVER_LOCAL_STORAGE: &[&str] = &[
 ];
 
 const SERVER_REMOTE_TRANSFER: &[&str] = &[
-    "Authorized LocalApiServer clients receive prompts, transcript rows, tool results, and turn metadata over `POST /v1/turns` and the related control routes.",
+    "Authorized LocalApiServer clients receive prompts, transcript rows, tool results, and turn metadata over `POST /v1/turns`; `POST /v1/run` remains as a compatibility alias for legacy consumers and forwards into the same runtime path.",
     "If the server is bound beyond loopback, those payloads travel over the configured TLS surface.",
     "Metadata endpoints such as `/v1/health`, `/v1/schema`, and `/v1/privacy` expose service or policy data rather than runtime envelopes.",
 ];

@@ -90,6 +90,10 @@ pub(super) enum Commands {
         task_id: String,
     },
 
+    /// Start the LocalApiServer surface.
+    ///
+    /// Turn submission uses `POST /v1/turns`; `POST /v1/run` remains available
+    /// as a compatibility alias for legacy local consumers.
     Serve,
 
     Credentials {
