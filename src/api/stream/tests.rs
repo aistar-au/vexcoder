@@ -660,12 +660,10 @@ fn test_normaliser_is_stateless_across_calls() {
     assert_eq!(collect_text(&normaliser.normalise("beta")), "beta");
 }
 
-
 #[test]
 fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_calls() {
     let mut parser = StreamParser::new();
 
-    
     let first = parser
         .process(
             b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_a\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\"}}}\n\n",
@@ -684,7 +682,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
         first.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    
     let second = parser
         .process(
             b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_b\",\"name\":\"write_file\",\"input\":{\"path\":\"out.txt\",\"content\":\"done\"}}}\n\n",
@@ -713,7 +710,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
         "second block open must not re-emit the first block"
     );
 
-    
     let all: Vec<_> = first.iter().chain(second.iter()).collect();
     let started_names: Vec<&str> = all
         .iter()
@@ -731,7 +727,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
         "ToolCallStarted for write_file expected; got {started_names:?}"
     );
 }
-
 
 #[test]
 fn test_process_messages_v1_tool_use_nested_json_input_normalizes_correctly() {
@@ -768,12 +763,10 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
     );
 }
 
-
 #[test]
 fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
     let mut parser = StreamParser::new();
 
-    
     let c1 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_frag","type":"function","function":{"name":"read_file","arguments":"{\"path\":"}}]},"finish_reason":null}]}
@@ -793,7 +786,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c1.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    
     let c2 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"src/lib.rs\""}}]},"finish_reason":null}]}
@@ -811,7 +803,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c2.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    
     let c3 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}
@@ -826,7 +817,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c3.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    
     let started = c1
         .iter()
         .find(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. }));

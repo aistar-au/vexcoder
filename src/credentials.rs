@@ -1,20 +1,14 @@
-
-
 use anyhow::{Context, Result, bail};
-
 
 pub const SERVICE: &str = "vexapi";
 
-
 pub const ACCOUNT_MODEL_TOKEN: &str = "model-token";
-
 
 pub fn is_disabled() -> bool {
     std::env::var("VEX_KEYRING_DISABLED")
         .ok()
         .is_some_and(|v| !v.trim().is_empty())
 }
-
 
 pub fn read(account: &str) -> Result<Option<String>> {
     if is_disabled() {
@@ -24,7 +18,7 @@ pub fn read(account: &str) -> Result<Option<String>> {
         keyring::Entry::new(SERVICE, account).context("failed to create keyring entry handle")?;
     match entry.get_password() {
         Ok(value) if !value.trim().is_empty() => Ok(Some(value)),
-        Ok(_) => Ok(None), 
+        Ok(_) => Ok(None),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(keyring::Error::NoStorageAccess(inner)) => {
             tracing::debug!(
@@ -40,7 +34,6 @@ pub fn read(account: &str) -> Result<Option<String>> {
     }
 }
 
-
 pub fn write(account: &str, secret: &str) -> Result<()> {
     if is_disabled() {
         bail!("keyring is disabled via VEX_KEYRING_DISABLED; cannot store credential");
@@ -54,7 +47,6 @@ pub fn write(account: &str, secret: &str) -> Result<()> {
         "failed to write keyring entry for account '{account}'"
     ))
 }
-
 
 pub fn delete(account: &str) -> Result<()> {
     if is_disabled() {
@@ -70,7 +62,6 @@ pub fn delete(account: &str) -> Result<()> {
         )),
     }
 }
-
 
 pub fn run_credentials(sub: CredentialsAction) -> Result<()> {
     match sub {
@@ -94,7 +85,6 @@ pub fn run_credentials(sub: CredentialsAction) -> Result<()> {
     }
     Ok(())
 }
-
 
 #[derive(Debug)]
 pub enum CredentialsAction {

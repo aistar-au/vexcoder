@@ -19,16 +19,14 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
 
-
 #[derive(Debug, Clone)]
 pub struct UndoCheckpoint {
-    
     pub tool_name: String,
-    
+
     pub path: PathBuf,
-    
+
     pub cleanup_path: Option<PathBuf>,
-    
+
     pub previous_content: Option<Vec<u8>>,
 }
 
@@ -66,14 +64,13 @@ pub enum ConversationStreamUpdate {
     CommandSessionFinished {
         session_id: u64,
     },
-    
+
     ContextCompacted {
         messages_before: usize,
         messages_after: usize,
         summary: String,
     },
-    
-    
+
     StreamError(String),
 }
 
@@ -99,15 +96,12 @@ pub struct ConversationManager {
     pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
-    
-    
+
     pub(super) task_doc: Option<TaskDocument>,
     pub(super) condenser: TaskDocumentCondenser,
-    
-    
+
     pub(super) current_round_entry_start: usize,
-    
-    
+
     pub(super) current_round_stream_block_count: usize,
     pub(super) tool_call_started_at: HashMap<String, DateTime<Utc>>,
     pub(super) last_turn_tokens: TurnTokens,
@@ -226,7 +220,7 @@ impl ConversationManager {
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {
             client: Arc::new(client),
-            tool_operator: ToolOperator::new(std::env::temp_dir()), 
+            tool_operator: ToolOperator::new(std::env::temp_dir()),
             mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
@@ -289,8 +283,7 @@ impl ConversationManager {
         let Some(doc) = &self.task_doc else {
             return false;
         };
-        
-        
+
         use crate::runtime::task_document::TurnEntry;
         let entries: &[TurnEntry] = if let Some(active) = &doc.active_turn {
             &active.entries
@@ -319,12 +312,10 @@ impl ConversationManager {
         })
     }
 
-    
     pub fn task_doc(&self) -> Option<&TaskDocument> {
         self.task_doc.as_ref()
     }
 
-    
     pub(super) fn ensure_task_doc(&mut self) {
         if self.task_doc.is_some() {
             return;
@@ -355,7 +346,6 @@ impl ConversationManager {
         self.task_doc = Some(self.condenser.begin_task(info));
     }
 
-    
     pub(super) fn begin_turn_doc(
         &mut self,
         input: String,
@@ -369,7 +359,6 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    
     pub(super) fn finish_turn_doc(&mut self, outcome: TurnOutcome, tokens: TurnTokens) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
@@ -378,7 +367,6 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    
     pub(super) fn apply_doc_event(&mut self, event: RuntimeEvent) -> TaskMutationSummary {
         if let Some(doc) = self.task_doc.as_mut() {
             self.condenser.apply_runtime_event(doc, event)
@@ -387,7 +375,6 @@ impl ConversationManager {
         }
     }
 
-    
     pub(super) fn advance_round_start(&mut self) {
         self.current_round_entry_start = self
             .task_doc
@@ -398,7 +385,6 @@ impl ConversationManager {
         self.current_round_stream_block_count = 0;
     }
 
-    
     pub fn push_undo_checkpoint(&mut self, checkpoint: UndoCheckpoint) {
         if self.max_undo_checkpoints == 0 {
             return;
@@ -409,17 +395,14 @@ impl ConversationManager {
         self.undo_stack.push(checkpoint);
     }
 
-    
     pub fn pop_undo_checkpoint(&mut self) -> Option<UndoCheckpoint> {
         self.undo_stack.pop()
     }
 
-    
     pub fn undo_stack_len(&self) -> usize {
         self.undo_stack.len()
     }
 
-    
     pub fn capture_undo_snapshot(
         &self,
         tool_name: &str,

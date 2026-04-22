@@ -22,7 +22,6 @@ pub use self::types::{
     ScheduleTeamError, SessionTaskStatusError,
 };
 
-
 const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
 const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";
 
@@ -114,7 +113,6 @@ fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
     DelegateRaceHookGuard
 }
 
-
 #[derive(Debug, Error)]
 pub enum DelegateError {
     #[error("agent_not_found")]
@@ -123,17 +121,15 @@ pub enum DelegateError {
     AgentsConfigMissing,
     #[error("parent_task_id_required")]
     ParentTaskIdRequired,
-    
-    
+
     #[error("concurrency_limit_reached")]
     ConcurrencyLimitReached,
-    
+
     #[error("prompt_too_long")]
     PromptTooLong,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
-
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
@@ -188,7 +184,6 @@ pub fn facade_delegate_session_task(
         _ => return Err(DelegateError::ParentTaskIdRequired),
     };
 
-    
     if prompt.len() > MAX_DELEGATE_PROMPT_BYTES {
         return Err(DelegateError::PromptTooLong);
     }
@@ -206,8 +201,6 @@ pub fn facade_delegate_session_task(
     let isolation = agent.isolation;
 
     with_delegate_lock(&state_dir, || {
-        
-        
         let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
         let live = *live_counts.get(agent_id).unwrap_or(&0);
         if live >= max_parallel_tasks {
@@ -290,7 +283,6 @@ pub fn facade_watch_rollup(working_dir: &Path, id: &str) -> Result<Option<Facade
     Ok(None)
 }
 
-
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) -> Result<bool> {
     let state_dir = TaskState::state_dir_from(working_dir);
@@ -301,7 +293,6 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         return Ok(false);
     };
 
-    
     if parent_state
         .session_task(session_task_id)
         .map(|t| t.lifecycle_state.is_live())
@@ -311,7 +302,6 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         parent_state.save(&state_dir)?;
     }
 
-    
     let lease_manager = WorktreeLeaseManager::new(&state_dir);
     if lease_manager.load(session_task_id).is_ok() {
         lease_manager.release(session_task_id)?;
@@ -323,7 +313,6 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
 
     Ok(true)
 }
-
 
 #[tracing::instrument(skip(working_dir, prompt), fields(working_dir = %working_dir.display()))]
 pub fn facade_schedule_team(
@@ -394,7 +383,6 @@ pub fn facade_schedule_team(
     })
 }
 
-
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_poll_join(
     working_dir: &Path,
@@ -411,7 +399,6 @@ pub fn facade_poll_join(
         summaries: o.summaries,
     }))
 }
-
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
@@ -436,7 +423,6 @@ pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
     Ok(out)
 }
 
-
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskRollup>> {
     let files = TaskState::state_files_from(working_dir);
@@ -450,7 +436,6 @@ pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSession
     Ok(out)
 }
 
-
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_get_session_task(
     working_dir: &Path,
@@ -463,7 +448,6 @@ pub fn facade_get_session_task(
     };
     Ok(Some(session_task_to_rollup(task)))
 }
-
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_update_session_task_status(
@@ -501,7 +485,6 @@ pub fn facade_update_session_task_status(
     Ok(snapshot)
 }
 
-
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
     let files = TaskState::state_files_from(working_dir);
@@ -522,7 +505,6 @@ pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
     }
     Ok(FacadeTaskGraph { nodes })
 }
-
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
@@ -569,11 +551,9 @@ fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
     }
 }
 
-
 use crate::runtime::task_state::peer_channel::{
     self, AppendMessageError, MAX_PEER_MESSAGE_BYTES, PeerMessage, parse_peer_message_kind,
 };
-
 
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, sender_id = %sender_id))]
 pub fn facade_post_peer_message(
@@ -585,10 +565,8 @@ pub fn facade_post_peer_message(
     kind: &str,
     content: &str,
 ) -> std::result::Result<PeerMessage, PeerChannelError> {
-    
     let kind = parse_peer_message_kind(kind).ok_or(PeerChannelError::InvalidKind)?;
 
-    
     if content.len() > MAX_PEER_MESSAGE_BYTES {
         return Err(PeerChannelError::ContentTooLong);
     }
@@ -629,7 +607,6 @@ pub fn facade_post_peer_message(
 
     Ok(message)
 }
-
 
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, after_ms = after_ms))]
 pub fn facade_read_peer_messages(

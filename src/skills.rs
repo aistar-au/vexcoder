@@ -1,5 +1,3 @@
-
-
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -14,7 +12,6 @@ enum InstallSourceKind {
     Tarball,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SkillEntry {
     pub name: String,
@@ -22,7 +19,6 @@ pub struct SkillEntry {
     pub source: String,
     pub path: String,
 }
-
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SkillsRegistry {
@@ -35,8 +31,6 @@ pub struct SkillsRegistry {
 }
 
 impl SkillsRegistry {
-    
-    
     pub fn load(working_dir: &Path) -> Result<Self> {
         let workspace_root = crate::workspace::workspace_root(working_dir);
         let path = workspace_root.join(REGISTRY_REL_PATH);
@@ -74,7 +68,6 @@ impl SkillsRegistry {
         self.skills.iter().find(|skill| skill.name == name)
     }
 
-    
     fn detect_source_kind(source: &str) -> Result<InstallSourceKind> {
         if source.contains("raw.githubusercontent.com")
             || source.contains("/raw/")
@@ -100,7 +93,6 @@ impl SkillsRegistry {
         Self::detect_source_kind(source).map(|_| ())
     }
 
-    
     pub fn install(&mut self, source: &str, subdir: Option<&str>) -> Result<String> {
         let source_kind = Self::detect_source_kind(source)?;
         let staging = tempfile::tempdir()?;
@@ -130,7 +122,6 @@ impl SkillsRegistry {
         Ok(name)
     }
 
-    
     pub fn remove(&mut self, name: &str) -> Result<()> {
         let entry = self
             .get(name)
@@ -146,7 +137,6 @@ impl SkillsRegistry {
         Ok(())
     }
 
-    
     pub fn list(&self) {
         if self.skills.is_empty() {
             println!("no skills installed");

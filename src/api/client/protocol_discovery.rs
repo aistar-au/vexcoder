@@ -1,53 +1,39 @@
-
-
 use crate::api::logging::{debug_payload_enabled, emit_log_value};
 use crate::runtime::backend::ModelProtocol;
 use crate::runtime::rewrite_url_for_logs;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
-
 #[derive(Debug, Clone)]
 pub struct DiscoveryResult {
-    
     pub protocol: ModelProtocol,
-    
+
     pub endpoint: String,
-    
+
     pub probe_latency_ms: u64,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ProbeAttempt {
-    
     pub endpoint: String,
-    
+
     pub accept_header: String,
-    
+
     pub status: Option<u16>,
-    
+
     pub error: Option<String>,
-    
+
     pub latency_ms: u64,
 }
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum DiscoveryError {
-    
-    
     #[error("all protocol probes failed; see attempts for details")]
-    AllProbesFailed {
-        
-        
-        attempts: Vec<ProbeAttempt>,
-    },
-    
+    AllProbesFailed { attempts: Vec<ProbeAttempt> },
+
     #[error("network error during protocol probe: {0}")]
     NetworkError(String),
 }
-
 
 async fn probe_endpoint(
     url: &str,
@@ -115,7 +101,6 @@ async fn probe_endpoint(
         },
     }
 }
-
 
 pub async fn discover_protocol(
     base_url: &str,

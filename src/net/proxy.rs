@@ -1,19 +1,14 @@
-
-
 use anyhow::{Context, Result};
 use reqwest::Proxy;
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProxyConfig {
-    
     Socks5 { host: String, port: u16 },
-    
-    
+
     Socks5h { host: String, port: u16 },
-    
+
     Http { host: String, port: u16 },
-    
+
     Https { host: String, port: u16 },
 }
 
@@ -27,7 +22,6 @@ impl ProxyConfig {
         }
     }
 
-    
     pub fn url(&self) -> Result<String> {
         let (scheme, host, port) = self.parts();
         let formatted_host = if host.contains(':') {
@@ -40,13 +34,11 @@ impl ProxyConfig {
         Ok(url)
     }
 
-    
     pub fn into_reqwest_proxy(self) -> Result<Proxy> {
         let url = self.url()?;
         Proxy::all(&url).with_context(|| format!("invalid proxy URL '{url}'"))
     }
 
-    
     pub fn build_client(self) -> Result<reqwest::Client> {
         let proxy = self.into_reqwest_proxy()?;
         reqwest::Client::builder()
@@ -113,7 +105,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 1080,
         };
-        
+
         cfg.into_reqwest_proxy()
             .expect("SOCKS5 proxy construction (RFC 1928)");
     }
@@ -124,7 +116,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 9050,
         };
-        
+
         cfg.build_client()
             .expect("reqwest client with SOCKS5 proxy (RFC 1928)");
     }

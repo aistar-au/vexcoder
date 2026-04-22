@@ -6,7 +6,6 @@ impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
         let entries = &self.task_doc.active_turn.as_ref()?.entries;
 
-        
         let exact_match = entries.iter().find_map(|e| {
             if let crate::runtime::TurnEntry::ToolCall {
                 step_id,
@@ -30,8 +29,6 @@ impl TuiMode {
         });
 
         exact_match.or_else(|| {
-            
-            
             entries
                 .iter()
                 .filter_map(|e| {
@@ -58,8 +55,7 @@ impl TuiMode {
             if approved {
                 self.mark_tool_step_approved(pending.step_id);
             }
-            
-            
+
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {
                     let _ = response_tx.send(approved);
@@ -253,4 +249,3 @@ pub(super) fn parse_approval_selection(input: &str) -> Option<ApprovalSelection>
         _ => None,
     }
 }
-

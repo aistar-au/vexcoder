@@ -4,8 +4,6 @@ use super::*;
 use std::time::{Duration, Instant};
 
 impl TuiMode {
-    
-    
     pub fn auto_follow(&self) -> bool {
         self.transcript_scroll_offset == 0
     }
@@ -42,12 +40,10 @@ impl TuiMode {
         rows.len()
     }
 
-    
     pub(super) fn push_history_line(&mut self, line: String) {
         self.push_document_notice(line, crate::runtime::NoticeSeverity::Info);
     }
 
-    
     pub(super) fn clamp_transcript_after_mutation(&mut self) {
         let (_, rows, anchor) = self.task_output_view();
         let total_rows = rows.len();
@@ -57,14 +53,12 @@ impl TuiMode {
         }
     }
 
-    
     pub(super) fn apply_timeline_up(&mut self) {
         self.selected_timeline_index = self.selected_timeline_index.saturating_sub(1);
         self.timeline_follow_mode = false;
         self.inspector_scroll_offset = 0;
     }
 
-    
     pub(super) fn apply_timeline_down(&mut self, total_entries: usize) {
         let max = total_entries.saturating_sub(1);
         self.selected_timeline_index = (self.selected_timeline_index + 1).min(max);
@@ -72,21 +66,18 @@ impl TuiMode {
         self.inspector_scroll_offset = 0;
     }
 
-    
     pub(super) fn apply_timeline_home(&mut self) {
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = false;
         self.inspector_scroll_offset = 0;
     }
 
-    
     pub(super) fn apply_timeline_end(&mut self, total_entries: usize) {
         self.selected_timeline_index = total_entries.saturating_sub(1);
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
     }
 
-    
     pub(super) fn apply_timeline_scroll_action(
         &mut self,
         action: ScrollAction,
@@ -120,8 +111,6 @@ impl TuiMode {
         let total_rows = rows.len();
 
         match anchor {
-            
-            
             OutputScrollAnchor::Bottom => match action {
                 ScrollAction::LineUp => {
                     self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(1);
@@ -161,7 +150,6 @@ impl TuiMode {
         }
     }
 }
-
 
 pub(crate) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max: usize) {
     *offset = match action {
@@ -236,7 +224,7 @@ mod tests {
         apply_bounded_scroll(&mut offset, ScrollAction::PageDown(10), 5);
         assert_eq!(offset, 5);
         apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
-        assert_eq!(offset, 5); 
+        assert_eq!(offset, 5);
         apply_bounded_scroll(&mut offset, ScrollAction::Home, 5);
         assert_eq!(offset, 0);
         apply_bounded_scroll(&mut offset, ScrollAction::End, 5);

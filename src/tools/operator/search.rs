@@ -71,7 +71,6 @@ impl ToolOperator {
             None => None,
         };
 
-        
         let mut candidates: Vec<PathBuf> = Vec::new();
         for path in self.walk_workspace_files(&self.working_dir)? {
             if let Some(matcher) = glob_matcher.as_ref() {
@@ -86,7 +85,6 @@ impl ToolOperator {
             candidates.push(path);
         }
 
-        
         let escaped = regex_lite::escape(query);
         let case_sensitive = query.chars().any(char::is_uppercase);
         let pattern = if case_sensitive {

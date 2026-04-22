@@ -405,8 +405,6 @@ impl TuiMode {
                 }
             }
             Ok(None) => {
-                
-                
                 let by_agent = TaskState::state_files_from(&self.working_dir)
                     .into_iter()
                     .find_map(|file| {

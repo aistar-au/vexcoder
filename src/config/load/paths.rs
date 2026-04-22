@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use crate::runtime::ModelBackendKind;
 use crate::types::ModelProfile;
 
-
 pub(crate) fn find_repo_local_config(cwd: &Path) -> Option<PathBuf> {
     let mut dir: &Path = cwd;
     loop {

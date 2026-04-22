@@ -1,5 +1,3 @@
-
-
 mod non_stream;
 
 use crate::api::client::{map_api_request_error, map_api_status_error};

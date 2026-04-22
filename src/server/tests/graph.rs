@@ -158,7 +158,7 @@ async fn test_task_graph_endpoint_returns_nodes() {
             .any(|n| n.get("id") == Some(&Value::String("graph-parent".into()))),
         "expected graph-parent node in task graph"
     );
-    
+
     let node = nodes
         .iter()
         .find(|n| n.get("id") == Some(&Value::String("graph-parent".into())))
@@ -216,7 +216,6 @@ async fn test_list_todos_endpoint_excludes_completed_tasks() {
     )
     .await;
 
-    
     let router = setup_phase_e_router(temp.path());
     let patch = router
         .clone()
@@ -349,12 +348,10 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
     );
 }
 
-
 #[tokio::test]
 async fn test_delegate_writes_task_graph_rollup_file() {
     let temp = tempfile::tempdir().unwrap();
 
-    
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
         "snap-parent",
@@ -422,7 +419,6 @@ async fn test_status_update_refreshes_todos_rollup() {
     )
     .await;
 
-    
     let router = setup_phase_e_router(temp.path());
     let patch = router
         .oneshot(
@@ -453,7 +449,6 @@ async fn test_status_update_refreshes_todos_rollup() {
 async fn test_projection_endpoint_returns_file_paths() {
     let temp = tempfile::tempdir().unwrap();
 
-    
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
         "proj-endpoint-parent",

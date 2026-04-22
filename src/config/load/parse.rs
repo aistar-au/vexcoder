@@ -41,15 +41,13 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
         "passthrough" => Some(SandboxKind::Passthrough),
         "macos-exec" => Some(SandboxKind::MacosExec),
         "container" => Some(SandboxKind::Container),
-        
+
         "bubblewrap" => Some(SandboxKind::Bubblewrap),
         _ => None,
     }
 }
 
 pub(crate) fn infer_model_protocol(_api_url: &str) -> ModelProtocol {
-    
-    
     ModelProtocol::MessagesV1
 }
 

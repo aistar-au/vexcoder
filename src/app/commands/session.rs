@@ -89,14 +89,13 @@ impl TuiMode {
             })
             .unwrap_or_else(|| "project-tests".to_string())
     }
-    
+
     pub(crate) fn handle_model_command(&mut self, name: &str, ctx: &RuntimeContext) {
         if name.is_empty() {
             self.push_history_line(format!("[model] {}", self.model_name));
             return;
         }
-        
-        
+
         let target_is_local = name.starts_with("local/");
         let current_is_local = self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
 
@@ -122,7 +121,7 @@ impl TuiMode {
         let old = std::mem::replace(&mut self.model_name, name.to_string());
         self.push_history_line(format!("[model] {} -> {}", old, self.model_name));
     }
-    
+
     pub(crate) fn handle_diff_command(&mut self, args: &str) {
         let diff_defaults = self.context_assembler.clone();
         let max_diff_lines = diff_defaults.max_diff_lines;
@@ -299,7 +298,6 @@ impl TuiMode {
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
 
-        
         self.task_doc
             .context_compaction
             .push(ContextCompactionRecord {
@@ -353,7 +351,6 @@ impl TuiMode {
                 }
             }
             None => {
-                
                 if checkpoint.path.exists()
                     && let Err(e) = std::fs::remove_file(&checkpoint.path)
                 {
@@ -371,8 +368,6 @@ impl TuiMode {
     }
 
     pub(crate) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
-        
-        
         let parent_snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);
         let state_dir = TaskState::state_dir_from(&self.working_dir);
         if let Err(error) = parent_snapshot.save(&state_dir) {

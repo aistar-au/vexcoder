@@ -1,6 +1,5 @@
 use super::*;
 
-
 #[test]
 fn test_permissions_empty_grants() {
     let mut mode = TuiMode::new();

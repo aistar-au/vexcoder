@@ -1,11 +1,3 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StatusTone {
-    Success,
-    Error,
-    Progress,
-    Attention,
-}
-
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
 
 pub const RESPONSE_COMPLETE: &str = "Response complete.";
@@ -38,28 +30,8 @@ fn is_waiting_placeholder(line: &str) -> bool {
     ) {
         return true;
     }
-    
-    
+
     line.starts_with(WAITING_FOR_RESPONSE_LINE)
-}
-
-pub fn status_tone(status: &str) -> Option<StatusTone> {
-    match status {
-        "approved" => Some(StatusTone::Success),
-        "failed" | "cancelled" => Some(StatusTone::Error),
-        "awaiting approval" | "cancellation requested" => Some(StatusTone::Attention),
-        _ if is_completed_status(status) => Some(StatusTone::Success),
-        _ if is_progress_status(status) => Some(StatusTone::Progress),
-        _ => None,
-    }
-}
-
-pub fn is_completed_status(status: &str) -> bool {
-    matches!(status, "completed" | RESPONSE_COMPLETE)
-}
-
-pub fn is_progress_status(status: &str) -> bool {
-    matches!(status, "running" | MAPPING_ADJACENT_SECTORS)
 }
 
 #[cfg(test)]
@@ -78,17 +50,6 @@ mod tests {
     }
 
     #[test]
-    fn status_tone_accepts_legacy_and_batch_a_status_labels() {
-        assert_eq!(status_tone("completed"), Some(StatusTone::Success));
-        assert_eq!(status_tone(RESPONSE_COMPLETE), Some(StatusTone::Success));
-        assert_eq!(status_tone("running"), Some(StatusTone::Progress));
-        assert_eq!(
-            status_tone(MAPPING_ADJACENT_SECTORS),
-            Some(StatusTone::Progress)
-        );
-    }
-
-    #[test]
     fn completed_status_label_is_response_complete() {
         assert_eq!(
             completed_status_label(),
@@ -100,9 +61,5 @@ mod tests {
     #[test]
     fn response_complete_constant_correct() {
         assert_eq!(RESPONSE_COMPLETE, "Response complete.");
-        assert!(
-            is_completed_status(RESPONSE_COMPLETE),
-            "RESPONSE_COMPLETE must be recognised as a completed status"
-        );
     }
 }

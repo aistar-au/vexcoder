@@ -1,5 +1,3 @@
-
-
 #[cfg(test)]
 use anyhow::Result;
 #[cfg(test)]
@@ -10,14 +8,13 @@ use super::task_header::TaskStateHeader;
 #[cfg(test)]
 use super::{TaskId, TaskState};
 
-
 #[cfg(test)]
 pub(crate) struct LazyTaskHandle {
     pub id: TaskId,
     dir: PathBuf,
     header: TaskStateHeader,
     loaded: bool,
-    
+
     state: Option<Box<TaskState>>,
 }
 
@@ -33,7 +30,6 @@ impl LazyTaskHandle {
         }
     }
 
-    
     pub(crate) fn resolve(&mut self) -> Result<&TaskState> {
         if !self.loaded {
             let state = TaskState::load(&self.dir, &self.id)?;
@@ -43,12 +39,10 @@ impl LazyTaskHandle {
         Ok(self.state.as_ref().expect("state populated above"))
     }
 
-    
     pub(crate) fn header(&self) -> &TaskStateHeader {
         &self.header
     }
 
-    
     pub(crate) fn has_live_sessions(&self) -> bool {
         self.header
             .session_tasks
@@ -56,7 +50,6 @@ impl LazyTaskHandle {
             .is_some_and(|tasks| tasks.iter().any(|t| t.status.is_live()))
     }
 
-    
     pub(crate) fn is_loaded(&self) -> bool {
         self.loaded
     }
@@ -68,7 +61,6 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_ref(dir: &TempDir, id: &str) -> LazyTaskHandle {
-        
         let state = TaskState::new(id.to_string());
         state.save(dir.path()).unwrap();
 
@@ -86,7 +78,7 @@ mod tests {
         assert!(!r.is_loaded());
         let _ = r.resolve().unwrap();
         assert!(r.is_loaded());
-        
+
         let _ = r.resolve().unwrap();
         assert!(r.is_loaded());
     }

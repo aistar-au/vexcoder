@@ -1,5 +1,3 @@
-
-
 use anyhow::{Context, Result};
 use hickory_resolver::{
     TokioAsyncResolver,
@@ -9,20 +7,16 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-
 pub mod doh_endpoints {
-    
+
     pub const CLOUDFLARE: &str = "https://cloudflare-dns.com/dns-query";
 }
-
 
 pub struct DohResolver {
     inner: TokioAsyncResolver,
 }
 
 impl DohResolver {
-    
-    
     pub fn new(doh_server_ip: IpAddr, doh_server_port: u16, tls_dns_name: &str) -> Result<Self> {
         let name_server = NameServerConfig {
             socket_addr: std::net::SocketAddr::new(doh_server_ip, doh_server_port),
@@ -37,7 +31,7 @@ impl DohResolver {
         config.add_name_server(name_server);
 
         let mut opts = ResolverOpts::default();
-        
+
         opts.ip_strategy = hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4;
         opts.timeout = Duration::from_secs(5);
         opts.attempts = 2;
@@ -46,9 +40,7 @@ impl DohResolver {
         Ok(Self { inner })
     }
 
-    
     pub fn cloudflare() -> Result<Self> {
-        
         Self::new(
             IpAddr::from_str("1.1.1.1").unwrap(),
             443,
@@ -56,7 +48,6 @@ impl DohResolver {
         )
     }
 
-    
     pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
         let lookup = self
             .inner
@@ -69,7 +60,6 @@ impl DohResolver {
         Ok(addrs)
     }
 }
-
 
 pub fn happy_sort(addrs: &mut [IpAddr]) {
     addrs.sort_by_key(|addr| match addr {
@@ -85,13 +75,13 @@ mod tests {
     #[test]
     fn happy_sort_ipv6_before_ipv4() {
         let mut addrs = vec![
-            IpAddr::from_str("93.184.216.34").unwrap(), 
-            IpAddr::from_str("2001:db8::1").unwrap(),   
-            IpAddr::from_str("192.0.2.1").unwrap(),     
-            IpAddr::from_str("2001:db8::2").unwrap(),   
+            IpAddr::from_str("93.184.216.34").unwrap(),
+            IpAddr::from_str("2001:db8::1").unwrap(),
+            IpAddr::from_str("192.0.2.1").unwrap(),
+            IpAddr::from_str("2001:db8::2").unwrap(),
         ];
         happy_sort(&mut addrs);
-        
+
         assert!(matches!(addrs[0], IpAddr::V6(_)));
         assert!(matches!(addrs[1], IpAddr::V6(_)));
         assert!(matches!(addrs[2], IpAddr::V4(_)));
@@ -118,7 +108,6 @@ mod tests {
 
     #[test]
     fn cloudflare_resolver_constructs() {
-        
         DohResolver::cloudflare().expect("cloudflare DoH resolver construction");
     }
 }

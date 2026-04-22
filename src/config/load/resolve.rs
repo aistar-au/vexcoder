@@ -94,7 +94,6 @@ pub(super) fn load_doctor_layer(path: &Path) -> Result<Option<DoctorConfigLayer>
     }))
 }
 
-
 pub(super) fn resolve_config(
     merged: ConfigLayer,
     env_token: Option<String>,
@@ -255,7 +254,6 @@ pub(super) fn resolve_search_config(layer: Option<SearchConfigLayer>) -> SearchC
         }
     }
 }
-
 
 pub(super) fn normalize_exclude_prefixes(entries: Vec<String>) -> Vec<String> {
     entries

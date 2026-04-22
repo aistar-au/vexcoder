@@ -65,13 +65,12 @@ mod tool_tests {
     #[test]
     fn test_vex_force_mutating_turn_overrides_heuristic() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        
+
         assert!(
             is_read_only_user_request("show me the files"),
             "expected read-only classification without override"
         );
 
-        
         crate::test_support::test_set_var(&_lock, "VEX_FORCE_MUTATING_TURN", "1");
         let result = is_read_only_user_request("show me the files");
         crate::test_support::test_remove_var(&_lock, "VEX_FORCE_MUTATING_TURN");

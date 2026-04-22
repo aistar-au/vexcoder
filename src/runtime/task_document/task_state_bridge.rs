@@ -11,8 +11,6 @@ use super::{
 };
 
 impl TaskDocumentCondenser {
-    
-    
     pub fn persistable_snapshot(&self, doc: &TaskDocument) -> TaskState {
         let turns = doc
             .completed_turns
@@ -64,7 +62,6 @@ impl TaskDocumentCondenser {
         }
     }
 
-    
     pub fn restore_from_snapshot(&self, snapshot: TaskState) -> TaskDocument {
         let completed_turns: Vec<TurnDocument> = snapshot
             .turns

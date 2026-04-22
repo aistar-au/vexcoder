@@ -1,8 +1,6 @@
 use super::*;
 
 pub(crate) fn is_read_only_user_request(input: &str) -> bool {
-    
-    
     if std::env::var("VEX_FORCE_MUTATING_TURN").as_deref() == Ok("1") {
         return false;
     }

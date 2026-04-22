@@ -16,7 +16,6 @@ use merge::apply_over;
 use parse::*;
 use paths::*;
 
-
 pub(super) use parse::infer_model_protocol;
 #[cfg(test)]
 pub(super) use parse::parse_model_headers_json;
@@ -278,7 +277,6 @@ where
         )
 }
 
-
 pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
     let env_token = model_token_from_env_or_keyring();
 
@@ -462,7 +460,6 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
     Ok((layer, env_token))
 }
 
-
 fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -473,7 +470,6 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         }
     };
 
-    
     let raw: toml::Value = toml::from_str(&content)
         .with_context(|| format!("malformed TOML in '{}'", path.display()))?;
     if raw.get("model_token").is_some() {
@@ -484,11 +480,9 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         );
     }
 
-    
     let layer: ConfigLayer = toml::from_str(&content)
         .with_context(|| format!("unknown or invalid key in config file '{}'", path.display()))?;
 
-    
     if let Some(ref s) = layer.model_backend
         && parse_model_backend(s.clone()).is_none()
     {

@@ -1,5 +1,3 @@
-
-
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::task_document::{
     ActiveTurnDocument, AssistantPhase, NoticeSeverity, TaskDocument, TurnEntry,
@@ -11,7 +9,6 @@ use crate::status_contract::{
 use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 
 use super::{StepLifecycle, TranscriptRow};
-
 
 pub(super) fn project_transcript_rows(
     task_doc: &TaskDocument,
@@ -34,11 +31,9 @@ pub(crate) fn project_committed_transcript_rows(
         rows.push(TranscriptRow::Plain(notice.clone()));
     }
 
-    
     let mut compaction_iter = task_doc.context_compaction.iter().peekable();
 
     for (turn_idx, completed) in task_doc.completed_turns.iter().enumerate() {
-        
         while compaction_iter
             .peek()
             .is_some_and(|r| r.turn_index <= turn_idx)
@@ -52,7 +47,6 @@ pub(crate) fn project_committed_transcript_rows(
         append_turn_rows(&mut rows, &completed.entries);
     }
 
-    
     for record in compaction_iter {
         rows.push(TranscriptRow::Plain(format!(
             "[context compacted: {}]",
@@ -74,8 +68,6 @@ pub(crate) fn project_active_transcript_rows(
 }
 
 fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
-    
-    
     let tool_results: std::collections::HashMap<&str, (&str, bool)> = entries
         .iter()
         .filter_map(|e| {
@@ -93,7 +85,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
         })
         .collect();
 
-    
     let mut last_tool_header: Option<String> = None;
     let mut repeat_count: usize = 0;
 
@@ -129,8 +120,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                     text.push('▌');
                     *streaming = true;
                 }
-                
-                
+
                 if !block.content.trim().is_empty() {
                     last_tool_header = None;
                     repeat_count = 0;
@@ -171,12 +161,10 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         );
 
                         if last_tool_header.as_deref() == Some(&current_header) {
-                            
-                            
                             repeat_count += 1;
                             let fold_line =
                                 format!("(repeated \u{d7}{}, same call)", repeat_count + 1);
-                            
+
                             let replace_last = rows.last().is_some_and(|r| {
                                 if let TranscriptRow::ToolDetail(s) = r {
                                     s.starts_with("(repeated")
@@ -238,7 +226,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 idx += 1;
             }
             TurnEntry::ToolResult { .. } => {
-                
                 idx += 1;
             }
             TurnEntry::SystemNotice {
@@ -264,7 +251,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
 fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDocument) {
     append_turn_rows(rows, &active.entries);
 
-    
     let has_streamed_content = active.entries.iter().any(|e| {
         matches!(
             e,
@@ -447,7 +433,6 @@ fn first_pathish_token(text: &str) -> Option<String> {
         looks_pathish.then(|| candidate.to_string())
     })
 }
-
 
 pub(super) fn extract_assistant_response(entries: &[TurnEntry]) -> String {
     let mut parts = Vec::new();

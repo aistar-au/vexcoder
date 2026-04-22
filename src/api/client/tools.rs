@@ -26,7 +26,6 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
     summaries
 }
 
-
 pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
@@ -296,7 +295,6 @@ pub(super) fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value 
     wrap_as_chat_compat_functions(&base)
 }
 
-
 const READONLY_TOOL_NAMES: &[&str] = &[
     "read_file",
     "list_files",
@@ -314,11 +312,9 @@ const READONLY_TOOL_NAMES: &[&str] = &[
     "codebase_search",
 ];
 
-
 pub(crate) fn is_readonly_tool(name: &str) -> bool {
     READONLY_TOOL_NAMES.contains(&name)
 }
-
 
 pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -> Value {
     match policy {
@@ -336,14 +332,13 @@ pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -
                 })
                 .cloned()
                 .collect();
-            
+
             defs.extend(extra.iter().cloned());
             Value::Array(defs)
         }
         ToolPolicy::Chat => Value::Array(vec![]),
     }
 }
-
 
 pub(super) fn tool_definitions_chat_compat_for_policy(
     policy: ToolPolicy,

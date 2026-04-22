@@ -50,8 +50,6 @@ struct ValidateConfig {
 }
 
 impl ValidationSuite {
-    
-    
     pub async fn run<R>(&self, runner: &R) -> Result<ValidationResult>
     where
         R: CommandRunner + ?Sized,
@@ -74,7 +72,6 @@ impl ValidationSuite {
             });
         }
 
-        
         let futures: Vec<_> = self
             .commands
             .iter()
@@ -134,7 +131,6 @@ impl ValidationSuite {
         Ok(ValidationResult { passed, outputs })
     }
 
-    
     pub fn format_for_retry(&self, result: &ValidationResult) -> String {
         if result.passed {
             return "[validation passed]".to_string();
@@ -179,7 +175,6 @@ impl ValidationSuite {
         out
     }
 
-    
     pub fn infer_from_repo(root: &Path) -> Self {
         let mut commands = Vec::new();
         let has_cargo = root.join("Cargo.toml").is_file();
@@ -221,7 +216,6 @@ impl ValidationSuite {
         Self { commands }
     }
 
-    
     pub fn load_or_infer(root: &Path) -> Self {
         let config_path = root.join(".vex/validate.toml");
         if config_path.is_file() {
@@ -398,7 +392,6 @@ fn normalize_timeout(timeout_secs: u64) -> u64 {
         timeout_secs
     }
 }
-
 
 fn makefile_has_test_target(root: &Path) -> bool {
     let makefile = root.join("Makefile");

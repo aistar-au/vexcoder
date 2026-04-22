@@ -100,7 +100,6 @@ impl ToolOperator {
         }
     }
 
-    
     pub fn repo_root(&self) -> Result<PathBuf> {
         let repo = git2::Repository::discover(&self.working_dir)
             .context("git2: repository not found; ensure the path is inside a git repository")?;

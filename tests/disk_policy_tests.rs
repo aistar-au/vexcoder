@@ -1,5 +1,3 @@
-
-
 #![allow(unsafe_code)]
 
 use std::path::Path;
@@ -108,7 +106,6 @@ fn windows_mixed_separator_path_is_search_index() {
 
 #[test]
 fn index_prefix_without_path_separator_is_forbidden() {
-    
     assert_eq!(
         check_path(Path::new(".vex/indexing.txt")),
         DiskPermission::Forbidden,
@@ -121,7 +118,6 @@ fn index_prefix_without_path_separator_is_forbidden() {
 
 #[test]
 fn state_prefix_without_path_separator_is_forbidden() {
-    
     assert_eq!(
         check_path(Path::new(".vex/stateful.bin")),
         DiskPermission::Forbidden,

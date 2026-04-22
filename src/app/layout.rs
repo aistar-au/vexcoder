@@ -58,8 +58,6 @@ struct TaskStepView {
 }
 
 impl TuiMode {
-    
-    
     fn task_timeline_entries_from(steps: &[TaskStepView]) -> Vec<TimelineEntry> {
         steps
             .iter()
@@ -77,7 +75,6 @@ impl TuiMode {
         use crate::runtime::task_document::TurnEntry;
         let mut entries = Vec::new();
 
-        
         let (input, turn_entries): (&str, &[TurnEntry]) =
             if let Some(active) = self.task_doc.active_turn.as_ref() {
                 (active.input.as_str(), &active.entries)
@@ -87,7 +84,6 @@ impl TuiMode {
                 return entries;
             };
 
-        
         if !input.trim().is_empty() {
             entries.push(TaskStepView {
                 step_id: 0,
@@ -98,7 +94,6 @@ impl TuiMode {
             });
         }
 
-        
         let awaiting_step_id = self
             .overlay_state
             .pending_approval
@@ -166,7 +161,6 @@ impl TuiMode {
             }
         }
 
-        
         if let Some(active) = self.task_doc.active_turn.as_ref() {
             for session in active.command_sessions.values() {
                 let display_status = display_status_text(&session.status);
@@ -190,7 +184,6 @@ impl TuiMode {
         entries
     }
 
-    
     pub(super) fn task_output_view(&self) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
         let steps = self.task_step_views();
         let entries = Self::task_timeline_entries_from(&steps);
@@ -209,7 +202,6 @@ impl TuiMode {
         entries: &[TimelineEntry],
         transcript_rows: Vec<TranscriptRow>,
     ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
-        
         if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
                 .selected_timeline_index
@@ -277,8 +269,6 @@ impl TuiMode {
             &[TimelineEntry],
         ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor),
     ) -> Option<TaskLayoutState> {
-        
-        
         let pending_approval = if self.overlay_state.pending_patch_approval.is_some() {
             Some("ApplyPatch".to_string())
         } else if self.overlay_state.pending_resume_selection.is_some() {
@@ -292,8 +282,7 @@ impl TuiMode {
         let steps = self.task_step_views();
         let timeline_entries = Self::task_timeline_entries_from(&steps);
         let total_steps = timeline_entries.len();
-        
-        
+
         let selected_step = if self.timeline_follow_mode && total_steps > 0 {
             total_steps - 1
         } else {
@@ -521,12 +510,12 @@ mod tests {
             0,
             Default::default(),
         );
-        
+
         mode.push_document_notice(
             "Hello! How can I help you today?".to_string(),
             crate::runtime::NoticeSeverity::Info,
         );
-        
+
         let rows = mode.transcript_display_rows();
         assert!(
             rows.iter().any(|r| r.as_display_str().contains("Hello!")),
@@ -555,7 +544,7 @@ mod tests {
         ];
         let mut rows = Vec::new();
         extend_visual_rows(&mut rows, &lines, None);
-        
+
         let blank_count = rows.iter().filter(|r| r.is_empty()).count();
         assert!(
             blank_count <= 2,

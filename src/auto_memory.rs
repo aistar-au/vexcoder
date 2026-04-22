@@ -1,5 +1,3 @@
-
-
 pub fn extract_notes_from_turn(_input: &str, response: &str, max_notes: usize) -> Vec<String> {
     if max_notes == 0 {
         return Vec::new();
@@ -102,7 +100,6 @@ pub fn is_auto_note_line(line: &str) -> bool {
         && suffix.starts_with("[auto] ")
 }
 
-
 pub fn append_auto_notes(notes: &[String], path: &std::path::Path) -> anyhow::Result<()> {
     use std::io::Write as _;
     let mut file = std::fs::OpenOptions::new()
@@ -114,7 +111,6 @@ pub fn append_auto_notes(notes: &[String], path: &std::path::Path) -> anyhow::Re
     }
     Ok(())
 }
-
 
 pub fn remove_auto_notes(path: &std::path::Path) -> anyhow::Result<usize> {
     if !path.exists() {

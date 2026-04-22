@@ -25,21 +25,18 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
-    
     fn alloc_step_id(&mut self) -> u64 {
         let id = self.task_doc.info.next_step_id;
         self.task_doc.info.next_step_id = self.task_doc.info.next_step_id.saturating_add(1);
         id
     }
 
-    
     fn append_turn_entry(&mut self, entry: TurnEntry) {
         if let Some(active) = self.task_doc.active_turn.as_mut() {
             active.entries.push(entry);
         }
     }
 
-    
     pub(super) fn push_document_notice(&mut self, message: String, severity: NoticeSeverity) {
         if self.task_doc.active_turn.is_some() {
             let step_id = self.alloc_step_id();
@@ -84,8 +81,7 @@ impl TuiMode {
                 {
                     return;
                 }
-                
-                
+
                 if self.stream_uses_structured_final_output {
                     return;
                 }
@@ -254,8 +250,6 @@ impl TuiMode {
                         input,
                         status,
                     } => {
-                        
-                        
                         let exists = if let Some(active) = self.task_doc.active_turn.as_mut() {
                             active.entries.iter_mut().any(|e| {
                                 if let TurnEntry::ToolCall {
@@ -294,7 +288,6 @@ impl TuiMode {
                         output,
                         is_error,
                     } => {
-                        
                         if let Some(active) = self.task_doc.active_turn.as_mut() {
                             for entry in &mut active.entries {
                                 if let TurnEntry::ToolCall { id, status, .. } = entry
@@ -533,8 +526,7 @@ impl TuiMode {
                 self.last_turn_duration = self.turn_started_at.map(|s| s.elapsed());
                 self.last_turn_ttft = self.ttft;
                 self.append_turn_timing_line();
-                
-                
+
                 if self.task_doc.active_turn.is_some() {
                     let turn_outcome = match &outcome {
                         EditLoopOutcome::Success { .. } => TurnOutcome::Completed,

@@ -57,7 +57,6 @@ pub struct UpdateSessionTaskStatusRequest {
     pub status: String,
 }
 
-
 #[tracing::instrument(skip_all)]
 pub async fn list_tasks_handler(
     State(state): State<LocalApiState>,
@@ -78,7 +77,6 @@ pub async fn list_tasks_handler(
     ))
 }
 
-
 #[tracing::instrument(skip_all)]
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
@@ -86,7 +84,6 @@ pub async fn list_session_tasks_handler(
     let tasks = facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(tasks.into_iter().map(rollup_to_response).collect()))
 }
-
 
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn get_session_task_handler(
@@ -99,7 +96,6 @@ pub async fn get_session_task_handler(
         None => Err(not_found("session_task_not_found")),
     }
 }
-
 
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn update_session_task_status_handler(
@@ -144,7 +140,6 @@ fn session_task_event(
 fn lifecycle_state_is_terminal(state: &str) -> bool {
     matches!(state, "failed" | "cancelled" | "completed")
 }
-
 
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn watch_session_task_handler(
@@ -223,7 +218,6 @@ pub async fn watch_session_task_handler(
     Ok(response)
 }
 
-
 #[derive(Debug, Serialize)]
 pub struct TaskGraphNodeResponse {
     pub id: String,
@@ -237,7 +231,6 @@ pub struct TaskGraphNodeResponse {
 pub struct TaskGraphResponse {
     pub nodes: Vec<TaskGraphNodeResponse>,
 }
-
 
 #[tracing::instrument(skip_all)]
 pub async fn task_graph_handler(
@@ -262,7 +255,6 @@ pub async fn task_graph_handler(
     }))
 }
 
-
 #[derive(Debug, Serialize)]
 pub struct TodoItemResponse {
     pub id: String,
@@ -270,7 +262,6 @@ pub struct TodoItemResponse {
     pub agent_id: String,
     pub lifecycle_state: String,
 }
-
 
 #[tracing::instrument(skip_all)]
 pub async fn list_todos_handler(
@@ -289,7 +280,6 @@ pub async fn list_todos_handler(
             .collect(),
     ))
 }
-
 
 #[derive(Debug, Serialize)]
 pub struct ProjectionStatusResponse {
@@ -310,7 +300,6 @@ fn file_modified_ms(path: &std::path::Path) -> Option<u64> {
         })
 }
 
-
 #[tracing::instrument(skip_all)]
 pub async fn projection_handler(
     State(state): State<LocalApiState>,
@@ -319,11 +308,9 @@ pub async fn projection_handler(
     let graph_path = task_graph_rollup_path(working_dir);
     let todos_path = todos_rollup_path(working_dir);
 
-    
     let graph_written = file_modified_ms(&graph_path);
     let todos_written = file_modified_ms(&todos_path);
 
-    
     if let Err(e) = write_projection_rollup(working_dir) {
         tracing::warn!(error = ?e, "projection refresh failed during GET /v1/projection");
     }
@@ -335,7 +322,6 @@ pub async fn projection_handler(
         todos_written_ms: todos_written,
     }))
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct PostPeerMessageRequest {
@@ -365,7 +351,6 @@ pub struct ReadPeerMessagesQuery {
     pub recipient: Option<String>,
 }
 
-
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
 pub async fn post_peer_message_handler(
     State(state): State<LocalApiState>,
@@ -390,7 +375,6 @@ pub async fn post_peer_message_handler(
         Err(PeerChannelError::Internal(err)) => Err(internal_anyhow(err)),
     }
 }
-
 
 #[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
 pub async fn read_peer_messages_handler(

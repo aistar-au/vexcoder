@@ -69,14 +69,12 @@ pub enum RuntimeEvent {
     TranscriptBlockComplete {
         index: usize,
     },
-    
-    
+
     ToolCallStatusUpdated {
         tool_call_id: String,
         status: ToolStatus,
     },
-    
-    
+
     TranscriptBlockPhaseUpdated {
         index: usize,
         phase: AssistantPhase,
@@ -233,7 +231,6 @@ pub struct DerivedBatchRecords {
 
 pub type ToolCallId = String;
 
-
 pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
     let count = counter.fetch_add(1, Ordering::SeqCst).saturating_add(1);
     format!("tx_{}_{entropy:04x}", count)
@@ -291,8 +288,7 @@ impl RuntimeEnvelopeNormalizer {
 
     pub fn start_turn(&mut self, turn: u32, input: Option<String>) -> RuntimeEnvelope {
         self.turn = turn;
-        
-        
+
         self.pending_tool_calls.clear();
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
@@ -407,8 +403,7 @@ impl RuntimeEnvelopeNormalizer {
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
                 let mut envelopes = Vec::new();
-                
-                
+
                 envelopes.push(self.next_envelope_with_source(
                     RuntimeEvent::TranscriptBlockDelta {
                         index: *index,
@@ -799,8 +794,7 @@ fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
         | RuntimeEvent::ToolCallArgumentsDelta { .. }
         | RuntimeEvent::ServerMetadata { .. }
         | RuntimeEvent::UsageUpdated { .. } => RuntimeEnvelopeSource::Model,
-        
-        
+
         RuntimeEvent::TranscriptBlockDelta { .. } => RuntimeEnvelopeSource::Runtime,
         RuntimeEvent::ToolCallStatusUpdated { .. }
         | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }

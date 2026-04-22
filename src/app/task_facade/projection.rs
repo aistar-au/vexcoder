@@ -9,11 +9,9 @@ use crate::util::write_json_safe;
 
 use super::{FacadeSessionTaskRollup, FacadeTaskGraphNode, session_task_to_rollup};
 
-
 const PROJECTIONS_SUBDIR: &str = "projections";
 const TASK_GRAPH_FILE: &str = "task-graph.json";
 const TODOS_FILE: &str = "todos.json";
-
 
 #[derive(Debug, Serialize)]
 pub struct TaskGraphRollup {
@@ -21,13 +19,11 @@ pub struct TaskGraphRollup {
     pub nodes: Vec<FacadeTaskGraphNode>,
 }
 
-
 #[derive(Debug, Serialize)]
 pub struct TodosRollup {
     pub generated_at_ms: u64,
     pub items: Vec<TodoRollupItem>,
 }
-
 
 #[derive(Debug, Serialize)]
 pub struct TodoRollupItem {
@@ -37,13 +33,11 @@ pub struct TodoRollupItem {
     pub lifecycle_state: String,
 }
 
-
 pub fn task_graph_rollup_path(working_dir: &Path) -> PathBuf {
     TaskState::state_dir_from(working_dir)
         .join(PROJECTIONS_SUBDIR)
         .join(TASK_GRAPH_FILE)
 }
-
 
 pub fn todos_rollup_path(working_dir: &Path) -> PathBuf {
     TaskState::state_dir_from(working_dir)
@@ -51,20 +45,16 @@ pub fn todos_rollup_path(working_dir: &Path) -> PathBuf {
         .join(TODOS_FILE)
 }
 
-
 pub fn write_projection_rollup(working_dir: &Path) -> Result<()> {
     let now = now_millis();
     let projections_dir = TaskState::state_dir_from(working_dir).join(PROJECTIONS_SUBDIR);
 
-    
     fs::create_dir_all(&projections_dir)?;
 
     let mut graph_nodes: Vec<FacadeTaskGraphNode> = Vec::new();
     let mut todo_items: Vec<TodoRollupItem> = Vec::new();
 
     for file in TaskState::state_files_from(working_dir) {
-        
-        
         let state = match TaskState::load(&file.dir, &file.id) {
             Ok(s) => s,
             Err(_) => continue,

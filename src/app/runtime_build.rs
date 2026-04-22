@@ -16,7 +16,6 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     Ok((runtime, ctx))
 }
 
-
 pub fn build_runtime_with_resume(
     config: Config,
     resume_state: TaskState,

@@ -1,7 +1,4 @@
-
-
 use std::path::{Path, PathBuf};
-
 
 const SEARCH_PATHS: &[&str] = &[".vex/AGENTS.md", "AGENTS.md", ".vex/PROJECT.md"];
 
@@ -10,9 +7,8 @@ fn estimate_tokens(content: &str) -> usize {
 }
 
 pub struct ProjectInstructions {
-    
     pub path: PathBuf,
-    
+
     pub content: String,
 }
 
@@ -24,7 +20,6 @@ pub enum LoadResult {
     },
     NotFound,
 }
-
 
 pub fn load_project_instructions(workspace_root: &Path, token_budget: usize) -> LoadResult {
     for &relative in SEARCH_PATHS {

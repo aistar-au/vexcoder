@@ -41,7 +41,7 @@ pub enum UiUpdate {
     },
     TurnComplete,
     Error(String),
-    
+
     ContextCompacted {
         messages_before: usize,
         messages_after: usize,

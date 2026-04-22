@@ -1,5 +1,3 @@
-
-
 pub mod compression;
 pub mod dns;
 pub mod http_client;

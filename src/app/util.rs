@@ -208,8 +208,7 @@ pub(super) fn new_task_id() -> String {
     let ms = LAST_TASK_MS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |previous| {
         Some(now_ms.max(previous.saturating_add(1)))
     });
-    
-    
+
     let stable_ms = ms
         .map(|previous| now_ms.max(previous.saturating_add(1)))
         .unwrap_or(now_ms);
@@ -233,7 +232,6 @@ pub(super) fn resolve_repo_label() -> String {
         })
         .unwrap_or_else(|| "workspace".to_string())
 }
-
 
 pub(super) fn resolve_git_branch() -> String {
     std::process::Command::new("git")

@@ -1,10 +1,7 @@
-
-
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -14,7 +11,6 @@ pub struct AgentsConfig {
     #[serde(default, rename = "teams")]
     pub team_definitions: Vec<TeamDefinition>,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -30,28 +26,23 @@ pub struct AgentProfile {
     pub allowed_capabilities: Vec<String>,
 }
 
-
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum IsolationPolicy {
-    
     #[default]
     Worktree,
-    
+
     Shared,
 }
-
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TeamScheduler {
-    
     #[default]
     FanOutJoin,
-    
+
     Sequential,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -62,7 +53,6 @@ pub struct TeamDefinition {
     pub scheduler: TeamScheduler,
 }
 
-
 fn default_profile() -> String {
     "default".to_string()
 }
@@ -70,7 +60,6 @@ fn default_profile() -> String {
 fn default_max_parallel() -> u32 {
     1
 }
-
 
 pub fn find_agents_config(cwd: &Path) -> Option<PathBuf> {
     let mut dir: &Path = cwd;
@@ -83,7 +72,6 @@ pub fn find_agents_config(cwd: &Path) -> Option<PathBuf> {
     }
 }
 
-
 pub fn load_agents_config(cwd: &Path) -> Result<Option<AgentsConfig>> {
     let path = match find_agents_config(cwd) {
         Some(p) => p,
@@ -91,7 +79,6 @@ pub fn load_agents_config(cwd: &Path) -> Result<Option<AgentsConfig>> {
     };
     load_agents_config_from_path(&path)
 }
-
 
 pub fn load_agents_config_from_path(path: &Path) -> Result<Option<AgentsConfig>> {
     let content = match std::fs::read_to_string(path) {
@@ -107,7 +94,6 @@ pub fn load_agents_config_from_path(path: &Path) -> Result<Option<AgentsConfig>>
     Ok(Some(config))
 }
 
-
 fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     validate_agent_names(config, path)?;
     validate_team_members(config, path)?;
@@ -115,13 +101,11 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-
 const MAX_CONFIG_NAME_LEN: usize = 64;
 const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
-
 
 fn is_filesystem_safe(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." || name.ends_with([' ', '.']) {
@@ -172,10 +156,7 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-
 fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
-    
-    
     let agent_names: HashSet<&str> = config
         .agent_profiles
         .iter()
@@ -245,9 +226,7 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-
 const MUTABLE_CAPABILITIES: &[&str] = &["apply-patch", "run-command", "write-file"];
-
 
 fn validate_isolation_invariants(config: &AgentsConfig, path: &Path) -> Result<()> {
     for agent in &config.agent_profiles {

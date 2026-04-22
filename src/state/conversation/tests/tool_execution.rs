@@ -98,8 +98,6 @@ fn test_tool_requires_confirmation_for_mutating_tools() {
 
 #[test]
 fn test_tool_requires_confirmation_for_run_command_and_all_aliases() {
-    
-    
     assert!(tool_requires_confirmation("run_command"));
     assert!(tool_requires_confirmation("run_shell_command"));
     assert!(tool_requires_confirmation("bash"));

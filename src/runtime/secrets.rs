@@ -1,5 +1,3 @@
-
-
 use std::sync::OnceLock;
 
 const REVISED_TEXT: &str = "[REVISED]";
@@ -10,42 +8,35 @@ const REWRITTEN_BEARER_TEXT: &str = "${1}[REWRITTEN]";
 const AMENDED_CONNECTION_TEXT: &str = "${1}[AMENDED]${3}";
 const EDITED_ASSIGNMENT_TEXT: &str = "${1}[EDITED]";
 
-
 struct SecretPattern {
     regex: fn() -> &'static regex_lite::Regex,
     replacement: &'static str,
 }
-
 
 fn re_openai_key() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap())
 }
 
-
 fn re_aws_access_key() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap())
 }
-
 
 fn re_bearer_token() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"(?i)(bearer\s+)[A-Za-z0-9_.~+/=-]{20,}").unwrap())
 }
 
-
 fn re_github_token() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b").unwrap())
 }
 
-
 fn re_private_key_header() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----").unwrap())
 }
-
 
 fn re_connection_string() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -53,7 +44,6 @@ fn re_connection_string() -> &'static regex_lite::Regex {
         regex_lite::Regex::new(r"(://[A-Za-z0-9._-]+:)([A-Za-z0-9_.~%+/=-]{8,})(@)").unwrap()
     })
 }
-
 
 fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -64,7 +54,6 @@ fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
         .unwrap()
     })
 }
-
 
 const PATTERNS: &[SecretPattern] = &[
     SecretPattern {
@@ -97,7 +86,6 @@ const PATTERNS: &[SecretPattern] = &[
     },
 ];
 
-
 pub fn revise_secrets(text: &str) -> String {
     let mut out = text.to_string();
     for pat in PATTERNS {
@@ -106,7 +94,6 @@ pub fn revise_secrets(text: &str) -> String {
     }
     out
 }
-
 
 pub fn rewrite_url_for_logs(url: &str) -> String {
     match reqwest::Url::parse(url) {
@@ -121,11 +108,9 @@ pub fn rewrite_url_for_logs(url: &str) -> String {
     }
 }
 
-
 pub fn contains_secret(text: &str) -> bool {
     PATTERNS.iter().any(|pat| (pat.regex)().is_match(text))
 }
-
 
 #[cfg(test)]
 mod tests {

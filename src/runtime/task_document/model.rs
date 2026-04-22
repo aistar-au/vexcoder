@@ -11,7 +11,6 @@ use crate::state::{ToolStatus, TurnToolPolicy};
 use crate::types::{StreamPromptProgress, StreamTimings};
 use crate::usage::TurnTokens;
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskDocument {
     pub info: TaskInfo,
@@ -22,7 +21,6 @@ pub struct TaskDocument {
     pub session_tasks: Vec<SessionTask>,
     pub last_error: Option<TaskErrorState>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskInfo {
@@ -40,11 +38,9 @@ pub struct TaskInfo {
     pub updated_at_ms: u64,
     pub last_heartbeat_ms: Option<u64>,
     pub active_grants: HashMap<Capability, ApprovalScope>,
-    
-    
+
     pub next_step_id: u64,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ActiveTurnDocument {
@@ -64,7 +60,6 @@ pub struct ActiveTurnDocument {
     pub cancel_pending: bool,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TurnDocument {
     pub turn_index: usize,
@@ -79,7 +74,6 @@ pub struct TurnDocument {
     pub ttft_ms: Option<u64>,
     pub timings: Option<StreamTimings>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -127,10 +121,8 @@ pub enum TurnEntry {
     },
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AssistantBlockEntry {
-    
     pub block_index: usize,
     pub phase: AssistantPhase,
     pub content: String,
@@ -138,14 +130,12 @@ pub struct AssistantBlockEntry {
     pub streaming: bool,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AssistantPhase {
     Thinking,
     Final,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApprovalDocument {
@@ -156,7 +146,6 @@ pub struct ApprovalDocument {
     pub input_preview: String,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandSessionDocument {
     pub session_id: u64,
@@ -165,7 +154,6 @@ pub struct CommandSessionDocument {
     pub status: String,
     pub output_tail: Vec<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -176,7 +164,6 @@ pub enum TurnOutcome {
     MaxTurnsReached,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NoticeSeverity {
@@ -184,7 +171,6 @@ pub enum NoticeSeverity {
     Warning,
     Error,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TaskErrorState {

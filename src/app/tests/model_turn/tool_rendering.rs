@@ -1,6 +1,5 @@
 use super::*;
 
-
 #[test]
 fn test_waiting_indicator_appears_on_turn_start() {
     let mut mode = TuiMode::new();
@@ -74,7 +73,6 @@ fn test_waiting_indicator_cleared_on_tool_block() {
         "waiting indicator must be cleared when a tool block starts"
     );
 }
-
 
 #[test]
 fn test_verb_first_read_file_empty_path() {
@@ -168,7 +166,6 @@ fn test_verb_first_list_files_empty_path() {
     );
 }
 
-
 #[test]
 fn test_tool_blocks_emit_paragraph_rows_into_history() {
     let mut mode = TuiMode::new();
@@ -227,7 +224,6 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
     );
 }
 
-
 #[test]
 fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
     let mut mode = TuiMode::new();
@@ -235,7 +231,6 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
 
     mode.begin_turn_capture("test".to_string());
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -249,7 +244,6 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         &mut ctx,
     );
 
-    
     assert!(
         mode.task_doc.active_turn.as_ref().is_some_and(|t| {
             t.entries.iter().any(|e| {
@@ -261,7 +255,6 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         "StreamBlockStart must register pending tool call in active turn entries"
     );
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -269,7 +262,7 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         },
         &mut ctx,
     );
-    
+
     let tc1_input_partial = mode.task_doc.active_turn.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
             if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
@@ -317,7 +310,6 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         "typed updates must replace the pending transcript rows with the parsed preview"
     );
 }
-
 
 #[test]
 fn test_tool_call_arguments_updated_preserves_scroll_by_net_growth() {
@@ -379,7 +371,6 @@ fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    
     for index in 0..18 {
         mode.push_document_notice(
             format!("history row {index}"),
@@ -436,7 +427,6 @@ fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
     );
 }
 
-
 fn tool_call_start(index: usize, id: &str, name: &str, input: serde_json::Value) -> UiUpdate {
     UiUpdate::StreamBlockStart {
         index,
@@ -468,13 +458,12 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
 
     let input = serde_json::json!({"path": "src/main.rs"});
 
-    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", input.clone()),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
-    
+
     mode.on_model_update(
         tool_call_start(2, "t2", "read_file", input.clone()),
         &mut ctx,
@@ -482,8 +471,7 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
     mode.on_model_update(tool_result(3, "t2", "fn main() {}"), &mut ctx);
 
     let lines = &mode.history_lines();
-    
-    
+
     let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] read_file"))
@@ -507,14 +495,12 @@ fn test_different_consecutive_tool_calls_not_folded() {
     let mut ctx = setup_ctx();
     mode.on_user_input("task".to_string(), &mut ctx);
 
-    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", serde_json::json!({"path": "a.rs"})),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "content of a"), &mut ctx);
 
-    
     mode.on_model_update(
         tool_call_start(
             2,
@@ -532,8 +518,7 @@ fn test_different_consecutive_tool_calls_not_folded() {
         "different tool calls must not produce a folded-duplicate line; got:\n{:#?}",
         lines
     );
-    
-    
+
     let tool_headers: Vec<_> = lines.iter().filter(|l| l.starts_with("[tool]")).collect();
     assert!(
         tool_headers.len() >= 2,
@@ -547,7 +532,6 @@ fn test_tool_fold_state_resets_after_turn_ends() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    
     mode.on_user_input("first".to_string(), &mut ctx);
     let input = serde_json::json!({"path": "src/main.rs"});
     mode.on_model_update(
@@ -555,11 +539,9 @@ fn test_tool_fold_state_resets_after_turn_ends() {
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "content"), &mut ctx);
-    
-    
+
     mode.on_model_update(UiUpdate::Error("test reset".to_string()), &mut ctx);
 
-    
     mode.on_user_input("second".to_string(), &mut ctx);
     mode.on_model_update(
         tool_call_start(0, "t2", "read_file", input.clone()),
@@ -581,14 +563,12 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
     let mut ctx = setup_ctx();
     mode.on_user_input("list project".to_string(), &mut ctx);
 
-    
     mode.on_model_update(
         tool_call_start(0, "t1", "list_files", serde_json::json!({"path": "src"})),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "src/main.rs\nsrc/lib.rs"), &mut ctx);
 
-    
     mode.on_model_update(
         tool_call_start(2, "t2", "list_files", serde_json::json!({"path": "tests"})),
         &mut ctx,
@@ -597,7 +577,6 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 
     let lines = &mode.history_lines();
 
-    
     let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] list_files"))
@@ -609,7 +588,6 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
         lines
     );
 
-    
     assert!(
         lines.iter().any(|l| l.contains("src/main.rs")),
         "first tool result evidence must be preserved; got:\n{:#?}",
@@ -620,22 +598,16 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
         "second tool result evidence must be preserved after folding; got:\n{:#?}",
         lines
     );
-
-    
 }
-
 
 #[test]
 fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
-    
-    
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("read release workflow".to_string(), &mut ctx);
 
     let input = serde_json::json!({"path": ".github/workflows/release.yml"});
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -651,7 +623,6 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
     );
     mode.on_model_update(tool_result(2, "t1", "name: release"), &mut ctx);
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 3,
@@ -667,7 +638,6 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
     );
     mode.on_model_update(tool_result(5, "t2", "name: release"), &mut ctx);
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 6,
@@ -703,22 +673,18 @@ fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
 
 #[test]
 fn test_substantive_assistant_block_resets_dedup_tracker() {
-    
-    
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("examine files".to_string(), &mut ctx);
 
     let input = serde_json::json!({"path": "src/main.rs"});
 
-    
     mode.on_model_update(
         tool_call_start(0, "t1", "read_file", input.clone()),
         &mut ctx,
     );
     mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
 
-    
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 2,
@@ -729,7 +695,6 @@ fn test_substantive_assistant_block_resets_dedup_tracker() {
         &mut ctx,
     );
 
-    
     mode.on_model_update(
         tool_call_start(3, "t2", "read_file", input.clone()),
         &mut ctx,
@@ -760,7 +725,6 @@ fn test_long_transcript_line_marks_omitted_characters() {
     let mut ctx = setup_ctx();
     mode.on_user_input("task".to_string(), &mut ctx);
 
-    
     let long_line = "x".repeat(1024);
     mode.on_model_update(UiUpdate::TranscriptLine(long_line.clone()), &mut ctx);
 
@@ -782,7 +746,6 @@ fn test_edit_loop_lines_rendered_as_transcript() {
     let mut ctx = setup_ctx();
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
-    
     mode.on_model_update(
         UiUpdate::TranscriptLine("[edit loop turn 1/6]".to_string()),
         &mut ctx,
@@ -864,7 +827,6 @@ fn test_edit_loop_complete_emits_telemetry_line() {
     let mut ctx = setup_ctx();
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
-    
     mode.turn_started_at = Some(Instant::now());
     mode.ttft = Some(std::time::Duration::from_millis(200));
     if let Some(active) = mode.task_doc.active_turn.as_mut() {
@@ -877,7 +839,6 @@ fn test_edit_loop_complete_emits_telemetry_line() {
         });
     }
 
-    
     mode.on_model_update(
         UiUpdate::EditLoopComplete {
             outcome: EditLoopOutcome::Success {
@@ -890,7 +851,7 @@ fn test_edit_loop_complete_emits_telemetry_line() {
     );
 
     let lines = &mode.history_lines();
-    
+
     assert!(
         lines
             .iter()

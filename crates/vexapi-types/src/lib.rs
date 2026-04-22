@@ -123,34 +123,32 @@ pub struct ToolUseMetadata {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ApiUsage {
-    
     #[serde(default, alias = "prompt_tokens")]
     pub input_tokens: Option<u64>,
     #[serde(default, alias = "completion_tokens")]
     pub output_tokens: Option<u64>,
     #[serde(default)]
     pub total_tokens: Option<u64>,
-    
+
     #[serde(default)]
     pub cache_creation_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_read_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_creation: Option<serde_json::Value>,
-    
+
     #[serde(default)]
     pub service_tier: Option<String>,
     #[serde(default)]
     pub web_search_requests: Option<u64>,
     #[serde(default)]
     pub inference_geo: Option<String>,
-    
+
     #[serde(default)]
     pub prompt_tokens_details: Option<PromptTokenDetails>,
     #[serde(default)]
     pub completion_tokens_details: Option<CompletionTokenDetails>,
 }
-
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PromptTokenDetails {
@@ -159,7 +157,6 @@ pub struct PromptTokenDetails {
     #[serde(default)]
     pub audio_tokens: Option<u64>,
 }
-
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CompletionTokenDetails {
@@ -185,7 +182,6 @@ mod tests {
         };
         let serialized = serde_json::to_value(&msg).unwrap();
 
-        
         assert!(
             serialized.get("content").is_some(),
             "Missing 'content' key in JSON!"

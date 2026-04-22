@@ -20,7 +20,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
-
 use self::config::{append_capped, max_command_output_bytes};
 use self::index::{CODEBASE_INDEX, build_codebase_index, refresh_codebase_index};
 
@@ -67,7 +66,6 @@ impl ConversationManager {
         response_rx.await.unwrap_or(false)
     }
 
-    
     #[cfg(test)]
     pub(super) async fn execute_tool_with_timeout(
         &self,
@@ -86,11 +84,8 @@ impl ConversationManager {
         tool_timeout: Duration,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
-        
-        
         let name = normalize_shell_tool_alias(name);
 
-        
         let policy = self.client.tool_policy();
         match policy {
             ToolPolicy::Chat => {
@@ -404,14 +399,12 @@ async fn execute_mcp_tool(
     }
 }
 
-
 fn normalize_shell_tool_alias(name: &str) -> &str {
     match name {
         "run_shell_command" | "bash" | "execute_command" | "execute_bash" => "run_command",
         other => other,
     }
 }
-
 
 async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
@@ -585,7 +578,6 @@ fn render_command_session_command(program: &str, args: &[String]) -> String {
     command
 }
 
-
 pub(crate) mod config;
 pub(crate) mod dispatch;
 pub(crate) mod formatting;
@@ -593,7 +585,6 @@ pub(crate) mod index;
 #[cfg(test)]
 mod tests;
 pub(crate) mod validation;
-
 
 pub(crate) use self::dispatch::*;
 pub(crate) use self::formatting::*;

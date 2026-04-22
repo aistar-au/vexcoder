@@ -255,7 +255,6 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEnvelopeSource::Model
     );
 
-    
     let block_delta_envelopes = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockDelta {
             index: 0,
@@ -578,8 +577,7 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    
-    
+
     assert_eq!(turn_start_seqs.len(), 2);
     assert_eq!(turn_start_seqs[0], (1, 1));
     assert_eq!(turn_start_seqs[1].0, 2);

@@ -48,7 +48,6 @@ impl TuiMode {
         self.plan_turn_active = false;
     }
 
-    
     pub(super) fn append_turn_timing_line(&mut self) {
         let total = match self.last_turn_duration {
             Some(d) => d,
@@ -89,7 +88,6 @@ impl TuiMode {
         );
     }
 
-    
     pub(super) fn persist_task_document(&mut self) {
         let snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);
         let dir = TaskState::state_dir_from(&self.working_dir);
@@ -103,7 +101,6 @@ impl TuiMode {
         self.persist_task_document();
     }
 
-    
     pub(super) fn sync_session_tasks_from_disk(&mut self) {
         let state_dir = TaskState::state_dir_from(&self.working_dir);
         if let Ok(saved) = TaskState::load(&state_dir, &self.task_doc.info.id) {
@@ -198,7 +195,6 @@ impl TuiMode {
                 None
             });
             if let Some(plan) = plan_text {
-                
                 self.task_doc
                     .session_notes
                     .push(crate::runtime::task_state::SessionNote {

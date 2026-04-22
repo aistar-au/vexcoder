@@ -90,7 +90,6 @@ impl EditLoop {
         ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
-        
         match Self::check_workspace_dirty(&self.working_dir, &[]) {
             Ok(true) => {
                 ctx.emit_transcript_line(
@@ -106,7 +105,6 @@ impl EditLoop {
             }
         }
 
-        
         let root = self.working_dir.clone();
         let validation_suite = ValidationSuite::load_or_infer(&root);
         let runner = DefaultCommandRunner::new();
@@ -117,10 +115,8 @@ impl EditLoop {
                 return Ok(EditLoopOutcome::Cancelled);
             }
 
-            
             tokio::task::yield_now().await;
 
-            
             let message = if retry_context.is_empty() {
                 instruction.clone()
             } else {
@@ -129,7 +125,6 @@ impl EditLoop {
 
             ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
 
-            
             let patch_applied = match ctx.drive_edit_turn(message).await {
                 Ok(turn_result) => turn_result.patch_applied,
                 Err(err) => {
@@ -151,7 +146,6 @@ impl EditLoop {
                 continue;
             }
 
-            
             ctx.emit_transcript_line("[edit loop: running validation]".to_string());
             let validation_result = validation_suite
                 .run_in_dir_with_sandbox(&runner, &self.sandbox, Some(&root))
@@ -167,7 +161,6 @@ impl EditLoop {
                     });
                 }
             } else {
-                
                 retry_context = validation_suite.format_for_retry(&validation_result);
                 ctx.emit_transcript_line("[edit loop: validation failed, retrying]".to_string());
             }

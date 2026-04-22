@@ -2,7 +2,6 @@ use super::*;
 use crate::config::CompactionConfig;
 use crate::config::UndoConfig;
 
-
 #[test]
 fn test_build_runtime_with_resume_restores_task() {
     let temp = tempfile::tempdir().unwrap();
@@ -70,7 +69,6 @@ fn test_build_runtime_with_resume_restores_task() {
     );
 }
 
-
 #[test]
 fn test_tui_new_clears_active_edit_loop_field() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -107,7 +105,6 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    
     mode.task_doc
         .completed_turns
         .push(crate::runtime::task_document::TurnDocument {
@@ -135,7 +132,6 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
         ..Default::default()
     });
 
-    
     let status_before = mode.status_line();
     assert!(
         status_before.contains("tokens:1500"),
@@ -144,7 +140,6 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
 
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
-    
     assert!(
         mode.task_doc.completed_turns.is_empty(),
         "/compact must clear turn evidence to reset token counter"

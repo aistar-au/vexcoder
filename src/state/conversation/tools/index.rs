@@ -2,7 +2,6 @@ use crate::config::SearchConfig;
 use crate::tools::index::{self, IndexChunk};
 use std::sync::{Mutex, OnceLock};
 
-
 pub(super) static CODEBASE_INDEX: OnceLock<Mutex<Vec<IndexChunk>>> = OnceLock::new();
 
 pub(super) fn build_codebase_index(
@@ -15,7 +14,6 @@ pub(super) fn build_codebase_index(
         search_config.max_file_size,
     )
 }
-
 
 pub(super) fn refresh_codebase_index(
     rel_path: &str,
@@ -92,7 +90,6 @@ pub(crate) fn warm_codebase_index_with_config(
         search_config.max_file_size,
     ))
 }
-
 
 pub(crate) fn force_full_reindex_with_config(
     workspace_root: &std::path::Path,

@@ -1,9 +1,6 @@
-
-
 use anyhow::{Context, Result};
 use reqwest::{Client, ClientBuilder};
 use std::time::Duration;
-
 
 pub fn default_client_builder(skip_tls_verification: bool) -> ClientBuilder {
     reqwest::Client::builder()
@@ -21,7 +18,6 @@ pub fn default_client_builder(skip_tls_verification: bool) -> ClientBuilder {
         ))
         .danger_accept_invalid_certs(skip_tls_verification)
 }
-
 
 pub fn default_client(skip_tls_verification: bool) -> Result<Client> {
     default_client_builder(skip_tls_verification)

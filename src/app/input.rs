@@ -74,7 +74,6 @@ impl TuiMode {
             }
         }
 
-        
         self.begin_turn_capture(turn_input.clone());
 
         #[cfg(test)]

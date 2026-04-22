@@ -5,7 +5,6 @@ use serde_json::{Value, json};
 use std::io::Write;
 use std::path::Path;
 
-
 pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {
         anyhow!(
@@ -43,7 +42,6 @@ pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Res
     Ok(())
 }
 
-
 pub fn tool_definition_entry(name: &str, description: &str, input_schema: Value) -> Value {
     json!({
         "name": name,
@@ -52,11 +50,9 @@ pub fn tool_definition_entry(name: &str, description: &str, input_schema: Value)
     })
 }
 
-
 pub fn parse_bool_flag(s: String) -> Option<bool> {
     parse_bool_str(&s)
 }
-
 
 pub fn parse_bool_str(s: &str) -> Option<bool> {
     match s.trim().to_lowercase().as_str() {
@@ -65,7 +61,6 @@ pub fn parse_bool_str(s: &str) -> Option<bool> {
         _ => None,
     }
 }
-
 
 pub fn is_local_endpoint_url(url: &str) -> bool {
     let parsed = match Url::parse(url.trim()) {
@@ -83,16 +78,11 @@ pub fn is_local_endpoint_url(url: &str) -> bool {
             {
                 return true;
             }
-            
-            
+
             if let Ok(ip) = normalized.parse::<std::net::IpAddr>() {
                 return match ip {
-                    std::net::IpAddr::V4(v4) => {
-                        v4.is_private()         
-                            || v4.is_link_local() 
-                    }
+                    std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
                     std::net::IpAddr::V6(v6) => {
-                        
                         let seg = v6.segments();
                         (seg[0] & 0xffc0) == 0xfe80 || (seg[0] & 0xfe00) == 0xfc00
                     }
@@ -146,16 +136,15 @@ mod tests {
 
     #[test]
     fn test_is_local_endpoint_url_private_networks() {
-        
         assert!(is_local_endpoint_url("http://192.168.1.100:11434/v1"));
         assert!(is_local_endpoint_url("http://10.0.0.5:8080/v1/messages"));
         assert!(is_local_endpoint_url("http://172.16.0.1:8000/v1"));
         assert!(is_local_endpoint_url("http://172.31.255.254:8000/v1"));
-        
+
         assert!(!is_local_endpoint_url("http://172.32.0.1:8000/v1"));
-        
+
         assert!(is_local_endpoint_url("http://169.254.1.1:8080/v1"));
-        
+
         assert!(!is_local_endpoint_url("http://8.8.8.8:8080/v1"));
         assert!(!is_local_endpoint_url("http://203.0.113.1:8080/v1"));
     }

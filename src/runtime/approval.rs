@@ -69,7 +69,7 @@ struct CapabilityTable {
 impl FileApprovalPolicy {
     fn default_rules() -> HashMap<Capability, PolicyAction> {
         let mut rules = HashMap::new();
-        
+
         rules.insert(Capability::ReadFile, PolicyAction::Allow);
         rules.insert(
             Capability::WriteFile,
@@ -162,7 +162,6 @@ impl ApprovalPolicy for FileApprovalPolicy {
         Ok(policy)
     }
 }
-
 
 pub fn load_policy_from_env() -> FileApprovalPolicy {
     let policy_path =

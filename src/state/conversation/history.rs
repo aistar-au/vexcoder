@@ -10,7 +10,6 @@ use crate::types::{ApiMessage, Content, ContentBlock};
 use anyhow::Result;
 use std::time::Duration;
 
-
 const COMPACTION_SUMMARY_PROMPT: &str = "\
 You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary \
 for the next turn. Include: current progress and key decisions made, important \
@@ -43,7 +42,6 @@ impl ConversationManager {
         let len = self.api_messages.len();
         let mut keep_start = len.saturating_sub(max_api_messages);
 
-        
         while keep_start < len {
             let message = &self.api_messages[keep_start];
             if message.role == "user" && !message_contains_tool_result(message) {
@@ -108,7 +106,6 @@ impl ConversationManager {
         }
     }
 
-    
     pub(super) fn compact_for_context_overflow(&mut self) {
         const KEEP_MESSAGES: usize = 4;
         if self.api_messages.len() <= KEEP_MESSAGES {
@@ -117,7 +114,6 @@ impl ConversationManager {
         let len = self.api_messages.len();
         let mut keep_start = len.saturating_sub(KEEP_MESSAGES);
 
-        
         while keep_start < len {
             let msg = &self.api_messages[keep_start];
             if msg.role == "user" && !message_contains_tool_result(msg) {
@@ -131,7 +127,6 @@ impl ConversationManager {
         }
     }
 
-    
     pub(super) fn estimate_history_tokens(&self) -> usize {
         self.api_messages
             .iter()
@@ -151,7 +146,6 @@ impl ConversationManager {
             / 4
     }
 
-    
     pub(super) fn should_compact_proactively(
         &self,
         config: &CompactionConfig,
@@ -164,7 +158,6 @@ impl ConversationManager {
         self.estimate_history_tokens() > threshold
     }
 
-    
     pub(super) fn compact_with_summary(
         &mut self,
         keep_recent_turns: usize,
@@ -175,7 +168,6 @@ impl ConversationManager {
             return 0;
         }
 
-        
         let mut user_count = 0usize;
         let mut boundary = 0;
         for i in (0..len).rev() {
@@ -197,7 +189,6 @@ impl ConversationManager {
         let removed = boundary;
         self.api_messages.drain(0..boundary);
 
-        
         if !summary_text.is_empty()
             && let Some(first_message) = self.api_messages.first_mut()
             && first_message.role == "user"
@@ -210,7 +201,6 @@ impl ConversationManager {
         removed
     }
 
-    
     pub(super) fn run_proactive_compaction(
         &mut self,
         context_window_tokens: usize,
@@ -233,14 +223,12 @@ impl ConversationManager {
         Some((messages_before, messages_after, summary))
     }
 
-    
     pub(super) fn condense_old_tool_results(&mut self, keep_turns: usize) {
         let len = self.api_messages.len();
         if len == 0 {
             return;
         }
-        
-        
+
         let mut user_count = 0usize;
         let mut boundary = len;
         for i in (0..len).rev() {
@@ -255,7 +243,7 @@ impl ConversationManager {
         if boundary >= len || boundary == 0 {
             return;
         }
-        
+
         for message in &mut self.api_messages[..boundary] {
             if message.role != "user" {
                 continue;
@@ -269,8 +257,6 @@ impl ConversationManager {
                     }
                 }
                 Content::Text(text) => {
-                    
-                    
                     if text.contains("tool_result ") || text.contains("tool_error ") {
                         *text = condense_text_protocol_tool_results(text);
                     }
@@ -294,8 +280,6 @@ impl ConversationManager {
         };
 
         if name == "read_file" {
-            
-            
             let path = read_file_path(input).unwrap_or_else(|| "<missing>".to_string());
             let summary = self.read_file_history_cache.summarize(&path, output);
             return self.format_read_file_result_for_model_context(&path, output, summary);
@@ -419,7 +403,6 @@ pub(super) fn env_override_usize(key: &str, default: usize, min: usize, max: usi
         .unwrap_or(default)
 }
 
-
 const DEFAULT_HISTORY_KEEP_TURNS: usize = 10;
 const CONDENSED_TOOL_RESULT_LINES: usize = 5;
 const ENRICHED_TOOL_RESULT_PREVIEW_LINES: usize = 5;
@@ -429,7 +412,6 @@ const ENRICHED_TOOL_RESULT_PREVIEW_LINE_CHARS: usize = 160;
 pub(super) fn resolve_history_keep_turns() -> usize {
     env_override_usize("VEX_HISTORY_KEEP_TURNS", DEFAULT_HISTORY_KEEP_TURNS, 2, 64)
 }
-
 
 pub(super) fn truncate_to_lines(text: &str, max_lines: usize) -> String {
     if text
@@ -481,7 +463,6 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
     format!("{head}{indicator}{suffix}")
 }
 
-
 fn condense_text_protocol_tool_results(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut content_lines_since_header = 0usize;
@@ -490,7 +471,7 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
 
     for line in text.lines() {
         let is_header = line.starts_with("tool_result ") || line.starts_with("tool_error ");
-        
+
         if line.ends_with("more lines)") && line.starts_with('(') {
             if in_tool_result {
                 out.push('\n');
@@ -689,7 +670,6 @@ fn indent_block(text: &str, indent: &str) -> String {
         .join("\n")
 }
 
-
 fn build_heuristic_summary(
     messages: &[ApiMessage],
     keep_recent_turns: usize,
@@ -700,7 +680,6 @@ fn build_heuristic_summary(
         return String::new();
     }
 
-    
     let mut user_count = 0usize;
     let mut boundary = 0;
     for i in (0..len).rev() {

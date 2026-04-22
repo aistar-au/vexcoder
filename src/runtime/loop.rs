@@ -11,15 +11,13 @@ pub struct Runtime<M: RuntimeMode> {
 
 const IDLE_RENDER_TICK: Duration = Duration::from_millis(120);
 
-
 const IDLE_LOOP_BACKOFF: Duration = Duration::from_millis(4);
 
 impl<M: RuntimeMode> Runtime<M> {
     pub fn new(mode: M, update_rx: mpsc::UnboundedReceiver<UiUpdate>) -> Self {
         Self { mode, update_rx }
     }
-    
-    
+
     pub async fn run<F>(&mut self, frontend: &mut F, ctx: &mut RuntimeContext)
     where
         F: FrontendAdapter<M>,

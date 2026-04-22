@@ -95,9 +95,9 @@ pub use self::task_facade::{
 pub use crate::runtime::UiUpdate;
 pub use crate::runtime::tokio as runtime_tokio;
 
-use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
 use self::overlay::parse_approval_selection;
+use self::overlay::summarize_tool_approval_context;
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
     list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
@@ -146,7 +146,6 @@ enum ApprovalSelection {
     Deny,
 }
 
-
 const DISPLAY_COLUMN_WIDTH_FALLBACK: usize = usize::MAX;
 
 mod slash_commands;
@@ -175,44 +174,38 @@ struct OverlayState {
     pending_memory_clear: bool,
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StepLifecycle {
-    
     Running,
-    
+
     Completed,
-    
+
     Failed,
-    
+
     AwaitingApproval,
-    
+
     Approved,
-    
+
     UserInput,
-    
+
     CommandSession,
 }
 
-
 #[derive(Clone, Debug)]
 pub struct TimelineEntry {
-    
     pub step_id: u64,
     pub lifecycle: StepLifecycle,
     pub label: String,
-    
+
     pub detail: String,
-    
+
     pub session_id: Option<u64>,
 }
 
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OutputScrollAnchor {
-    
     Top,
-    
+
     #[default]
     Bottom,
 }
@@ -222,36 +215,35 @@ pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
     pub telemetry: TaskTelemetryState,
-    
+
     pub timeline_entries: Vec<TimelineEntry>,
-    
+
     pub selected_step: usize,
-    
+
     pub total_steps: usize,
-    
+
     pub output_title: String,
     pub output_rows: Vec<TranscriptRow>,
-    
+
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub pending_approval: Option<String>,
-    
+
     pub composer_text: String,
-    
+
     pub composer_cursor: usize,
-    
+
     pub composer_focused: bool,
     pub changed_files: Vec<String>,
-    
+
     pub follow_mode: bool,
-    
+
     pub picker_overlay: Vec<PickerOverlayLine>,
-    
+
     pub working_dir: String,
-    
+
     pub model_url: String,
 }
-
 
 #[derive(Clone, Debug, Default)]
 pub struct TaskViewProjection {
@@ -266,7 +258,6 @@ pub struct TaskViewProjection {
 }
 
 impl TaskLayoutState {
-    
     pub fn into_view_projection(self) -> TaskViewProjection {
         TaskViewProjection {
             status_line: self.status_line,
@@ -300,18 +291,17 @@ pub struct TaskTelemetryState {
     pub context_summary: Option<TaskContextSummaryState>,
     pub history_rows: usize,
     pub total_tokens: u64,
-    
+
     pub tokens_sent: u64,
-    
+
     pub tokens_received: u64,
     pub active_tools: usize,
     pub active_commands: usize,
     pub waiting_summary: Option<String>,
     pub timing_summary: Option<String>,
-    
+
     pub git_branch: String,
 }
-
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PickerOverlayLine {
@@ -367,9 +357,8 @@ fn directory_picker_context(prefix: &str) -> Option<(String, bool)> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlashPickerMatch {
-    
     pub command: String,
-    
+
     pub label: String,
 }
 
@@ -380,20 +369,19 @@ pub struct SlashPickerState {
 }
 
 pub struct TuiMode {
-    
     overlay_state: OverlayState,
-    
+
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
     mcp_rollup: Option<McpRegistryRollup>,
-    
+
     display_column_width: Cell<usize>,
-    
+
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,
-    
+
     model_name: String,
     model_backend: crate::runtime::ModelBackendKind,
     model_profile: ModelProfile,
@@ -405,51 +393,46 @@ pub struct TuiMode {
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
-    
-    
+
     task_doc: TaskDocument,
     task_doc_condenser: TaskDocumentCondenser,
-    
-    
+
     pre_session_notices: Vec<String>,
-    
-    
+
     stream_uses_structured_final_output: bool,
-    
+
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
-    
+
     selected_timeline_index: usize,
-    
+
     timeline_follow_mode: bool,
     transcript_scroll_offset: usize,
     inspector_scroll_offset: usize,
-    
+
     turn_started_at: Option<Instant>,
-    
+
     ttft: Option<Duration>,
-    
+
     last_turn_ttft: Option<Duration>,
-    
+
     last_turn_duration: Option<Duration>,
-    
+
     last_error_message: Option<String>,
-    
-    
+
     turn_completion_pending: bool,
-    
+
     plan_turn_active: bool,
-    
+
     #[cfg(not(test))]
     auto_memory_enabled: bool,
     #[cfg(test)]
     pub auto_memory_enabled: bool,
-    
+
     auto_memory_max_notes: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
-
 
 pub const ALL_CAPABILITIES: &[Capability] = &[
     Capability::ApplyPatch,

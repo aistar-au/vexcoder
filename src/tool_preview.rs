@@ -36,8 +36,6 @@ pub enum ReadFileSummaryMessageStyle {
 
 #[derive(Debug, Clone, Default)]
 pub struct ReadFileRollupCache {
-    
-    
     entries: HashMap<String, (u64, usize, usize)>,
 }
 
@@ -91,7 +89,6 @@ pub fn content_stats(content: &str) -> (usize, usize) {
             .max(usize::from(!content.is_empty())),
     )
 }
-
 
 pub fn read_file_path(input: &Value) -> Option<String> {
     input
@@ -395,7 +392,6 @@ mod tests {
             }
         );
 
-        
         let after_change_repeat = cache.summarize("a.rs", "abcd");
         assert_eq!(
             after_change_repeat,
@@ -414,11 +410,9 @@ mod tests {
         let missing_path = serde_json::json!({ "query": "needle" });
         assert_eq!(read_file_path(&missing_path), None);
 
-        
         let non_string = serde_json::json!({ "path": 42 });
         assert_eq!(read_file_path(&non_string), None);
 
-        
         let fallback = read_file_path(&missing_path).unwrap_or_else(|| "<missing>".to_string());
         assert_eq!(fallback, "<missing>");
     }

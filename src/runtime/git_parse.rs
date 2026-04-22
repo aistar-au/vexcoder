@@ -1,24 +1,18 @@
-
-
 use std::sync::OnceLock;
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusEntry {
-    
     pub index: char,
-    
+
     pub worktree: char,
-    
+
     pub path: String,
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitStatus {
     pub entries: Vec<StatusEntry>,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApplyOutcome {
@@ -31,20 +25,17 @@ pub enum ApplyOutcome {
     Failed { message: String },
 }
 
-
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitApply {
     pub outcomes: Vec<ApplyOutcome>,
     pub has_errors: bool,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffStatEntry {
     pub path: String,
     pub changes: u32,
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct ParsedDiffStat {
@@ -54,39 +45,31 @@ pub struct ParsedDiffStat {
     pub total_deletions: u32,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogEntry {
-    
     pub hash: String,
-    
+
     pub subject: String,
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct ParsedGitLog {
     pub entries: Vec<LogEntry>,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NameStatusEntry {
-    
-    
     pub status: char,
-    
+
     pub path: String,
-    
+
     pub new_path: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct ParsedNameStatus {
     pub entries: Vec<NameStatusEntry>,
 }
-
 
 fn re_status_line() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -145,18 +128,15 @@ fn re_apply_binary() -> &'static regex_lite::Regex {
     })
 }
 
-
 fn re_log_oneline() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^([0-9a-f]{7,40})\s+(.+)$").unwrap())
 }
 
-
 fn re_name_status_line() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^([AMDRTCUX])\d*\t(.+?)(?:\t(.+))?$").unwrap())
 }
-
 
 pub fn parse_git_status(output: &str) -> ParsedGitStatus {
     let re = re_status_line();
@@ -173,7 +153,6 @@ pub fn parse_git_status(output: &str) -> ParsedGitStatus {
         .collect();
     ParsedGitStatus { entries }
 }
-
 
 pub fn parse_diff_stat(output: &str) -> ParsedDiffStat {
     let re_line = re_diff_stat_line();
@@ -204,7 +183,6 @@ pub fn parse_diff_stat(output: &str) -> ParsedDiffStat {
     }
     result
 }
-
 
 pub fn parse_git_apply(output: &str) -> ParsedGitApply {
     let mut outcomes = Vec::new();
@@ -257,7 +235,6 @@ pub fn parse_git_apply(output: &str) -> ParsedGitApply {
     }
 }
 
-
 pub fn parse_git_log_oneline(output: &str) -> ParsedGitLog {
     let re = re_log_oneline();
     let entries = output
@@ -272,7 +249,6 @@ pub fn parse_git_log_oneline(output: &str) -> ParsedGitLog {
         .collect();
     ParsedGitLog { entries }
 }
-
 
 pub fn parse_name_status(output: &str) -> ParsedNameStatus {
     let re = re_name_status_line();
@@ -289,7 +265,6 @@ pub fn parse_name_status(output: &str) -> ParsedNameStatus {
         .collect();
     ParsedNameStatus { entries }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -467,7 +442,6 @@ mod tests {
         assert!(!parsed.has_errors);
     }
 
-    
     #[test]
     fn test_parse_git_log_oneline_basic() {
         let output =
@@ -500,7 +474,6 @@ mod tests {
         assert!(parsed.entries.is_empty());
     }
 
-    
     #[test]
     fn test_parse_name_status_basic() {
         let output = "M\tsrc/main.rs\nA\tsrc/new.rs\nD\tsrc/old.rs";

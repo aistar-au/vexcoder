@@ -1,5 +1,3 @@
-
-
 use anyhow::{Context, Result, anyhow};
 use base64::Engine as _;
 use jsonwebtoken::{
@@ -35,36 +33,33 @@ where
     }))
 }
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegisteredClaims {
-    
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iss: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub: Option<String>,
-    
+
     #[serde(
         default,
         deserialize_with = "deserialize_optional_audience",
         skip_serializing_if = "Option::is_none"
     )]
     pub aud: Option<Vec<String>>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nbf: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iat: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jti: Option<String>,
 }
-
 
 pub fn encode_hs256<C: Serialize>(claims: &C, secret: &[u8]) -> Result<String> {
     let mut header = Header::new(Algorithm::HS256);
@@ -72,7 +67,6 @@ pub fn encode_hs256<C: Serialize>(claims: &C, secret: &[u8]) -> Result<String> {
     encode(&header, claims, &EncodingKey::from_secret(secret))
         .context("JWT HS256 encoding failed (RFC 7519/7515)")
 }
-
 
 pub fn decode_hs256<C: for<'de> Deserialize<'de>>(
     token: &str,
@@ -109,7 +103,6 @@ pub fn decode_hs256<C: for<'de> Deserialize<'de>>(
         .context("JWT HS256 validation failed (RFC 7519/7515)")
 }
 
-
 pub fn validate_expiry(claims: &RegisteredClaims, now_secs: u64) -> Result<()> {
     if let Some(exp) = claims.exp
         && now_secs >= exp
@@ -120,7 +113,6 @@ pub fn validate_expiry(claims: &RegisteredClaims, now_secs: u64) -> Result<()> {
     }
     Ok(())
 }
-
 
 pub fn peek_header(token: &str) -> Result<Header> {
     jsonwebtoken::decode_header(token).context("JWT header decode failed (RFC 7519 §7.2)")
@@ -174,7 +166,7 @@ mod tests {
 
         let token = encode_hs256(&claims, SECRET).expect("encode");
         assert!(!token.is_empty());
-        
+
         assert_eq!(
             token.split('.').count(),
             3,
@@ -272,7 +264,7 @@ mod tests {
             iss: None,
             sub: None,
             aud: None,
-            exp: Some(now() - 1), 
+            exp: Some(now() - 1),
             nbf: None,
             iat: None,
             jti: None,

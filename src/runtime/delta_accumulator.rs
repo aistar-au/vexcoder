@@ -79,8 +79,7 @@ impl DeltaAccumulator {
 
             if self.estimate_memory_usage(&map) > self.memory_watermark_bytes {
                 self.drop_oldest_pending(&mut map);
-                
-                
+
                 if self.estimate_memory_usage(&map) > self.memory_watermark_bytes {
                     return Err(AccumulationError::MemoryPressure);
                 }
@@ -257,8 +256,7 @@ pub enum AccumulationError {
     DuplicateId(ToolCallId),
     #[error("malformed partial json")]
     MalformedPartial,
-    
-    
+
     #[error("memory watermark exceeded")]
     MemoryPressure,
 }
@@ -459,17 +457,14 @@ mod tests {
 
     #[test]
     fn memory_pressure_returned_when_no_pending_entry_can_be_evicted() {
-        
         let accumulator = DeltaAccumulator::new(1);
 
-        
         let id = "tx_1_aaaa".to_string();
         accumulator
             .start_tool(id.clone(), "task-wp".to_string(), "read_file".to_string())
             .unwrap();
         accumulator.finish(&id);
 
-        
         let result = accumulator.start_tool(
             "tx_2_bbbb".to_string(),
             "task-wp".to_string(),

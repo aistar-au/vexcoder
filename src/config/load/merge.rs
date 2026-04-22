@@ -4,7 +4,6 @@ use super::{
 };
 use crate::config::AutoMemoryConfig;
 
-
 pub(super) fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
     ConfigLayer {
         model_name: over.model_name.or(base.model_name),

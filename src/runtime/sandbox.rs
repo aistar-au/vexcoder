@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use crate::runtime::CommandRequest;
 
-
 const DEFAULT_MACOS_PROFILE: &str = "(version 1)\n\
     (deny default)\n\
     (allow process*)\n\
@@ -22,8 +21,7 @@ pub enum SandboxKind {
     Passthrough,
     MacosExec,
     Container,
-    
-    
+
     Bubblewrap,
 }
 
@@ -197,10 +195,8 @@ impl SandboxDriver for ContainerSandbox {
     }
 }
 
-
 #[derive(Debug, Clone, Default)]
 pub struct BubblewrapSandbox {
-    
     extra_args: Vec<String>,
 }
 
@@ -281,16 +277,12 @@ impl BubblewrapSandbox {
         extra_roots
     }
 
-    
     fn fixed_bwrap_args(working_dir: &std::path::Path) -> Vec<String> {
         let wd = working_dir.to_string_lossy().into_owned();
         let mut args = vec![
-            
             "--bind".to_string(),
             wd.clone(),
             wd,
-            
-            
             "--chdir".to_string(),
             working_dir.to_string_lossy().into_owned(),
         ];
@@ -301,7 +293,6 @@ impl BubblewrapSandbox {
             Self::push_ro_bind_try(&mut args, &root);
         }
         args.extend([
-            
             "--proc".to_string(),
             "/proc".to_string(),
             "--dev".to_string(),
@@ -309,8 +300,7 @@ impl BubblewrapSandbox {
             "--tmpfs".to_string(),
             "/tmp".to_string(),
         ]);
-        
-        
+
         args.push("--unshare-net".to_string());
         args
     }
@@ -523,7 +513,6 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_wraps_with_default_profile() {
-        
         let sandbox = super::MacosSandboxExec::new(None);
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -534,12 +523,12 @@ mod tests {
             .expect("wrap request");
         assert_eq!(wrapped.program, "sandbox-exec");
         let args = &wrapped.args;
-        
+
         assert_eq!(
             args[0], "-p",
             "expected -p option for inline profile, got: {args:?}"
         );
-        
+
         assert!(
             args.contains(&"cat".to_string()),
             "original program missing: {args:?}"
@@ -552,7 +541,6 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_wraps_with_explicit_profile_file() {
-        
         let profile_path = "/etc/vex-sandbox.sb";
         let sandbox = super::MacosSandboxExec::new(Some(profile_path.to_string()));
         let wrapped = sandbox
@@ -577,8 +565,6 @@ mod tests {
 
     #[test]
     fn macos_sandbox_exec_treats_whitespace_only_profile_as_default() {
-        
-        
         let sandbox = super::MacosSandboxExec::new(Some("   ".to_string()));
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -635,14 +621,12 @@ mod tests {
             "original arg missing: {:?}",
             wrapped.args
         );
-        
-        
+
         assert!(wrapped.working_dir.is_none());
     }
 
     #[test]
     fn bubblewrap_places_separator_before_command() {
-        
         let sandbox = super::BubblewrapSandbox::new(None);
         let wrapped = sandbox
             .wrap(CommandRequest {
@@ -669,7 +653,6 @@ mod tests {
 
     #[test]
     fn bubblewrap_extra_profile_args_are_included() {
-        
         let sandbox = super::BubblewrapSandbox::new(Some("--share-net --setenv FOO bar".into()));
         let wrapped = sandbox
             .wrap(CommandRequest {

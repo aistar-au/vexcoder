@@ -1,25 +1,20 @@
-
-
 pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
     if incoming.is_empty() {
         return String::new();
     }
 
-    
     let existing_len = existing.len();
     if incoming.len() > existing_len && incoming.as_bytes()[..existing_len] == *existing.as_bytes()
     {
         return incoming[existing_len..].to_string();
     }
 
-    
     if existing_len >= incoming.len()
         && existing.as_bytes()[..incoming.len()] == *incoming.as_bytes()
     {
         return String::new();
     }
 
-    
     incoming.to_string()
 }
 

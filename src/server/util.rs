@@ -130,8 +130,7 @@ pub fn build_http_tls_config(
         .context(
             "api.tls_cert and api.tls_key must form a matching certificate/private-key pair",
         )?;
-    
-    
+
     tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     Ok(Some(Arc::new(tls_config)))
 }

@@ -2,11 +2,9 @@ use std::path::Path;
 
 use crate::disk_policy::{self, DiskPermission};
 
-
 pub(crate) fn assert_durable_access(path: &Path) -> anyhow::Result<DiskPermission> {
     disk_policy::enforce(path, disk_policy::resolve_policy_mode())
 }
-
 
 #[cfg(test)]
 pub(crate) fn is_durable_path(path: &Path) -> bool {

@@ -1,34 +1,26 @@
-
-
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 
 use serde::Deserialize;
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetryHint {
-    
     pub delay_ms: u64,
-    
+
     pub source: RetryHintSource,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryHintSource {
-    
     Header,
-    
+
     Body,
 }
-
 
 fn re_retry_after_header() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^(\d+(?:\.\d+)?)$").unwrap())
 }
-
 
 fn re_retry_body() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -56,7 +48,6 @@ struct RetryBodyHint {
     retry_after_ms: Option<u64>,
 }
 
-
 pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     let trimmed = value.trim();
 
@@ -77,7 +68,6 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
         source: RetryHintSource::Header,
     })
 }
-
 
 pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
     let trimmed = body.trim();
@@ -105,7 +95,6 @@ pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
     })
 }
 
-
 pub fn looks_like_rate_limit(body: &str) -> bool {
     let lower = body.to_ascii_lowercase();
     lower.contains("rate limit")
@@ -113,7 +102,6 @@ pub fn looks_like_rate_limit(body: &str) -> bool {
         || lower.contains("throttl")
         || re_retry_body().is_match(body)
 }
-
 
 #[cfg(test)]
 mod tests {

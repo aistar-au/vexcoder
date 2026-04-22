@@ -9,12 +9,10 @@ fn write_config(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf 
     path
 }
 
-
 #[test]
 fn test_search_config_loads_from_both_layers() {
     let dir = tempfile::tempdir().expect("tempdir");
 
-    
     let user_cfg = write_config(
         &dir,
         "user.toml",
@@ -25,7 +23,6 @@ exclude = ["src/vendor/"]
 "#,
     );
 
-    
     let vex_dir = dir.path().join(".vex");
     std::fs::create_dir_all(&vex_dir).expect("mkdir .vex");
     let repo_cfg = vex_dir.join("config.toml");
@@ -40,12 +37,11 @@ enabled = true
 
     let config = load_for_tests(dir.path(), Some(&user_cfg), None).expect("load_for_tests failed");
 
-    
     assert!(
         config.search.enabled,
         "repo layer must override user layer for [search].enabled"
     );
-    
+
     assert!(
         config.search.exclude.contains(&"src/vendor/".to_string()),
         "user layer exclude list must be visible when repo layer omits it"

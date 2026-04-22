@@ -101,7 +101,6 @@ fn visit_state_files_in_dir(dir: &Path, mut visit: impl FnMut(TaskStateFile)) {
     }
 }
 
-
 fn write_pretty_json_safe(path: &Path, value: &TaskState, label: &str) -> Result<()> {
     crate::util::write_json_safe(path, value, label)
 }
@@ -186,7 +185,6 @@ impl TaskState {
         )
     }
 
-    
     pub fn state_files_from_with_limit(
         working_dir: &Path,
         limit: Option<usize>,
@@ -233,7 +231,6 @@ impl TaskState {
         for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
             let path = file.dir.join(format!("{}.json", file.id));
 
-            
             let header = match cached_task_header(&path) {
                 Some(h) => h,
                 None => {
@@ -246,9 +243,8 @@ impl TaskState {
                 }
             };
 
-            
             let is_candidate = match &header.session_tasks {
-                None => true, 
+                None => true,
                 Some(tasks) => tasks.iter().any(|t| {
                     session_task_id.starts_with(&format!("{}-{}-", header.id, t.agent_id))
                 }),
@@ -258,7 +254,6 @@ impl TaskState {
                 continue;
             }
 
-            
             let state = Self::load(&file.dir, &file.id)?;
             if let Some(task) = state.session_task(session_task_id).cloned() {
                 return Ok(Some((state, task)));
@@ -667,7 +662,6 @@ mod tests {
         assert!(!counts.contains_key("repo-reviewer"));
     }
 
-    
     #[test]
     fn state_files_from_with_limit_returns_newest_n() {
         use filetime::{FileTime, set_file_mtime};
@@ -676,7 +670,6 @@ mod tests {
         let state_dir = dir.path().join(".vex/state");
         std::fs::create_dir_all(&state_dir).unwrap();
 
-        
         for i in 0..5u32 {
             let id = format!("scan-task-{i}");
             let state = TaskState::new(id.clone());
@@ -693,7 +686,7 @@ mod tests {
         crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         assert_eq!(files.len(), 3);
-        
+
         assert_eq!(files[0].id, "scan-task-4");
         assert_eq!(files[1].id, "scan-task-3");
         assert_eq!(files[2].id, "scan-task-2");
@@ -717,7 +710,6 @@ mod tests {
         let with_explicit = TaskState::state_files_from(dir.path());
         crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
-        
         assert_eq!(with_none.len(), with_explicit.len());
         assert_eq!(with_none.len(), 4);
     }
@@ -729,7 +721,6 @@ mod tests {
         let state_dir = dir.path().join(".vex/state");
         std::fs::create_dir_all(&state_dir).unwrap();
 
-        
         let mut root = TaskState::new("legacy-root".to_string());
         let session_task = SessionTask::new("legacy-root", "bot", "do work", None);
         let expected_id = session_task.id.clone();

@@ -48,7 +48,6 @@ impl ConversationManager {
             }
         }
 
-        
         let mut undo_snapshots: std::collections::HashMap<String, UndoCheckpoint> =
             std::collections::HashMap::new();
         if self.undo_enabled {
@@ -106,7 +105,6 @@ impl ConversationManager {
 
         let completed = join_all(executions).await;
 
-        
         for call in &completed {
             if call.result.is_ok()
                 && let Some(cp) = undo_snapshots.remove(&call.id)

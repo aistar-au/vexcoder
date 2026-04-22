@@ -11,9 +11,7 @@ mod text_normaliser;
 pub(crate) use self::chat_compat::ChatCompatPayload;
 pub use self::text_normaliser::{NormalisedChunk, StreamTextNormaliser};
 
-
 const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
-
 
 pub(crate) const MAX_TOOL_CALL_INDEX: usize = 1_024;
 
@@ -35,8 +33,7 @@ pub struct StreamParser {
     buffer: Vec<u8>,
     bom_checked: bool,
     overflowed: bool,
-    
-    
+
     last_event_id: Option<String>,
     reconnect_delay_ms: Option<u64>,
     output_mode: StreamOutputMode,

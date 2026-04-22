@@ -23,20 +23,15 @@ pub struct AssembledContext {
     pub file_rollups: Vec<FileRollup>,
     pub git_status_summary: Option<String>,
     pub recent_diff: Option<String>,
-    
-    
+
     pub has_staged_changes: bool,
-    
-    
+
     pub has_working_tree_changes: bool,
-    
-    
+
     pub git_dir: Option<PathBuf>,
-    
-    
+
     pub committer_name: Option<String>,
-    
-    
+
     pub staged_paths: Vec<PathBuf>,
     pub related_paths: Vec<PathBuf>,
     pub cache_hits: usize,
@@ -84,7 +79,6 @@ impl ContextAssembler {
         self
     }
 
-    
     pub fn watch_working_dir<F>(
         &self,
         working_dir: &Path,
@@ -96,7 +90,6 @@ impl ContextAssembler {
         watch_working_dir(working_dir, on_change)
     }
 
-    
     pub fn assemble(&self, instruction: &str, operator: &ToolOperator) -> Result<AssembledContext> {
         let timeout_ms = resolve_git_timeout_ms(self.git_timeout_ms);
         let mut file_rollups = Vec::new();
@@ -105,7 +98,6 @@ impl ContextAssembler {
         let mut cache_hits = 0;
         let mut cache_misses = 0;
 
-        
         for candidate in extract_candidate_paths(instruction) {
             let path = PathBuf::from(&candidate);
             if !seen_paths.insert(path.clone()) {
@@ -197,7 +189,6 @@ impl ContextAssembler {
         })
     }
 
-    
     pub fn render(&self, ctx: &AssembledContext) -> String {
         let mut out = String::new();
         out.push_str("## Context\n");

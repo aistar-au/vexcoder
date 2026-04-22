@@ -10,10 +10,8 @@ use super::{
     TaskDocument, TaskErrorState, TaskInfo, TurnDocument, TurnEntry, TurnOutcome,
 };
 
-
 #[derive(Debug, Default)]
 pub struct TaskDocumentCondenser;
-
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaskMutationSummary {
@@ -29,7 +27,6 @@ impl TaskDocumentCondenser {
         Self
     }
 
-    
     pub fn begin_task(&self, info: TaskInfo) -> TaskDocument {
         TaskDocument {
             info,
@@ -42,7 +39,6 @@ impl TaskDocumentCondenser {
         }
     }
 
-    
     pub fn begin_turn(
         &self,
         doc: &mut TaskDocument,
@@ -80,7 +76,6 @@ impl TaskDocumentCondenser {
         });
     }
 
-    
     pub fn apply_runtime_event(
         &self,
         doc: &mut TaskDocument,
@@ -384,7 +379,6 @@ impl TaskDocumentCondenser {
         summary
     }
 
-    
     pub fn finish_turn(
         &self,
         doc: &mut TaskDocument,
@@ -397,7 +391,6 @@ impl TaskDocumentCondenser {
             return summary;
         };
 
-        
         for entry in &mut active.entries {
             if let TurnEntry::AssistantBlock { block, .. } = entry {
                 block.streaming = false;

@@ -18,9 +18,7 @@ use crate::runtime::tokio::{
     time::timeout,
 };
 
-
 const DEFAULT_MCP_TIMEOUT_SECS: u64 = 30;
-
 
 fn resolve_mcp_timeout(per_server: Option<u64>) -> Duration {
     let secs = per_server
@@ -85,8 +83,6 @@ impl McpConnectedServer {
     async fn shutdown(&self) {
         let service = self.runtime.lock().await.take();
         if let Some(service) = service {
-            
-            
             let _ = timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
@@ -127,7 +123,6 @@ impl McpRegistry {
             let runtime = match connect_result {
                 Ok(rt) => rt,
                 Err(error) => {
-                    
                     shutdown_connected_servers(std::mem::take(&mut servers)).await;
                     return Err(error);
                 }

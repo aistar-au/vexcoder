@@ -2,8 +2,6 @@ use super::*;
 
 #[tokio::test]
 async fn test_crit_01_protocol_flow() -> Result<()> {
-    
-    
     let first_response_sse = vec![
         r#"event: message_start
 data: {"type": "message_start", "message": {"id": "msg_mock_01", "type": "message", "role": "assistant", "model": "mock-model", "content": [], "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 10, "output_tokens": 1}}}"#.to_string(),
@@ -54,17 +52,14 @@ data: {"type": "message_stop"}"#.to_string(),
 
     assert!(final_text.contains("The content of file.txt is 'Hello from file.txt'"));
 
-    
     let messages = &manager.api_messages;
     assert_eq!(messages.len(), 4);
 
-    
     assert_eq!(messages[0].role, "user");
     if let Content::Text(text) = &messages[0].content {
         assert!(text.contains("What is in file.txt?"));
     }
 
-    
     assert_eq!(messages[1].role, "assistant");
     if let Content::Blocks(blocks) = &messages[1].content {
         assert_eq!(blocks.len(), 2);
@@ -80,7 +75,6 @@ data: {"type": "message_stop"}"#.to_string(),
         }
     }
 
-    
     assert_eq!(messages[2].role, "user");
     if let Content::Blocks(blocks) = &messages[2].content {
         assert_eq!(blocks.len(), 1);
@@ -97,7 +91,6 @@ data: {"type": "message_stop"}"#.to_string(),
         }
     }
 
-    
     assert_eq!(messages[3].role, "assistant");
     if let Content::Blocks(blocks) = &messages[3].content {
         assert_eq!(blocks.len(), 1);
@@ -592,8 +585,6 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 #[tokio::test]
 async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<()> {
-    
-    
     let mock_api_client =
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
             read_file_tool_round("msg_loop_nudge_01", "file.txt"),

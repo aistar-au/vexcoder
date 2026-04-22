@@ -50,7 +50,6 @@ impl WorktreeLeaseManager {
 
         let path = self.lease_root().join(task_id);
 
-        
         let git_status = std::process::Command::new("git")
             .args(["worktree", "add", "--detach"])
             .arg(&path)
@@ -61,9 +60,8 @@ impl WorktreeLeaseManager {
             .status();
 
         match git_status {
-            Ok(status) if status.success() => {  }
+            Ok(status) if status.success() => {}
             _ => {
-                
                 std::fs::create_dir_all(&path)
                     .with_context(|| format!("failed to create {}", path.display()))?;
             }
@@ -87,7 +85,6 @@ impl WorktreeLeaseManager {
         if metadata_path.exists() {
             let lease = self.load(task_id)?;
             if lease.path.exists() {
-                
                 let removed_via_git = std::process::Command::new("git")
                     .args(["worktree", "remove", "--force"])
                     .arg(&lease.path)

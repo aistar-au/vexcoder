@@ -1,5 +1,3 @@
-
-
 #![allow(unsafe_code)]
 
 use super::*;
@@ -22,12 +20,8 @@ impl EnvVarRestore {
 impl Drop for EnvVarRestore {
     fn drop(&mut self) {
         if let Some(value) = &self.original {
-            
-            
             unsafe { std::env::set_var(self.key, value) };
         } else {
-            
-            
             unsafe { std::env::remove_var(self.key) };
         }
     }
@@ -40,10 +34,8 @@ async fn test_chat_compat_fallback_writes_protocol_and_shape_debug_records() {
     let _path_restore = EnvVarRestore::capture("VEX_API_LOG_PATH");
     let log_file = NamedTempFile::new().expect("temp log file");
 
-    
     unsafe { std::env::set_var("VEX_DEBUG_PAYLOAD", "1") };
-    
-    
+
     unsafe { std::env::set_var("VEX_API_LOG_PATH", log_file.path()) };
 
     let (base_url, server) = spawn_tool_calls_json_args_server().await;
@@ -95,10 +87,8 @@ async fn test_messages_v1_fallback_writes_protocol_and_shape_debug_records() {
     let _path_restore = EnvVarRestore::capture("VEX_API_LOG_PATH");
     let log_file = NamedTempFile::new().expect("temp log file");
 
-    
     unsafe { std::env::set_var("VEX_DEBUG_PAYLOAD", "1") };
-    
-    
+
     unsafe { std::env::set_var("VEX_API_LOG_PATH", log_file.path()) };
 
     let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;

@@ -4,7 +4,6 @@ use std::path::Path;
 use crate::tools::operator::ToolOperator;
 use crate::tools::workspace_ignore::WorkspaceIgnore;
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemKind {
     Function,
@@ -38,14 +37,12 @@ impl ItemKind {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct IndexChunk {
-    
     pub path: String,
-    
+
     pub start_line: usize,
-    
+
     pub end_line: usize,
     pub kind: ItemKind,
     pub name: String,
@@ -64,8 +61,6 @@ enum SourceLanguage {
 
 impl SourceLanguage {
     fn parser_language(self) -> tree_sitter::Language {
-        
-        
         match self {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
             Self::Python => tree_sitter_python::LANGUAGE.into(),
@@ -76,11 +71,9 @@ impl SourceLanguage {
     }
 }
 
-
 pub fn build_index(workspace_root: &Path) -> Vec<IndexChunk> {
     build_index_filtered(workspace_root, &[], usize::MAX)
 }
-
 
 pub fn build_index_filtered(
     workspace_root: &Path,
@@ -120,11 +113,9 @@ pub fn build_index_filtered(
     chunks
 }
 
-
 pub fn update_index(index: &mut Vec<IndexChunk>, changed_path: &Path, workspace_root: &Path) {
     update_index_filtered(index, changed_path, workspace_root, &[], usize::MAX);
 }
-
 
 pub fn update_index_filtered(
     index: &mut Vec<IndexChunk>,
@@ -251,13 +242,11 @@ fn extract_rust_items(
                 scope_name.clone(),
             );
 
-            
             if kind == ItemKind::Impl || kind == ItemKind::Trait || kind == ItemKind::Module {
                 let scope = scope_name.as_deref();
                 extract_rust_items(child, source, rel_path, scope, chunks);
             }
         } else if kind_str == "declaration_list" {
-            
             extract_rust_items(child, source, rel_path, parent_scope, chunks);
         }
     }
@@ -421,9 +410,7 @@ fn push_chunk(
 }
 
 fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> String {
-    
     if *kind == ItemKind::Impl {
-        
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "type_identifier" || child.kind() == "generic_type" {
@@ -433,7 +420,6 @@ fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> Stri
         return "_impl".to_string();
     }
 
-    
     if let Some(name_node) = node.child_by_field_name("name") {
         return name_node.utf8_text(source).unwrap_or("_").to_string();
     }
@@ -482,7 +468,7 @@ mod tests {
         let mut chunks = Vec::new();
         parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
-        assert!(names.contains(&"Foo")); 
+        assert!(names.contains(&"Foo"));
         assert!(names.contains(&"bar"));
         assert!(names.contains(&"baz"));
     }
@@ -591,16 +577,14 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_search_config_respects_exclude_paths() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        
+
         let src = tmp.path().join("src");
         fs::create_dir_all(&src).expect("mkdir src");
         fs::write(src.join("lib.rs"), "pub fn included_fn() {}\n").expect("write lib.rs");
 
-        
         let vendor = src.join("vendor");
         fs::create_dir_all(&vendor).expect("mkdir vendor");
         fs::write(vendor.join("mod.rs"), "pub fn excluded_fn() {}\n").expect("write vendor/mod.rs");
@@ -619,7 +603,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn exclude_prefix_requires_path_boundary() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -630,7 +613,6 @@ mod tests {
         fs::write(data.join("lib.rs"), "pub fn in_data() {}\n").expect("write");
         fs::write(data_backup.join("lib.rs"), "pub fn in_data_backup() {}\n").expect("write");
 
-        
         let chunks = build_index_filtered(tmp.path(), &["src/data/".to_string()], usize::MAX);
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
         assert!(!names.contains(&"in_data"), "src/data/ must be excluded");
@@ -640,7 +622,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_incremental_update_after_write_file() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -655,7 +636,6 @@ mod tests {
             "initial index must contain before_write"
         );
 
-        
         fs::write(&file_path, "fn after_write() {}\n").expect("overwrite");
         update_index(&mut chunks, &file_path, tmp.path());
 
@@ -723,16 +703,14 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_build_index_filtered_skips_oversized_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let src = tmp.path().join("src");
         fs::create_dir_all(&src).expect("mkdir");
 
-        
         fs::write(src.join("small.rs"), "fn small_fn() {}\n").expect("write small.rs");
-        
+
         fs::write(
             src.join("large.rs"),
             "fn large_fn_that_is_too_big_for_this_cap() {}\n",
@@ -751,7 +729,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_reindex_rebuilds_full_index() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -763,7 +740,6 @@ mod tests {
         )
         .expect("write");
 
-        
         let chunks = build_index_filtered(tmp.path(), &[], usize::MAX);
         assert!(
             !chunks.is_empty(),

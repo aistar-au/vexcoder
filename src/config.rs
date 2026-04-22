@@ -54,8 +54,7 @@ pub struct McpServerConfig {
     pub url: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    
-    
+
     pub timeout_secs: Option<u64>,
 }
 
@@ -109,17 +108,14 @@ impl Default for ApiConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompactionConfig {
-    
     pub enabled: bool,
-    
-    
+
     pub threshold_percent: u8,
-    
+
     pub keep_recent_turns: usize,
-    
+
     pub summary_max_tokens: usize,
 }
 
@@ -134,13 +130,10 @@ impl Default for CompactionConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoMemoryConfig {
-    
-    
     pub enabled: bool,
-    
+
     pub max_notes_per_turn: usize,
 }
 
@@ -153,12 +146,10 @@ impl Default for AutoMemoryConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UndoConfig {
-    
     pub enabled: bool,
-    
+
     pub max_checkpoints: usize,
 }
 
@@ -173,13 +164,12 @@ impl Default for UndoConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchConfig {
-    
     pub enabled: bool,
-    
+
     pub auto_index: bool,
-    
+
     pub exclude: Vec<String>,
-    
+
     pub max_file_size: usize,
 }
 
@@ -255,15 +245,11 @@ where
         })
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ApiClientConfig {
-    
-    
     pub base_url: String,
-    
-    
+
     #[serde(
         default,
         deserialize_with = "deserialize_api_client_protocol_override",
@@ -271,11 +257,9 @@ pub struct ApiClientConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub explicit_protocol: Option<ModelProtocol>,
-    
-    
+
     pub probe_timeout_ms: u64,
-    
-    
+
     pub delta_accumulator_memory_watermark_mb: usize,
 }
 
@@ -291,7 +275,6 @@ impl Default for ApiClientConfig {
 }
 
 impl ApiClientConfig {
-    
     pub fn delta_accumulator_memory_watermark_bytes(&self) -> usize {
         self.delta_accumulator_memory_watermark_mb
             .saturating_mul(1024 * 1024)
@@ -310,11 +293,9 @@ pub struct Config {
     pub tool_call_mode: ToolCallMode,
     pub tool_policy: ToolPolicy,
     pub model_profile: ModelProfile,
-    
-    
+
     pub max_project_instructions_tokens: usize,
-    
-    
+
     pub max_memory_tokens: usize,
     pub sandbox: SandboxConfig,
     #[serde(skip)]
@@ -332,20 +313,16 @@ pub struct Config {
     pub undo: UndoConfig,
     pub search: SearchConfig,
     pub auto_memory: AutoMemoryConfig,
-    
-    
+
     #[serde(default)]
     pub api_client: ApiClientConfig,
-    
-    
+
     #[serde(skip)]
     pub force: bool,
-    
-    
+
     #[serde(skip)]
     pub bypass_policy: bool,
-    
-    
+
     #[serde(skip)]
     pub expand_context: bool,
 }
@@ -366,7 +343,6 @@ pub struct DoctorMcpServer {
     pub command: Option<String>,
     pub url: Option<String>,
 }
-
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -436,28 +412,22 @@ struct DoctorConfigLayer {
 }
 
 impl Config {
-    
-    
     pub fn load() -> Result<Self> {
         load::load()
     }
 
-    
     pub(crate) fn load_from_cwd(cwd: &Path) -> Result<Self> {
         load::load_from_cwd(cwd)
     }
 
-    
     pub fn load_cached() -> Result<Self> {
         cache::load_cached()
     }
 
-    
     pub fn load_for_tests(cwd: &Path, user: Option<&Path>, system: Option<&Path>) -> Result<Self> {
         load::load_for_tests(cwd, user, system)
     }
 
-    
     pub fn default_for_tui() -> Self {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {

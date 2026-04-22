@@ -17,12 +17,10 @@ async fn test_watch_session_task_stream_returns_not_found_for_unknown_id() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-
 #[tokio::test]
 async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal() {
     let temp = tempfile::tempdir().unwrap();
 
-    
     let st_id = delegate_one(
         setup_phase_e_router(temp.path()),
         "watch-parent",
@@ -42,7 +40,6 @@ async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal(
         .await
         .unwrap();
 
-    
     let router = setup_phase_e_router(temp.path());
     let response = router
         .oneshot(

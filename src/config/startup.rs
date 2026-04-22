@@ -1,15 +1,9 @@
-
-
 #[derive(Debug, Clone)]
 pub struct StartupBudget {
-    
-    
     pub max_scans: usize,
 
-    
     pub cache_ttl_ms: u64,
 
-    
     pub trace_allocations: bool,
 }
 

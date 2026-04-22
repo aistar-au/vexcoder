@@ -1,6 +1,4 @@
-
-
-const DEFAULT_MAX_COMMAND_OUTPUT_BYTES: usize = 50 * 1024; 
+const DEFAULT_MAX_COMMAND_OUTPUT_BYTES: usize = 50 * 1024;
 
 pub(super) fn max_command_output_bytes() -> usize {
     std::env::var("VEX_MAX_COMMAND_OUTPUT_BYTES")
@@ -9,7 +7,6 @@ pub(super) fn max_command_output_bytes() -> usize {
         .unwrap_or(DEFAULT_MAX_COMMAND_OUTPUT_BYTES)
 }
 
-
 pub(super) fn read_file_max_lines() -> usize {
     if let Some(explicit) = std::env::var("VEX_READ_FILE_MAX_LINES")
         .ok()
@@ -17,16 +14,14 @@ pub(super) fn read_file_max_lines() -> usize {
     {
         return explicit;
     }
-    
-    
+
     let max_tokens: usize = std::env::var("VEX_MAX_TOKENS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(4096);
-    let budget_lines = max_tokens / 200; 
+    let budget_lines = max_tokens / 200;
     budget_lines.clamp(50, 10_000)
 }
-
 
 pub(super) fn write_file_diff_preferred_above_lines() -> usize {
     std::env::var("VEX_DIFF_PREFERRED_ABOVE_LINES")
@@ -36,7 +31,6 @@ pub(super) fn write_file_diff_preferred_above_lines() -> usize {
         .unwrap_or(200)
 }
 
-
 pub(super) fn write_file_max_lines() -> usize {
     std::env::var("VEX_WRITE_FILE_MAX_LINES")
         .ok()
@@ -44,7 +38,6 @@ pub(super) fn write_file_max_lines() -> usize {
         .map(|v| v.clamp(10, 10_000))
         .unwrap_or(500)
 }
-
 
 pub(super) fn append_capped(buf: &mut String, text: &str, cap: usize) {
     buf.push_str(text);

@@ -1,5 +1,3 @@
-
-
 pub mod handlers;
 pub mod http;
 pub mod socket;
@@ -30,7 +28,6 @@ const HSTS_HEADER_VALUE: &str = "max-age=31536000";
 pub(crate) const SSE_CACHE_CONTROL_HEADER: &str = "no-cache, no-store, must-revalidate";
 pub(crate) const SSE_PROXY_BUFFERING_HEADER: &str = "x-accel-buffering";
 pub(crate) const SSE_PROXY_BUFFERING_DISABLED: &str = "no";
-
 
 const SSE_KEEPALIVE_TEXT: &str = "keepalive";
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);

@@ -1,5 +1,3 @@
-
-
 use std::io::Write;
 use std::path::Path;
 use vexapi::agents::{IsolationPolicy, TeamScheduler, load_agents_config};
@@ -38,7 +36,6 @@ scheduler = "fan_out_join"
 
     let config = load_agents_config(dir.path()).unwrap().unwrap();
 
-    
     assert_eq!(config.agent_profiles.len(), 2);
     let coder = &config.agent_profiles[0];
     assert_eq!(coder.name, "coder");
@@ -49,9 +46,8 @@ scheduler = "fan_out_join"
     let reviewer = &config.agent_profiles[1];
     assert_eq!(reviewer.name, "reviewer");
     assert_eq!(reviewer.isolation, IsolationPolicy::Shared);
-    assert_eq!(reviewer.max_parallel_tasks, 1); 
+    assert_eq!(reviewer.max_parallel_tasks, 1);
 
-    
     assert_eq!(config.team_definitions.len(), 1);
     let team = &config.team_definitions[0];
     assert_eq!(team.name, "dev-team");

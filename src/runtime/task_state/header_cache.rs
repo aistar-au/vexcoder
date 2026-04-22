@@ -5,9 +5,7 @@ use std::time::SystemTime;
 
 use super::task_header::TaskStateHeader;
 
-
 const MAX_HEADER_CACHE_ENTRIES: usize = 512;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileFingerprint {
@@ -31,8 +29,7 @@ struct CacheEntry {
     header: TaskStateHeader,
     fingerprint: FileFingerprint,
     last_access: u64,
-    
-    
+
     updated_at: u64,
 }
 
@@ -70,7 +67,6 @@ fn global_header_cache() -> &'static Mutex<HeaderLruCache> {
     CACHE.get_or_init(|| Mutex::new(HeaderLruCache::default()))
 }
 
-
 pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
     let fingerprint = match FileFingerprint::from_path(path) {
         Ok(fingerprint) => fingerprint,
@@ -85,13 +81,11 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
     };
     let cache_key = path.to_path_buf();
 
-    
     {
         let mut cache = global_header_cache()
             .lock()
             .expect("header cache mutex poisoned");
 
-        
         let cached_header = cache.entries.get(&cache_key).and_then(|e| {
             if e.fingerprint == fingerprint {
                 Some(e.header.clone())
@@ -101,7 +95,6 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
         });
 
         if let Some(header) = cached_header {
-            
             let tick = cache.tick();
             if let Some(entry) = cache.entries.get_mut(&cache_key) {
                 entry.last_access = tick;
@@ -109,11 +102,9 @@ pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
             return Some(header);
         }
 
-        
         cache.entries.remove(&cache_key);
     }
 
-    
     let header = match TaskStateHeader::from_path(path) {
         Ok(h) => h,
         Err(err) => {
@@ -191,10 +182,8 @@ mod tests {
 
         cached_task_header(&path);
 
-        
         std::fs::write(&path, r#"{"id":"t2","status":"Completed","updated_at":999,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#).unwrap();
-        
-        
+
         filetime::set_file_mtime(&path, filetime::FileTime::from_unix_time(9_999_999, 0)).unwrap();
 
         let after = cached_task_header(&path);
@@ -206,7 +195,6 @@ mod tests {
         reset_header_cache_for_tests();
         let dir = TempDir::new().unwrap();
 
-        
         for i in 0..=MAX_HEADER_CACHE_ENTRIES {
             let id = format!("evict-{i}");
             let path = write_header_file(&dir, &id, i as u64);

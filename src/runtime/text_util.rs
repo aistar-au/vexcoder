@@ -1,5 +1,3 @@
-
-
 pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_string(), false);
@@ -10,7 +8,6 @@ pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     }
     (text[..boundary].to_string(), true)
 }
-
 
 pub fn truncate_tail_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {

@@ -57,10 +57,9 @@ impl ConversationManager {
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
         let mut compacted_this_turn = false;
-        
+
         self.condense_old_tool_results(history_keep_turns);
 
-        
         let ctx_window = self.client.context_window_tokens();
         if let Some((before, after, _heuristic_content)) = self.run_proactive_compaction(ctx_window)
         {
@@ -126,7 +125,7 @@ impl ConversationManager {
                             summary,
                         },
                     );
-                    
+
                     rounds -= 1;
                     continue;
                 }
@@ -390,7 +389,6 @@ impl ConversationManager {
                     return Ok(msg);
                 }
 
-                
                 let has_empty_path_call = tool_use_blocks.iter().any(|block| {
                     if let ContentBlock::ToolUse { name, input, .. } = block {
                         matches!(name.as_str(), "read_file" | "list_files")
@@ -399,8 +397,7 @@ impl ConversationManager {
                         false
                     }
                 });
-                
-                
+
                 let repeat_threshold = if has_empty_path_call || self.client.is_local_endpoint() {
                     1
                 } else {
@@ -718,7 +715,6 @@ impl ConversationManager {
                             continue;
                         }
 
-                        
                         let undo_snapshot = self.capture_undo_snapshot(&name, &input);
 
                         let result = self
@@ -730,7 +726,6 @@ impl ConversationManager {
                             )
                             .await;
 
-                        
                         if result.is_ok()
                             && let Some(cp) = undo_snapshot
                         {
@@ -794,7 +789,6 @@ impl ConversationManager {
         }
     }
 }
-
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_tool_error(

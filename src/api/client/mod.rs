@@ -18,20 +18,16 @@ use serde_json::json;
 use std::sync::{Arc, RwLock};
 use tracing::Instrument;
 
-
 #[derive(Debug, Clone, Default)]
 pub struct ServerInfo {
-    
     pub n_ctx: u32,
-    
+
     pub n_batch: u32,
-    
+
     pub model: String,
-    
-    
+
     pub native_protocol: Option<ModelProtocol>,
 }
-
 
 #[derive(Debug, Deserialize, Default)]
 struct LocalServerProps {
@@ -133,13 +129,11 @@ fn infer_native_protocol_from_models(
         })
 }
 
-
 pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<ServerInfo> {
     let base = local_endpoint_base_url(api_url)?;
     let props_url = format!("{base}/props");
     let models_url = format!("{base}/v1/models");
 
-    
     let mut info: Option<ServerInfo> = None;
     tracing::debug!(
         target: "vex::http",
@@ -175,7 +169,6 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         }
     }
 
-    
     tracing::debug!(
         target: "vex::http",
         method = "GET",
@@ -251,7 +244,6 @@ async fn discover_native_protocol(
     .map(|result| result.protocol)
 }
 
-
 const BASE_SYSTEM_PROMPT: &str = "You are a coding assistant.\n\
 Use tools for all filesystem facts and changes.\n\
 When a user asks for repository facts, command output, file content, or code edits, call tools instead of guessing.\n\
@@ -299,7 +291,7 @@ pub struct ApiClient {
     max_tokens: u32,
     stop_sequences: Vec<String>,
     reasoning_budget: u32,
-    
+
     project_instructions: Option<String>,
     notes_content: Option<String>,
     extra_tool_definitions: Vec<Value>,
@@ -360,7 +352,7 @@ impl ApiClient {
             api_key: None,
             model: Arc::new(RwLock::new("mock-model".to_string())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            
+
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
             api_client_explicit_protocol: None,
@@ -394,7 +386,6 @@ impl ApiClient {
         self
     }
 
-    
     pub async fn populate_server_info(&self) {
         let Some(base_url) = local_endpoint_base_url(&self.api_url) else {
             return;
@@ -422,12 +413,10 @@ impl ApiClient {
         }
     }
 
-    
     pub fn set_server_info(&self, info: ServerInfo) {
         *self.server_info.write().expect("server_info lock poisoned") = Some(info);
     }
 
-    
     pub fn server_info(&self) -> Option<ServerInfo> {
         self.server_info
             .read()
@@ -435,7 +424,6 @@ impl ApiClient {
             .clone()
     }
 
-    
     pub fn context_window_tokens(&self) -> usize {
         self.server_info()
             .map(|i| i.n_ctx as usize)
@@ -443,7 +431,6 @@ impl ApiClient {
             .unwrap_or(8192)
     }
 
-    
     pub fn with_project_instructions(mut self, instructions: Option<String>) -> Self {
         self.project_instructions = instructions;
         self
@@ -462,7 +449,6 @@ impl ApiClient {
         is_local_endpoint_url(&self.api_url)
     }
 
-    
     pub fn https_local_startup_warning(&self) -> Option<String> {
         let lower = self.api_url.to_ascii_lowercase();
         if !self.is_local_endpoint() || !lower.starts_with("https://") {
@@ -502,12 +488,10 @@ impl ApiClient {
 
         let discovered_protocol = self.server_info().and_then(|si| si.native_protocol);
 
-        
         if let Some(configured_protocol) = configured_endpoint_protocol(&self.api_url) {
             return configured_protocol;
         }
 
-        
         if let Some(native) = discovered_protocol {
             return model_protocol_to_api_protocol(native);
         }
@@ -691,7 +675,6 @@ impl ApiClient {
             reqwest::header::HeaderValue::from_static("no-store"),
         );
 
-        
         for (name, value) in &self.model_headers {
             if is_reserved_header(name.as_str()) {
                 tracing::warn!(header = %name, "ignoring reserved model header override");
@@ -700,7 +683,6 @@ impl ApiClient {
             headers.insert(name.clone(), value.clone());
         }
 
-        
         match api_protocol {
             ApiProtocol::MessagesV1 => {
                 if let Some(api_key) = &self.api_key {
@@ -935,7 +917,6 @@ pub(crate) fn api_request_timeout_error(
     )
 }
 
-
 pub(crate) fn map_api_status_error(
     status: reqwest::StatusCode,
     body: &str,
@@ -945,11 +926,9 @@ pub(crate) fn map_api_status_error(
     let local_http_hint = local_plain_http_hint(request_url);
     let is_local = is_local_endpoint_url(request_url);
 
-    
     if status.as_u16() == 429
         || (status.is_client_error() && crate::runtime::rate_limit::looks_like_rate_limit(body))
     {
-        
         let retry_hint = retry_after_header
             .and_then(crate::runtime::rate_limit::parse_retry_after_header)
             .or_else(|| crate::runtime::rate_limit::parse_retry_from_body(body));
@@ -969,7 +948,6 @@ pub(crate) fn map_api_status_error(
         );
     }
 
-    
     if is_context_overflow(body) {
         let ctx_hint = if is_local {
             "\n  The conversation has exceeded the server's context window. \
@@ -988,7 +966,6 @@ pub(crate) fn map_api_status_error(
         );
     }
 
-    
     if status == reqwest::StatusCode::BAD_REQUEST && is_local {
         let detected = infer_api_protocol(request_url);
         return anyhow!(
@@ -1018,7 +995,6 @@ pub(crate) fn map_api_status_error(
     )
 }
 
-
 pub fn is_context_overflow(body: &str) -> bool {
     let lower = body.to_ascii_lowercase();
     lower.contains("exceeds the available context size")
@@ -1043,17 +1019,13 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     } else {
         default_max_tokens
     };
-    
-    
+
     let ceiling = if server_n_ctx > 0 {
-        
-        
         ((server_n_ctx as u64 * 3) / 4).min(u32::MAX as u64) as u32
     } else {
         16384
     };
-    
-    
+
     if ceiling < 128 {
         base.min(ceiling)
     } else {
@@ -1083,9 +1055,6 @@ fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") {
         ApiProtocol::ChatCompat
-    } else if normalized.contains("/messages") {
-        
-        ApiProtocol::MessagesV1
     } else {
         ApiProtocol::MessagesV1
     }
@@ -1115,7 +1084,7 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     if normalized.ends_with("/chat/completions") {
         return normalized.to_string();
     }
-    
+
     if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
         return format!("{prefix}/v1/chat/completions");
     }
@@ -1133,7 +1102,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
     if normalized.ends_with("/messages") {
         return normalized.to_string();
     }
-    
+
     if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
         return format!("{prefix}/v1/messages");
     }
@@ -1266,8 +1235,7 @@ use tools::{tool_definitions_chat_compat_for_policy, tool_definitions_for_policy
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
     payload_object.insert("return_progress".to_string(), json!(true));
     payload_object.insert("timings_per_token".to_string(), json!(true));
-    
-    
+
     payload_object.insert("cache_prompt".to_string(), json!(true));
 }
 

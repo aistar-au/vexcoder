@@ -1,12 +1,9 @@
-
-
 use anyhow::{Context, Result};
 use std::fs;
 
 use super::operator::ToolOperator;
 use super::workspace_ignore::WorkspaceIgnore;
 use crate::workspace::make_relative;
-
 
 const LIST_DIR_MAX: usize = 500;
 
@@ -31,7 +28,6 @@ impl WorkspaceGlobMatcher {
                     .is_match(path.rsplit('/').next().unwrap_or(path)))
     }
 }
-
 
 pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize) -> Result<String> {
     let root = operator
@@ -63,18 +59,15 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
             .with_context(|| format!("list_dir: failed to inspect '{}'", p.display()))?;
         let is_dir = file_type.is_dir();
 
-        
         let is_workspace_root = root == operator.working_dir();
         if is_workspace_root && name_str.starts_with('.') {
             continue;
         }
 
-        
         if operator.ensure_path_is_within_workspace(&p).is_err() {
             continue;
         }
 
-        
         let rel = p
             .strip_prefix(operator.working_dir())
             .map(|r| r.to_string_lossy().replace('\\', "/"))
@@ -107,7 +100,6 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
     }
     Ok(out)
 }
-
 
 pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) -> Result<String> {
     let pattern = pattern.trim();
@@ -157,7 +149,6 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     Ok(out)
 }
 
-
 pub(crate) fn compile_workspace_glob(pattern: &str) -> Option<WorkspaceGlobMatcher> {
     let Ok(glob) = globset::GlobBuilder::new(pattern)
         .literal_separator(false)
@@ -205,12 +196,11 @@ mod tests {
         ToolOperator::new(dir.path().to_path_buf())
     }
 
-    
     #[test]
     fn test_list_dir_returns_immediate_contents() {
         let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
         let out = list_dir(&op(&ws), None, 50).unwrap();
-        
+
         assert!(
             out.contains("Cargo.toml"),
             "expected Cargo.toml, got: {out}"
@@ -222,7 +212,7 @@ mod tests {
     fn test_list_dir_does_not_recurse() {
         let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
         let out = list_dir(&op(&ws), None, 50).unwrap();
-        
+
         assert!(
             !out.contains("main.rs"),
             "list_dir must not recurse into src/: {out}"
@@ -264,7 +254,6 @@ mod tests {
 
     #[test]
     fn test_list_dir_truncation_annotation() {
-        
         let ws = make_workspace(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs"]);
         let out = list_dir(&op(&ws), None, 3).unwrap();
         assert!(
@@ -273,7 +262,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_glob_files_returns_matching_paths() {
         let ws = make_workspace(&["src/main.rs", "src/lib.rs", "build.sh"]);
@@ -316,10 +304,8 @@ mod tests {
 
     #[test]
     fn test_glob_files_out_of_workspace_path_returns_error() {
-        
-        
         let ws = make_workspace(&["file.rs"]);
-        
+
         let out = glob_files(&op(&ws), "**/*.rs", 10).unwrap();
         for line in out.lines() {
             assert!(
@@ -329,7 +315,6 @@ mod tests {
         }
     }
 
-    
     #[test]
     fn test_search_files_returns_matching_lines() {
         let ws = make_workspace(&["src/main.rs"]);
@@ -344,7 +329,7 @@ mod tests {
         let ws = make_workspace(&["src/main.rs"]);
         std::fs::write(ws.path().join("src/main.rs"), "secret_token\n").unwrap();
         let op = ToolOperator::new(ws.path().to_path_buf());
-        
+
         let result = op.search_files("secret_token", Some("../outside"), 10);
         assert!(
             result.is_err(),
@@ -374,28 +359,24 @@ mod tests {
         let ws = make_workspace(&["src/main.rs"]);
         std::fs::write(ws.path().join("src/main.rs"), "value: a.b\n").unwrap();
         let op = ToolOperator::new(ws.path().to_path_buf());
-        
+
         let out_dot = op.search_files("a.b", None, 10).unwrap();
         let out_exact = op.search_files("a.b", None, 10).unwrap();
-        
+
         std::fs::write(ws.path().join("src/main.rs"), "axb\n").unwrap();
         let out_wrong = op.search_files("a.b", None, 10).unwrap();
         assert_eq!(
             out_wrong, "No matches found.",
             "literal match must not interpret `.` as regex"
         );
-        let _ = (out_dot, out_exact); 
+        let _ = (out_dot, out_exact);
     }
 
-    
     #[test]
     fn test_workspace_tools_do_not_start_model_turn() {
-        
-        
         let ws = make_workspace(&["src/main.rs"]);
         let op = ToolOperator::new(ws.path().to_path_buf());
-        
-        
+
         assert!(list_dir(&op, None, 10).is_ok());
         assert!(glob_files(&op, "**/*.rs", 10).is_ok());
     }

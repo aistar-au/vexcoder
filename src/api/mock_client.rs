@@ -31,7 +31,6 @@ impl MockStreamProducer for MockApiClient {
         }
         let chunks = responses_guard.remove(0);
 
-        
         let stream = stream::try_unfold(
             (
                 chunks.into_iter(),

@@ -1134,42 +1134,36 @@ fn test_chat_compat_url_adapter_from_v1_base_endpoint() {
 
 #[test]
 fn test_resolve_max_tokens_defaults_to_profile_budget() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 0));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_uses_server_n_ctx() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 65536));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_caps_at_seventy_five_percent_of_server_n_ctx() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(60000, 65536));
     assert_eq!(tokens, 49152);
 }
 
 #[test]
 fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(40000, 0));
     assert_eq!(tokens, 16384);
 }
 
 #[test]
 fn test_resolve_max_tokens_small_n_ctx_does_not_panic() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 100));
     assert_eq!(tokens, 75);
 }
 
 #[test]
 fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
-    
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 1));
     assert_eq!(tokens, 0);
 }

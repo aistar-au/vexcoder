@@ -25,7 +25,6 @@ pub enum ToolCallMode {
     Structured,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ToolPolicy {
     #[default]

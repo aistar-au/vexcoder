@@ -177,12 +177,10 @@ impl StreamParser {
         )
     }
 
-    
     pub fn last_event_id(&self) -> Option<&str> {
         self.last_event_id.as_deref()
     }
 
-    
     pub fn reconnect_delay_ms(&self) -> Option<u64> {
         self.reconnect_delay_ms
     }

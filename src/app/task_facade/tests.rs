@@ -11,7 +11,6 @@ fn write_agents_toml(dir: &std::path::Path, content: &str) {
     std::fs::write(vex_dir.join("agents.toml"), content).unwrap();
 }
 
-
 fn env_lock() -> crate::test_support::EnvLockGuard<'static> {
     crate::test_support::ENV_LOCK.blocking_lock()
 }
@@ -68,12 +67,11 @@ fn delegate_enforces_max_parallel_tasks() {
         "[[agents]]\nname = \"worker\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n",
     );
 
-    
     let state_dir = TaskState::state_dir_from(dir.path());
     std::fs::create_dir_all(&state_dir).unwrap();
     let mut parent = TaskState::new("parent-seed".to_string());
     let mut st = SessionTask::new("parent-seed", "worker", "already running", None);
-    
+
     st.worktree_path = Some(PathBuf::from("/tmp/dummy"));
     parent.add_session_task(st);
     parent.save(&state_dir).unwrap();

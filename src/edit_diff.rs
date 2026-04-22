@@ -61,7 +61,6 @@ pub fn format_edit_hunks(
     out
 }
 
-
 pub fn format_unified_patch(old: &str, new: &str) -> String {
     use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
     let input = InternedInput::new(old, new);
@@ -108,7 +107,6 @@ mod tests {
 
         let rendered = format_edit_hunks(old_str, new_str, "  ", 1);
 
-        
         assert!(rendered.contains("@@"));
         assert!(rendered.contains("- b"));
         assert!(rendered.contains("+ b changed"));

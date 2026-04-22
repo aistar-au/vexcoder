@@ -29,7 +29,6 @@ mod tests;
 
 use self::cli::{Cli, Commands, CredentialsCommands, SkillsCommands, TaskCommands};
 
-
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     if task_id.is_empty() {
         let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -44,7 +43,6 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
         Ok(Some(TaskState::load_from_search_dirs(task_id)?))
     }
 }
-
 
 fn read_stdin_if_piped() -> Option<String> {
     if std::io::stdin().is_terminal() {
@@ -89,7 +87,6 @@ fn read_secret_from_stdin() -> Result<String> {
     read_secret_from_reader(stdin.lock())
 }
 
-
 #[cfg(test)]
 fn read_secret_from_env_var(name: &str) -> Result<String> {
     std::env::var(name)
@@ -110,7 +107,6 @@ fn read_secret_from_tty_prompt(account: &str) -> Result<String> {
         .interact()
         .context("failed to read credential secret interactively")
 }
-
 
 #[cfg(test)]
 fn resolve_credentials_secret(
@@ -133,7 +129,6 @@ fn resolve_credentials_secret(
         )
     }
 }
-
 
 fn resolve_credentials_secret_auto(account: &str) -> Result<String> {
     if !std::io::stdin().is_terminal() {
@@ -369,11 +364,8 @@ fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
-    
-    
     human_panic::setup_panic!();
     let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
     let _ = eyre_hook.install();
@@ -399,11 +391,8 @@ async fn main() -> Result<ExitCode> {
         set_map_encoding: cli.set_map_encoding.clone(),
     };
 
-    
     match cli.command {
         Some(Commands::Exec) => {
-            
-            
             let exec_args = parse_exec_command(
                 overrides.project_map_only.clone(),
                 None,
@@ -449,8 +438,7 @@ async fn main() -> Result<ExitCode> {
         }
         Some(Commands::Tasks { sub }) => {
             let cwd = std::env::current_dir()?;
-            
-            
+
             let json = overrides.set_map_encoding == "jsonl";
             return match sub {
                 TaskCommands::List => run_tasks_list(&cwd, json),
@@ -460,8 +448,6 @@ async fn main() -> Result<ExitCode> {
             };
         }
         Some(Commands::Init) => {
-            
-            
             let cwd = std::env::current_dir()?;
             let summary = run_init(&cwd)?;
             print_lines(&summary);
@@ -484,7 +470,7 @@ async fn main() -> Result<ExitCode> {
         Some(Commands::Doctor) => {
             let cwd = std::env::current_dir()?;
             let report = run_doctor(&cwd).await;
-            
+
             let json = overrides.set_map_encoding == "jsonl";
             let rendered = if json {
                 report.render_json()?
@@ -503,8 +489,6 @@ async fn main() -> Result<ExitCode> {
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Export { task_id }) => {
-            
-            
             let format = if overrides.set_map_encoding == "jsonl" {
                 ExportFormat::Jsonl
             } else {
@@ -516,8 +500,6 @@ async fn main() -> Result<ExitCode> {
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Serve) => {
-            
-            
             let mut config = Config::load()?;
             apply_cli_overrides(&overrides, &mut config);
             apply_process_policy_overrides(&config);
@@ -549,7 +531,6 @@ async fn main() -> Result<ExitCode> {
         None => None,
     };
 
-    
     if let Some(prompt) = overrides.project_map_only {
         config.validate()?;
         emit_model_endpoint_warnings(&config);
@@ -565,7 +546,6 @@ async fn main() -> Result<ExitCode> {
     Ok(ExitCode::FAILURE)
 }
 
-
 struct CliOverrides {
     tool_policy: ToolPolicy,
     use_alternate_navigator: Option<String>,
@@ -577,7 +557,6 @@ struct CliOverrides {
     set_map_encoding: String,
 }
 
-
 fn tool_policy_from_cli(
     view_intended_trajectory: bool,
     restrict_payload_tools: bool,
@@ -588,7 +567,6 @@ fn tool_policy_from_cli(
         ToolPolicy::Full
     }
 }
-
 
 fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     config.tool_policy = o.tool_policy;
@@ -606,12 +584,10 @@ fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     }
 }
 
-
 fn apply_process_policy_overrides(config: &Config) {
     let mode = config.bypass_policy.then_some(DiskPolicyMode::Off);
     disk_policy::set_process_policy_override(mode);
 }
-
 
 fn default_auto_approve_scope(
     config: &Config,
@@ -620,14 +596,12 @@ fn default_auto_approve_scope(
     explicit.or(config.force.then_some(AutoApproveScope::Task))
 }
 
-
 fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
     match encoding {
         "jsonl" => OutputFormat::Jsonl,
         _ => OutputFormat::Text,
     }
 }
-
 
 fn exit_code_for_status(status: TaskStatus) -> ExitCode {
     match status {

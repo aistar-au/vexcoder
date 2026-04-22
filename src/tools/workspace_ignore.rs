@@ -1,6 +1,5 @@
 use std::path::Path;
 
-
 pub struct WorkspaceIgnore {
     matcher: ignore::gitignore::Gitignore,
 }
@@ -13,8 +12,6 @@ impl Default for WorkspaceIgnore {
 }
 
 impl WorkspaceIgnore {
-    
-    
     pub fn load(workspace_root: &Path) -> Self {
         let path = workspace_root.join(".gitignore");
         let mut builder = ignore::gitignore::GitignoreBuilder::new(workspace_root);
@@ -27,7 +24,6 @@ impl WorkspaceIgnore {
         }
     }
 
-    
     pub fn is_ignored(&self, relative_path: &str, is_dir: bool) -> bool {
         self.matcher
             .matched_path_or_any_parents(relative_path, is_dir)
@@ -59,7 +55,7 @@ mod tests {
         let dir = workspace_with("*.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
         assert!(file_ignored(&ign, "error.log"));
-        assert!(file_ignored(&ign, "dir/error.log")); 
+        assert!(file_ignored(&ign, "dir/error.log"));
         assert!(!file_ignored(&ign, "error.rs"));
     }
 

@@ -4,20 +4,16 @@ use std::path::Path;
 
 use crate::runtime::session_task::SessionTaskStatus;
 
-
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct TaskStateHeader {
     pub id: String,
-    
-    
+
     #[serde(rename = "updated_at", default)]
     pub modified_millis: u64,
-    
-    
+
     #[serde(default)]
     pub session_tasks: Option<Vec<SessionTaskSummary>>,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct SessionTaskSummary {
@@ -27,8 +23,6 @@ pub(crate) struct SessionTaskSummary {
 }
 
 impl TaskStateHeader {
-    
-    
     pub fn from_path(path: &Path) -> Result<Self> {
         crate::tools::operator::policy::assert_durable_access(path)?;
         let file = std::fs::File::open(path)
@@ -67,7 +61,7 @@ mod tests {
     #[test]
     fn defaults_updated_at_to_zero_for_older_json() {
         let dir = TempDir::new().unwrap();
-        
+
         let path = write_state_file(
             &dir,
             "older-format",
@@ -95,8 +89,6 @@ mod tests {
 
     #[test]
     fn ignores_large_fields_without_allocating_them() {
-        
-        
         let dir = TempDir::new().unwrap();
         let mut big = String::from(
             r#"{"id":"big","status":"Completed","updated_at":9,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[],"turns":["#,

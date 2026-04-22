@@ -5,7 +5,6 @@ mod fork;
 mod permissions;
 mod runtime;
 
-
 #[test]
 fn test_tui_new_saves_current_state_before_reset() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -258,7 +257,6 @@ fn test_tui_resume_restores_legacy_subdir_state() {
     );
 }
 
-
 #[test]
 fn test_tui_quit_command_requests_quit() {
     let mut mode = TuiMode::new();
@@ -290,7 +288,6 @@ fn test_tui_exit_is_alias_for_quit() {
         "/exit must not start a model turn"
     );
 }
-
 
 #[test]
 fn test_tui_about_renders_without_model_turn() {

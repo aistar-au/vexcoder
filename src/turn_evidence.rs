@@ -28,7 +28,6 @@ pub struct SummaryRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ToolInvocationSummary {
-    
     #[serde(default)]
     pub step_id: u64,
     pub name: String,

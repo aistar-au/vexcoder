@@ -1,5 +1,3 @@
-
-
 use axum::{
     Json, Router,
     response::{IntoResponse, Response},
@@ -21,7 +19,6 @@ mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
 
-
 fn live_server_url() -> String {
     std::env::var("VEX_LIVE_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }
@@ -32,7 +29,6 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
         content: Content::Text(text.to_string()),
     }]
 }
-
 
 async fn probe_server(base_url: &str) -> Option<String> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
@@ -45,7 +41,6 @@ async fn probe_server(base_url: &str) -> Option<String> {
         return None;
     }
     let body: serde_json::Value = resp.json().await.ok()?;
-    
 
     body.get("data")
         .and_then(|d| d.as_array())
@@ -61,7 +56,6 @@ async fn probe_server(base_url: &str) -> Option<String> {
         })
         .map(|s| s.to_string())
 }
-
 
 macro_rules! require_live_server {
     ($base_url:expr) => {
@@ -268,7 +262,6 @@ fn stalled_messages_response() -> Value {
     })
 }
 
-
 fn no_initial_sse_response() -> Response {
     (
         [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
@@ -433,7 +426,6 @@ fn assert_batch_jsonl_response(output_lines: &[String], expected_response: &str)
         Some(1)
     );
 }
-
 
 #[tokio::test]
 async fn test_live_server_model_listing() {
@@ -655,7 +647,6 @@ async fn test_run_batch_auto_detects_messages_v1_and_preserves_fallback_jsonl_ou
     server.abort();
 }
 
-
 fn empty_string_content_chat_response() -> Value {
     json!({
         "id": "chatcmpl-empty-str",
@@ -700,7 +691,6 @@ fn null_content_no_tools_chat_response() -> Value {
     })
 }
 
-
 fn tool_calls_json_arguments_chat_response() -> Value {
     json!({
         "id": "chatcmpl-json-args",
@@ -736,7 +726,6 @@ fn tool_calls_json_arguments_chat_response() -> Value {
     })
 }
 
-
 fn tool_calls_messages_v1_response() -> Value {
     json!({
         "id": "msg-tool-fallback",
@@ -759,7 +748,6 @@ fn tool_calls_messages_v1_response() -> Value {
         }
     })
 }
-
 
 async fn empty_string_content_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
@@ -788,7 +776,6 @@ async fn tool_calls_messages_v1_handler(Json(payload): Json<Value>) -> Response 
     }
     Json(tool_calls_messages_v1_response()).into_response()
 }
-
 
 async fn slow_non_stream_handler(_payload: Json<Value>) -> Response {
     tokio::time::sleep(Duration::from_millis(400)).await;
@@ -893,7 +880,6 @@ async fn spawn_auto_detect_messages_v1_tool_calls_server() -> (String, JoinHandl
     (format!("http://{addr}"), server)
 }
 
-
 #[tokio::test]
 async fn test_local_fallback_post_slow_response_surfaces_error() {
     let (base_url, server) = spawn_slow_fallback_server().await;
@@ -915,7 +901,6 @@ async fn test_local_fallback_post_slow_response_surfaces_error() {
 
     server.abort();
 }
-
 
 #[tokio::test]
 async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end() {
@@ -949,7 +934,6 @@ async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end(
 
     server.abort();
 }
-
 
 #[tokio::test]
 async fn test_stalled_stream_chat_compat_null_content_no_tools_produces_turn_end() {

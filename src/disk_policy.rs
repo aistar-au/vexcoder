@@ -2,25 +2,21 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskPermission {
-    
     SearchIndex,
-    
+
     TaskStateMap,
-    
+
     Forbidden,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskPolicyMode {
-    
     Off,
-    
+
     Warn,
-    
+
     Strict,
 }
 
@@ -35,14 +31,12 @@ fn current_process_policy_override() -> Option<DiskPolicyMode> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-
 pub fn set_process_policy_override(mode: Option<DiskPolicyMode>) {
     let mut guard = process_policy_override()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     *guard = mode;
 }
-
 
 pub fn enforce(path: &Path, mode: DiskPolicyMode) -> Result<DiskPermission> {
     let permission = check_path(path);
@@ -65,23 +59,18 @@ pub fn enforce(path: &Path, mode: DiskPolicyMode) -> Result<DiskPermission> {
     }
 }
 
-
 pub fn enforce_runtime(path: &Path) -> Result<DiskPermission> {
     enforce(path, resolve_policy_mode())
 }
 
-
 pub fn check_path(path: &Path) -> DiskPermission {
-    
-    
     for component in path.components() {
         let segment = component.as_os_str().to_string_lossy();
         if segment == ".vex" {
             return classify_vex_subpath(path);
         }
     }
-    
-    
+
     let lossy = path.to_string_lossy();
     if lossy.contains(".vex\\") || lossy.contains(".vex/") {
         return classify_vex_subpath(path);
@@ -102,7 +91,6 @@ fn classify_vex_subpath(path: &Path) -> DiskPermission {
     }
     DiskPermission::Forbidden
 }
-
 
 pub fn resolve_policy_mode() -> DiskPolicyMode {
     if let Some(mode) = current_process_policy_override() {
@@ -219,7 +207,6 @@ mod tests {
 
     #[test]
     fn index_prefix_without_separator_is_forbidden() {
-        
         assert_eq!(
             check_path(&PathBuf::from(".vex/indexing.txt")),
             DiskPermission::Forbidden,
@@ -232,7 +219,6 @@ mod tests {
 
     #[test]
     fn state_prefix_without_separator_is_forbidden() {
-        
         assert_eq!(
             check_path(&PathBuf::from(".vex/stateful.bin")),
             DiskPermission::Forbidden,

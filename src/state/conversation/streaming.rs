@@ -102,14 +102,12 @@ impl ConversationManager {
         }
     }
 
-    
     pub(super) fn upsert_turn_block(
         &mut self,
         index: usize,
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        
         let event = match &block {
             StreamBlock::Thinking { content, collapsed } => {
                 Some(RuntimeEvent::TranscriptBlockStart {
@@ -126,8 +124,7 @@ impl ConversationManager {
                     content: content.clone(),
                 },
             }),
-            
-            
+
             StreamBlock::ToolCall {
                 id,
                 name,
@@ -153,14 +150,12 @@ impl ConversationManager {
         self.emit_stream_block_start_update(index, block, stream_delta_tx);
     }
 
-    
     pub(super) fn append_text_delta(
         &mut self,
         index: usize,
         text: &str,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> String {
-        
         let (delta, found_entry) = {
             let doc_opt = self.task_doc.as_ref();
             match doc_opt.and_then(|d| d.active_turn.as_ref()) {
@@ -189,7 +184,6 @@ impl ConversationManager {
         };
 
         if !found_entry {
-            
             self.upsert_turn_block(
                 index,
                 StreamBlock::Thinking {
@@ -205,7 +199,6 @@ impl ConversationManager {
             return String::new();
         }
 
-        
         self.apply_doc_event(RuntimeEvent::TranscriptBlockDelta {
             index,
             delta: delta.clone(),
@@ -222,14 +215,12 @@ impl ConversationManager {
         delta
     }
 
-    
     pub(super) fn set_tool_call_status(
         &mut self,
         tool_call_id: &str,
         status: ToolStatus,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        
         let emit_info: Option<(usize, StreamBlock)> = {
             self.task_doc
                 .as_ref()
@@ -261,7 +252,6 @@ impl ConversationManager {
         };
 
         if let Some((index, block)) = emit_info {
-            
             self.apply_doc_event(RuntimeEvent::ToolCallStatusUpdated {
                 tool_call_id: tool_call_id.to_string(),
                 status,
@@ -273,7 +263,6 @@ impl ConversationManager {
         }
     }
 
-    
     pub(super) fn push_tool_result_block(
         &mut self,
         block: StreamBlock,
@@ -330,14 +319,12 @@ impl ConversationManager {
         );
     }
 
-    
     pub(super) fn promote_thinking_blocks_to_final_text(
         &mut self,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
         let round_start = self.current_round_entry_start;
 
-        
         let promotions: Vec<usize> = {
             let Some(doc) = self.task_doc.as_ref() else {
                 return;
@@ -358,7 +345,6 @@ impl ConversationManager {
                 .collect()
         };
 
-        
         for block_index in promotions {
             self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
                 index: block_index,

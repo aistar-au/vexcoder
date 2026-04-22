@@ -33,24 +33,22 @@ pub struct EnvLockGuard<'a> {
 }
 
 impl EnvLockGuard<'_> {
-    #[allow(unsafe_code)] 
+    #[allow(unsafe_code)]
     pub fn set_var(&self, key: &str, value: impl AsRef<std::ffi::OsStr>) {
         let _ = &self.guard;
-        
+
         unsafe { std::env::set_var(key, value) }
     }
 
-    #[allow(unsafe_code)] 
+    #[allow(unsafe_code)]
     pub fn remove_var(&self, key: &str) {
         let _ = &self.guard;
-        
+
         unsafe { std::env::remove_var(key) }
     }
 }
 
-
 pub static ENV_LOCK: EnvLock = EnvLock::new();
-
 
 pub struct EnvRestore<'a> {
     _guard: &'a EnvLockGuard<'a>,
@@ -69,21 +67,18 @@ impl<'a> EnvRestore<'a> {
 }
 
 impl Drop for EnvRestore<'_> {
-    #[allow(unsafe_code)] 
+    #[allow(unsafe_code)]
     fn drop(&mut self) {
         match &self.value {
-            
             Some(value) => unsafe { std::env::set_var(self.key, value) },
             None => unsafe { std::env::remove_var(self.key) },
         }
     }
 }
 
-
 pub fn test_set_var(lock: &EnvLockGuard<'_>, key: &str, value: impl AsRef<std::ffi::OsStr>) {
     lock.set_var(key, value)
 }
-
 
 pub fn test_remove_var(lock: &EnvLockGuard<'_>, key: &str) {
     lock.remove_var(key)

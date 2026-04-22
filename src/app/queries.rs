@@ -15,9 +15,7 @@ use std::path::Path;
 
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
 
-
 const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
-
 
 const PICKER_EXCLUDED_PREFIXES: &[&str] = &[".git/", "target/", "node_modules/"];
 
@@ -64,7 +62,6 @@ impl TuiMode {
             .filter(|entry| !is_picker_excluded_path(entry))
             .collect();
 
-        
         let mut dir_set = std::collections::BTreeSet::new();
         for entry in &entries {
             let mut path = Path::new(entry);
@@ -168,7 +165,6 @@ impl TuiMode {
         .collect()
     }
 
-    
     pub fn active_assistant_index(&self) -> Option<usize> {
         None
     }
@@ -313,7 +309,6 @@ impl TuiMode {
         self.file_prompt_matches_with_total(prefix).0
     }
 
-    
     fn directory_filtered_children(&self, dir_prefix: &str, name_filter: &str) -> Vec<String> {
         let filter_lower = name_filter.to_ascii_lowercase();
         let dir_lower = dir_prefix.to_ascii_lowercase();
@@ -328,15 +323,13 @@ impl TuiMode {
                 continue;
             }
 
-            
             let child_end = if let Some(slash_pos) = rest.find('/') {
-                dir_prefix.len() + slash_pos + 1 
+                dir_prefix.len() + slash_pos + 1
             } else {
-                entry.len() 
+                entry.len()
             };
             let child_entry = &entry[..child_end];
 
-            
             let child_name_lower = child_entry[dir_prefix.len()..].to_ascii_lowercase();
             if !filter_lower.is_empty()
                 && !child_name_lower.starts_with(&filter_lower)
@@ -355,7 +348,6 @@ impl TuiMode {
         self.display_column_width.set(width.max(1));
     }
 
-    
     pub(super) fn timeline_entry_count(&self) -> usize {
         let (has_input, tool_count, command_sessions_len) =
             if let Some(active) = self.task_doc.active_turn.as_ref() {

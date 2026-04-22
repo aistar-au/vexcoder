@@ -1,5 +1,3 @@
-
-
 use anyhow::{Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
@@ -11,13 +9,11 @@ use uuid::Uuid;
 
 use crate::runtime::session_task::now_millis;
 
-
 pub const MAX_PEER_MESSAGE_BYTES: usize = 4_096;
 
 pub const MAX_CHANNEL_DEPTH: usize = 256;
 
 pub const MAX_CHANNEL_READ_BATCH: usize = 64;
-
 
 const MAX_CHANNEL_FILE_BYTES: u64 = 1_048_576;
 
@@ -32,7 +28,6 @@ pub enum AppendMessageError {
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
-
 
 fn channel_serialization_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -61,7 +56,6 @@ fn open_channel_lock_file(state_dir: &Path, parent_task_id: &str) -> Result<File
         .with_context(|| format!("failed to open channel lock: {}", lock_path.display()))
 }
 
-
 fn with_channel_lock<T, E>(
     state_dir: &Path,
     parent_task_id: &str,
@@ -82,7 +76,6 @@ where
         .map_err(E::from)?;
 
     operation()
-    
 }
 
 fn with_channel_shared_lock<T>(
@@ -102,17 +95,15 @@ fn with_channel_shared_lock<T>(
     operation()
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PeerMessageKind {
-    
     Observation,
-    
+
     Correction,
-    
+
     Question,
-    
+
     Acknowledgement,
 }
 
@@ -127,24 +118,22 @@ impl std::fmt::Display for PeerMessageKind {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerMessage {
-    
     pub id: String,
-    
+
     pub sent_at: u64,
-    
+
     pub sender_id: String,
-    
+
     pub sender_agent_id: String,
-    
+
     pub recipient: String,
-    
+
     pub kind: PeerMessageKind,
-    
+
     pub content: String,
-    
+
     pub parent_task_id: String,
 }
 
@@ -170,11 +159,9 @@ impl PeerMessage {
     }
 }
 
-
 pub fn channel_path(state_dir: &Path, parent_task_id: &str) -> PathBuf {
     state_dir.join(format!("{parent_task_id}.channel.jsonl"))
 }
-
 
 pub fn append_message(
     state_dir: &Path,
@@ -185,7 +172,6 @@ pub fn append_message(
     })
 }
 
-
 fn append_message_inner(
     state_dir: &Path,
     message: &PeerMessage,
@@ -193,13 +179,11 @@ fn append_message_inner(
     let path = channel_path(state_dir, &message.parent_task_id);
     crate::tools::operator::policy::assert_durable_access(&path)?;
 
-    
     let existing = count_lines(&path)?;
     if existing >= MAX_CHANNEL_DEPTH {
         return Err(AppendMessageError::ChannelFull);
     }
 
-    
     if let Ok(file_info) = std::fs::metadata(&path)
         && file_info.len() >= MAX_CHANNEL_FILE_BYTES
     {
@@ -219,7 +203,6 @@ fn append_message_inner(
 
     Ok(())
 }
-
 
 pub fn read_messages(
     state_dir: &Path,
@@ -250,7 +233,6 @@ pub fn read_messages(
                 break;
             }
 
-            
             if line_buf.len() > MAX_LINE_BYTES || line_buf.trim().is_empty() {
                 continue;
             }
@@ -288,7 +270,6 @@ pub fn read_messages(
     })
 }
 
-
 fn count_lines(path: &Path) -> Result<usize> {
     if !path.exists() {
         return Ok(0);
@@ -311,7 +292,6 @@ pub fn parse_peer_message_kind(s: &str) -> Option<PeerMessageKind> {
         _ => None,
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -470,7 +450,7 @@ mod tests {
     fn file_size_safety_valve_rejects_oversized_channel() {
         let dir = TempDir::new().unwrap();
         let path = channel_path(dir.path(), "p");
-        
+
         std::fs::create_dir_all(dir.path()).unwrap();
         let big_content = "x".repeat(MAX_CHANNEL_FILE_BYTES as usize + 1);
         std::fs::write(&path, big_content).unwrap();
@@ -484,7 +464,7 @@ mod tests {
     fn oversized_line_skipped_during_read() {
         let dir = TempDir::new().unwrap();
         let path = channel_path(dir.path(), "p");
-        
+
         let valid1 = serde_json::to_string(&PeerMessage {
             id: "m1".into(),
             sent_at: 1,

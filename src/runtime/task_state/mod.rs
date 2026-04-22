@@ -27,8 +27,7 @@ pub enum TaskStatus {
     Completed,
     Failed,
     Cancelled,
-    
-    
+
     MaxTurnsReached,
 }
 

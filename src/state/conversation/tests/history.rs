@@ -101,7 +101,6 @@ fn test_format_tool_result_for_history_read_file_diff_and_repeat() {
     assert!(third.contains("Content for model context:"));
     assert!(third.contains("line1\nline2 changed"));
 
-    
     let fourth = manager.format_tool_result_for_history(
         "read_file",
         &input,
@@ -557,7 +556,6 @@ fn test_clear_messages_resets_cached_conversation_state() {
     ));
 }
 
-
 #[test]
 fn test_condense_old_tool_results_clips_blocks() {
     let client = Arc::new(MockApiClient::new(vec![]));
@@ -565,12 +563,11 @@ fn test_condense_old_tool_results_clips_blocks() {
     let operator = ToolOperator::new(dir.path().to_path_buf());
     let mut manager = ConversationManager::new(ApiClient::new_mock(client), operator);
 
-    
     let long_result: String = (0..20)
         .map(|i| format!("line {i}"))
         .collect::<Vec<_>>()
         .join("\n");
-    
+
     for i in 0..3 {
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
@@ -591,10 +588,8 @@ fn test_condense_old_tool_results_clips_blocks() {
         });
     }
 
-    
     manager.condense_old_tool_results(1);
 
-    
     for (idx, msg) in manager.api_messages.iter().enumerate() {
         if msg.role != "user" {
             continue;
@@ -603,13 +598,11 @@ fn test_condense_old_tool_results_clips_blocks() {
             for block in blocks {
                 if let ContentBlock::ToolResult { content, .. } = block {
                     if idx < 4 {
-                        
                         assert!(
                             content.contains("more lines"),
                             "expected condensed result at index {idx}, got: {content}"
                         );
                     } else {
-                        
                         assert!(
                             !content.contains("more lines"),
                             "last turn should not be condensed, got: {content}"
@@ -745,7 +738,6 @@ fn test_compaction_triggers_at_threshold() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    
     for i in 0..10 {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
@@ -764,9 +756,8 @@ fn test_compaction_triggers_at_threshold() {
         summary_max_tokens: 1024,
     };
 
-    
     assert!(manager.should_compact_proactively(&config, 100));
-    
+
     assert!(!manager.should_compact_proactively(&config, 100_000));
 }
 
@@ -791,14 +782,12 @@ fn test_compaction_preserves_recent_turns() {
     let removed = manager.compact_with_summary(2, "Earlier we discussed topics 0-3.");
     assert!(removed > 0);
 
-    
     assert_eq!(manager.api_messages[0].role, "user");
     match &manager.api_messages[0].content {
         Content::Text(t) => assert!(t.contains("[conversation summary]")),
         _ => panic!("expected text content"),
     }
 
-    
     let last_user = manager
         .api_messages
         .iter()
@@ -832,9 +821,9 @@ fn test_compaction_summary_replaces_prefix() {
     let before_len = manager.api_messages.len();
     let removed = manager.compact_with_summary(4, "Summary of earlier messages.");
     assert!(removed > 0);
-    
+
     assert!(manager.api_messages.len() < before_len);
-    
+
     match &manager.api_messages[0].content {
         Content::Text(t) => assert!(t.contains("Summary of earlier messages.")),
         _ => panic!("expected text in first message"),
@@ -877,7 +866,6 @@ fn test_compaction_failure_falls_back_to_full_history() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("user-0".to_string()),
@@ -895,7 +883,6 @@ fn test_compaction_failure_falls_back_to_full_history() {
         content: Content::Text("assistant-1".to_string()),
     });
 
-    
     let removed = manager.compact_with_summary(4, "summary");
     assert_eq!(removed, 0);
     assert_eq!(manager.api_messages.len(), 4);
@@ -936,10 +923,8 @@ fn test_estimate_history_tokens() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    
     assert_eq!(manager.estimate_history_tokens(), 0);
 
-    
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("a".repeat(400)),

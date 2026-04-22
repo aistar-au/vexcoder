@@ -18,7 +18,6 @@ impl ToolOperator {
         fs::read_to_string(resolved).context("Failed to read file")
     }
 
-    
     pub fn read_file_range(
         &self,
         path: &str,

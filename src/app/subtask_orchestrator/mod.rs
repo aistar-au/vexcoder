@@ -1,39 +1,30 @@
-
-
 use anyhow::{Result, anyhow, bail};
 use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
-
 #[derive(Debug, Clone)]
 pub struct TeamDecomposition {
-    
     pub parent_task_id: String,
-    
-    
+
     pub session_task_ids: Vec<String>,
-    
+
     pub scheduler: TeamScheduler,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct JoinOutcome {
-    
     pub all_done: bool,
-    
+
     pub completed: usize,
-    
+
     pub failed: usize,
-    
+
     pub cancelled: usize,
-    
-    
+
     pub summaries: Vec<(String, String)>,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct SubtaskOrchestrator {
@@ -41,14 +32,12 @@ pub struct SubtaskOrchestrator {
 }
 
 impl SubtaskOrchestrator {
-    
     pub fn new(state_dir: impl Into<PathBuf>) -> Self {
         Self {
             state_dir: state_dir.into(),
         }
     }
 
-    
     #[tracing::instrument(skip(self, team, agents, prompt))]
     pub fn schedule_team(
         &self,
@@ -101,13 +90,11 @@ impl SubtaskOrchestrator {
         })
     }
 
-    
     #[tracing::instrument(skip(self))]
     pub fn poll_fan_out_join(&self, parent_task_id: &str) -> Result<Option<JoinOutcome>> {
         let state = TaskState::load(&self.state_dir, parent_task_id)?;
 
         if state.session_tasks.is_empty() {
-            
             return Ok(None);
         }
 
@@ -131,7 +118,6 @@ impl SubtaskOrchestrator {
                     cancelled += 1;
                 }
                 _ => {
-                    
                     return Ok(None);
                 }
             }
@@ -146,7 +132,6 @@ impl SubtaskOrchestrator {
         }))
     }
 
-    
     #[tracing::instrument(skip(self, team, agents, prompt))]
     pub fn advance_sequential(
         &self,
@@ -157,7 +142,6 @@ impl SubtaskOrchestrator {
     ) -> Result<Option<String>> {
         let mut parent_state = TaskState::load(&self.state_dir, parent_task_id)?;
 
-        
         let mut next_member: Option<&str> = None;
 
         for member_name in &team.members {
@@ -168,23 +152,19 @@ impl SubtaskOrchestrator {
 
             match existing {
                 None => {
-                    
                     next_member = Some(member_name.as_str());
                     break;
                 }
                 Some(task) if task.lifecycle_state.is_live() => {
-                    
                     return Ok(None);
                 }
-                Some(_) => {
-                    
-                }
+                Some(_) => {}
             }
         }
 
         let member_name = match next_member {
             Some(name) => name,
-            None => return Ok(None), 
+            None => return Ok(None),
         };
 
         let agent = find_agent(agents, member_name)?;
@@ -203,7 +183,6 @@ impl SubtaskOrchestrator {
         Ok(Some(task_id))
     }
 
-    
     #[tracing::instrument(skip(self, outcome))]
     pub fn apply_join_outcome(&self, parent_task_id: &str, outcome: &JoinOutcome) -> Result<()> {
         if outcome.summaries.is_empty() {
@@ -222,7 +201,6 @@ impl SubtaskOrchestrator {
         Ok(())
     }
 
-    
     #[tracing::instrument(skip(self))]
     pub fn live_session_task_count(&self, parent_task_id: &str) -> Result<usize> {
         let state = TaskState::load(&self.state_dir, parent_task_id)?;
@@ -233,7 +211,6 @@ impl SubtaskOrchestrator {
             .count())
     }
 
-    
     #[tracing::instrument(skip(self, team))]
     pub fn is_team_schedule_exhausted(
         &self,
@@ -251,14 +228,12 @@ impl SubtaskOrchestrator {
     }
 }
 
-
 fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentProfile> {
     agents
         .iter()
         .find(|a| a.name == name)
         .ok_or_else(|| anyhow!("agent '{}' not found in provided agent list", name))
 }
-
 
 #[cfg(test)]
 mod tests;

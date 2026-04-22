@@ -1,5 +1,3 @@
-
-
 use anyhow::{Context, Result, anyhow};
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder};
 use bytes::Bytes;
@@ -9,21 +7,18 @@ use tokio_util::io::StreamReader;
 
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {
-    
     Identity,
-    
+
     Gzip,
-    
+
     Brotli,
-    
+
     Deflate,
 }
 
 impl Encoding {
-    
     pub fn from_token(token: &str) -> Option<Self> {
         match token.trim().to_ascii_lowercase().as_str() {
             "identity" => Some(Self::Identity),
@@ -34,7 +29,6 @@ impl Encoding {
         }
     }
 
-    
     pub fn as_token(self) -> &'static str {
         match self {
             Self::Identity => "identity",
@@ -51,16 +45,13 @@ impl fmt::Display for Encoding {
     }
 }
 
-
 pub fn accept_encoding_header() -> &'static str {
     "br, gzip, deflate, identity"
 }
 
-
 pub async fn decompress(bytes: Bytes, encoding: Encoding) -> Result<Bytes> {
     decompress_with_limit(bytes, encoding, DEFAULT_MAX_OUTPUT_BYTES).await
 }
-
 
 pub async fn decompress_with_limit(
     bytes: Bytes,
@@ -132,7 +123,6 @@ where
     Ok(Bytes::from(out))
 }
 
-
 pub async fn compress_gzip(bytes: Bytes) -> Result<Bytes> {
     use async_compression::tokio::write::GzipEncoder;
     use tokio::io::AsyncWriteExt;
@@ -148,7 +138,6 @@ pub async fn compress_gzip(bytes: Bytes) -> Result<Bytes> {
         .context("gzip compression flush failed")?;
     Ok(Bytes::from(encoder.into_inner()))
 }
-
 
 pub async fn compress_brotli(bytes: Bytes) -> Result<Bytes> {
     use async_compression::tokio::write::BrotliEncoder;

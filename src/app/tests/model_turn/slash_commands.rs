@@ -1,6 +1,5 @@
 use super::*;
 
-
 #[tokio::test]
 async fn test_model_shows_current_name() {
     let mut ctx = setup_ctx();
@@ -34,7 +33,7 @@ async fn test_model_rejects_local_on_api_backend() {
     config.model_backend = crate::runtime::ModelBackendKind::ApiServer;
     config.model_name = "remote-model".to_string();
     let mut mode = TuiMode::new_with_config(None, config);
-    
+
     mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
     assert_ne!(
         mode.model_name, "local/phi-3",
@@ -71,7 +70,6 @@ async fn test_model_does_not_start_turn() {
     );
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
-
 
 #[tokio::test]
 async fn test_tui_diff_renders_working_tree_diff() {
@@ -201,7 +199,6 @@ async fn test_tui_diff_does_not_start_model_turn() {
     );
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
-
 
 #[test]
 fn test_tui_edit_command_starts_edit_loop() {
@@ -334,7 +331,6 @@ fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
-
 #[tokio::test]
 async fn test_tui_explain_does_not_invoke_edit_loop() {
     let mut mode = TuiMode::new();
@@ -430,7 +426,6 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
         "normal turns must restore the approval overlay"
     );
 }
-
 
 #[tokio::test]
 async fn test_tui_review_default_assembles_head_diff() {
@@ -654,7 +649,6 @@ async fn test_tui_review_expands_at_path_inside_instruction() {
         "/review must expand @path mentions inside the free-form instruction"
     );
 }
-
 
 #[tokio::test]
 async fn test_tui_plan_starts_single_turn_no_loop() {

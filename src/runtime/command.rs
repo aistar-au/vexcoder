@@ -23,7 +23,6 @@ fn validate_working_dir(working_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-
 #[cfg(unix)]
 fn kill_process_group(pid: Option<u32>) {
     if let Some(raw_pid) = pid {
@@ -127,7 +126,6 @@ impl CommandHandle {
             .context("command session completion channel dropped")?
     }
 
-    
     #[cfg(test)]
     pub fn is_consumed(&self) -> bool {
         self.cancel_tx.is_none()
@@ -208,7 +206,6 @@ impl CommandRunner for DefaultCommandRunner {
             command.current_dir(working_dir);
         }
 
-        
         #[cfg(unix)]
         command.process_group(0);
 
@@ -269,8 +266,6 @@ impl CommandRunner for DefaultCommandRunner {
             };
 
             if cancelled {
-                
-                
                 stdout_task.abort();
                 stderr_task.abort();
             }

@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-
 #[derive(Debug)]
 pub struct SearchResult {
     pub path: String,
@@ -22,7 +21,6 @@ pub struct SearchResult {
     pub snippet: String,
 }
 
-
 fn max_results_default() -> usize {
     std::env::var("VEX_SEARCH_MAX_RESULTS")
         .ok()
@@ -31,7 +29,6 @@ fn max_results_default() -> usize {
         .unwrap_or(10)
 }
 
-
 fn build_bm25_engine(index: &[IndexChunk]) -> bm25::SearchEngine<usize> {
     let docs = index
         .iter()
@@ -39,7 +36,6 @@ fn build_bm25_engine(index: &[IndexChunk]) -> bm25::SearchEngine<usize> {
         .map(|(i, chunk)| Bm25Document::new(i, format!("{} {}", chunk.name, chunk.source)));
     SearchEngineBuilder::<usize>::with_documents(Language::English, docs).build()
 }
-
 
 pub fn codebase_search(
     query: &str,
@@ -63,7 +59,6 @@ pub fn codebase_search(
         })
         .collect();
 
-    
     let engine = build_bm25_engine(index);
     let bm25_scores: HashMap<usize, f64> = engine
         .search(&query_lower, None)
@@ -78,7 +73,6 @@ pub fn codebase_search(
         })
         .collect();
 
-    
     let mut score_map: HashMap<usize, f64> = scored.into_iter().map(|(s, i)| (i, s)).collect();
     for (idx, bm25_weight) in &bm25_scores {
         *score_map.entry(*idx).or_insert(0.0) += bm25_weight;
@@ -198,20 +192,14 @@ fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f
     let mut score = 0.0;
     let name_lower = chunk.name.to_ascii_lowercase();
 
-    
     if name_lower == *query_lower {
         score += 100.0;
-    }
-    
-    else if name_lower.contains(query_lower) {
+    } else if name_lower.contains(query_lower) {
         score += 50.0;
-    }
-    
-    else if query_lower.contains(&name_lower) && name_lower.len() > 2 {
+    } else if query_lower.contains(&name_lower) && name_lower.len() > 2 {
         score += 30.0;
     }
 
-    
     if let Some(ref scope) = chunk.parent_scope {
         let scope_lower = scope.to_ascii_lowercase();
         if scope_lower.contains(query_lower) || query_lower.contains(&scope_lower) {
@@ -219,7 +207,6 @@ fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f
         }
     }
 
-    
     let source_lower = chunk.source.to_ascii_lowercase();
     for word in query_words {
         if word.len() >= 3 {
@@ -235,7 +222,6 @@ fn semantic_score_weight(score: f64) -> f64 {
     score.max(0.0) * 60.0
 }
 
-
 fn truncate_snippet(source: &str, max_lines: usize) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if lines.len() <= max_lines {
@@ -249,7 +235,6 @@ fn truncate_snippet(source: &str, max_lines: usize) -> String {
         out
     }
 }
-
 
 pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
     if results.is_empty() {
@@ -267,7 +252,7 @@ pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
             r.start_line,
             r.end_line,
         ));
-        
+
         for line in r.snippet.lines() {
             out.push_str("   ");
             out.push_str(line);
@@ -276,7 +261,6 @@ pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
     }
     out
 }
-
 
 pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
     let matcher = match RegexMatcher::new(pattern) {
@@ -294,29 +278,21 @@ pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
         }),
     ) {
         Ok(_) => matches,
-        Err(_) => {
-            
-            
-            Vec::new()
-        }
+        Err(_) => Vec::new(),
     }
 }
 
-
-#[allow(unsafe_code)] 
+#[allow(unsafe_code)]
 pub fn mmap_read_file(path: &Path) -> Option<Mmap> {
     let file = File::open(path).ok()?;
-    
-    
+
     unsafe { Mmap::map(&file).ok() }
 }
-
 
 pub fn is_binary_content(bytes: &[u8]) -> bool {
     let probe = &bytes[..bytes.len().min(8192)];
     probe.find_byte(b'\0').is_some()
 }
-
 
 pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u64, String)> {
     use crossbeam_channel::unbounded;
@@ -324,7 +300,7 @@ pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u
 
     paths.par_iter().for_each(|path| {
         let tx = tx.clone();
-        
+
         match mmap_read_file(path) {
             Some(mmap) => {
                 if is_binary_content(&mmap) {
@@ -337,7 +313,7 @@ pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u
             let _ = tx.send((path.to_string_lossy().into_owned(), line_num, text));
         }
     });
-    
+
     drop(tx);
     rx.into_iter().collect()
 }
@@ -467,7 +443,6 @@ mod tests {
         assert!(merged[0].score > 0.0);
     }
 
-    
     #[test]
     fn test_codebase_search_tool_returns_ranked_results() {
         let index = vec![

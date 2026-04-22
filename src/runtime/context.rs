@@ -112,7 +112,6 @@ impl RuntimeContext {
                 }
             }
 
-            
             if !cancelled {
                 for (index, _) in textual_block_by_index.drain() {
                     let _ = tx.send(UiUpdate::StreamBlockComplete { index });
@@ -199,7 +198,6 @@ impl RuntimeContext {
         });
     }
 
-    
     pub(crate) async fn drive_edit_turn(&self, input: String) -> anyhow::Result<EditTurnResult> {
         let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
         let conversation = Arc::clone(&self.conversation);
@@ -220,7 +218,7 @@ impl RuntimeContext {
         while let Some(update) = delta_rx.recv().await {
             forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
         }
-        
+
         for (index, _) in textual_block_by_index.drain() {
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
@@ -372,7 +370,6 @@ impl RuntimeContext {
             .unwrap_or(0)
     }
 
-    
     pub async fn populate_local_server_info(&self) {
         let client = {
             let manager = self.conversation.lock().await;
@@ -568,14 +565,12 @@ fn forward_conversation_update(
                 summary,
             });
         }
-        
-        
+
         ConversationStreamUpdate::StreamError(msg) => {
             let _ = tx.send(UiUpdate::Error(msg));
         }
     }
 }
-
 
 fn emit_normalised_text(
     normaliser: &mut crate::api::stream::StreamTextNormaliser,

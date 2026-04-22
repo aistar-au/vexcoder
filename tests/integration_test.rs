@@ -1,5 +1,3 @@
-
-
 #![allow(unsafe_code)]
 
 use reqwest::header::HeaderMap;
@@ -7,7 +5,6 @@ use vexapi::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, build_bat
 use vexapi::config::Config;
 use vexapi::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexapi::types::ModelProfile;
-
 
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -272,7 +269,7 @@ fn test_config_user_overrides_system_and_defaults() {
     std::fs::create_dir_all(&cwd).unwrap();
     std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
-    
+
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "user-model");
     unsafe { std::env::remove_var("VEX_MODEL_NAME") };
@@ -479,7 +476,6 @@ fn test_hook_repo_local_config_rejected_at_load() {
         "expected hooks diagnostic in error: {msg}"
     );
 }
-
 
 #[test]
 fn test_batch_run_opts_default_format_is_jsonl() {

@@ -19,28 +19,21 @@ use super::git_parse::{ParsedGitStatus, parse_git_status};
 pub(crate) struct GitRollup {
     pub(crate) git_status_summary: Option<String>,
     pub(crate) recent_diff: Option<String>,
-    
-    
+
     pub(crate) parsed_status: Option<ParsedGitStatus>,
-    
-    
+
     pub(crate) git_dir: Option<PathBuf>,
-    
-    
+
     pub(crate) committer_name: Option<String>,
-    
-    
+
     pub(crate) staged_paths: Vec<PathBuf>,
 }
 
 impl GitRollup {
-    
-    
     pub(crate) fn has_staged_changes(&self) -> bool {
         !self.staged_paths.is_empty()
     }
 
-    
     pub(crate) fn has_working_tree_changes(&self) -> bool {
         self.parsed_status
             .as_ref()
@@ -54,7 +47,6 @@ pub(crate) struct GitCommandResult {
     pub(crate) non_git_repo: bool,
     pub(crate) timed_out: bool,
 }
-
 
 pub(crate) fn resolve_git_path() -> Result<PathBuf> {
     which::which("git").map_err(|err| {
@@ -71,13 +63,10 @@ pub(crate) fn collect_git_rollup(
     timeout_ms: u64,
     max_diff_lines: usize,
 ) -> Result<GitRollup> {
-    
-    
     if discover_git_root(&working_dir).is_none() {
         return Ok(GitRollup::default());
     }
 
-    
     let git_dir = gix_git_dir(&working_dir);
     let committer_name = configured_git_user_name();
     let staged_paths = read_staged_paths(&working_dir);
@@ -295,7 +284,6 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
     }
 }
 
-
 pub(crate) fn watch_working_dir<F>(
     working_dir: &Path,
     on_change: F,
@@ -332,12 +320,10 @@ fn limit_lines(text: &str, max_lines: usize) -> String {
     text.lines().take(max_lines).collect::<Vec<_>>().join("\n")
 }
 
-
 pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
     let (git_path, _trust) = gix_discover::upwards(path).ok()?;
     Some(git_path.as_ref().to_path_buf())
 }
-
 
 pub(crate) fn configured_git_user_name() -> Option<String> {
     let config = gix_config::File::from_globals().ok()?;
@@ -345,12 +331,10 @@ pub(crate) fn configured_git_user_name() -> Option<String> {
     Some(String::from_utf8_lossy(name.as_ref()).into_owned())
 }
 
-
 pub(crate) fn gix_git_dir(path: &Path) -> Option<PathBuf> {
     let repo = gix::open(path).ok()?;
     Some(repo.git_dir().to_path_buf())
 }
-
 
 pub(crate) fn read_staged_paths(repo_path: &Path) -> Vec<PathBuf> {
     let repo = match gix::open(repo_path) {
@@ -377,7 +361,6 @@ pub(crate) fn read_staged_paths(repo_path: &Path) -> Vec<PathBuf> {
 mod tests {
     use super::*;
 
-    
     #[test]
     fn test_parsed_status_is_populated_from_rollup() {
         let rollup = GitRollup {
@@ -391,12 +374,10 @@ mod tests {
         assert!(rollup.parsed_status.is_some());
     }
 
-    
     #[test]
     fn test_discover_git_root_finds_repo() {
         let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let Some(root) = discover_git_root(here) else {
-            
             return;
         };
         assert!(
@@ -406,7 +387,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_gix_git_dir_returns_git_directory() {
         let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -420,14 +400,11 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn test_configured_git_user_name_does_not_panic() {
-        
         let _ = configured_git_user_name();
     }
 
-    
     #[test]
     fn test_has_working_tree_changes_detects_modified() {
         let rollup = GitRollup {
@@ -437,7 +414,6 @@ mod tests {
         assert!(rollup.has_working_tree_changes());
     }
 
-    
     #[test]
     fn test_has_working_tree_changes_false_for_staged_only() {
         let rollup = GitRollup {
@@ -447,7 +423,6 @@ mod tests {
         assert!(!rollup.has_working_tree_changes());
     }
 
-    
     #[test]
     fn test_watch_working_dir_constructs_watcher() {
         let tmp = tempfile::tempdir().expect("failed to create tempdir");
@@ -457,6 +432,5 @@ mod tests {
             "watcher construction should succeed: {:?}",
             result
         );
-        
     }
 }

@@ -1,8 +1,5 @@
-
-
 use std::fs;
 use std::path::{Path, PathBuf};
-
 
 fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
@@ -21,7 +18,6 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-
 fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
     let mut imports = Vec::new();
@@ -29,7 +25,7 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
 
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
-        
+
         if trimmed.starts_with("//") {
             continue;
         }
@@ -102,8 +98,6 @@ fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
 
         while let Some(next) = remainder.strip_prefix("super::") {
             if module_path.pop().is_none() {
-                
-                
                 remainder = next;
                 break;
             }
@@ -250,7 +244,6 @@ fn runtime_item_is_allowed(item: &str) -> bool {
     false
 }
 
-
 fn assert_no_forbidden_imports(
     dir: &Path,
     forbidden_modules: &[&str],
@@ -328,12 +321,10 @@ fn relative_super_import_detection_resolves_to_crate_root_modules() {
     assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
 }
 
-
 #[test]
 fn runtime_must_not_import_cli_transport_terminal_or_tui() {
     let runtime_dir = src_dir().join("runtime");
-    
-    
+
     let forbidden = &[
         "local_api",
         "server",
@@ -350,7 +341,6 @@ fn runtime_must_not_import_cli_transport_terminal_or_tui() {
         violations.join("\n")
     );
 }
-
 
 #[test]
 fn state_must_not_import_cli_transport_terminal_or_tui() {
@@ -372,7 +362,6 @@ fn state_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-
 #[test]
 fn api_must_not_import_cli_transport_terminal_or_tui() {
     let api_dir = src_dir().join("api");
@@ -392,7 +381,6 @@ fn api_must_not_import_cli_transport_terminal_or_tui() {
         violations.join("\n")
     );
 }
-
 
 #[test]
 fn tools_must_not_import_cli_transport_terminal_or_tui() {
@@ -414,7 +402,6 @@ fn tools_must_not_import_cli_transport_terminal_or_tui() {
     );
 }
 
-
 #[test]
 fn app_facade_must_not_import_cli_binary() {
     let app_dir = src_dir().join("app");
@@ -426,7 +413,6 @@ fn app_facade_must_not_import_cli_binary() {
         violations.join("\n")
     );
 }
-
 
 #[test]
 fn server_uses_facade_entrypoint() {
@@ -447,7 +433,6 @@ fn server_uses_facade_entrypoint() {
         "ADR-028: server module must route through the application facade (crate::app)"
     );
 }
-
 
 #[test]
 fn server_must_not_import_runtime_directly() {
@@ -473,7 +458,6 @@ fn server_must_not_import_runtime_directly() {
         violations.join("\n")
     );
 }
-
 
 #[test]
 fn facade_module_exports_required_entrypoints() {
@@ -510,7 +494,6 @@ fn facade_error_types_exist() {
     );
 }
 
-
 #[test]
 fn server_must_not_import_tui_terminal_or_ui() {
     let server_dir = src_dir().join("server");
@@ -527,7 +510,6 @@ fn server_must_not_import_tui_terminal_or_ui() {
     );
 }
 
-
 #[test]
 fn cli_binary_must_not_import_transport_layer() {
     let vex_src = fs::read_to_string(src_dir().join("bin").join("vex.rs"))
@@ -537,7 +519,6 @@ fn cli_binary_must_not_import_transport_layer() {
         "ADR-028: src/bin/vex.rs must not import vexapi::server directly — use the crate-root re-export instead"
     );
 }
-
 
 #[test]
 fn server_module_exists() {

@@ -1,7 +1,6 @@
 use serde::Serialize;
 use thiserror::Error;
 
-
 #[derive(Debug, Clone)]
 pub struct FacadeTaskSummary {
     pub id: String,
@@ -11,7 +10,6 @@ pub struct FacadeTaskSummary {
     pub session_task_count: usize,
     pub live_session_task_count: usize,
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeSessionTaskRollup {
@@ -25,7 +23,6 @@ pub struct FacadeSessionTaskRollup {
     pub handoff_summary: Option<String>,
 }
 
-
 #[derive(Debug, Error)]
 pub enum SessionTaskStatusError {
     #[error("session_task_not_found")]
@@ -37,7 +34,6 @@ pub enum SessionTaskStatusError {
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
-
 
 #[derive(Debug, Clone)]
 pub struct FacadeAgentDescriptor {
@@ -78,16 +74,14 @@ pub struct FacadeWatchRollup {
     pub worktree_path: Option<String>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct FacadeScheduleTeamResult {
     pub parent_task_id: String,
-    
+
     pub session_task_ids: Vec<String>,
-    
+
     pub scheduler: String,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct FacadeJoinOutcome {
@@ -95,10 +89,9 @@ pub struct FacadeJoinOutcome {
     pub completed: usize,
     pub failed: usize,
     pub cancelled: usize,
-    
+
     pub summaries: Vec<(String, String)>,
 }
-
 
 #[derive(Debug, Error)]
 pub enum ScheduleTeamError {
@@ -118,7 +111,6 @@ pub enum ScheduleTeamError {
     Internal(#[from] anyhow::Error),
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeTaskGraphNode {
     pub id: String,
@@ -127,12 +119,10 @@ pub struct FacadeTaskGraphNode {
     pub session_tasks: Vec<FacadeSessionTaskRollup>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct FacadeTaskGraph {
     pub nodes: Vec<FacadeTaskGraphNode>,
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeTodoItem {
@@ -141,7 +131,6 @@ pub struct FacadeTodoItem {
     pub agent_id: String,
     pub lifecycle_state: String,
 }
-
 
 #[derive(Debug, Error)]
 pub enum PeerChannelError {

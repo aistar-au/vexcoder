@@ -27,22 +27,18 @@ use opentelemetry::KeyValue;
 use std::path::PathBuf;
 use tracing::Instrument;
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     Jsonl,
     Text,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoApproveScope {
-    
     Once,
-    
+
     Task,
 }
-
 
 pub struct BatchRunOpts {
     pub max_turns: Option<usize>,
@@ -62,14 +58,12 @@ impl Default for BatchRunOpts {
     }
 }
 
-
 pub struct BatchResult {
     pub status: TaskStatus,
     pub output_lines: Vec<String>,
     pub turn_count: usize,
     pub task_id: TaskId,
 }
-
 
 pub struct BatchMode {
     task_id: TaskId,
@@ -141,7 +135,6 @@ impl BatchMode {
         &self.output_lines
     }
 
-    
     fn approval_decision(&self) -> bool {
         self.auto_approve.is_some()
     }
@@ -404,7 +397,6 @@ impl RuntimeMode for BatchMode {
     }
 }
 
-
 pub struct BatchFrontend {
     pending: VecDeque<UserInputEvent>,
 }
@@ -435,7 +427,6 @@ impl FrontendAdapter<BatchMode> for BatchFrontend {
     }
 }
 
-
 pub struct BatchFrontendQuit {
     inner: BatchFrontend,
     done: bool,
@@ -449,7 +440,6 @@ impl BatchFrontendQuit {
         }
     }
 
-    
     pub fn set_done(&mut self) {
         self.done = true;
     }
@@ -473,7 +463,6 @@ impl FrontendAdapter<BatchMode> for BatchFrontendQuit {
         self.done
     }
 }
-
 
 pub fn build_batch_runtime(
     config: &Config,
@@ -528,7 +517,6 @@ fn uuid_task_id() -> TaskId {
     let ts = chrono::Utc::now().timestamp_millis();
     format!("batch-{}", ts)
 }
-
 
 pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Result<BatchResult> {
     let task_id = opts
@@ -598,7 +586,6 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
 
         ctx.populate_local_server_info().await;
 
-        
         mode.on_user_input(task, &mut ctx);
 
         if mode.is_done() {
@@ -611,7 +598,6 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
             });
         }
 
-        
         let spinner = if console::Term::stderr().is_term() {
             let pb = indicatif::ProgressBar::new_spinner();
             pb.set_style(
@@ -626,7 +612,6 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
             None
         };
 
-        
         while let Some(update) = update_rx.recv().await {
             mode.on_model_update(update, &mut ctx);
             if let Some(ref pb) = spinner {
@@ -653,7 +638,6 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     .instrument(batch_span)
     .await
 }
-
 
 #[cfg(test)]
 pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult> {

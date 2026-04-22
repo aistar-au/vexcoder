@@ -1,5 +1,3 @@
-
-
 #[cfg(test)]
 use crate::api::ApiClient;
 use crate::app::FacadeSessionTaskRollup;
@@ -53,8 +51,6 @@ pub(crate) struct LocalApiTaskShared {
 }
 
 impl LocalApiTaskShared {
-    
-    
     pub fn new(
         task_id: String,
         envelope_tx: mpsc::UnboundedSender<String>,
@@ -548,8 +544,7 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let tool_call: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        
-        
+
         let transcript_block_delta: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let tool_call_arguments_delta: RuntimeEnvelope =

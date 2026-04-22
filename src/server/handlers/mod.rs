@@ -200,7 +200,6 @@ pub async fn watch_handler(
     }))
 }
 
-
 #[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn release_session_task_handler(
     State(state): State<LocalApiState>,
@@ -222,7 +221,6 @@ pub async fn release_session_task_handler(
         Err(not_found("session_task_not_found"))
     }
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct ScheduleTeamRequest {
@@ -254,7 +252,6 @@ pub struct JoinSummaryEntry {
     pub summary: String,
 }
 
-
 #[tracing::instrument(skip_all, fields(team_name = %team_name))]
 pub async fn schedule_team_handler(
     State(state): State<LocalApiState>,
@@ -284,7 +281,6 @@ pub async fn schedule_team_handler(
         scheduler: result.scheduler,
     }))
 }
-
 
 #[tracing::instrument(skip_all, fields(task_id = %task_id))]
 pub async fn join_status_handler(
@@ -503,7 +499,6 @@ pub fn new_server_task_id() -> String {
     let millis = Utc::now().timestamp_millis();
     format!("task-{millis}")
 }
-
 
 pub(crate) mod session;
 pub use self::session::*;
