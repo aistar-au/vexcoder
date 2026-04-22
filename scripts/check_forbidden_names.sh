@@ -35,10 +35,15 @@ scan_targets() {
     "$RG_BIN" -n --hidden -i \
       --glob '!.git' \
       --glob '!.github/agents/vexapi-ui-parity-orchestrator.agent.md' \
+      --glob '!agents/vexapi-ui-parity-orchestrator.agent.md' \
       --glob '!.github/agents/vexapi-ui-paragraph-renderer.agent.md' \
+      --glob '!agents/vexapi-ui-paragraph-renderer.agent.md' \
       --glob '!.github/agents/vexapi-transcript-renderer-overhaul.agent.md' \
+      --glob '!agents/vexapi-transcript-renderer-overhaul.agent.md' \
       --glob '!.github/agents/vexapi-hybrid-retrieval.agent.md' \
+      --glob '!agents/vexapi-hybrid-retrieval.agent.md' \
       --glob '!.github/workflows/**' \
+      --glob '!workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
       --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
       "$pattern" "$@" | sed 's#\\#/#g'
@@ -66,13 +71,21 @@ for root in roots:
             continue
         if rel == ".github/agents/vexapi-ui-parity-orchestrator.agent.md":
             continue
+        if rel == "agents/vexapi-ui-parity-orchestrator.agent.md":
+            continue
         if rel == ".github/agents/vexapi-ui-paragraph-renderer.agent.md":
+            continue
+        if rel == "agents/vexapi-ui-paragraph-renderer.agent.md":
             continue
         if rel == ".github/agents/vexapi-transcript-renderer-overhaul.agent.md":
             continue
+        if rel == "agents/vexapi-transcript-renderer-overhaul.agent.md":
+            continue
         if rel == ".github/agents/vexapi-hybrid-retrieval.agent.md":
             continue
-        if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
+        if rel == "agents/vexapi-hybrid-retrieval.agent.md":
+            continue
+        if rel.startswith(".git/") or rel.startswith(".github/workflows/") or rel.startswith("workflows/"):
             continue
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
