@@ -34,6 +34,8 @@ jobs:
           rustup default 1.93.1
 
       - name: Ensure ripgrep is available
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           set -euo pipefail
           if command -v rg >/dev/null 2>&1; then
@@ -41,9 +43,28 @@ jobs:
             exit 0
           fi
 
-          sudo apt-get update
-          sudo apt-get install -y ripgrep
-          rg --version
+          install_ripgrep() {
+            timeout 5m sudo env DEBIAN_FRONTEND="$DEBIAN_FRONTEND" \
+              apt-get update -o Acquire::Retries=3
+            timeout 5m sudo env DEBIAN_FRONTEND="$DEBIAN_FRONTEND" \
+              apt-get install -y --no-install-recommends \
+              -o Acquire::Retries=3 \
+              -o DPkg::Lock::Timeout=60 \
+              ripgrep
+          }
+
+          for attempt in 1 2; do
+            if install_ripgrep; then
+              rg --version
+              exit 0
+            fi
+
+            echo "ripgrep install attempt ${attempt} failed" >&2
+            sleep 5
+          done
+
+          echo "failed to install ripgrep for architecture checks" >&2
+          exit 1
 
       - name: Run architecture gate targets
         run: |
