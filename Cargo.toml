@@ -64,9 +64,9 @@ jsonwebtoken = "9"
 oauth2 = { version = "4", default-features = false }
 open = "5"
 # RFC 8484/6555 (DoH/Happy Eyeballs): DNS-over-HTTPS and dual-stack connection racing.
-hickory-resolver = { version = "0.24", default-features = false, features = [
-  "dns-over-https-rustls",
-  "tokio-runtime",
+hickory-resolver = { version = "0.26", default-features = false, features = [
+  "https-ring",
+  "tokio",
 ] }
 rmcp = { version = "1.2.0", default-features = false, features = [
   "client",
