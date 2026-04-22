@@ -10,7 +10,6 @@ use clap::{CommandFactory, Parser};
 use clap_complete::Shell;
 use std::io::Cursor;
 use std::process::Command;
-use vexapi::app::TuiMode;
 use vexapi::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
 use vexapi::config::Config;
 use vexapi::disk_policy::DiskPolicyMode;

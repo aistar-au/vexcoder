@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl TuiMode {
     pub fn auto_follow(&self) -> bool {
         self.transcript_scroll_offset == 0
