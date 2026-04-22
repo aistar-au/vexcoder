@@ -33,8 +33,17 @@ jobs:
           rustup toolchain install 1.93.1 --profile minimal
           rustup default 1.93.1
 
-      - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Ensure ripgrep is available
+        run: |
+          set -euo pipefail
+          if command -v rg >/dev/null 2>&1; then
+            rg --version
+            exit 0
+          fi
+
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          rg --version
 
       - name: Run architecture gate targets
         run: |
