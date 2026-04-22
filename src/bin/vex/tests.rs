@@ -20,21 +20,10 @@ use vexapi::init::{
 use vexapi::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
 use vexapi::runtime::{TaskState, TaskStatus, ToolPolicy};
 use vexapi::startup::{looks_like_session_output, should_ignore_startup_paste_text};
-use vexapi::tui_frontend::{
-    active_file_picker, active_slash_picker, apply_file_picker_selection,
-    apply_slash_picker_selection, build_file_overlay, build_slash_overlay,
-    file_picker_is_dismissed, render_file_picker_hint, render_slash_picker_hint,
-    slash_prefix_token,
-};
-use vexapi::ui::editor::InputEditor;
-use vexapi::ui::editor::file_mention_range;
 
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
-
-#[path = "tests/picker.rs"]
-mod picker;
 
 fn run_git(repo: &std::path::Path, args: &[&str]) {
     let output = Command::new("git")

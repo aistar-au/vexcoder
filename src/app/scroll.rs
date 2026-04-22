@@ -1,7 +1,5 @@
 use super::*;
 
-#[cfg(test)]
-use std::time::{Duration, Instant};
 
 impl TuiMode {
     pub fn auto_follow(&self) -> bool {
@@ -160,56 +158,6 @@ pub(crate) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max
         ScrollAction::Home => 0,
         ScrollAction::End => max,
     };
-}
-
-#[cfg(test)]
-pub(super) fn input_rows_for_buffer(_input: &str, _width: usize) -> u16 {
-    1
-}
-
-#[cfg(test)]
-pub(super) struct RenderGuard {
-    dirty: bool,
-    cursor_tick: Duration,
-    status_tick: Duration,
-    last_draw_at: Instant,
-    last_render_state_hash: Option<u64>,
-}
-
-#[cfg(test)]
-impl RenderGuard {
-    pub(super) fn with_intervals(
-        cursor_tick: Duration,
-        status_tick: Duration,
-        now: Instant,
-    ) -> Self {
-        Self {
-            dirty: true,
-            cursor_tick,
-            status_tick,
-            last_draw_at: now,
-            last_render_state_hash: None,
-        }
-    }
-
-    pub(super) fn poll_timeout(&self) -> Duration {
-        self.cursor_tick.min(self.status_tick)
-    }
-
-    pub(super) fn should_draw(&mut self, now: Instant, state_hash: u64) -> bool {
-        if self.last_render_state_hash != Some(state_hash) {
-            self.dirty = true;
-        }
-
-        if self.dirty || now.saturating_duration_since(self.last_draw_at) >= self.poll_timeout() {
-            self.dirty = false;
-            self.last_draw_at = now;
-            self.last_render_state_hash = Some(state_hash);
-            true
-        } else {
-            false
-        }
-    }
 }
 
 #[cfg(test)]
