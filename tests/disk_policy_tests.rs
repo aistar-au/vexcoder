@@ -4,7 +4,6 @@ use vexcoder::disk_policy::{
     DiskPermission, DiskPolicyMode, check_path, enforce, enforce_runtime, resolve_policy_mode,
 };
 
-#[allow(dead_code)]
 mod test_support {
     pub struct EnvLock(tokio::sync::Mutex<()>);
     impl EnvLock {
@@ -12,13 +11,14 @@ mod test_support {
             Self(tokio::sync::Mutex::const_new(()))
         }
         pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
-            EnvLockGuard(self.0.blocking_lock())
-        }
-        pub async fn lock(&self) -> EnvLockGuard<'_> {
-            EnvLockGuard(self.0.lock().await)
+            EnvLockGuard {
+                _guard: self.0.blocking_lock(),
+            }
         }
     }
-    pub struct EnvLockGuard<'a>(tokio::sync::MutexGuard<'a, ()>);
+    pub struct EnvLockGuard<'a> {
+        _guard: tokio::sync::MutexGuard<'a, ()>,
+    }
     impl EnvLockGuard<'_> {
         #[allow(unsafe_code)]
         pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
@@ -29,28 +29,6 @@ mod test_support {
         pub fn remove_var(&self, key: &str) {
             // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
             unsafe { std::env::remove_var(key) }
-        }
-    }
-    pub struct EnvRestore<'a> {
-        _guard: &'a EnvLockGuard<'a>,
-        key: &'static str,
-        value: Option<std::ffi::OsString>,
-    }
-    impl<'a> EnvRestore<'a> {
-        pub fn capture(guard: &'a EnvLockGuard<'a>, key: &'static str) -> Self {
-            Self {
-                _guard: guard,
-                key,
-                value: std::env::var_os(key),
-            }
-        }
-    }
-    impl Drop for EnvRestore<'_> {
-        fn drop(&mut self) {
-            match &self.value {
-                Some(value) => self._guard.set_var(self.key, value),
-                None => self._guard.remove_var(self.key),
-            }
         }
     }
     pub static ENV_LOCK: EnvLock = EnvLock::new();

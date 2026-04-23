@@ -15,21 +15,21 @@ use vexcoder::runtime::{
 };
 use vexcoder::types::{ApiMessage, Content, ModelProfile};
 
-#[allow(dead_code)]
 mod test_support {
     pub struct EnvLock(tokio::sync::Mutex<()>);
     impl EnvLock {
         pub const fn new() -> Self {
             Self(tokio::sync::Mutex::const_new(()))
         }
-        pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
-            EnvLockGuard(self.0.blocking_lock())
-        }
         pub async fn lock(&self) -> EnvLockGuard<'_> {
-            EnvLockGuard(self.0.lock().await)
+            EnvLockGuard {
+                _guard: self.0.lock().await,
+            }
         }
     }
-    pub struct EnvLockGuard<'a>(tokio::sync::MutexGuard<'a, ()>);
+    pub struct EnvLockGuard<'a> {
+        _guard: tokio::sync::MutexGuard<'a, ()>,
+    }
     impl EnvLockGuard<'_> {
         #[allow(unsafe_code)]
         pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
