@@ -1,3 +1,4 @@
+use serde_json::{Map, Value};
 use std::collections::{HashMap, VecDeque};
 
 pub const FINGERPRINT_VERSION: u16 = 1;
@@ -12,33 +13,70 @@ pub struct SharedPrefix {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolDescriptor {
     pub name: String,
-    pub schema: String,
+    pub schema: Value,
 }
 
 impl SharedPrefix {
     pub fn fingerprint(&self) -> String {
-        let canonical = self.canonicalise();
-        let digest = fnv1a_128(canonical.as_bytes());
+        let implemented = self.implemented_json();
+        let digest = fnv1a_128(implemented.as_bytes());
         format!("v{}-{:032x}", FINGERPRINT_VERSION, digest)
     }
 
-    pub fn canonicalise(&self) -> String {
-        let mut out = String::new();
-        out.push_str("system:\n");
-        out.push_str(&normalise_prompt(&self.system_prompt));
-        out.push_str("\ntools:\n");
-        let mut tools = self.tools.clone();
-        tools.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.schema.cmp(&b.schema)));
-        for tool in &tools {
-            out.push_str(&tool.name);
-            out.push('\t');
-            out.push_str(&tool.schema);
-            out.push('\n');
+    pub fn implemented_json(&self) -> String {
+        thin_json_string(&self.implemented_value())
+    }
+
+    fn implemented_value(&self) -> Value {
+        struct ImplementedTool {
+            name: String,
+            schema: Value,
+            schema_json: String,
         }
-        out.push_str("workspace:\n");
-        out.push_str(self.workspace_context.trim_end());
-        out.push('\n');
-        out
+
+        let mut tools = self
+            .tools
+            .iter()
+            .map(|tool| {
+                let schema = thin_json_value(&tool.schema);
+                let schema_json = thin_json_string(&schema);
+                ImplementedTool {
+                    name: tool.name.clone(),
+                    schema,
+                    schema_json,
+                }
+            })
+            .collect::<Vec<_>>();
+        tools.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.schema_json.cmp(&b.schema_json))
+        });
+
+        let mut implemented = Map::new();
+        implemented.insert(
+            "system_prompt".to_string(),
+            Value::String(normalise_prompt(&self.system_prompt)),
+        );
+        implemented.insert(
+            "tools".to_string(),
+            Value::Array(
+                tools
+                    .into_iter()
+                    .map(|tool| {
+                        let mut entry = Map::new();
+                        entry.insert("name".to_string(), Value::String(tool.name));
+                        entry.insert("schema".to_string(), tool.schema);
+                        Value::Object(entry)
+                    })
+                    .collect(),
+            ),
+        );
+        implemented.insert(
+            "workspace_context".to_string(),
+            Value::String(self.workspace_context.trim_end().to_string()),
+        );
+        Value::Object(implemented)
     }
 }
 
@@ -51,6 +89,28 @@ fn normalise_prompt(input: &str) -> String {
         out.push_str(line.trim_end());
     }
     out
+}
+
+fn thin_json_string(value: &Value) -> String {
+    serde_json::to_string(&thin_json_value(value)).unwrap_or_else(|_| "null".to_string())
+}
+
+fn thin_json_value(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(items.iter().map(thin_json_value).collect()),
+        Value::Object(map) => {
+            let mut sorted = Map::new();
+            let mut keys = map.keys().cloned().collect::<Vec<_>>();
+            keys.sort();
+            for key in keys {
+                if let Some(entry) = map.get(&key) {
+                    sorted.insert(key, thin_json_value(entry));
+                }
+            }
+            Value::Object(sorted)
+        }
+        _ => value.clone(),
+    }
 }
 
 fn fnv1a_128(bytes: &[u8]) -> u128 {
@@ -85,8 +145,8 @@ impl MultiplexPrefixManager {
         if self.entries.contains_key(&fingerprint) {
             return fingerprint;
         }
-        let canonical = prefix.canonicalise().into_bytes();
-        self.insert(fingerprint.clone(), canonical);
+        let implemented = prefix.implemented_json().into_bytes();
+        self.insert(fingerprint.clone(), implemented);
         fingerprint
     }
 
@@ -126,11 +186,12 @@ impl MultiplexPrefixManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
-    fn sample_tool(name: &str, schema: &str) -> ToolDescriptor {
+    fn sample_tool(name: &str, schema: Value) -> ToolDescriptor {
         ToolDescriptor {
             name: name.into(),
-            schema: schema.into(),
+            schema,
         }
     }
 
@@ -138,8 +199,8 @@ mod tests {
         SharedPrefix {
             system_prompt: "You are a helpful assistant.\n".into(),
             tools: vec![
-                sample_tool("read_file", r#"{"type":"object"}"#),
-                sample_tool("write_file", r#"{"type":"object"}"#),
+                sample_tool("read_file", json!({"type": "object"})),
+                sample_tool("write_file", json!({"type": "object"})),
             ],
             workspace_context: "cwd: /srv/repo".into(),
         }
@@ -195,8 +256,75 @@ mod tests {
     fn fingerprint_changes_when_tool_schema_differs() {
         let base = sample_prefix();
         let mut mutated = base.clone();
-        mutated.tools[0].schema = r#"{"type":"object","additional":true}"#.into();
+        mutated.tools[0].schema = json!({"additional": true, "type": "object"});
         assert_ne!(base.fingerprint(), mutated.fingerprint());
+    }
+
+    #[test]
+    fn fingerprint_ignores_schema_key_order() {
+        let a = SharedPrefix {
+            tools: vec![sample_tool(
+                "read_file",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "offset": {"type": "integer"}
+                    },
+                    "required": ["path"]
+                }),
+            )],
+            ..SharedPrefix::default()
+        };
+        let b = SharedPrefix {
+            tools: vec![sample_tool(
+                "read_file",
+                json!({
+                    "required": ["path"],
+                    "properties": {
+                        "offset": {"type": "integer"},
+                        "path": {"type": "string"}
+                    },
+                    "type": "object"
+                }),
+            )],
+            ..SharedPrefix::default()
+        };
+        assert_eq!(a.fingerprint(), b.fingerprint());
+    }
+
+    #[test]
+    fn fingerprint_distinguishes_structured_prefixes_that_tab_joining_can_alias() {
+        let left = SharedPrefix {
+            tools: vec![sample_tool(
+                "tool",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "payload": {"type": "string"},
+                        "workspace": {"type": "string", "default": "A"}
+                    }
+                }),
+            )],
+            workspace_context: "B".into(),
+            ..SharedPrefix::default()
+        };
+        let right = SharedPrefix {
+            tools: vec![sample_tool(
+                "tool",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "payload": {"type": "string"}
+                    }
+                }),
+            )],
+            workspace_context: "A\nworkspace:\nB".into(),
+            ..SharedPrefix::default()
+        };
+
+        assert_ne!(left.implemented_json(), right.implemented_json());
+        assert_ne!(left.fingerprint(), right.fingerprint());
     }
 
     #[test]
@@ -237,15 +365,18 @@ mod tests {
     }
 
     #[test]
-    fn canonical_form_begins_with_sections_in_declared_order() {
+    fn implemented_json_is_structured_and_parseable() {
         let prefix = sample_prefix();
-        let canonical = prefix.canonicalise();
-        let system_at = canonical.find("system:").expect("system section present");
-        let tools_at = canonical.find("tools:").expect("tools section present");
-        let ws_at = canonical
-            .find("workspace:")
-            .expect("workspace section present");
-        assert!(system_at < tools_at);
-        assert!(tools_at < ws_at);
+        let implemented = prefix.implemented_json();
+        let parsed: Value = serde_json::from_str(&implemented).expect("implemented JSON parses");
+        assert_eq!(
+            parsed["system_prompt"],
+            Value::String("You are a helpful assistant.".into())
+        );
+        assert!(parsed["tools"].is_array());
+        assert_eq!(
+            parsed["workspace_context"],
+            Value::String("cwd: /srv/repo".into())
+        );
     }
 }
