@@ -15,8 +15,58 @@ use vexcoder::runtime::{
 };
 use vexcoder::types::{ApiMessage, Content, ModelProfile};
 
+#[allow(unused)]
 mod test_support {
-    pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    pub struct EnvLock(tokio::sync::Mutex<()>);
+    impl EnvLock {
+        pub const fn new() -> Self {
+            Self(tokio::sync::Mutex::const_new(()))
+        }
+        pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.blocking_lock())
+        }
+        pub async fn lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.lock().await)
+        }
+    }
+    pub struct EnvLockGuard<'a>(tokio::sync::MutexGuard<'a, ()>);
+    impl EnvLockGuard<'_> {
+        #[allow(unsafe_code)]
+        pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::set_var(key, val) }
+        }
+        #[allow(unsafe_code)]
+        pub fn remove_var(&self, key: &str) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::remove_var(key) }
+        }
+    }
+    pub struct EnvRestore<'a> {
+        _guard: &'a EnvLockGuard<'a>,
+        key: &'static str,
+        value: Option<String>,
+    }
+    impl<'a> EnvRestore<'a> {
+        pub fn capture(guard: &'a EnvLockGuard<'a>, key: &'static str) -> Self {
+            Self {
+                _guard: guard,
+                key,
+                value: std::env::var(key).ok(),
+            }
+        }
+    }
+    impl Drop for EnvRestore<'_> {
+        #[allow(unsafe_code)]
+        fn drop(&mut self) {
+            match &self.value {
+                // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
+                Some(v) => unsafe { std::env::set_var(self.key, v) },
+                None => unsafe { std::env::remove_var(self.key) },
+            }
+        }
+    }
+    pub static ENV_LOCK: EnvLock = EnvLock::new();
 }
 
 fn live_server_url() -> String {

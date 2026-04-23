@@ -1,5 +1,3 @@
-#![allow(unsafe_code)]
-
 use super::{
     Cli, Commands, CredentialsCommands, SkillsCommands, apply_process_policy_overrides,
     default_auto_approve_scope, format_task_entries_table, map_encoding_to_output_format,
@@ -29,8 +27,58 @@ use vexcoder::tui_frontend::{
 use vexcoder::ui::editor::InputEditor;
 use vexcoder::ui::editor::file_mention_range;
 
+#[allow(unused)]
 mod test_support {
-    pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    pub struct EnvLock(tokio::sync::Mutex<()>);
+    impl EnvLock {
+        pub const fn new() -> Self {
+            Self(tokio::sync::Mutex::const_new(()))
+        }
+        pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.blocking_lock())
+        }
+        pub async fn lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.lock().await)
+        }
+    }
+    pub struct EnvLockGuard<'a>(tokio::sync::MutexGuard<'a, ()>);
+    impl EnvLockGuard<'_> {
+        #[allow(unsafe_code)]
+        pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::set_var(key, val) }
+        }
+        #[allow(unsafe_code)]
+        pub fn remove_var(&self, key: &str) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::remove_var(key) }
+        }
+    }
+    pub struct EnvRestore<'a> {
+        _guard: &'a EnvLockGuard<'a>,
+        key: &'static str,
+        value: Option<String>,
+    }
+    impl<'a> EnvRestore<'a> {
+        pub fn capture(guard: &'a EnvLockGuard<'a>, key: &'static str) -> Self {
+            Self {
+                _guard: guard,
+                key,
+                value: std::env::var(key).ok(),
+            }
+        }
+    }
+    impl Drop for EnvRestore<'_> {
+        #[allow(unsafe_code)]
+        fn drop(&mut self) {
+            match &self.value {
+                // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
+                Some(v) => unsafe { std::env::set_var(self.key, v) },
+                None => unsafe { std::env::remove_var(self.key) },
+            }
+        }
+    }
+    pub static ENV_LOCK: EnvLock = EnvLock::new();
 }
 
 #[path = "tests/picker.rs"]
@@ -214,24 +262,24 @@ fn test_recall_coordinates_flag_can_be_combined_with_project_map_only() {
 fn test_resolve_resume_state_unknown_id_errors() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
     let result = resolve_resume_state("does-not-exist");
     assert!(result.is_err(), "unknown task id must produce an error");
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[test]
 fn test_resolve_resume_state_empty_dir_returns_none() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
     let result = resolve_resume_state("").expect("empty-dir must not error");
     assert!(result.is_none(), "empty state dir must return None");
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[test]
@@ -240,7 +288,7 @@ fn test_resolve_resume_state_most_recent() {
     use vexcoder::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
     let older = TaskState::new("task-older".to_string());
     older.save(temp.path()).unwrap();
@@ -265,7 +313,7 @@ fn test_resolve_resume_state_most_recent() {
         "must pick the most recently modified task"
     );
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[test]
@@ -273,7 +321,7 @@ fn test_resolve_resume_state_explicit_id() {
     use vexcoder::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
     let state = TaskState::new("task-explicit".to_string());
     state.save(temp.path()).unwrap();
@@ -283,7 +331,7 @@ fn test_resolve_resume_state_explicit_id() {
         .expect("must find the task");
     assert_eq!(loaded.id, "task-explicit");
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[test]
@@ -301,7 +349,7 @@ fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
     let state = TaskState::new("task-saved".to_string());
     state.save(&saved_state_dir).unwrap();
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
     std::env::set_current_dir(&nested).unwrap();
 
     let loaded = resolve_resume_state("task-saved")
@@ -421,7 +469,7 @@ fn test_explicit_auto_approve_scope_takes_precedence_over_force_default() {
 #[test]
 fn test_bypass_integrity_locks_forces_disk_policy_off_for_process() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::set_var("VEX_DISK_POLICY", "strict") };
+    _env_lock.set_var("VEX_DISK_POLICY", "strict");
 
     let mut config = Config::default_for_tui();
     config.bypass_policy = true;
@@ -433,7 +481,7 @@ fn test_bypass_integrity_locks_forces_disk_policy_off_for_process() {
     );
 
     vexcoder::disk_policy::set_process_policy_override(None);
-    unsafe { std::env::remove_var("VEX_DISK_POLICY") };
+    _env_lock.remove_var("VEX_DISK_POLICY");
 }
 
 #[test]
@@ -601,10 +649,10 @@ fn test_read_secret_from_reader_strips_one_trailing_newline() {
 #[test]
 fn test_read_secret_from_env_var_reads_named_value() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::set_var("VEX_TEST_SECRET", "secret-value") };
+    _env_lock.set_var("VEX_TEST_SECRET", "secret-value");
     let secret = read_secret_from_env_var("VEX_TEST_SECRET").expect("env secret");
     assert_eq!(secret, "secret-value");
-    unsafe { std::env::remove_var("VEX_TEST_SECRET") };
+    _env_lock.remove_var("VEX_TEST_SECRET");
 }
 
 #[test]
@@ -776,7 +824,7 @@ async fn test_vex_branch_creates_git_branch() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
     let repo = init_git_repo();
     let state_dir = repo.path().join("state");
-    unsafe { std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", state_dir.as_os_str());
 
     let summary = run_branch(repo.path(), "feature/demo").await.unwrap();
     let branch = git_stdout(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
@@ -788,7 +836,7 @@ async fn test_vex_branch_creates_git_branch() {
             .any(|line| line == "[branch] created: feature/demo")
     );
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[tokio::test]
@@ -796,7 +844,7 @@ async fn test_vex_branch_records_in_task_state() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
     let repo = init_git_repo();
     let state_dir = repo.path().join("state");
-    unsafe { std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str()) };
+    _env_lock.set_var("VEX_STATE_DIR", state_dir.as_os_str());
 
     let state = TaskState::new("task-branch".to_string());
     state.save(&state_dir).unwrap();
@@ -806,7 +854,7 @@ async fn test_vex_branch_records_in_task_state() {
     let loaded = TaskState::load(&state_dir, "task-branch").unwrap();
     assert_eq!(loaded.branch_name.as_deref(), Some("feature/task-state"));
 
-    unsafe { std::env::remove_var("VEX_STATE_DIR") };
+    _env_lock.remove_var("VEX_STATE_DIR");
 }
 
 #[tokio::test]

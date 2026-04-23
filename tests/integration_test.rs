@@ -1,13 +1,61 @@
-#![allow(unsafe_code)]
-
 use reqwest::header::HeaderMap;
 use vexcoder::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, build_batch_runtime};
 use vexcoder::config::Config;
 use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexcoder::types::ModelProfile;
 
+#[allow(unused)]
 mod test_support {
-    pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    pub struct EnvLock(tokio::sync::Mutex<()>);
+    impl EnvLock {
+        pub const fn new() -> Self {
+            Self(tokio::sync::Mutex::const_new(()))
+        }
+        pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.blocking_lock())
+        }
+        pub async fn lock(&self) -> EnvLockGuard<'_> {
+            EnvLockGuard(self.0.lock().await)
+        }
+    }
+    pub struct EnvLockGuard<'a>(tokio::sync::MutexGuard<'a, ()>);
+    impl EnvLockGuard<'_> {
+        #[allow(unsafe_code)]
+        pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::set_var(key, val) }
+        }
+        #[allow(unsafe_code)]
+        pub fn remove_var(&self, key: &str) {
+            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
+            unsafe { std::env::remove_var(key) }
+        }
+    }
+    pub struct EnvRestore<'a> {
+        _guard: &'a EnvLockGuard<'a>,
+        key: &'static str,
+        value: Option<String>,
+    }
+    impl<'a> EnvRestore<'a> {
+        pub fn capture(guard: &'a EnvLockGuard<'a>, key: &'static str) -> Self {
+            Self {
+                _guard: guard,
+                key,
+                value: std::env::var(key).ok(),
+            }
+        }
+    }
+    impl Drop for EnvRestore<'_> {
+        #[allow(unsafe_code)]
+        fn drop(&mut self) {
+            match &self.value {
+                // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
+                Some(v) => unsafe { std::env::set_var(self.key, v) },
+                None => unsafe { std::env::remove_var(self.key) },
+            }
+        }
+    }
+    pub static ENV_LOCK: EnvLock = EnvLock::new();
 }
 
 fn prepare_forbidden_names_fixture() -> tempfile::TempDir {
@@ -225,18 +273,18 @@ fn test_config_prefers_env_over_repo_user_system_and_defaults() {
     .unwrap();
     std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
-    unsafe { std::env::set_var("VEX_MODEL_NAME", "env-model") };
+    _lock.set_var("VEX_MODEL_NAME", "env-model");
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "env-model");
     assert_eq!(cfg.model_url, "http://repo.example/v1");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
+    _lock.remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_config_repo_overrides_user_system_and_defaults() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    _lock.remove_var("VEX_MODEL_NAME");
+    _lock.remove_var("VEX_MODEL_URL");
     let temp = tempfile::tempdir().unwrap();
     let repo_root = temp.path().join("repo");
     let cwd = repo_root.join("sub");
@@ -253,15 +301,15 @@ fn test_config_repo_overrides_user_system_and_defaults() {
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "repo-model");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    _lock.remove_var("VEX_MODEL_NAME");
+    _lock.remove_var("VEX_MODEL_URL");
 }
 
 #[test]
 fn test_config_user_overrides_system_and_defaults() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    _lock.remove_var("VEX_MODEL_NAME");
+    _lock.remove_var("VEX_MODEL_URL");
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("project");
     let user_cfg = temp.path().join("user.toml");
@@ -272,8 +320,8 @@ fn test_config_user_overrides_system_and_defaults() {
 
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "user-model");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    _lock.remove_var("VEX_MODEL_NAME");
+    _lock.remove_var("VEX_MODEL_URL");
 }
 
 #[test]
