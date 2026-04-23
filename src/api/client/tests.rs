@@ -1375,6 +1375,37 @@ fn test_chat_compat_tool_definitions_match_base_tool_names() {
 }
 
 #[test]
+fn test_messages_v1_tool_definitions_keep_input_schemas_structured() {
+    let tools = tool_definitions()
+        .as_array()
+        .expect("tool definitions must be an array");
+
+    assert!(
+        tools
+            .iter()
+            .all(|tool| matches!(tool.get("input_schema"), Some(Value::Object(_)))),
+        "messages-v1 tool definitions must keep input_schema as a JSON object"
+    );
+}
+
+#[test]
+fn test_chat_compat_tool_definitions_keep_parameters_structured() {
+    let chat_compat_tools = tool_definitions_chat_compat_with_extra(&[]);
+    let tools = chat_compat_tools
+        .as_array()
+        .expect("chat-compat tool definitions must be an array");
+
+    assert!(
+        tools.iter().all(|tool| matches!(
+            tool.get("function")
+                .and_then(|function| function.get("parameters")),
+            Some(Value::Object(_))
+        )),
+        "chat-compat tool definitions must keep function.parameters as a JSON object"
+    );
+}
+
+#[test]
 fn test_system_prompt_includes_memory_notes() {
     let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
         vec![],
