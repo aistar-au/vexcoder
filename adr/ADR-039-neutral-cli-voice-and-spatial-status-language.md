@@ -1,198 +1,25 @@
 # ADR-039: Neutral CLI Voice and Spatial Status Language
 
-- **Status:** Proposed
-- **Date:** 2026-03-31
-- **Deciders:** Core maintainer
-- **Depends on:** ADR-023, ADR-030, ADR-031, ADR-034
-- **Deprecates:** None
-- **Deprecated by:** None
+**Status:** Proposed (Batch A merged; Batches B–D pending)  
+**Chain:** ADR-023, ADR-030, ADR-031, ADR-034
 
 ## Context
 
-`vexcoder` already enforces neutral repository language in source, prompts,
-and documentation, but the operator-facing CLI surface still lacks a single
-voice contract.
-
-Current issues are small in isolation and noisy in aggregate:
-
-1. Progress copy, completion copy, and long-running orchestration updates use a
-   mix of generic helper phrasing rather than one display contract.
-2. The runtime has accepted machine states such as `completed`, `failed`, and
-   `cancelled`, but those protocol values are not the same problem as the
-   human-facing transcript copy shown during long-running tasks.
-3. ANSI color already carries operational meaning for diffs, yet tool progress,
-   orchestrator updates, and ordinary transcript text do not share a documented
-   semantic palette.
-4. Multi-agent and long-horizon refactor sessions can run for hours, so the
-   CLI transcript surface needs low-fatigue status language and a stable visual
-   hierarchy rather than celebratory or chatty copy.
-
-The requested direction is still neutral and repository-focused: spatial terms
-such as `adjacent`, `internal`, `external`, `upper`, and `lower`; a mapping /
-alignment metaphor for in-progress work; a status-based completion phrase; and
-clear ANSI role separation that does not disturb established red / green diff
-semantics.
-
-The rollout also needs to stay low-gain at first. Early phases should make the
-CLI feel more precise without reading like a personality transplant: the first
-visible change is the status contract itself (`Mapping adjacent sectors...`,
-`State synchronized.`, and the semantic status-color lane), then the broader
-vocabulary sweep follows, and only after that does the transcript layout move
-toward the denser paragraph stream.
+User-facing strings used anthropomorphic and vendor-adjacent language. This ADR establishes a formal, spatial vocabulary for all status and tool output strings.
 
 ## Decision
 
-Adopt a neutral spatial voice for operator-facing CLI text.
-
-### Scope boundaries
-
-1. This ADR applies to human-facing transcript copy, status text, progress
-   indicators, and CLI wording.
-2. This ADR does **not** rename accepted machine states, persisted task-state
-   fields, JSON API payloads, or protocol values such as `completed`.
-3. This ADR does **not** change standard diff semantics: insertions remain
-   green and deletions remain red.
-4. This ADR does **not** add mascots, conversational persona text, or branded
-   product comparisons to the runtime.
-
-### Voice contract
-
-5. Human-facing status text uses neutral spatial and state-based language.
-6. Prefer `adjacent`, `internal`, `external`, `upper`, `lower`, and `unused`
-   over family, life-cycle, or celebratory metaphors.
-7. In-progress mapping work uses `Mapping adjacent sectors...` as the default
-   display phrase when a more specific operator-facing status is not available.
-8. Human-facing completion text for task / todo surfaces uses
-   `State synchronized.`
-9. Tool, agent, and orchestrator updates stay concise, paragraph-friendly, and
-   observational rather than chatty.
-
-### ANSI semantic roles
-
-10. Default transcript and code text remain phosphor white.
-11. Insertions remain green and deletions remain red.
-12. Tool-call, orchestrator, and agent-enrichment status text uses deep nebula
-    violet or the nearest supported fallback in reduced ANSI environments.
-13. If the active renderer supports animated status affordances, the preferred
-    active indicator is a single pulsing star glyph paired with the mapping
-    status text. Plain-text and accessibility fallbacks may render the text
-    without animation.
-
-### Transcript model
-
-14. Long-running work renders as one continuous paragraph-oriented timeline,
-    not a sequence of congratulatory callouts.
-15. When available, active progress counters such as files processed or agents
-    active appear in the same status lane as orchestrator updates.
-16. Tool operator output and agent-enrichment output must remain visually
-    subordinate to primary code / diff text so the transcript stays legible
-    during multi-hour sessions.
-
-### Rollout guardrails
-
-17. Implementation order is intentionally subtle: the first visible rollout
-      step is the status contract and semantic color feedback, not a broad copy
-      rewrite or transcript-layout change.
-18. Batch A should introduce `Mapping adjacent sectors...`,
-      `State synchronized.`, and the deep-nebula-violet status lane on existing
-      surfaces so operators first encounter the new voice through stable status
-      anchors.
-19. Batch B should extend the same contract into the wider spatial vocabulary
-      set without changing machine-state fields, JSON payloads, or persisted
-      schema names.
-20. Batch C may add the pulsing-star affordance after the Batch A/B status and
-      wording contract is stable in tests and operator-facing docs.
-21. Batch D is the first batch allowed to consolidate the long-running
-      transcript into the paragraph-oriented progress stream, because it depends
-      on the earlier wording and color contracts already being recognizable.
-
-## Implementation batches
-
-### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1, merged on main in PR #292)
-
-- Introduce `Mapping adjacent sectors...` as the default human-facing thinking
-   text when a more specific operator status is not available.
-- Introduce `State synchronized.` on human-facing completion surfaces.
-- Move tool-call, orchestrator, and agent-enrichment status text into the
-   deep-nebula-violet semantic lane while preserving phosphor-white transcript
-   text and green / red diff semantics.
-- Keep these changes within the current layout so the first rollout still
-   reads as a status refinement rather than a transcript-model change.
-
-### Batch B -- Vocabulary normalization (subtle introduction phase 2)
-
-- Normalize operator-facing copy to the spatial vocabulary set.
-- Replace non-neutral relationship wording in transcript text where the
-   wording is purely display copy.
-- Prioritize the most common low-noise surfaces first: relationship words in
-   logs, prompts, and status blurbs that already exist today.
-- Do not add transcript layout changes in this batch.
-- Leave code symbols, persisted schema, and JSON field names unchanged.
-
-### Batch C -- Active indicator affordance (subtle introduction phase 3)
-
-- Add the pulsing-star active indicator where the renderer supports it.
-- Ensure reduced-color and plain-text fallbacks remain readable.
-
-### Batch D -- Paragraph progress stream (corrected 2026-04-09)
-
-- Consolidate long-running tool and agent updates into one paragraph-oriented
-   status stream. Under the owned-transcript correction, paragraph-oriented
-   progress means committed paragraphs, in-flight progress, active tool output,
-   and the current response tail share the same task-surface transcript rather
-   than splitting between host scrollback and a reserved live viewport.
-- No host scrollback sink is required. One owned transcript surface carries
-  both committed progress and live progress while preserving the same inline
-  paragraph language.
-- Add active counters for files processed and active agents where the runtime
-   already knows those values.
-- Render the orchestrator lane as a continuous enriched paragraph while
-   keeping code and diff text visually dominant in phosphor white / green / red.
-- Keep the code / diff surface visually dominant over status text.
-- This batch does not require a second full-history scroll surface.
-   Committed progress paragraphs stay on the owned transcript surface, and the
-   live tail remains on that same app-rendered task layout.
-
-## Consequences
-
-### Positive
-
-- Operator-facing copy gains one consistent voice contract without changing
-  machine-facing schemas.
-- Long-running sessions become easier to monitor because progress text and ANSI
-  roles have a documented hierarchy.
-- The runtime keeps its neutral engineering tone while still presenting a more
-  deliberate CLI identity.
-
-### Negative
-
-- Some current transcript wording will need churn even where behavior does not
-  change.
-- Renderer and transcript tests will need updates because copy and status
-  labels become part of the contract.
-- The paragraph-stream model must be applied carefully so important status
-  transitions do not become visually buried.
-
-## Implementation status
-
-Batch A is merged on main (PR #292). Existing operator-facing surfaces now
-use the low-gain status pass: semantic color feedback plus
-`Mapping adjacent sectors...` and `State synchronized.` on the current layout.
-A follow-up fix in PR #293 normalizes `search.exclude` entries with a trailing
-slash so path-prefix matching enforces directory boundaries by construction.
-Remaining work is Batch B vocabulary normalization, Batch C active-indicator
-affordance, and Batch D paragraph-progress consolidation.
-
-Candidate implementation areas:
-
-- `src/ui/render/`
-- `src/app/`
-- `src/state/conversation/`
-- `src/runtime/task_state/`
+- Use spatial vocabulary exclusively: `adjacent`, `internal`, `external`, `upper`, `lower`, `unused`.
+- Default waiting phrase: `Mapping adjacent sectors...`
+- Completion phrase: `State synchronized.`
+- Tool, agent, and orchestrator updates are concise and observational; no celebratory language.
+- Active indicator: a pulsing glyph (with plain-text fallback `[…]` for non-Unicode terminals).
+- Status line color: violet (`#6B3B8F`) for status/tool/agent text where the console supports it.
+- Transcript uses a paragraph-oriented timeline; no inline callouts or banners.
+- Batch A: status anchors and semantic color applied (merged PR #292).
+- Batches B–D: vocabulary normalization, active indicator, paragraph progress stream.
 
 ## References
 
-- [ADR-023](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-023-deterministic-edit-loop.md) — prompt and operator-surface command contract
-- [ADR-030](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md) — shared runtime state and task lifecycle
-- [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator rendering surface and timeline behavior
-- [ADR-034](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-034-multi-agent-parallel-task-execution.md) — multi-agent progress and watch surfaces
+- [`crossterm`](https://docs.rs/crossterm) — console color and style
+- [`ratatui`](https://docs.rs/ratatui) — widget rendering
