@@ -58,11 +58,8 @@ impl ConversationManager {
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
         let mut compacted_this_turn = false;
-        // Condense once per user turn, not per API round, to stay idempotent.
         self.condense_old_tool_results(history_keep_turns);
 
-        // Proactive compaction: if token estimate exceeds threshold, compact
-        // before the turn starts (between-turns-only constraint).
         let ctx_window = self.client.context_window_tokens();
         if let Some((before, after, _heuristic_content)) = self.run_proactive_compaction(ctx_window)
         {
@@ -128,7 +125,6 @@ impl ConversationManager {
                             summary,
                         },
                     );
-                    // Do not increment rounds — this is recovery, not a tool round.
                     rounds -= 1;
                     continue;
                 }
@@ -392,8 +388,6 @@ impl ConversationManager {
                     return Ok(msg);
                 }
 
-                // Stop faster when the round contains empty-path tool calls
-                // (e.g. read_file with no path) — one repeat is enough.
                 let has_empty_path_call = tool_use_blocks.iter().any(|block| {
                     if let ContentBlock::ToolUse { name, input, .. } = block {
                         matches!(name.as_str(), "read_file" | "list_files")
@@ -402,9 +396,6 @@ impl ConversationManager {
                         false
                     }
                 });
-                // Local models often loop on the same read-only call because
-                // they fail to incorporate the prior tool result into their
-                // context. Use a tighter threshold for local endpoints.
                 let repeat_threshold = if has_empty_path_call || self.client.is_local_endpoint() {
                     1
                 } else {
@@ -726,7 +717,6 @@ impl ConversationManager {
                             continue;
                         }
 
-                        // Capture undo snapshot before executing the tool.
                         let undo_snapshot = self.capture_undo_snapshot(&name, &input);
 
                         let result = self
@@ -738,7 +728,6 @@ impl ConversationManager {
                             )
                             .await;
 
-                        // Push checkpoint only on success.
                         if result.is_ok()
                             && let Some(cp) = undo_snapshot
                         {
@@ -805,12 +794,6 @@ impl ConversationManager {
     }
 }
 
-/// Centralizes the repeated guard-error trailing-segment pattern (ADR-021 Item 9).
-///
-/// After a tool-guard fires, this helper emits the clarification text to the
-/// stream and appends the history payload for the active protocol. The caller
-/// still handles the structured-round streaming update (`ToolStatus::Error` +
-/// `push_tool_result_block`) before calling this function.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_tool_error(
     stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,

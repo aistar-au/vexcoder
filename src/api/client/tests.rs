@@ -1135,42 +1135,36 @@ fn test_chat_compat_url_adapter_from_v1_base_endpoint() {
 
 #[test]
 fn test_resolve_max_tokens_defaults_to_profile_budget() {
-    // server_n_ctx=0 → ceiling=16384; default 4096 < 16384 → 4096
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 0));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_uses_server_n_ctx() {
-    // 75% of 65536 = 49152; default 4096 < 49152 → 4096
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 65536));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_caps_at_seventy_five_percent_of_server_n_ctx() {
-    // 75% of 65536 = 49152; default 60000 > 49152 → capped at 49152
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(60000, 65536));
     assert_eq!(tokens, 49152);
 }
 
 #[test]
 fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
-    // server_n_ctx=0 → ceiling=16384; default 40000 > 16384 → capped at 16384
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(40000, 0));
     assert_eq!(tokens, 16384);
 }
 
 #[test]
 fn test_resolve_max_tokens_small_n_ctx_does_not_panic() {
-    // server_n_ctx=100 → ceiling=75 (< 128); must not panic in clamp
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 100));
     assert_eq!(tokens, 75);
 }
 
 #[test]
 fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
-    // server_n_ctx=1 → ceiling=0; boundary case for very small context
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 1));
     assert_eq!(tokens, 0);
 }
