@@ -1,8 +1,3 @@
-/// Project a flat, ordered list of transcript display rows from a `TaskDocument`.
-///
-/// This is the single source of truth for all transcript rendering: layout,
-/// scroll helpers, and tests all call this function rather than reading from a
-/// separate `history_state.lines` buffer.
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::task_document::{
     ActiveTurnDocument, AssistantPhase, NoticeSeverity, TaskDocument, TurnEntry,
@@ -15,10 +10,6 @@ use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 
 use super::{StepLifecycle, TranscriptRow};
 
-/// Build the full ordered list of transcript rows from `task_doc`.
-///
-/// `pre_session_notices` are system messages that arrived before the first
-/// turn (e.g. notes warnings, sandbox state).  They appear at the top.
 pub(super) fn project_transcript_rows(
     task_doc: &TaskDocument,
     pre_session_notices: &[String],
@@ -40,11 +31,9 @@ pub(crate) fn project_committed_transcript_rows(
         rows.push(TranscriptRow::Plain(notice.clone()));
     }
 
-    // Interleave compaction boundary markers at the turn they reference.
     let mut compaction_iter = task_doc.context_compaction.iter().peekable();
 
     for (turn_idx, completed) in task_doc.completed_turns.iter().enumerate() {
-        // Emit any compaction markers that point at this turn index.
         while compaction_iter
             .peek()
             .is_some_and(|r| r.turn_index <= turn_idx)
@@ -58,7 +47,6 @@ pub(crate) fn project_committed_transcript_rows(
         append_turn_rows(&mut rows, &completed.entries);
     }
 
-    // Emit any remaining compaction markers (e.g. from /compact which clears turns).
     for record in compaction_iter {
         rows.push(TranscriptRow::Plain(format!(
             "[context compacted: {}]",
@@ -80,8 +68,6 @@ pub(crate) fn project_active_transcript_rows(
 }
 
 fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
-    // Pre-index ToolResult entries by tool_call_id for O(1) lookup while
-    // projecting ToolCall entries, avoiding an O(n²) scan per entry.
     let tool_results: std::collections::HashMap<&str, (&str, bool)> = entries
         .iter()
         .filter_map(|e| {
@@ -99,8 +85,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
         })
         .collect();
 
-    // Track the last completed tool header to fold consecutive identical calls
-    // (e.g. when the model retries the same read_file repeatedly).
     let mut last_tool_header: Option<String> = None;
     let mut repeat_count: usize = 0;
 
@@ -136,13 +120,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                     text.push('▌');
                     *streaming = true;
                 }
-                // Only reset the dedup tracker when this block contains
-                // non-whitespace content — empty or whitespace-only
-                // assistant rounds between tool calls must not break the
-                // fold.  This fixes the cross-round dedup failure where
-                // every `AssistantBlock(Final, "")` previously reset the
-                // tracker causing identical consecutive tool calls to
-                // appear un-folded.
+
                 if !block.content.trim().is_empty() {
                     last_tool_header = None;
                     repeat_count = 0;
@@ -183,12 +161,10 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         );
 
                         if last_tool_header.as_deref() == Some(&current_header) {
-                            // Exact duplicate: fold into a single "(repeated ×N)" notice
-                            // replacing or appending the count annotation.
                             repeat_count += 1;
                             let fold_line =
                                 format!("(repeated \u{d7}{}, same call)", repeat_count + 1);
-                            // Replace the previous fold annotation if present, or append.
+
                             let replace_last = rows.last().is_some_and(|r| {
                                 if let TranscriptRow::ToolDetail(s) = r {
                                     s.starts_with("(repeated")
@@ -250,7 +226,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 idx += 1;
             }
             TurnEntry::ToolResult { .. } => {
-                // Rendered as part of the paired ToolCall entry above.
                 idx += 1;
             }
             TurnEntry::SystemNotice {
@@ -276,7 +251,6 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
 fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDocument) {
     append_turn_rows(rows, &active.entries);
 
-    // If no streaming content arrived yet, show a waiting placeholder.
     let has_streamed_content = active.entries.iter().any(|e| {
         matches!(
             e,
@@ -460,8 +434,6 @@ fn first_pathish_token(text: &str) -> Option<String> {
     })
 }
 
-/// Assemble the concatenated `FinalText` assistant response from a completed
-/// turn's entry list (used for auto-memory extraction).
 pub(super) fn extract_assistant_response(entries: &[TurnEntry]) -> String {
     let mut parts = Vec::new();
     for entry in entries {

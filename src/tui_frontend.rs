@@ -117,8 +117,6 @@ impl ManagedTuiFrontend {
         }
     }
 
-    /// Returns true when the startup paste filter is active (default: on).
-    /// Set `VEX_DISABLE_STARTUP_FILTER=1` to disable for observability.
     fn startup_filter_active() -> bool {
         std::env::var("VEX_DISABLE_STARTUP_FILTER").as_deref() != Ok("1")
     }
@@ -204,7 +202,6 @@ impl ManagedTuiFrontend {
 
     fn map_regular_key(&mut self, key: KeyEvent, mode: &TuiMode) -> Option<UserInputEvent> {
         if key.modifiers.is_empty() {
-            // Slash command picker (triggered by `/` prefix).
             if let Some(picker) = self.current_slash_picker(mode) {
                 let last_index = picker.matches.len().saturating_sub(1);
                 self.selected_slash_hint = self.selected_slash_hint.min(last_index);
@@ -231,19 +228,13 @@ impl ManagedTuiFrontend {
                         return None;
                     }
                     _ => {
-                        // Any other key clears dismiss state so the picker
-                        // reopens as the user keeps typing.
                         self.dismissed_slash_picker = false;
                     }
                 }
-            } else {
-                // Reset dismiss state when no longer on a slash prefix.
-                if slash_prefix_token(self.editor.buffer()).is_none() {
-                    self.dismissed_slash_picker = false;
-                }
+            } else if slash_prefix_token(self.editor.buffer()).is_none() {
+                self.dismissed_slash_picker = false;
             }
 
-            // File mention picker (triggered by `@` prefix).
             if let Some(picker) = self.current_file_picker(mode) {
                 let last_index = picker.matches.len().saturating_sub(1);
                 self.selected_file_hint = self.selected_file_hint.min(last_index);
@@ -275,8 +266,6 @@ impl ManagedTuiFrontend {
         }
 
         match key.code {
-            // Timeline navigation: Alt+Up / Alt+Down, plus Alt+Home / Alt+End
-            // to jump directly to the first step or return to live follow mode.
             KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
                 Some(UserInputEvent::Scroll {
                     target: ScrollTarget::Timeline,
@@ -301,7 +290,7 @@ impl ManagedTuiFrontend {
                     action: ScrollAction::End,
                 })
             }
-            // Tab / Shift+Tab also navigate the timeline.
+
             KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
                 Some(UserInputEvent::Scroll {
                     target: ScrollTarget::Timeline,
@@ -426,9 +415,7 @@ impl ManagedTuiFrontend {
         }
     }
 
-    /// Build the floating picker overlay lines from the currently active picker.
     fn build_picker_overlay(&mut self, mode: &TuiMode) -> Vec<PickerOverlayLine> {
-        // Slash picker takes priority.
         if let Some(picker) = self.current_slash_picker(mode) {
             if picker.matches.is_empty() {
                 return Vec::new();
@@ -436,7 +423,6 @@ impl ManagedTuiFrontend {
             return build_slash_overlay(&picker.matches, self.selected_slash_hint);
         }
 
-        // File mention picker.
         if let Some(picker) = self.current_file_picker(mode) {
             return build_file_overlay(
                 &picker.prefix,
@@ -450,7 +436,6 @@ impl ManagedTuiFrontend {
     }
 }
 
-/// Maximum number of visible entries in the floating picker overlay.
 const MAX_PICKER_OVERLAY_VISIBLE: usize = 12;
 
 impl Drop for ManagedTuiFrontend {
@@ -466,8 +451,6 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             return None;
         }
 
-        // Use a shorter poll timeout during active model turns so streamed
-        // tokens flow through the render loop with minimal latency.
         let poll_ms = if mode.is_turn_in_progress() { 1 } else { 16 };
         let Ok(has_event) = event::poll(Duration::from_millis(poll_ms)) else {
             self.quit = true;

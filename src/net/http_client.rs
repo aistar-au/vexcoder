@@ -1,16 +1,7 @@
-//! Shared outbound HTTP client profile for workspace-owned transport seams.
-//!
-//! # Referenced Specifications
-//!
-//! | RFC | Title | Covered |
-//! |-----|-------|---------|
-//! | [RFC 9113](https://www.rfc-editor.org/rfc/rfc9113) | HTTP/2 | `default_client_builder`, `default_client` |
-
 use anyhow::{Context, Result};
 use reqwest::{Client, ClientBuilder};
 use std::time::Duration;
 
-/// Build the repository's default outbound HTTP client profile.
 pub fn default_client_builder(skip_tls_verification: bool) -> ClientBuilder {
     reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
@@ -28,7 +19,6 @@ pub fn default_client_builder(skip_tls_verification: bool) -> ClientBuilder {
         .danger_accept_invalid_certs(skip_tls_verification)
 }
 
-/// Build the repository's default outbound HTTP client.
 pub fn default_client(skip_tls_verification: bool) -> Result<Client> {
     default_client_builder(skip_tls_verification)
         .build()

@@ -1,9 +1,3 @@
-/// Hardcoded post-turn extraction for automatic memory.
-///
-/// Scans the assistant response for short factual notes while skipping fenced
-/// code blocks and obviously structured/code-like lines. Returns at most
-/// `max_notes` plain-text notes; timestamping and `[auto]` tagging are applied
-/// when the notes are written.
 pub fn extract_notes_from_turn(_input: &str, response: &str, max_notes: usize) -> Vec<String> {
     if max_notes == 0 {
         return Vec::new();
@@ -106,10 +100,6 @@ pub fn is_auto_note_line(line: &str) -> bool {
         && suffix.starts_with("[auto] ")
 }
 
-/// Append `notes` to the notes file at `path`, one entry per line.
-///
-/// Creates the file if it does not exist.  Returns an error if the write
-/// fails.
 pub fn append_auto_notes(notes: &[String], path: &std::path::Path) -> anyhow::Result<()> {
     use std::io::Write as _;
     let mut file = std::fs::OpenOptions::new()
@@ -122,11 +112,6 @@ pub fn append_auto_notes(notes: &[String], path: &std::path::Path) -> anyhow::Re
     Ok(())
 }
 
-/// Remove all lines that match the timestamped `[auto]` note format from the
-/// notes file at `path`.
-///
-/// Returns the number of lines removed.  If the file does not exist, returns
-/// `Ok(0)`.
 pub fn remove_auto_notes(path: &std::path::Path) -> anyhow::Result<usize> {
     if !path.exists() {
         return Ok(0);

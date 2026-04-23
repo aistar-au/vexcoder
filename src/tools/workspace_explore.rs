@@ -1,9 +1,3 @@
-//! PP-01 workspace exploration tools: `list_dir` and `glob_files`.
-//!
-//! All three workspace exploration tools (`search_files` is in `operator/search.rs`)
-//! are workspace-confined, `.gitignore`-aware, and produce bounded output.
-//! None of them start a model turn or modify any file.  No subprocess calls.
-
 use anyhow::{Context, Result};
 use std::fs;
 
@@ -11,9 +5,8 @@ use super::operator::ToolOperator;
 use super::workspace_ignore::WorkspaceIgnore;
 use crate::workspace::make_relative;
 
-/// Maximum number of entries returned by [`list_dir`].
 const LIST_DIR_MAX: usize = 500;
-/// Maximum number of file paths returned by [`glob_files`].
+
 const GLOB_FILES_MAX: usize = 200;
 
 pub(crate) struct WorkspaceGlobMatcher {
@@ -36,14 +29,6 @@ impl WorkspaceGlobMatcher {
     }
 }
 
-/// List the immediate (non-recursive) contents of a workspace directory.
-///
-/// - `path`: workspace-relative directory path; defaults to workspace root.
-/// - `max_entries`: capped at [`LIST_DIR_MAX`].
-///
-/// Hidden entries (names starting with `.`) at the workspace root are skipped
-/// the same way `list_files` does.  Gitignore rules from the workspace root
-/// are applied to all levels.  Entries are alphabetically sorted.
 pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize) -> Result<String> {
     let root = operator
         .resolve_optional_path(path)
@@ -74,18 +59,15 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
             .with_context(|| format!("list_dir: failed to inspect '{}'", p.display()))?;
         let is_dir = file_type.is_dir();
 
-        // Skip hidden entries at workspace root (matches list_files behaviour).
         let is_workspace_root = root == operator.working_dir();
         if is_workspace_root && name_str.starts_with('.') {
             continue;
         }
 
-        // Enforce workspace confinement.
         if operator.ensure_path_is_within_workspace(&p).is_err() {
             continue;
         }
 
-        // Apply gitignore rules.
         let rel = p
             .strip_prefix(operator.working_dir())
             .map(|r| r.to_string_lossy().replace('\\', "/"))
@@ -119,13 +101,6 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
     Ok(out)
 }
 
-/// Return workspace-relative paths matching a glob `pattern`.
-///
-/// - `pattern`: glob using `*` (any non-`/` chars), `**` (any path), `?`.
-/// - `max_results`: capped at [`GLOB_FILES_MAX`].
-///
-/// Only files (not directories) are returned.  Gitignore rules from the
-/// workspace root are applied.  Results are alphabetically sorted.
 pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) -> Result<String> {
     let pattern = pattern.trim();
     if pattern.is_empty() {
@@ -174,8 +149,6 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     Ok(out)
 }
 
-/// Compile a glob matcher shared by `glob_files`, `find_files`, and
-/// `search_content` path filtering.
 pub(crate) fn compile_workspace_glob(pattern: &str) -> Option<WorkspaceGlobMatcher> {
     let Ok(glob) = globset::GlobBuilder::new(pattern)
         .literal_separator(false)
@@ -223,13 +196,11 @@ mod tests {
         ToolOperator::new(dir.path().to_path_buf())
     }
 
-    // ── list_dir ─────────────────────────────────────────────────────────────
-
     #[test]
     fn test_list_dir_returns_immediate_contents() {
         let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
         let out = list_dir(&op(&ws), None, 50).unwrap();
-        // Workspace root should show src/ and Cargo.toml (not hidden entries).
+
         assert!(
             out.contains("Cargo.toml"),
             "expected Cargo.toml, got: {out}"
@@ -241,7 +212,7 @@ mod tests {
     fn test_list_dir_does_not_recurse() {
         let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
         let out = list_dir(&op(&ws), None, 50).unwrap();
-        // Recursive entries must not appear at root level.
+
         assert!(
             !out.contains("main.rs"),
             "list_dir must not recurse into src/: {out}"
@@ -283,7 +254,6 @@ mod tests {
 
     #[test]
     fn test_list_dir_truncation_annotation() {
-        // Create more than 3 files and request max_entries=3
         let ws = make_workspace(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs"]);
         let out = list_dir(&op(&ws), None, 3).unwrap();
         assert!(
@@ -291,8 +261,6 @@ mod tests {
             "expected bounded-results annotation: {out}"
         );
     }
-
-    // ── glob_files ────────────────────────────────────────────────────────────
 
     #[test]
     fn test_glob_files_returns_matching_paths() {
@@ -336,10 +304,8 @@ mod tests {
 
     #[test]
     fn test_glob_files_out_of_workspace_path_returns_error() {
-        // Walk is always rooted at workspace; passing a path-escape pattern
-        // cannot yield results outside the workspace boundary.
         let ws = make_workspace(&["file.rs"]);
-        // This must not panic and must not return paths outside the workspace.
+
         let out = glob_files(&op(&ws), "**/*.rs", 10).unwrap();
         for line in out.lines() {
             assert!(
@@ -348,8 +314,6 @@ mod tests {
             );
         }
     }
-
-    // ── search_files gitignore integration ───────────────────────────────────
 
     #[test]
     fn test_search_files_returns_matching_lines() {
@@ -365,7 +329,7 @@ mod tests {
         let ws = make_workspace(&["src/main.rs"]);
         std::fs::write(ws.path().join("src/main.rs"), "secret_token\n").unwrap();
         let op = ToolOperator::new(ws.path().to_path_buf());
-        // Path escape must fail.
+
         let result = op.search_files("secret_token", Some("../outside"), 10);
         assert!(
             result.is_err(),
@@ -395,30 +359,24 @@ mod tests {
         let ws = make_workspace(&["src/main.rs"]);
         std::fs::write(ws.path().join("src/main.rs"), "value: a.b\n").unwrap();
         let op = ToolOperator::new(ws.path().to_path_buf());
-        // Regex `.` would match any char; literal search must only match "a.b".
+
         let out_dot = op.search_files("a.b", None, 10).unwrap();
         let out_exact = op.search_files("a.b", None, 10).unwrap();
-        // "axb" would match under regex `.` but not literal "a.b"
+
         std::fs::write(ws.path().join("src/main.rs"), "axb\n").unwrap();
         let out_wrong = op.search_files("a.b", None, 10).unwrap();
         assert_eq!(
             out_wrong, "No matches found.",
             "literal match must not interpret `.` as regex"
         );
-        let _ = (out_dot, out_exact); // used above
+        let _ = (out_dot, out_exact);
     }
-
-    // ── model-turn isolation ─────────────────────────────────────────────────
 
     #[test]
     fn test_workspace_tools_do_not_start_model_turn() {
-        // Ensure list_dir and glob_files return Ok without needing any
-        // runtime context — they must be pure synchronous I/O, no channel or
-        // runtime handle required.
         let ws = make_workspace(&["src/main.rs"]);
         let op = ToolOperator::new(ws.path().to_path_buf());
-        // Both calls complete synchronously — any attempt to start a model
-        // turn would panic or block without the full runtime.
+
         assert!(list_dir(&op, None, 10).is_ok());
         assert!(glob_files(&op, "**/*.rs", 10).is_ok());
     }

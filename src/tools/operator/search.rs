@@ -71,7 +71,6 @@ impl ToolOperator {
             None => None,
         };
 
-        // Collect candidate paths, applying the optional glob filter.
         let mut candidates: Vec<PathBuf> = Vec::new();
         for path in self.walk_workspace_files(&self.working_dir)? {
             if let Some(matcher) = glob_matcher.as_ref() {
@@ -86,9 +85,6 @@ impl ToolOperator {
             candidates.push(path);
         }
 
-        // Escape the literal query to a regex pattern so the grep-searcher /
-        // memmap2 backend handles the heavy I/O while preserving literal
-        // matching semantics.
         let escaped = regex_lite::escape(query);
         let case_sensitive = query.chars().any(char::is_uppercase);
         let pattern = if case_sensitive {

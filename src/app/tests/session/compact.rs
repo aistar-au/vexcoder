@@ -1,7 +1,5 @@
 use super::*;
 
-// -- /compact -------------------------------------------------------------
-
 #[test]
 fn test_tui_compact_resets_conversation_history() {
     let mut mode = TuiMode::new();
@@ -10,7 +8,6 @@ fn test_tui_compact_resets_conversation_history() {
 
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
-    // 1 confirmation line (pre_session_notice) + 1 compaction boundary row
     assert_eq!(
         mode.history_lines().len(),
         2,

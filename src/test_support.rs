@@ -33,14 +33,14 @@ pub struct EnvLockGuard<'a> {
 }
 
 impl EnvLockGuard<'_> {
-    #[allow(unsafe_code)] // guarded: ENV_LOCK serialises all callers — see SAFETY comment
+    #[allow(unsafe_code)]
     pub fn set_var(&self, key: &str, value: impl AsRef<std::ffi::OsStr>) {
         let _ = &self.guard;
         // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::set_var(key, value) }
     }
 
-    #[allow(unsafe_code)] // guarded: ENV_LOCK serialises all callers — see SAFETY comment
+    #[allow(unsafe_code)]
     pub fn remove_var(&self, key: &str) {
         let _ = &self.guard;
         // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
@@ -48,13 +48,8 @@ impl EnvLockGuard<'_> {
     }
 }
 
-/// Process-wide lock for tests that mutate environment variables.
-/// Use `.blocking_lock()` in sync tests and `.lock().await` in async tests.
 pub static ENV_LOCK: EnvLock = EnvLock::new();
 
-/// RAII guard that captures the current value of an environment variable on
-/// construction and restores it (or removes it) on drop.  Use this in any
-/// test that mutates an env var to ensure neighbouring tests are not affected.
 pub struct EnvRestore<'a> {
     _guard: &'a EnvLockGuard<'a>,
     key: &'static str,
@@ -72,7 +67,7 @@ impl<'a> EnvRestore<'a> {
 }
 
 impl Drop for EnvRestore<'_> {
-    #[allow(unsafe_code)] // lifetime-bounded: EnvRestore cannot outlive its EnvLockGuard — see SAFETY comment
+    #[allow(unsafe_code)]
     fn drop(&mut self) {
         match &self.value {
             // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
@@ -82,18 +77,10 @@ impl Drop for EnvRestore<'_> {
     }
 }
 
-/// Set an environment variable in test code.
-///
-/// # Safety contract
-/// Callers must pass the `EnvLockGuard` they currently hold.
 pub fn test_set_var(lock: &EnvLockGuard<'_>, key: &str, value: impl AsRef<std::ffi::OsStr>) {
     lock.set_var(key, value)
 }
 
-/// Remove an environment variable in test code.
-///
-/// # Safety contract
-/// Callers must pass the `EnvLockGuard` they currently hold.
 pub fn test_remove_var(lock: &EnvLockGuard<'_>, key: &str) {
     lock.remove_var(key)
 }

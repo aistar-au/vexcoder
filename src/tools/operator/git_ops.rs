@@ -100,13 +100,6 @@ impl ToolOperator {
         }
     }
 
-    /// Locate the repository work-tree root using libgit2's native walk-up discovery.
-    ///
-    /// Returns the absolute path of the work-tree root (directory containing `.git`),
-    /// or an error when the working directory is not inside a git repository.  Uses
-    /// `git2::Repository::discover` which respects `GIT_CEILING_DIRECTORIES` and other
-    /// standard git environment variables, providing repository detection without
-    /// spawning a subprocess.
     pub fn repo_root(&self) -> Result<PathBuf> {
         let repo = git2::Repository::discover(&self.working_dir)
             .context("git2: repository not found; ensure the path is inside a git repository")?;

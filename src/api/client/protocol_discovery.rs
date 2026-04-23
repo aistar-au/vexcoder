@@ -1,80 +1,40 @@
-//! Client-side protocol discovery for local inference endpoints.
-//!
-//! Users configure only `base_url` (e.g. `http://127.0.0.1:8000`).
-//! [`discover_protocol`] probes the server once at connection time and
-//! returns a cached [`ModelProtocol`] for the session.
-//!
-//! The probe criteria follow ordinary HTTP representation negotiation: the
-//! client advertises `Accept: text/event-stream` and accepts a probe only when
-//! the server replies with `200 OK` and `Content-Type: text/event-stream`,
-//! consistent with RFC 9110 Section 12.5.1 and Section 8.3.
-//!
-//! Two probes are attempted in order:
-//! 1. `GET /v1/messages` with `Accept: text/event-stream`
-//! 2. `GET /v1/chat/completions` with `Accept: text/event-stream`
-//!
-//! The first probe that satisfies those conditions is selected. If both fail,
-//! [`DiscoveryError::AllProbesFailed`] is returned with per-probe diagnostics
-//! for debugging.
-//!
-//! ADR-047 §6 — Client-Side Protocol Discovery.
-
 use crate::api::logging::{debug_payload_enabled, emit_log_value};
 use crate::runtime::backend::ModelProtocol;
 use crate::runtime::rewrite_url_for_logs;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
-/// Result of a successful protocol probe.
 #[derive(Debug, Clone)]
 pub struct DiscoveryResult {
-    /// The accepted protocol confirmed by the probe.
     pub protocol: ModelProtocol,
-    /// The full endpoint URL that responded (e.g. `http://…/v1/messages`).
+
     pub endpoint: String,
-    /// Round-trip latency of the winning probe in milliseconds.
+
     pub probe_latency_ms: u64,
 }
 
-/// Diagnostic record for a single probe attempt.
-///
-/// Included in [`DiscoveryError::AllProbesFailed`] so callers can surface
-/// meaningful error messages without re-running the probes.
 #[derive(Debug, Clone)]
 pub struct ProbeAttempt {
-    /// The URL that was probed.
     pub endpoint: String,
-    /// The `Accept` header sent in the probe request.
+
     pub accept_header: String,
-    /// HTTP status code, or `None` if the request could not be sent.
+
     pub status: Option<u16>,
-    /// Error description if the probe failed.
+
     pub error: Option<String>,
-    /// Round-trip latency in milliseconds.
+
     pub latency_ms: u64,
 }
 
-/// Errors returned by [`discover_protocol`].
 #[derive(Debug, thiserror::Error)]
 pub enum DiscoveryError {
-    /// Neither the messages-v1 nor the chat-compat probe succeeded.
-    ///
-    /// `attempts` contains one entry per probe with status and error details.
     #[error("all protocol probes failed; see attempts for details")]
-    AllProbesFailed {
-        /// Ordered list of probe attempts (messages-v1 first, then
-        /// chat-compat).
-        attempts: Vec<ProbeAttempt>,
-    },
-    /// A network-level error prevented the probe from completing.
+    AllProbesFailed { attempts: Vec<ProbeAttempt> },
+
     #[error("network error during protocol probe: {0}")]
     NetworkError(String),
 }
 
-/// Probe a single endpoint and return a [`ProbeAttempt`].
-///
-/// A probe is considered successful when the server returns `200 OK` and
-/// a `Content-Type` that contains `text/event-stream`.
 async fn probe_endpoint(
     url: &str,
     accept_header: &str,
@@ -142,16 +102,6 @@ async fn probe_endpoint(
     }
 }
 
-/// Discover the streaming protocol supported by a local inference
-/// server at `base_url`.
-///
-/// Probes are performed in order: messages-v1 first, then chat-compat.
-/// The first successful probe terminates the sequence.
-///
-/// # Errors
-///
-/// Returns [`DiscoveryError::AllProbesFailed`] with per-probe diagnostics
-/// when neither endpoint responds as expected.
 pub async fn discover_protocol(
     base_url: &str,
     client: &reqwest::Client,

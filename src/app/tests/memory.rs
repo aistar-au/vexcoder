@@ -93,7 +93,7 @@ fn test_tui_memory_clear_requires_confirmation() {
         mode.overlay_active(),
         "overlay must be active during memory clear"
     );
-    // File must not be cleared until confirmed
+
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(content.contains("existing note"));
     assert!(!mode.is_turn_in_progress());
@@ -157,18 +157,15 @@ fn test_tui_memory_does_not_call_start_turn() {
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
 
-    // /memory
     mode.on_user_input("/memory".to_string(), &mut ctx);
     assert!(!mode.is_turn_in_progress(), "/memory must not start a turn");
 
-    // /memory add
     mode.on_user_input("/memory add another".to_string(), &mut ctx);
     assert!(
         !mode.is_turn_in_progress(),
         "/memory add must not start a turn"
     );
 
-    // /memory clear + cancel
     mode.on_user_input("/memory clear".to_string(), &mut ctx);
     assert!(
         !mode.is_turn_in_progress(),
@@ -274,8 +271,6 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         .any(|l| l.contains("notes exceed token budget"));
     assert!(has_warning, "expected startup budget warning in history");
 }
-
-// -- PM-04 auto-memory anchor tests ------------------------------------------
 
 #[test]
 fn test_auto_memory_disabled_by_default() {

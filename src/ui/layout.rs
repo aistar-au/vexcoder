@@ -29,7 +29,6 @@ pub fn split_three_pane_layout(area: Rect, input_rows: u16) -> ThreePaneLayout {
     }
 }
 
-/// Four-region layout: header, activity trail, output pane, input pane
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FourRegionLayout {
     pub header: Rect,
@@ -73,11 +72,6 @@ pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -
     }
 }
 
-/// Compact task layout: sizes the output pane to exactly `output_rows` rows.
-/// Any surplus terminal rows accumulate below the input pane so the composer
-/// sits immediately after the content instead of being pinned to the bottom
-/// of the reserved inline viewport area.  The picker overlay renders into
-/// whichever region (above or below the composer) has more room.
 pub(crate) fn split_compact_task_layout(
     area: Rect,
     header_rows: u16,
@@ -143,13 +137,11 @@ mod tests {
         let area = Rect::new(0, 0, 80, 24);
         let layout = split_four_region_layout(area, 0, 3);
 
-        // Verify four regions are created with expected constraints
         assert_eq!(layout.header.height, 0);
         assert_eq!(layout.activity.height, 0);
         assert_eq!(layout.input.height, 3);
         assert!(layout.output.height > 0);
 
-        // Verify vertical stacking
         assert_eq!(layout.header.y, 0);
         assert_eq!(layout.activity.y, 0);
         assert_eq!(layout.output.y, layout.activity.y + layout.activity.height);
@@ -184,25 +176,21 @@ mod tests {
 
     #[test]
     fn compact_task_layout_places_composer_below_content() {
-        // 20-row inline viewport, 2 content rows, 3 composer rows.
-        // Composer should appear at row 3 (1 header + 2 output), not row 17.
         let area = Rect::new(0, 0, 80, 20);
         let layout = split_compact_task_layout(area, 1, 2, 3);
 
         assert_eq!(layout.header.y, 0);
         assert_eq!(layout.header.height, 1);
-        // Output starts right after header; sized to exactly the content.
+
         assert_eq!(layout.output.y, 1);
         assert_eq!(layout.output.height, 2);
-        // Composer immediately below output.
+
         assert_eq!(layout.input.y, 3);
         assert_eq!(layout.input.height, 3);
-        // Total: 1 + 2 + 3 = 6 rows used; 14 surplus rows absorbed below.
     }
 
     #[test]
     fn compact_task_layout_fills_viewport_when_content_is_large() {
-        // With enough content to fill the viewport, no surplus rows remain.
         let area = Rect::new(0, 0, 80, 20);
         let layout = split_compact_task_layout(area, 1, 16, 3);
 
@@ -212,13 +200,11 @@ mod tests {
 
     #[test]
     fn compact_task_layout_zero_output_rows() {
-        // Zero content rows gives a zero-height output pane so the picker
-        // overlay can use the surplus space below the composer.
         let area = Rect::new(0, 0, 80, 20);
         let layout = split_compact_task_layout(area, 1, 0, 3);
 
         assert_eq!(layout.output.height, 0);
-        // Composer right after header.
+
         assert_eq!(layout.input.y, 1);
     }
 }

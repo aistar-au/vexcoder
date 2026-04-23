@@ -18,23 +18,17 @@ use serde_json::json;
 use std::sync::{Arc, RwLock};
 use tracing::Instrument;
 
-/// Server capabilities discovered from a local inference server.
-/// Populated by `poll_server_info()` once per session for local endpoints.
 #[derive(Debug, Clone, Default)]
 pub struct ServerInfo {
-    /// Total context window (tokens). 0 if unknown.
     pub n_ctx: u32,
-    /// Decode batch size. 0 if unknown.
+
     pub n_batch: u32,
-    /// Model identifier reported by the server.
+
     pub model: String,
-    /// The protocol the server handles natively without conversion.
-    /// When `Some`, the client prefers this over the user-configured
-    /// protocol to avoid server-side format conversion overhead.
+
     pub native_protocol: Option<ModelProtocol>,
 }
 
-/// Response shape for a local inference server `/props` endpoint.
 #[derive(Debug, Deserialize, Default)]
 struct LocalServerProps {
     #[serde(default)]
@@ -135,15 +129,11 @@ fn infer_native_protocol_from_models(
         })
 }
 
-/// Attempt to discover server capabilities from a local inference endpoint.
-/// Returns `None` if the server is not reachable or does not expose a
-/// recognised discovery endpoint. Best-effort; never blocks the session.
 pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<ServerInfo> {
     let base = local_endpoint_base_url(api_url)?;
     let props_url = format!("{base}/props");
     let models_url = format!("{base}/v1/models");
 
-    // Try the /props discovery endpoint first (supported by some local servers).
     let mut info: Option<ServerInfo> = None;
     tracing::debug!(
         target: "vex::http",
@@ -179,7 +169,6 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         }
     }
 
-    // Fallback: try /v1/models for other servers.
     tracing::debug!(
         target: "vex::http",
         method = "GET",
@@ -254,9 +243,7 @@ async fn discover_native_protocol(
     .ok()
     .map(|result| result.protocol)
 }
-/// Base system prompt applied to every API call.
-/// Project instructions are appended at runtime via
-/// `ApiClient::with_project_instructions`.
+
 const BASE_SYSTEM_PROMPT: &str = "You are a coding assistant.\n\
 Use tools for all filesystem facts and changes.\n\
 When a user asks for repository facts, command output, file content, or code edits, call tools instead of guessing.\n\
@@ -304,7 +291,7 @@ pub struct ApiClient {
     max_tokens: u32,
     stop_sequences: Vec<String>,
     reasoning_budget: u32,
-    /// Project instructions block appended to the base prompt when present.
+
     project_instructions: Option<String>,
     notes_content: Option<String>,
     extra_tool_definitions: Vec<Value>,
@@ -365,7 +352,7 @@ impl ApiClient {
             api_key: None,
             model: Arc::new(RwLock::new("mock-model".to_string())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            // Test-only override for mock endpoint URL; defaults to portless localhost.
+
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
             api_client_explicit_protocol: None,
@@ -399,8 +386,6 @@ impl ApiClient {
         self
     }
 
-    /// Poll the local inference server for capabilities and cache the result.
-    /// No-op if the endpoint is not local or the server does not respond.
     pub async fn populate_server_info(&self) {
         let Some(base_url) = local_endpoint_base_url(&self.api_url) else {
             return;
@@ -428,12 +413,10 @@ impl ApiClient {
         }
     }
 
-    /// Store server capabilities discovered by `poll_server_info()`.
     pub fn set_server_info(&self, info: ServerInfo) {
         *self.server_info.write().expect("server_info lock poisoned") = Some(info);
     }
 
-    /// Read cached server info, if available.
     pub fn server_info(&self) -> Option<ServerInfo> {
         self.server_info
             .read()
@@ -441,8 +424,6 @@ impl ApiClient {
             .clone()
     }
 
-    /// Estimated context window size in tokens. Returns the server-reported
-    /// `n_ctx` when known, or a conservative default of 8192 otherwise.
     pub fn context_window_tokens(&self) -> usize {
         self.server_info()
             .map(|i| i.n_ctx as usize)
@@ -450,8 +431,6 @@ impl ApiClient {
             .unwrap_or(8192)
     }
 
-    /// Attach project-instructions text. Builder pattern; consumes and
-    /// returns self. Pass `None` to use the base prompt unmodified.
     pub fn with_project_instructions(mut self, instructions: Option<String>) -> Self {
         self.project_instructions = instructions;
         self
@@ -470,8 +449,6 @@ impl ApiClient {
         is_local_endpoint_url(&self.api_url)
     }
 
-    /// Return a startup warning when a local endpoint uses HTTPS.
-    /// HTTPS is not supported for local inference servers; HTTP is required.
     pub fn https_local_startup_warning(&self) -> Option<String> {
         let lower = self.api_url.to_ascii_lowercase();
         if !self.is_local_endpoint() || !lower.starts_with("https://") {
@@ -511,15 +488,10 @@ impl ApiClient {
 
         let discovered_protocol = self.server_info().and_then(|si| si.native_protocol);
 
-        // A concrete endpoint path in model_url is more specific than local
-        // discovery. Respect it so an explicit `/v1/messages` or
-        // `/v1/chat/completions` configuration remains authoritative.
         if let Some(configured_protocol) = configured_endpoint_protocol(&self.api_url) {
             return configured_protocol;
         }
 
-        // Local discovery pins a concrete wire format for base URLs once it
-        // is known.
         if let Some(native) = discovered_protocol {
             return model_protocol_to_api_protocol(native);
         }
@@ -703,8 +675,6 @@ impl ApiClient {
             reqwest::header::HeaderValue::from_static("no-store"),
         );
 
-        // Apply operator-supplied headers. Reserved headers are excluded to
-        // prevent duplicates so auth headers are only set once in the block below.
         for (name, value) in &self.model_headers {
             if is_reserved_header(name.as_str()) {
                 tracing::warn!(header = %name, "ignoring reserved model header override");
@@ -713,8 +683,6 @@ impl ApiClient {
             headers.insert(name.clone(), value.clone());
         }
 
-        // Auth headers set last and exclusively. x-api-key and authorization
-        // are in the reserved list above, so they cannot arrive here duplicated.
         match api_protocol {
             ApiProtocol::MessagesV1 => {
                 if let Some(api_key) = &self.api_key {
@@ -949,11 +917,6 @@ pub(crate) fn api_request_timeout_error(
     )
 }
 
-/// Handle HTTP 4xx responses where the body has already been read.
-/// Detects context-overflow errors from local inference servers and provides
-/// actionable guidance including `--ctx-size` configuration hints.
-/// Also detects 429 rate-limit responses and extracts retry hints from
-/// both the `Retry-After` header and the response body text.
 pub(crate) fn map_api_status_error(
     status: reqwest::StatusCode,
     body: &str,
@@ -963,11 +926,9 @@ pub(crate) fn map_api_status_error(
     let local_http_hint = local_plain_http_hint(request_url);
     let is_local = is_local_endpoint_url(request_url);
 
-    // Detect 429 rate-limit responses.
     if status.as_u16() == 429
         || (status.is_client_error() && crate::runtime::rate_limit::looks_like_rate_limit(body))
     {
-        // Prefer the Retry-After header; fall back to body text hints.
         let retry_hint = retry_after_header
             .and_then(crate::runtime::rate_limit::parse_retry_after_header)
             .or_else(|| crate::runtime::rate_limit::parse_retry_from_body(body));
@@ -987,7 +948,6 @@ pub(crate) fn map_api_status_error(
         );
     }
 
-    // Detect context-window overflow from local inference servers.
     if is_context_overflow(body) {
         let ctx_hint = if is_local {
             "\n  The conversation has exceeded the server's context window. \
@@ -1006,7 +966,6 @@ pub(crate) fn map_api_status_error(
         );
     }
 
-    // Local 400 with protocol hint (non-context-overflow).
     if status == reqwest::StatusCode::BAD_REQUEST && is_local {
         let detected = infer_api_protocol(request_url);
         return anyhow!(
@@ -1036,8 +995,6 @@ pub(crate) fn map_api_status_error(
     )
 }
 
-/// Returns true when the response body indicates the request exceeded the
-/// server's configured context window.
 pub fn is_context_overflow(body: &str) -> bool {
     let lower = body.to_ascii_lowercase();
     lower.contains("exceeds the available context size")
@@ -1062,18 +1019,13 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     } else {
         default_max_tokens
     };
-    // When server context is known, cap at 75% of n_ctx to leave room for
-    // the prompt. When unknown (0), use a generous default ceiling.
+
     let ceiling = if server_n_ctx > 0 {
-        // Multiply in u64 to keep the calculation in integer arithmetic and
-        // avoid an unnecessary float conversion for the 75% ceiling.
         ((server_n_ctx as u64 * 3) / 4).min(u32::MAX as u64) as u32
     } else {
         16384
     };
-    // Guard against ceiling < 128 (server reports n_ctx < 171) which would
-    // panic in clamp because min > max is not permitted. Preserve `base` as
-    // the upper bound even in this small-ceiling fallback.
+
     if ceiling < 128 {
         base.min(ceiling)
     } else {
@@ -1103,9 +1055,6 @@ fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") {
         ApiProtocol::ChatCompat
-    } else if normalized.contains("/messages") {
-        // Covers both "/v1/messages" and the transposed "/messages/v1".
-        ApiProtocol::MessagesV1
     } else {
         ApiProtocol::MessagesV1
     }
@@ -1135,7 +1084,7 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     if normalized.ends_with("/chat/completions") {
         return normalized.to_string();
     }
-    // Detect "/messages/v1" as a transposed variant of "/v1/messages".
+
     if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
         return format!("{prefix}/v1/chat/completions");
     }
@@ -1153,7 +1102,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
     if normalized.ends_with("/messages") {
         return normalized.to_string();
     }
-    // Detect "/messages/v1" as a transposed variant of "/v1/messages".
+
     if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
         return format!("{prefix}/v1/messages");
     }
@@ -1286,8 +1235,7 @@ use tools::{tool_definitions_chat_compat_for_policy, tool_definitions_for_policy
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
     payload_object.insert("return_progress".to_string(), json!(true));
     payload_object.insert("timings_per_token".to_string(), json!(true));
-    // Enable prompt caching so the server can reuse KV-cache across turns
-    // and batch prompt evaluation instead of processing one token at a time.
+
     payload_object.insert("cache_prompt".to_string(), json!(true));
 }
 

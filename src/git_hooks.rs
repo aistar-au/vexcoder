@@ -1,10 +1,3 @@
-//! Git hook installation for ADR-024 Gap 7 (PB-02).
-//!
-//! `vex install-hooks` writes a `prepare-commit-msg` hook that appends
-//! `Vex-Task-Id` and `Co-authored-by` trailers to manual commits made after a
-//! task records changed files. `vex uninstall-hooks` removes only hooks that
-//! were previously installed by vexcoder.
-
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -91,8 +84,6 @@ fn git_output(working_dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Install the `prepare-commit-msg` hook for the git repository that contains
-/// `working_dir`.
 pub fn install_hooks(working_dir: &Path) -> Result<()> {
     let path = hook_path(working_dir)?;
     if let Some(parent) = path.parent() {
@@ -125,7 +116,6 @@ pub fn install_hooks(working_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Remove the vexcoder-installed `prepare-commit-msg` hook.
 pub fn uninstall_hooks(working_dir: &Path) -> Result<()> {
     let path = hook_path(working_dir)?;
     if !path.exists() {

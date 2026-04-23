@@ -1,51 +1,15 @@
-//! OS-native credential store access (ADR-024 Gap 38).
-//!
-//! Wraps the `keyring` crate to provide a uniform read/write/delete surface
-//! over platform-native credential stores.
-//! All operations are fallible: callers must handle errors and fall back to
-//! environment variables when the OS credential store is unavailable.
-//!
-//! # Service and account identifiers
-//!
-//! Every keyring entry is keyed by a `(service, account)` pair.  This module
-//! reserves the service name `"vexcoder"` for all credentials managed here.
-//! The current account names are:
-//!
-//! | Account        | Description                          |
-//! |:---------------|:-------------------------------------|
-//! | `"model-token"` | API bearer token (`VEX_MODEL_TOKEN`) |
-//!
-//! # Environment override
-//!
-//! Set `VEX_KEYRING_DISABLED=1` (or any non-empty value) to skip all keyring
-//! reads and writes. Useful for CI environments or when storing credentials
-//! in the OS credential store is not desired.
-
 use anyhow::{Context, Result, bail};
 
-/// Service name used for all vexcoder keyring entries.
 pub const SERVICE: &str = "vexcoder";
 
-/// Account identifier for the model API bearer token.
 pub const ACCOUNT_MODEL_TOKEN: &str = "model-token";
 
-/// Returns `true` when the keyring is disabled via `VEX_KEYRING_DISABLED`.
 pub fn is_disabled() -> bool {
     std::env::var("VEX_KEYRING_DISABLED")
         .ok()
         .is_some_and(|v| !v.trim().is_empty())
 }
 
-/// Read a secret from the OS credential store.
-///
-/// Returns `Ok(None)` when:
-/// - The keyring is disabled via `VEX_KEYRING_DISABLED`.
-/// - No entry exists for `(SERVICE, account)`.
-/// - The stored value is empty or whitespace-only.
-/// - The OS credential store is unavailable.
-///
-/// Returns `Err` only for unexpected entry access errors that are not
-/// "entry not found" (e.g., corrupted keychain data).
 pub fn read(account: &str) -> Result<Option<String>> {
     if is_disabled() {
         return Ok(None);
@@ -54,7 +18,7 @@ pub fn read(account: &str) -> Result<Option<String>> {
         keyring::Entry::new(SERVICE, account).context("failed to create keyring entry handle")?;
     match entry.get_password() {
         Ok(value) if !value.trim().is_empty() => Ok(Some(value)),
-        Ok(_) => Ok(None), // empty stored value treated as absent
+        Ok(_) => Ok(None),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(keyring::Error::NoStorageAccess(inner)) => {
             tracing::debug!(
@@ -70,12 +34,6 @@ pub fn read(account: &str) -> Result<Option<String>> {
     }
 }
 
-/// Write a secret to the OS credential store.
-///
-/// Returns `Err` when the keyring is disabled, the secret is empty or
-/// whitespace-only, or the write fails.  An empty secret is rejected because
-/// `read()` treats whitespace-only stored values as absent, which would cause
-/// a confusing round-trip where `set` succeeds but `get` reports no credential.
 pub fn write(account: &str, secret: &str) -> Result<()> {
     if is_disabled() {
         bail!("keyring is disabled via VEX_KEYRING_DISABLED; cannot store credential");
@@ -90,10 +48,6 @@ pub fn write(account: &str, secret: &str) -> Result<()> {
     ))
 }
 
-/// Delete a secret from the OS credential store.
-///
-/// Returns `Ok(())` when the entry does not exist (idempotent delete).
-/// Returns `Err` when the keyring is disabled or an unexpected error occurs.
 pub fn delete(account: &str) -> Result<()> {
     if is_disabled() {
         bail!("keyring is disabled via VEX_KEYRING_DISABLED; cannot delete credential");
@@ -109,9 +63,6 @@ pub fn delete(account: &str) -> Result<()> {
     }
 }
 
-/// Run the `vex credentials` subcommand.
-///
-/// `sub` is the parsed `CredentialsCommands` variant from the CLI.
 pub fn run_credentials(sub: CredentialsAction) -> Result<()> {
     match sub {
         CredentialsAction::Set { account, secret } => {
@@ -135,8 +86,6 @@ pub fn run_credentials(sub: CredentialsAction) -> Result<()> {
     Ok(())
 }
 
-/// Parsed credential subcommand action, mirroring `CredentialsCommands` from
-/// `cli.rs` but without the clap dependency so the logic lives in the library.
 #[derive(Debug)]
 pub enum CredentialsAction {
     Set { account: String, secret: String },

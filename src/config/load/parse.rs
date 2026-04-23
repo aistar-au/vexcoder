@@ -41,17 +41,13 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
         "passthrough" => Some(SandboxKind::Passthrough),
         "macos-exec" => Some(SandboxKind::MacosExec),
         "container" => Some(SandboxKind::Container),
-        // Gap 36: Linux userspace sandbox via bubblewrap.
+
         "bubblewrap" => Some(SandboxKind::Bubblewrap),
         _ => None,
     }
 }
 
 pub(crate) fn infer_model_protocol(_api_url: &str) -> ModelProtocol {
-    // messages-v1 remains the configuration-time default regardless of the URL
-    // path. Explicit configuration can request chat-compat, and runtime
-    // discovery can later rebind a local base URL to the server's supported
-    // endpoint. This helper therefore performs no URL-based inference.
     ModelProtocol::MessagesV1
 }
 

@@ -1,16 +1,3 @@
-//! HTTP body compression/decompression.
-//!
-//! # Referenced Specifications
-//!
-//! | RFC | Title | Covered |
-//! |-----|-------|---------|
-//! | [RFC 1952](https://www.rfc-editor.org/rfc/rfc1952) | GZIP file format | `Encoding::Gzip` |
-//! | [RFC 7932](https://www.rfc-editor.org/rfc/rfc7932) | Brotli compressed data | `Encoding::Brotli` |
-//!
-//! `Content-Encoding` and `Transfer-Encoding` token names follow
-//! [RFC 7231 §3.1.2.2](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.2.2) and
-//! [RFC 7230 §4](https://www.rfc-editor.org/rfc/rfc7230#section-4).
-
 use anyhow::{Context, Result, anyhow};
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder};
 use bytes::Bytes;
@@ -20,25 +7,18 @@ use tokio_util::io::StreamReader;
 
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 
-/// Content-Encoding values defined by HTTP/1.1 and extensions.
-///
-/// Variants map directly to the token strings in `Content-Encoding` headers
-/// as registered in the
-/// [HTTP Content Coding Registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {
-    /// `identity` — no transformation (RFC 7231 §3.1.2.2).
     Identity,
-    /// `gzip` — GZIP compression (RFC 1952).
+
     Gzip,
-    /// `br` — Brotli compression (RFC 7932).
+
     Brotli,
-    /// `deflate` — zlib-wrapped DEFLATE (RFC 1950 / RFC 7230).
+
     Deflate,
 }
 
 impl Encoding {
-    /// Parse the token string from a `Content-Encoding` or `Accept-Encoding` header.
     pub fn from_token(token: &str) -> Option<Self> {
         match token.trim().to_ascii_lowercase().as_str() {
             "identity" => Some(Self::Identity),
@@ -49,7 +29,6 @@ impl Encoding {
         }
     }
 
-    /// Returns the normalized token string for use in HTTP headers.
     pub fn as_token(self) -> &'static str {
         match self {
             Self::Identity => "identity",
@@ -66,26 +45,14 @@ impl fmt::Display for Encoding {
     }
 }
 
-/// Returns the `Accept-Encoding` header value advertising all supported
-/// encodings in preference order: `br, gzip, deflate, identity`.
 pub fn accept_encoding_header() -> &'static str {
     "br, gzip, deflate, identity"
 }
 
-/// Decompress `bytes` according to `encoding`.
-///
-/// Returns the original bytes unchanged for `Encoding::Identity`.
-/// Returns an error for unknown or unsupported encodings.
-/// The decompressed payload is capped at 8 MiB to avoid unbounded memory
-/// growth when handling untrusted bodies.
 pub async fn decompress(bytes: Bytes, encoding: Encoding) -> Result<Bytes> {
     decompress_with_limit(bytes, encoding, DEFAULT_MAX_OUTPUT_BYTES).await
 }
 
-/// Decompress `bytes` according to `encoding` with an explicit output cap.
-///
-/// Returns an error if decompression fails or if the decompressed payload
-/// exceeds `max_output_bytes`.
 pub async fn decompress_with_limit(
     bytes: Bytes,
     encoding: Encoding,
@@ -156,7 +123,6 @@ where
     Ok(Bytes::from(out))
 }
 
-/// Compress `bytes` using GZIP (RFC 1952).
 pub async fn compress_gzip(bytes: Bytes) -> Result<Bytes> {
     use async_compression::tokio::write::GzipEncoder;
     use tokio::io::AsyncWriteExt;
@@ -173,7 +139,6 @@ pub async fn compress_gzip(bytes: Bytes) -> Result<Bytes> {
     Ok(Bytes::from(encoder.into_inner()))
 }
 
-/// Compress `bytes` using Brotli (RFC 7932).
 pub async fn compress_brotli(bytes: Bytes) -> Result<Bytes> {
     use async_compression::tokio::write::BrotliEncoder;
     use tokio::io::AsyncWriteExt;

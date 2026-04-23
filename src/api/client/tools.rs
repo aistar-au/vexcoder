@@ -26,14 +26,6 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
     summaries
 }
 
-/// Model-facing tool schema.
-///
-/// `run_command` is the registered shell tool (ADR-042 D5 amendment).
-/// Commonly-hallucinated aliases (`bash`, `run_shell_command`, `execute_command`,
-/// `execute_bash`) are handled as dispatch-level aliases in the tool executor and
-/// are NOT registered here to keep the schema compact.
-/// Every `run_command` invocation (including aliases) passes through the
-/// defense-in-depth approval overlay described in ADR-042 D6.
 pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
@@ -303,11 +295,6 @@ pub(super) fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value 
     wrap_as_chat_compat_functions(&base)
 }
 
-/// Tool names that are safe for plan (read-only) mode.
-///
-/// Every tool not in this list is considered mutating and is excluded when the
-/// active [`ToolPolicy`] is `Plan`.  MCP (extra) tool definitions are always
-/// included in plan mode because the caller explicitly opted into them.
 const READONLY_TOOL_NAMES: &[&str] = &[
     "read_file",
     "list_files",
@@ -325,16 +312,10 @@ const READONLY_TOOL_NAMES: &[&str] = &[
     "codebase_search",
 ];
 
-/// Returns `true` when the tool name corresponds to a read-only operation.
 pub(crate) fn is_readonly_tool(name: &str) -> bool {
     READONLY_TOOL_NAMES.contains(&name)
 }
 
-/// Build the MessagesV1 tool array filtered by `policy`.
-///
-/// - `Full`: all built-in + extra (MCP) tools.
-/// - `Plan`: read-only built-in tools + all extra (MCP) tools.
-/// - `Chat`: empty array (caller should skip injection entirely).
 pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -> Value {
     match policy {
         ToolPolicy::Full => tool_definitions_with_extra(extra),
@@ -351,7 +332,7 @@ pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -
                 })
                 .cloned()
                 .collect();
-            // MCP tools are always included in plan mode.
+
             defs.extend(extra.iter().cloned());
             Value::Array(defs)
         }
@@ -359,7 +340,6 @@ pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -
     }
 }
 
-/// Build the ChatCompat tool array filtered by `policy`.
 pub(super) fn tool_definitions_chat_compat_for_policy(
     policy: ToolPolicy,
     extra: &[Value],

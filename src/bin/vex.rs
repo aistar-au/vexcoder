@@ -32,13 +32,6 @@ mod tests;
 
 use self::cli::{Cli, Commands, CredentialsCommands, SkillsCommands, TaskCommands};
 
-// ── Task-state resolution for -r/--recall-coordinates ────────────────────────
-
-/// Load a [`TaskState`] for `-r/--recall-coordinates`.
-///
-/// An empty `task_id` selects the most-recently-modified state file in the
-/// process search path; a non-empty `task_id` loads that specific task.
-/// Returns `None` only on the empty-id path when no state files exist.
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     if task_id.is_empty() {
         let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -54,13 +47,6 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     }
 }
 
-// ── Batch-turn dispatch for -p/--project-map-only ────────────────────────────
-
-/// Collect stdin content when stdin is not a TTY (pipe or redirect).
-///
-/// Returns `None` when stdin is a terminal or when the piped content is empty
-/// after trimming. The caller prepends the returned content to the prompt so
-/// that `vex -p "summarise" < file.txt` composes naturally.
 fn read_stdin_if_piped() -> Option<String> {
     if std::io::stdin().is_terminal() {
         return None;
@@ -104,8 +90,6 @@ fn read_secret_from_stdin() -> Result<String> {
     read_secret_from_reader(stdin.lock())
 }
 
-// Retained as a lower-level primitive exercised by unit tests; not called from
-// the normalized production credential path.
 #[cfg(test)]
 fn read_secret_from_env_var(name: &str) -> Result<String> {
     std::env::var(name)
@@ -127,14 +111,6 @@ fn read_secret_from_tty_prompt(account: &str) -> Result<String> {
         .context("failed to read credential secret interactively")
 }
 
-/// Resolve a credential secret from an explicit source.
-///
-/// Source priority: (1) stdin when `stdin` is `true`; (2) the named environment
-/// variable when `from_env` is `Some`; (3) an interactive TTY prompt when
-/// `can_prompt` is `true`; (4) error.
-///
-/// Retained as a lower-level primitive for unit tests. The normalized
-/// production path uses [`resolve_credentials_secret_auto`].
 #[cfg(test)]
 fn resolve_credentials_secret(
     account: &str,
@@ -157,15 +133,6 @@ fn resolve_credentials_secret(
     }
 }
 
-/// Resolve a credential secret using automatic source selection.
-///
-/// Selection order:
-/// 1. Stdin, when stdin is not attached to a TTY (pipe or redirect).
-/// 2. Interactive masked TTY prompt via [`dialoguer::Password`], when both
-///    stdin and stderr are terminals.
-///
-/// Returns `Err` when neither source is applicable, preventing silent argv
-/// secret leakage.
 fn resolve_credentials_secret_auto(account: &str) -> Result<String> {
     if !std::io::stdin().is_terminal() {
         read_secret_from_stdin()
@@ -400,12 +367,8 @@ fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
-
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
-    // Keep human-panic for unexpected release crashes while color-eyre formats
-    // recoverable Result-based failures.
     human_panic::setup_panic!();
     let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
     let _ = eyre_hook.install();
@@ -431,12 +394,8 @@ async fn main() -> Result<ExitCode> {
         set_map_encoding: cli.set_map_encoding.clone(),
     };
 
-    // Subcommand dispatch: if a subcommand is present it always takes priority
-    // over top-level mode flags (-p, -r).
     match cli.command {
         Some(Commands::Exec) => {
-            // Task content from -p/--project-map-only; format from -m;
-            // auto-approval scope derived from -f/--force-unstable-alignment.
             let exec_args = parse_exec_command(
                 overrides.project_map_only.clone(),
                 None,
@@ -482,8 +441,7 @@ async fn main() -> Result<ExitCode> {
         }
         Some(Commands::Tasks { sub }) => {
             let cwd = std::env::current_dir()?;
-            // JSON output is governed by -m/--set-map-encoding rather than
-            // per-subcommand --json flags.
+
             let json = overrides.set_map_encoding == "jsonl";
             return match sub {
                 TaskCommands::List => run_tasks_list(&cwd, json),
@@ -493,8 +451,6 @@ async fn main() -> Result<ExitCode> {
             };
         }
         Some(Commands::Init) => {
-            // Target directory is always the current working directory on the
-            // normalized surface; use `cd` to target a different path.
             let cwd = std::env::current_dir()?;
             let summary = run_init(&cwd)?;
             print_lines(&summary);
@@ -517,7 +473,7 @@ async fn main() -> Result<ExitCode> {
         Some(Commands::Doctor) => {
             let cwd = std::env::current_dir()?;
             let report = run_doctor(&cwd).await;
-            // JSON output governed by -m/--set-map-encoding.
+
             let json = overrides.set_map_encoding == "jsonl";
             let rendered = if json {
                 report.render_json()?
@@ -536,8 +492,6 @@ async fn main() -> Result<ExitCode> {
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Export { task_id }) => {
-            // "jsonl" → JSONL batch-turn records; "text" → Markdown.
-            // Output is always written to stdout on the normalized surface.
             let format = if overrides.set_map_encoding == "jsonl" {
                 ExportFormat::Jsonl
             } else {
@@ -549,8 +503,6 @@ async fn main() -> Result<ExitCode> {
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Serve) => {
-            // Bind address and port are read from Config; per-invocation
-            // overrides are not available on the normalized surface.
             let mut config = Config::load()?;
             apply_cli_overrides(&overrides, &mut config);
             apply_process_policy_overrides(&config);
@@ -582,7 +534,6 @@ async fn main() -> Result<ExitCode> {
         None => None,
     };
 
-    // Batch mode: dispatch a single turn and exit without starting the TUI.
     if let Some(prompt) = overrides.project_map_only {
         config.validate()?;
         emit_model_endpoint_warnings(&config);
@@ -593,25 +544,17 @@ async fn main() -> Result<ExitCode> {
     config.validate()?;
     emit_model_endpoint_warnings(&config);
 
-    // Resume mode: start a TUI session from the restored task state.
     if let Some(state) = resume_state {
         let mut frontend = ManagedTuiFrontend::new()?;
         run_tui_session(config, Some(state), &mut frontend).await?;
         return Ok(ExitCode::SUCCESS);
     }
 
-    // Default: start the interactive TUI with no pre-loaded task state.
     let mut frontend = ManagedTuiFrontend::new()?;
     run_tui_session(config, None, &mut frontend).await?;
     Ok(ExitCode::SUCCESS)
 }
 
-/// Normalized CLI flag values extracted from [`Cli`] before the `match
-/// cli.command` destructuring that partially moves `cli`.
-///
-/// Fields map 1-to-1 to the ten top-level flags defined in `cli.rs`; the
-/// extraction step is separate to avoid Rust partial-move borrow errors inside
-/// subcommand match arms.
 struct CliOverrides {
     tool_policy: ToolPolicy,
     use_alternate_navigator: Option<String>,
@@ -623,9 +566,6 @@ struct CliOverrides {
     set_map_encoding: String,
 }
 
-/// Derive the active [`ToolPolicy`] from the two mutually exclusive plan-mode
-/// flags. Both `-v` and `-t` map to `ToolPolicy::Plan`; the absence of either
-/// yields `ToolPolicy::Full`.
 fn tool_policy_from_cli(
     view_intended_trajectory: bool,
     restrict_payload_tools: bool,
@@ -637,10 +577,6 @@ fn tool_policy_from_cli(
     }
 }
 
-/// Apply [`CliOverrides`] to a freshly loaded [`Config`].
-///
-/// Called once after `Config::load()` and before `config.validate()` so that
-/// CLI flags take unconditional precedence over persisted TOML values.
 fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     config.tool_policy = o.tool_policy;
     if let Some(ref name) = o.use_alternate_navigator {
@@ -657,19 +593,11 @@ fn apply_cli_overrides(o: &CliOverrides, config: &mut Config) {
     }
 }
 
-/// Propagate the `bypass_policy` runtime flag to the process-global disk-policy
-/// override so that all downstream policy checks in the same process observe
-/// the correct mode.
 fn apply_process_policy_overrides(config: &Config) {
     let mode = config.bypass_policy.then_some(DiskPolicyMode::Off);
     disk_policy::set_process_policy_override(mode);
 }
 
-/// Return the effective [`AutoApproveScope`] for a batch turn.
-///
-/// `explicit` (from subcommand-level plumbing) takes unconditional precedence.
-/// When absent, `config.force = true` (set by `-f/--force-unstable-alignment`)
-/// implies `AutoApproveScope::Task`.
 fn default_auto_approve_scope(
     config: &Config,
     explicit: Option<AutoApproveScope>,
@@ -677,9 +605,6 @@ fn default_auto_approve_scope(
     explicit.or(config.force.then_some(AutoApproveScope::Task))
 }
 
-/// Map a `set_map_encoding` value to the corresponding [`OutputFormat`].
-///
-/// `"jsonl"` → [`OutputFormat::Jsonl`]; any other value → [`OutputFormat::Text`].
 fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
     match encoding {
         "jsonl" => OutputFormat::Jsonl,
@@ -687,9 +612,6 @@ fn map_encoding_to_output_format(encoding: &str) -> OutputFormat {
     }
 }
 
-/// Map a [`TaskStatus`] to the process exit code.
-///
-/// `Completed` exits `0`; all other terminal states exit `1`.
 fn exit_code_for_status(status: TaskStatus) -> ExitCode {
     match status {
         TaskStatus::Completed => ExitCode::SUCCESS,

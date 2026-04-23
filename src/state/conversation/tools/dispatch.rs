@@ -85,8 +85,7 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
                 .get("limit")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize);
-            // Auto-cap reads to preserve context budget. The model can use
-            // offset/limit to navigate within large files.
+
             let auto_limit = read_file_max_lines();
             let effective_limit = limit.or(Some(auto_limit));
             tool_operator.read_file_range(path, offset, effective_limit)
@@ -97,7 +96,6 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
 
-            // Phase 3 strict guard: reject writes above VEX_WRITE_FILE_MAX_LINES.
             let max_lines = write_file_max_lines();
             if lines > max_lines {
                 bail!(
@@ -115,7 +113,6 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
                 }
             };
 
-            // Phase 3 soft guard: warn when file exceeds diff-preferred threshold.
             let diff_threshold = write_file_diff_preferred_above_lines();
             let warning = if lines > diff_threshold {
                 format!(
@@ -307,18 +304,12 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
             let results = search::codebase_search(query, &idx, max_results);
             Ok(search::format_search_results(query, &results))
         }
-        // run_command is schema-registered for model use (ADR-042 D5 amendment).
-        // Execution is async-only through execute_run_command_tool, which applies
-        // the full approval overlay (ADR-042 D6). If a call reaches this blocking
-        // dispatcher it means the async path was bypassed — reject it.
+
         "run_command" => bail!("run_command must execute through the async runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
     }
 }
 
-/// Read a required non-empty string field from tool input by a single key.
-///
-/// Delegates to [`required_tool_string_any`] with a single-key slice.
 pub(crate) fn required_tool_string<'a>(
     input: &'a serde_json::Value,
     tool: &str,

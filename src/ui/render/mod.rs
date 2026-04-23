@@ -107,9 +107,6 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
         }
     }
 
-    // Always pin to the newest transcript lines — the idle-mode history pane shows the most
-    // recent lines at the bottom.  All interactive scrolling is handled by
-    // the task-surface draw path via transcript_scroll_offset.
     let total_lines = body.len();
     let scroll = total_lines.saturating_sub(inner.height as usize);
     let paragraph =
@@ -234,9 +231,6 @@ fn numbered_diff_marker(line: &str) -> Option<char> {
     Some(marker as char)
 }
 
-/// Map a `DiffLineKind` to a display color, using `other_color` as the
-/// fallback for `DiffLineKind::Other`.  Centralizes the Added/Removed/Header
-/// mapping that is shared by `history_row_style` and `styled_diff_line`.
 fn diff_line_color(kind: DiffLineKind, other_color: Color) -> Color {
     match kind {
         DiffLineKind::Added => Color::Green,
@@ -262,8 +256,6 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
-/// Render the task control surface: status bar, output/transcript pane,
-/// composer input, and optional picker overlay.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
     let frame_area = frame.area();
     let input_width = frame_area.width.saturating_sub(2).max(1) as usize;
@@ -272,10 +264,6 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
         input_visual_rows(&state.composer_text, input_width) as u16,
     );
 
-    // Pre-expand output rows before the layout split so the compact layout can
-    // size the output pane to exactly the visible content rows, keeping the
-    // composer immediately below the content instead of at the bottom of the
-    // full reserved inline viewport area.
     let expanded_output_rows = expand_rows_for_display(&state.output_rows, frame_area.width);
     const STATUS_ROWS: u16 = 1;
     let available_output = frame_area
@@ -289,7 +277,6 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
     frame.render_widget(Clear, frame_area);
     render_status_line(frame, layout.header, &state.status_line);
 
-    // --- Output / Inspector pane ---
     let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))
@@ -299,9 +286,6 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
         frame.render_widget(Paragraph::new(Text::from(output_lines)), output_area);
     }
 
-    // --- Input pane ---
-    // Always render the composer; approval and resume prompts route through
-    // the overlay modal system (rendered by the caller after this function).
     render_input(
         frame,
         layout.input,
@@ -327,8 +311,6 @@ fn render_picker_overlay(
     let below =
         (frame_area.y + frame_area.height).saturating_sub(composer_area.y + composer_area.height);
 
-    // Prefer rendering above the composer; fall back to below when the
-    // compact layout leaves more room underneath.
     let (available_height, render_below) = if below > above {
         (below, true)
     } else {
@@ -573,13 +555,6 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
     Rect::new(x, y, width, height)
 }
 
-/// Render a single pipeline activity row with prefix-based colour coding.
-/// Matches the prefixes used in transcript content lines:
-///   `[ok]`  → green   (completed step)
-///   `[!]`   → red     (failed/error step)
-///   `[->]`  → violet  (in-progress orchestration step)
-///   `[?]`   → yellow  (approval request)
-///   `> …`   → subdued gray (user prompt echo)
 mod markdown;
 mod transcript;
 pub(crate) use markdown::markdown_to_inline_line;

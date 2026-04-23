@@ -10,16 +10,9 @@ use super::{
     TaskDocument, TaskErrorState, TaskInfo, TurnDocument, TurnEntry, TurnOutcome,
 };
 
-/// Stateless condenser that applies [`RuntimeEvent`] mutations to a
-/// [`TaskDocument`] and produces snapshot adapters compatible with the
-/// existing [`crate::runtime::TaskState`] persistence format.
-///
-/// Renamed from `TaskDocumentCondenser` per ADR-045 sole-writer contract.
 #[derive(Debug, Default)]
 pub struct TaskDocumentCondenser;
 
-/// Summary of what changed after a single condenser call. Callers use this to
-/// drive incremental UI updates without re-rendering the whole document.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaskMutationSummary {
     pub task_status_changed: bool,
@@ -34,7 +27,6 @@ impl TaskDocumentCondenser {
         Self
     }
 
-    /// Construct an empty document for a newly-created task.
     pub fn begin_task(&self, info: TaskInfo) -> TaskDocument {
         TaskDocument {
             info,
@@ -47,8 +39,6 @@ impl TaskDocumentCondenser {
         }
     }
 
-    /// Open a new active turn. Panics if `doc.active_turn` is already set
-    /// because the previous turn must be finished before starting the next.
     pub fn begin_turn(
         &self,
         doc: &mut TaskDocument,
@@ -86,11 +76,6 @@ impl TaskDocumentCondenser {
         });
     }
 
-    /// Apply one [`RuntimeEvent`] to the document.
-    ///
-    /// Events that do not affect the active turn (for example, events produced
-    /// before `begin_turn` or after `finish_turn`) are ignored so callers do
-    /// not need to gate every call.
     pub fn apply_runtime_event(
         &self,
         doc: &mut TaskDocument,
@@ -394,7 +379,6 @@ impl TaskDocumentCondenser {
         summary
     }
 
-    /// Close the active turn and push it onto `completed_turns`.
     pub fn finish_turn(
         &self,
         doc: &mut TaskDocument,
@@ -407,8 +391,6 @@ impl TaskDocumentCondenser {
             return summary;
         };
 
-        // Clear streaming markers so completed turn entries render without a
-        // live-typing cursor.
         for entry in &mut active.entries {
             if let TurnEntry::AssistantBlock { block, .. } = entry {
                 block.streaming = false;

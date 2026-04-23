@@ -1,7 +1,5 @@
 use super::*;
 
-// -- /fork ----------------------------------------------------------------
-
 #[test]
 fn test_tui_fork_saves_parent_before_branching() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -30,8 +28,7 @@ fn test_tui_fork_creates_new_task_id() {
         crate::runtime::Capability::RunCommand,
         crate::runtime::ApprovalScope::Session,
     );
-    // In the new model changed_files live in completed turns, not on current_task.
-    // Pre-populate a completed turn to carry the file across the fork.
+
     mode.task_doc.info.status = crate::runtime::TaskStatus::Running;
     mode.push_history_line("stale transcript".to_string());
     let mut ctx = setup_ctx();
@@ -50,8 +47,7 @@ fn test_tui_fork_creates_new_task_id() {
             .active_grants
             .contains_key(&crate::runtime::Capability::RunCommand)
     );
-    // NOTE: In the document-projector model, forks start with empty completed_turns;
-    // changed_files are per-turn and are not inherited by the forked task.
+
     assert_eq!(
         mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running

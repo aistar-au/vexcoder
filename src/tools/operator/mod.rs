@@ -79,8 +79,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_search_literal_skips_symlink_escape_paths() {
-        // Unit scope: literal search walker must not follow symlinked directories
-        // outside the workspace.
         use std::os::unix::fs::symlink;
 
         let workspace = TempDir::new().expect("workspace");
@@ -101,7 +99,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let op = ToolOperator::new(dir.path().to_path_buf());
 
-        // Create file using ToolOperator's write_file
         op.write_file("target.rs", "fn old() {}")
             .expect("write failed");
         assert_eq!(
@@ -109,18 +106,15 @@ mod tests {
             "fn old() {}"
         );
 
-        // Now use propose_patch to modify it
         let pending = op
             .propose_patch("target.rs", "fn old() {}", "fn new() {}")
             .expect("propose failed");
 
-        // File should still have old content
         assert_eq!(
             fs::read_to_string(dir.path().join("target.rs")).unwrap(),
             "fn old() {}"
         );
 
-        // Apply the patch
         op.apply_patch(pending).expect("apply failed");
         assert!(
             fs::read_to_string(dir.path().join("target.rs"))

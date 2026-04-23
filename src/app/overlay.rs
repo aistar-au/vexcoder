@@ -9,9 +9,6 @@ impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
         let entries = &self.task_doc.active_turn.as_ref()?.entries;
 
-        // Prefer an exact match on both tool name and input preview so that
-        // repeated calls to the same tool (e.g. multiple `read_file` with
-        // different paths) are attributed to the correct step.
         let exact_match = entries.iter().find_map(|e| {
             if let crate::runtime::TurnEntry::ToolCall {
                 step_id,
@@ -35,8 +32,6 @@ impl TuiMode {
         });
 
         exact_match.or_else(|| {
-            // Fall back to the first name-only match when no preview aligns
-            // (e.g. approval arrives before the entry's input is fully parsed).
             entries
                 .iter()
                 .filter_map(|e| {
@@ -63,9 +58,7 @@ impl TuiMode {
             if approved {
                 self.mark_tool_step_approved(pending.step_id);
             }
-            // On denial, skip the intermediate Running persist — the edit
-            // loop will set Cancelled via set_task_status() immediately,
-            // closing the crash-resume race window (Finding 7).
+
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {
                     let _ = response_tx.send(approved);

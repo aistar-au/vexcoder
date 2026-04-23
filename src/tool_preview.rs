@@ -36,9 +36,6 @@ pub enum ReadFileSummaryMessageStyle {
 
 #[derive(Debug, Clone, Default)]
 pub struct ReadFileRollupCache {
-    // (content_hash, chars, lines) — hash is u64 from DefaultHasher.
-    // DefaultHasher is non-deterministic across process restarts, which is
-    // acceptable since this cache is per-process in-memory only.
     entries: HashMap<String, (u64, usize, usize)>,
 }
 
@@ -93,8 +90,6 @@ pub fn content_stats(content: &str) -> (usize, usize) {
     )
 }
 
-/// Read the `path` field from a read_file tool input.
-/// Returns `None` if the key is absent or not a string — callers supply the fallback.
 pub fn read_file_path(input: &Value) -> Option<String> {
     input
         .get("path")
@@ -397,8 +392,6 @@ mod tests {
             }
         );
 
-        // After a change the cache must update: re-reading the post-change
-        // content must yield Unchanged, not a second Changed.
         let after_change_repeat = cache.summarize("a.rs", "abcd");
         assert_eq!(
             after_change_repeat,
@@ -417,11 +410,9 @@ mod tests {
         let missing_path = serde_json::json!({ "query": "needle" });
         assert_eq!(read_file_path(&missing_path), None);
 
-        // Non-string value must also return None.
         let non_string = serde_json::json!({ "path": 42 });
         assert_eq!(read_file_path(&non_string), None);
 
-        // Call sites own the fallback wording.
         let fallback = read_file_path(&missing_path).unwrap_or_else(|| "<missing>".to_string());
         assert_eq!(fallback, "<missing>");
     }

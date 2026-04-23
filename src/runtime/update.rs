@@ -41,7 +41,7 @@ pub enum UiUpdate {
     },
     TurnComplete,
     Error(String),
-    /// Conversation history was compacted (ADR-029 session persistence).
+
     ContextCompacted {
         messages_before: usize,
         messages_after: usize,

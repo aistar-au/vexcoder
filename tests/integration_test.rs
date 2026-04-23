@@ -1,5 +1,3 @@
-// Tests in this file use std::env::set_var/remove_var (unsafe in Rust 2024
-// edition). A module-local ENV_LOCK serialises all callers in this binary.
 #![allow(unsafe_code)]
 
 use reqwest::header::HeaderMap;
@@ -8,8 +6,6 @@ use vexcoder::config::Config;
 use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexcoder::types::ModelProfile;
 
-// Each integration test binary needs its own ENV_LOCK to serialise
-// env-var mutations across tests within this binary.
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
@@ -273,7 +269,7 @@ fn test_config_user_overrides_system_and_defaults() {
     std::fs::create_dir_all(&cwd).unwrap();
     std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
-    // No repo-local config in cwd ancestry.
+
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "user-model");
     unsafe { std::env::remove_var("VEX_MODEL_NAME") };
@@ -480,12 +476,6 @@ fn test_hook_repo_local_config_rejected_at_load() {
         "expected hooks diagnostic in error: {msg}"
     );
 }
-
-// -- PE-01 / PE-02 public API contract -----------------------------------------
-//
-// The six async anchor tests that depend on MockApiClient are located in
-// src/batch_mode.rs #[cfg(test)] (MockApiClient is not pub to integration tests).
-// These tests cover the integration-layer contract using only pub API.
 
 #[test]
 fn test_batch_run_opts_default_format_is_jsonl() {

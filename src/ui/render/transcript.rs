@@ -56,7 +56,6 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
     }
 }
 
-/// Render a `ToolHeader` row: `"⬧ name · target · status"`.
 fn render_tool_header(rest: &str) -> Line<'static> {
     let mut spans = vec![Span::styled(
         "  \u{2726} ",
@@ -99,7 +98,6 @@ fn render_tool_header(rest: &str) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Render an `AssistantText` row (ANSI, markdown, or plain).
 fn render_assistant_text(text: &str) -> Line<'static> {
     if text.contains('\x1b') {
         match text.into_text() {
@@ -120,8 +118,6 @@ fn render_assistant_text(text: &str) -> Line<'static> {
     }
 }
 
-/// Render a `Plain` row — handles older runtime marker prefixes for command
-/// sessions, approval notices, and other free-form system strings.
 fn render_plain_row(row: &str) -> Line<'static> {
     if let Some(rest) = row.strip_prefix("[approval] ") {
         Line::from(vec![
@@ -415,9 +411,6 @@ pub(crate) fn task_output_window(
     task_output_window_with_total(state, total, viewport_height)
 }
 
-/// Compute the visible (start, end) range given a precomputed `total` row
-/// count, avoiding a redundant `expand_rows_for_display` call when the
-/// caller already has the expanded rows.
 pub(crate) fn task_output_window_with_total(
     state: &TaskViewProjection,
     total: usize,
@@ -478,11 +471,6 @@ pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<
     for row in rows {
         let text = row.as_display_str();
         if text.contains('\n') {
-            // UserInput rows may contain expanded [file: path]\n```text\n...\n```
-            // blocks from @path mentions submitted to the API.  Collapse those
-            // back to compact @path tokens for the transcript display so that
-            // attaching a large file does not flood the output pane with
-            // thousands of file-content lines.
             let cow: std::borrow::Cow<str> = if matches!(row, TranscriptRow::UserInput(_)) {
                 std::borrow::Cow::Owned(collapse_file_blocks_for_display(text))
             } else {
@@ -500,7 +488,6 @@ pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<
                     expanded.push(row.clone_with_text(wrapped));
                     first = false;
                 } else {
-                    // Continuation lines of a wrapped row share the same variant.
                     expanded.push(row.clone_with_text(wrapped));
                 }
             }
@@ -509,10 +496,6 @@ pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<
     expanded
 }
 
-/// Collapse `[file: path]\n```text\n<content>\n``` ` (and dir equivalents)
-/// blocks in a user-input display string back to compact `@path` tokens.
-/// The full content is never discarded — it lives in the underlying turn data
-/// for the API context.  This only affects what is shown in the TUI pane.
 fn collapse_file_blocks_for_display(text: &str) -> String {
     if !text.contains("[file: ") && !text.contains("[dir: ") {
         return text.to_string();
@@ -526,18 +509,17 @@ fn collapse_file_blocks_for_display(text: &str) -> String {
             if line == "```" {
                 in_code_fence = false;
             }
-            // Skip all lines inside the fenced block body.
+
             continue;
         }
-        // Skip "[\u2014 excerpt limited...]" footer lines produced when a
-        // file was truncated by the byte cap.
+
         if (line.starts_with("[file: ") || line.starts_with("[dir: "))
             && line.contains('\u{2014}')
             && line.ends_with(']')
         {
             continue;
         }
-        // [file: path] header — emit @path, consume the opening ```text fence.
+
         if let Some(rest) = line
             .strip_prefix("[file: ")
             .and_then(|r| r.strip_suffix(']'))
@@ -548,7 +530,7 @@ fn collapse_file_blocks_for_display(text: &str) -> String {
             }
             continue;
         }
-        // [dir: path] header — emit @path/, consume the opening ```text fence.
+
         if let Some(rest) = line
             .strip_prefix("[dir: ")
             .and_then(|r| r.strip_suffix(']'))
@@ -565,7 +547,6 @@ fn collapse_file_blocks_for_display(text: &str) -> String {
 }
 
 fn word_wrap_transcript_row(row: &TranscriptRow, cols: usize) -> Vec<String> {
-    // Structural rows (tool headers, evidence, etc.) are never word-wrapped.
     if is_structural_transcript_row(row) {
         return vec![row.as_display_str().to_string()];
     }
@@ -583,19 +564,17 @@ fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
     word_wrap_to_cols(line, cols)
 }
 
-/// Returns true if `row` should not be word-wrapped.
 fn is_structural_transcript_row(row: &TranscriptRow) -> bool {
     match row {
-        // These variants are always structural: indented or short by design.
         TranscriptRow::ToolHeader(_)
         | TranscriptRow::ToolDetail(_)
         | TranscriptRow::Evidence(_)
         | TranscriptRow::Error(_)
         | TranscriptRow::UserInput(_)
         | TranscriptRow::WaitingPlaceholder(_) => true,
-        // Plain runtime strings: use the older marker-string heuristic.
+
         TranscriptRow::Plain(s) => is_structural_plain_str(s),
-        // AssistantText is wrapped normally.
+
         TranscriptRow::AssistantText { .. } => false,
     }
 }

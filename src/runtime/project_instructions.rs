@@ -1,15 +1,5 @@
-//! PA-02 -- project instructions injection (ADR-024 Gap 4).
-//!
-//! Searches for `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md` under
-//! `workspace_root` in that priority order. The first file found is read.
-//!
-//! If the file's estimated token count (byte length / 4) exceeds
-//! `token_budget`, `LoadResult::OverBudget` is returned and the caller must
-//! emit a warning and skip injection. The file is never shortened.
-
 use std::path::{Path, PathBuf};
 
-/// Priority-ranked candidate paths relative to the workspace root.
 const SEARCH_PATHS: &[&str] = &[".vex/AGENTS.md", "AGENTS.md", ".vex/PROJECT.md"];
 
 fn estimate_tokens(content: &str) -> usize {
@@ -17,9 +7,8 @@ fn estimate_tokens(content: &str) -> usize {
 }
 
 pub struct ProjectInstructions {
-    /// Workspace-relative path, for display in the TUI status line.
     pub path: PathBuf,
-    /// Raw file content, verified to be within the token budget.
+
     pub content: String,
 }
 
@@ -32,10 +21,6 @@ pub enum LoadResult {
     NotFound,
 }
 
-/// Search for a project instructions file under `workspace_root`.
-///
-/// IO errors other than `NotFound` are silently ignored. The file is optional
-/// and a permissions error must not abort agent startup.
 pub fn load_project_instructions(workspace_root: &Path, token_budget: usize) -> LoadResult {
     for &relative in SEARCH_PATHS {
         let candidate = workspace_root.join(relative);

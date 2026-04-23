@@ -120,8 +120,6 @@ fn classify_diff_line_keeps_header_markers_consistent() {
 
 #[test]
 fn test_diff_line_color_maps_markers_consistently() {
-    // Verify the shared helper maps Added/Removed/Header consistently,
-    // regardless of which other_color is passed as the fallback.
     assert_eq!(
         diff_line_color(DiffLineKind::Added, Color::White),
         Color::Green
@@ -146,7 +144,7 @@ fn test_diff_line_color_maps_markers_consistently() {
         diff_line_color(DiffLineKind::Header, Color::Gray),
         Color::Cyan
     );
-    // Other respects the caller's choice of fallback color.
+
     assert_eq!(
         diff_line_color(DiffLineKind::Other, Color::White),
         Color::White
@@ -155,7 +153,7 @@ fn test_diff_line_color_maps_markers_consistently() {
         diff_line_color(DiffLineKind::Other, Color::Gray),
         Color::Gray
     );
-    // Both plain history rows and diff context lines keep the default white.
+
     assert_eq!(history_row_style("+add").fg, Some(Color::Green));
     assert_eq!(history_row_style("plain").fg, Some(Color::White));
     assert_eq!(styled_diff_line("+add").style.fg, Some(Color::Green));
@@ -328,9 +326,7 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
         .iter()
         .position(|row| row.contains("body row"))
         .expect("body row must appear in rendered output");
-    // Short transcript bodies should start directly below the status row and
-    // grow downward from there instead of being bottom-aligned inside the
-    // output pane.
+
     assert!(
         body_row_pos <= 2,
         "short transcript content should start near the top of the output pane; found at row {body_row_pos}"
@@ -372,15 +368,14 @@ fn task_output_render_area_top_aligns_content() {
         picker_overlay: vec![],
     };
     let area = crate::ui::tui::layout::Rect::new(0, 5, 80, 20);
-    // When visible_rows < area.height, the render rect should start at the top
-    // of the output pane and grow downward (y == area.y for any non-zero y).
+
     let render_area = task_output_render_area(&state, area, 5);
     assert_eq!(
         render_area.y, area.y,
         "content should be top-aligned: y = area.y"
     );
     assert_eq!(render_area.height, 5);
-    // When visible_rows fills the area, y still stays at area.y.
+
     let render_area_full = task_output_render_area(&state, area, 20);
     assert_eq!(render_area_full.y, area.y);
     assert_eq!(render_area_full.height, 20);

@@ -13,7 +13,7 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
         state.output_rows[0],
         TranscriptRow::UserInput("check the build status".to_string())
     );
-    // The second row is the ADR-039 accepted waiting phrase with elapsed suffix.
+
     assert!(
         matches!(&state.output_rows[1], TranscriptRow::WaitingPlaceholder(s) if s.starts_with("[thinking] Mapping adjacent sectors...")),
         "expected accepted ADR-039 waiting row, got: {:?}",
@@ -597,7 +597,6 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
 
     mode.on_user_input("ship the fix".to_string(), &mut ctx);
     if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        // Insert in step_id order to preserve sort contract.
         active.entries.push(TurnEntry::ToolCall {
             step_id: 3,
             id: "tc3".to_string(),
@@ -781,7 +780,6 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // Create an initial timeline with one user input and one tool call.
     mode.on_user_input("run lint".to_string(), &mut ctx);
     if let Some(active) = mode.task_doc.active_turn.as_mut() {
         active.entries.push(TurnEntry::ToolCall {
@@ -795,11 +793,10 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.total_steps, 2);
-    // follow_mode is true by default — selected_step must stay on the newest row.
+
     assert!(state.follow_mode);
     assert_eq!(state.selected_step, 1);
 
-    // Simulate a new tool arriving while follow_mode is still active.
     if let Some(active) = mode.task_doc.active_turn.as_mut() {
         active.entries.push(TurnEntry::ToolCall {
             step_id: 2,
@@ -999,8 +996,7 @@ fn test_inspector_title_includes_row_count() {
     mode.selected_timeline_index = 1;
 
     let state = mode.task_layout_state().expect("task layout state");
-    // The inspector title must include the total row count so the operator
-    // knows how much content exists beyond the visible viewport.
+
     assert!(
         state.output_title.contains("rows"),
         "inspector title should contain row count: {:?}",

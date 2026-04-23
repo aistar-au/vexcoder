@@ -660,18 +660,10 @@ fn test_normaliser_is_stateless_across_calls() {
     assert_eq!(collect_text(&normaliser.normalise("beta")), "beta");
 }
 
-// ---------------------------------------------------------------------------
-// Multi-block messages-v1 and JSON-variation tests (items 4-5 transport follow-up)
-// ---------------------------------------------------------------------------
-
-/// Verifies that two consecutive `tool_use` `content_block_start` events in a
-/// messages-v1 stream produce two independent `ToolCallStarted` envelopes with
-/// no cross-contamination of IDs, names, or inputs.
 #[test]
 fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_calls() {
     let mut parser = StreamParser::new();
 
-    // First tool_use block at index 1.
     let first = parser
         .process(
             b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_a\",\"name\":\"read_file\",\"input\":{\"path\":\"src/lib.rs\"}}}\n\n",
@@ -690,7 +682,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
         first.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    // Second tool_use block at index 2.
     let second = parser
         .process(
             b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_b\",\"name\":\"write_file\",\"input\":{\"path\":\"out.txt\",\"content\":\"done\"}}}\n\n",
@@ -719,7 +710,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
         "second block open must not re-emit the first block"
     );
 
-    // Both ToolCallStarted events must have arrived (one per block).
     let all: Vec<_> = first.iter().chain(second.iter()).collect();
     let started_names: Vec<&str> = all
         .iter()
@@ -738,8 +728,6 @@ fn test_process_messages_v1_two_sequential_tool_use_blocks_emit_independent_call
     );
 }
 
-/// Verifies that a messages-v1 `tool_use` block with a deeply-nested JSON
-/// `input` object (arrays, nested objects) normalizes without data loss.
 #[test]
 fn test_process_messages_v1_tool_use_nested_json_input_normalizes_correctly() {
     let mut parser = StreamParser::new();
@@ -775,18 +763,10 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
     );
 }
 
-/// Verifies that the chat-compat string-form argument accumulator correctly
-/// coalesces partial JSON fragments arriving across three separate SSE chunks
-/// into a single materialized tool call with the complete arguments object.
-///
-/// This covers the typical local chat-compatible streaming pattern where `"arguments"` is
-/// delivered as a fragmented JSON string: `"{\"path\":"`, `"\"src/lib.rs\""`,
-/// `"}"`.
 #[test]
 fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
     let mut parser = StreamParser::new();
 
-    // Chunk 1: opening fragment with ID and partial arguments string.
     let c1 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_frag","type":"function","function":{"name":"read_file","arguments":"{\"path\":"}}]},"finish_reason":null}]}
@@ -806,7 +786,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c1.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    // Chunk 2: middle fragment.
     let c2 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"src/lib.rs\""}}]},"finish_reason":null}]}
@@ -824,7 +803,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c2.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    // Chunk 3: closing fragment with finish_reason.
     let c3 = parser
         .process(
             br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}
@@ -839,7 +817,6 @@ fn test_process_chat_compat_string_arguments_accumulate_across_three_chunks() {
         c3.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
 
-    // ToolCallStarted (emitted at block-open) must carry the block ID.
     let started = c1
         .iter()
         .find(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. }));

@@ -1,6 +1,3 @@
-// Keep ratatui imports and version-sensitive type names behind one local facade.
-// Future ratatui upgrades should mostly land here instead of leaking across UI code.
-
 pub mod backend {
     pub use ratatui::backend::{CrosstermBackend, TestBackend};
 }

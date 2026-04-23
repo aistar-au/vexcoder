@@ -1,51 +1,27 @@
-//! Rate-limit and Retry-After extraction using `regex-lite`.
-//!
-//! Parses retry delay hints from HTTP `Retry-After` header values and
-//! from structured or unstructured error response bodies.
-//! All patterns are ASCII-only.
-//!
-//! Design boundary: this module extracts *structured delay hints* from
-//! unstructured error text.  HTTP status code routing (e.g. 429 dispatch)
-//! lives in `crate::api::client`.
-
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 
 use serde::Deserialize;
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/// A parsed retry delay hint.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetryHint {
-    /// Suggested delay in milliseconds before retrying.
     pub delay_ms: u64,
-    /// Where the hint was extracted from.
+
     pub source: RetryHintSource,
 }
 
-/// Origin of a retry hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryHintSource {
-    /// Extracted from a `Retry-After` header value.
     Header,
-    /// Extracted from an error response body.
+
     Body,
 }
 
-// ---------------------------------------------------------------------------
-// Regex compilation
-// ---------------------------------------------------------------------------
-
-/// Matches a plain integer or decimal in a `Retry-After` header value.
 fn re_retry_after_header() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"^(\d+(?:\.\d+)?)$").unwrap())
 }
 
-/// Matches body text like "try again in 5 seconds", "retry in 500ms", etc.
 fn re_retry_body() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -72,14 +48,6 @@ struct RetryBodyHint {
     retry_after_ms: Option<u64>,
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-/// Parse a retry delay from a `Retry-After` header value.
-///
-/// Handles the numeric-seconds form and the HTTP-date forms accepted by
-/// RFC 9110 §10.2.3.
 pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     let trimmed = value.trim();
 
@@ -101,11 +69,6 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     })
 }
 
-/// Parse a retry delay from an error response body.
-///
-/// Accepts JSON objects with `retry_after_ms` first, then falls back to
-/// natural-language phrases like "try again in 5 seconds", "retry in 500ms",
-/// and "wait 30 sec".
 pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
     let trimmed = body.trim();
     if let Ok(hint) = serde_json::from_str::<RetryBodyHint>(trimmed)
@@ -132,7 +95,6 @@ pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
     })
 }
 
-/// Returns `true` if the error body contains rate-limit language.
 pub fn looks_like_rate_limit(body: &str) -> bool {
     let lower = body.to_ascii_lowercase();
     lower.contains("rate limit")
@@ -140,10 +102,6 @@ pub fn looks_like_rate_limit(body: &str) -> bool {
         || lower.contains("throttl")
         || re_retry_body().is_match(body)
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

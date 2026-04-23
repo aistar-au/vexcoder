@@ -25,22 +25,18 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
-    /// Allocate the next monotonic step ID from `task_doc.info`.
     fn alloc_step_id(&mut self) -> u64 {
         let id = self.task_doc.info.next_step_id;
         self.task_doc.info.next_step_id = self.task_doc.info.next_step_id.saturating_add(1);
         id
     }
 
-    /// Append a `TurnEntry` to the active turn's entry list.
     fn append_turn_entry(&mut self, entry: TurnEntry) {
         if let Some(active) = self.task_doc.active_turn.as_mut() {
             active.entries.push(entry);
         }
     }
 
-    /// Push a system-notice into the active turn (or pre-session list if no
-    /// turn is open).
     pub(super) fn push_document_notice(&mut self, message: String, severity: NoticeSeverity) {
         if self.task_doc.active_turn.is_some() {
             let step_id = self.alloc_step_id();
@@ -85,9 +81,7 @@ impl TuiMode {
                 {
                     return;
                 }
-                // Once structured final-block updates already carry the
-                // visible assistant text, skip flat stream deltas so the
-                // transcript does not count the same content twice.
+
                 if self.stream_uses_structured_final_output {
                     return;
                 }
@@ -256,9 +250,6 @@ impl TuiMode {
                         input,
                         status,
                     } => {
-                        // Upsert: update the status on an existing entry with
-                        // the same id (emitted by set_tool_call_status) rather
-                        // than always appending a duplicate pending entry.
                         let exists = if let Some(active) = self.task_doc.active_turn.as_mut() {
                             active.entries.iter_mut().any(|e| {
                                 if let TurnEntry::ToolCall {
@@ -297,7 +288,6 @@ impl TuiMode {
                         output,
                         is_error,
                     } => {
-                        // Update matching ToolCall status and record changed files.
                         if let Some(active) = self.task_doc.active_turn.as_mut() {
                             for entry in &mut active.entries {
                                 if let TurnEntry::ToolCall { id, status, .. } = entry
@@ -536,11 +526,7 @@ impl TuiMode {
                 self.last_turn_duration = self.turn_started_at.map(|s| s.elapsed());
                 self.last_turn_ttft = self.ttft;
                 self.append_turn_timing_line();
-                // Finish the active turn with the correct outcome.
-                // finish_turn sets info.status from the outcome, then we
-                // override to Completed for Success (condenser maps
-                // TurnOutcome::Completed → Ready, but edit-loop success
-                // means the task is done).
+
                 if self.task_doc.active_turn.is_some() {
                     let turn_outcome = match &outcome {
                         EditLoopOutcome::Success { .. } => TurnOutcome::Completed,
