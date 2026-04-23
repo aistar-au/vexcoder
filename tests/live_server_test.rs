@@ -15,7 +15,7 @@ use vexcoder::runtime::{
 };
 use vexcoder::types::{ApiMessage, Content, ModelProfile};
 
-#[allow(unused)]
+#[allow(dead_code)]
 mod test_support {
     pub struct EnvLock(tokio::sync::Mutex<()>);
     impl EnvLock {
@@ -45,24 +45,22 @@ mod test_support {
     pub struct EnvRestore<'a> {
         _guard: &'a EnvLockGuard<'a>,
         key: &'static str,
-        value: Option<String>,
+        value: Option<std::ffi::OsString>,
     }
     impl<'a> EnvRestore<'a> {
         pub fn capture(guard: &'a EnvLockGuard<'a>, key: &'static str) -> Self {
             Self {
                 _guard: guard,
                 key,
-                value: std::env::var(key).ok(),
+                value: std::env::var_os(key),
             }
         }
     }
     impl Drop for EnvRestore<'_> {
-        #[allow(unsafe_code)]
         fn drop(&mut self) {
             match &self.value {
-                // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
-                Some(v) => unsafe { std::env::set_var(self.key, v) },
-                None => unsafe { std::env::remove_var(self.key) },
+                Some(value) => self._guard.set_var(self.key, value),
+                None => self._guard.remove_var(self.key),
             }
         }
     }
