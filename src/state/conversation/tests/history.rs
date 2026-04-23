@@ -101,8 +101,6 @@ fn test_format_tool_result_for_history_read_file_diff_and_repeat() {
     assert!(third.contains("Content for model context:"));
     assert!(third.contains("line1\nline2 changed"));
 
-    // After a change the cache must update, so the same content read again
-    // must be classified as Unchanged — not another Changed.
     let fourth = manager.format_tool_result_for_history(
         "read_file",
         &input,
@@ -196,22 +194,27 @@ fn test_prune_message_history_reanchors_to_user() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -232,26 +235,32 @@ fn test_prune_message_history_preserving_keeps_turn_user_anchor() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("anchor user prompt".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("tool_result read_file:\nA".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("tool_result read_file:\nB".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -280,34 +289,42 @@ fn test_prune_message_history_preserving_allows_prune_when_anchor_is_far_behind(
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("anchor user prompt".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u3".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -378,18 +395,22 @@ fn test_prune_message_history_clears_if_no_user_remains() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -408,18 +429,22 @@ fn test_prune_message_history_reanchors_even_if_it_reduces_below_limit() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -445,6 +470,7 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
@@ -454,6 +480,7 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
                 input: json!({"path":"src/lib.rs"}),
                 metadata: None,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
@@ -462,18 +489,22 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
                 content: "ok".to_string(),
                 is_error: false,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -498,6 +529,7 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
@@ -506,10 +538,12 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
                 content: "ok".to_string(),
                 is_error: false,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -557,9 +591,6 @@ fn test_clear_messages_resets_cached_conversation_state() {
         crate::tool_preview::ReadFileRollupSummary::FirstRead { .. }
     ));
 }
-// ---------------------------------------------------------------------------
-// Phase 4 — context condensing
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_condense_old_tool_results_clips_blocks() {
@@ -568,12 +599,10 @@ fn test_condense_old_tool_results_clips_blocks() {
     let operator = ToolOperator::new(dir.path().to_path_buf());
     let mut manager = ConversationManager::new(ApiClient::new_mock(client), operator);
 
-    // Build a long tool result.
     let long_result: String = (0..20)
         .map(|i| format!("line {i}"))
         .collect::<Vec<_>>()
         .join("\n");
-    // Simulate 3 turns: 3 user messages (with tool results), 3 assistant messages.
     for i in 0..3 {
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
@@ -583,6 +612,7 @@ fn test_condense_old_tool_results_clips_blocks() {
                 input: json!({}),
                 metadata: None,
             }]),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
@@ -591,13 +621,12 @@ fn test_condense_old_tool_results_clips_blocks() {
                 content: long_result.clone(),
                 is_error: false,
             }]),
+            cache_hint: None,
         });
     }
 
-    // keep_turns = 1 means only the last turn is preserved at full fidelity.
     manager.condense_old_tool_results(1);
 
-    // First two user messages should be condensed; last should be untouched.
     for (idx, msg) in manager.api_messages.iter().enumerate() {
         if msg.role != "user" {
             continue;
@@ -606,13 +635,11 @@ fn test_condense_old_tool_results_clips_blocks() {
             for block in blocks {
                 if let ContentBlock::ToolResult { content, .. } = block {
                     if idx < 4 {
-                        // Old turns — condensed.
                         assert!(
                             content.contains("more lines"),
                             "expected condensed result at index {idx}, got: {content}"
                         );
                     } else {
-                        // Last turn — untouched.
                         assert!(
                             !content.contains("more lines"),
                             "last turn should not be condensed, got: {content}"
@@ -659,30 +686,37 @@ fn test_compact_for_context_overflow_keeps_recent_messages() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("old-u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("old-a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("old-u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("old-a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("recent-u2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("recent-a2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("current-u3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -716,10 +750,12 @@ fn test_compact_for_context_overflow_noop_when_small() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -748,15 +784,16 @@ fn test_compaction_triggers_at_threshold() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    // Each message ~100 chars -> ~25 tokens. 10 messages -> ~250 tokens.
     for i in 0..10 {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user message number {} with padding text to reach a decent length for token estimation", i)),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant response {} with some additional text for token counting purposes here we go", i)),
+            cache_hint: None,
         });
     }
 
@@ -767,9 +804,7 @@ fn test_compaction_triggers_at_threshold() {
         summary_max_tokens: 1024,
     };
 
-    // With context window of 100 tokens and 50% threshold, ~250 tokens should exceed.
     assert!(manager.should_compact_proactively(&config, 100));
-    // With a large context window, it should not trigger.
     assert!(!manager.should_compact_proactively(&config, 100_000));
 }
 
@@ -784,24 +819,24 @@ fn test_compaction_preserves_recent_turns() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
     let removed = manager.compact_with_summary(2, "Earlier we discussed topics 0-3.");
     assert!(removed > 0);
 
-    // The summary message + recent 2 turns (4 messages) should be present.
     assert_eq!(manager.api_messages[0].role, "user");
     match &manager.api_messages[0].content {
         Content::Text(t) => assert!(t.contains("[conversation summary]")),
         _ => panic!("expected text content"),
     }
 
-    // Last user message should be one of the recent ones.
     let last_user = manager
         .api_messages
         .iter()
@@ -825,19 +860,19 @@ fn test_compaction_summary_replaces_prefix() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
     let before_len = manager.api_messages.len();
     let removed = manager.compact_with_summary(4, "Summary of earlier messages.");
     assert!(removed > 0);
-    // Should have summary message (1) + recent 4 turns (8 messages) = 9 total, or close.
     assert!(manager.api_messages.len() < before_len);
-    // First message should be the summary.
     match &manager.api_messages[0].content {
         Content::Text(t) => assert!(t.contains("Summary of earlier messages.")),
         _ => panic!("expected text in first message"),
@@ -855,10 +890,12 @@ fn test_compaction_summary_preserves_user_assistant_role_order() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
@@ -880,25 +917,27 @@ fn test_compaction_failure_falls_back_to_full_history() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    // Only 2 user messages - too few to compact.
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("user-0".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "assistant".to_string(),
         content: Content::Text("assistant-0".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("user-1".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "assistant".to_string(),
         content: Content::Text("assistant-1".to_string()),
+        cache_hint: None,
     });
 
-    // With keep_recent_turns=4, nothing should be removed.
     let removed = manager.compact_with_summary(4, "summary");
     assert_eq!(removed, 0);
     assert_eq!(manager.api_messages.len(), 4);
@@ -939,13 +978,12 @@ fn test_estimate_history_tokens() {
     ));
     let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
 
-    // Empty history should have 0 tokens.
     assert_eq!(manager.estimate_history_tokens(), 0);
 
-    // 400 bytes of text = ~100 tokens (400 / 4).
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("a".repeat(400)),
+        cache_hint: None,
     });
     assert_eq!(manager.estimate_history_tokens(), 100);
 }

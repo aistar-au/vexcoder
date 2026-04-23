@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct ApiMessage {
     pub role: String,
     pub content: Content,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,35 +125,44 @@ pub struct ToolUseMetadata {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ApiUsage {
-    // Core token counts (cross-protocol normalised)
     #[serde(default, alias = "prompt_tokens")]
     pub input_tokens: Option<u64>,
     #[serde(default, alias = "completion_tokens")]
     pub output_tokens: Option<u64>,
     #[serde(default)]
     pub total_tokens: Option<u64>,
-    // Provider cache fields
     #[serde(default)]
     pub cache_creation_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_read_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_creation: Option<serde_json::Value>,
-    // Extended usage metadata
     #[serde(default)]
     pub service_tier: Option<String>,
     #[serde(default)]
     pub web_search_requests: Option<u64>,
     #[serde(default)]
     pub inference_geo: Option<String>,
-    // Detailed token breakdowns (chat completions)
     #[serde(default)]
     pub prompt_tokens_details: Option<PromptTokenDetails>,
     #[serde(default)]
     pub completion_tokens_details: Option<CompletionTokenDetails>,
+    #[serde(default)]
+    pub prefix_cache: Option<PrefixCacheStats>,
 }
 
-/// Prompt token detail breakdown (chat completions protocol).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PrefixCacheStats {
+    #[serde(default)]
+    pub cache_hit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prefix_fingerprint: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PromptTokenDetails {
     #[serde(default)]
@@ -160,7 +171,6 @@ pub struct PromptTokenDetails {
     pub audio_tokens: Option<u64>,
 }
 
-/// Completion token detail breakdown (chat completions protocol).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CompletionTokenDetails {
     #[serde(default)]
@@ -182,15 +192,50 @@ mod tests {
         let msg = ApiMessage {
             role: "user".into(),
             content: Content::Text("Hello".into()),
+            cache_hint: None,
         };
         let serialized = serde_json::to_value(&msg).unwrap();
 
-        // ANCHOR: This assertion will FAIL if #[serde(flatten)] is present
-        // because the "content" key will be missing from the object.
         assert!(
             serialized.get("content").is_some(),
             "Missing 'content' key in JSON!"
         );
+        assert!(
+            serialized.get("cache_hint").is_none(),
+            "cache_hint must be omitted from the wire payload when None"
+        );
+    }
+
+    #[test]
+    fn test_api_message_cache_hint_round_trip() {
+        let msg = ApiMessage {
+            role: "user".into(),
+            content: Content::Text("Hello".into()),
+            cache_hint: Some("fp-0123456789abcdef".into()),
+        };
+        let serialized = serde_json::to_value(&msg).unwrap();
+        assert_eq!(serialized["cache_hint"], "fp-0123456789abcdef");
+        let decoded: ApiMessage = serde_json::from_value(serialized).unwrap();
+        assert_eq!(decoded.cache_hint.as_deref(), Some("fp-0123456789abcdef"));
+    }
+
+    #[test]
+    fn test_api_usage_prefix_cache_deserialises() {
+        let json = r#"{
+            "input_tokens":200,"output_tokens":40,
+            "prefix_cache":{
+                "cache_hit":true,
+                "cache_read_tokens":160,
+                "cache_creation_tokens":0,
+                "prefix_fingerprint":"fp-deadbeef"
+            }
+        }"#;
+        let usage: ApiUsage = serde_json::from_str(json).unwrap();
+        let stats = usage.prefix_cache.expect("prefix_cache must deserialise");
+        assert!(stats.cache_hit);
+        assert_eq!(stats.cache_read_tokens, Some(160));
+        assert_eq!(stats.cache_creation_tokens, Some(0));
+        assert_eq!(stats.prefix_fingerprint.as_deref(), Some("fp-deadbeef"));
     }
 
     #[test]

@@ -12,6 +12,7 @@ pub mod git_rollup;
 pub mod json_handoff;
 pub mod r#loop;
 pub mod mode;
+pub mod multiplex_prefix;
 pub mod policy;
 pub mod project_instructions;
 pub mod rate_limit;

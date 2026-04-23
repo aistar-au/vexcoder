@@ -159,6 +159,7 @@ fn test_estimated_token_count_uses_chars_div_4() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("abcd".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
@@ -173,6 +174,7 @@ fn test_estimated_token_count_uses_chars_div_4() {
                     is_error: false,
                 },
             ]),
+            cache_hint: None,
         },
     ];
 

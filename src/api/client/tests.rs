@@ -43,6 +43,7 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
     vec![ApiMessage {
         role: "user".to_string(),
         content: Content::Text(text.to_string()),
+        cache_hint: None,
     }]
 }
 
@@ -1134,42 +1135,36 @@ fn test_chat_compat_url_adapter_from_v1_base_endpoint() {
 
 #[test]
 fn test_resolve_max_tokens_defaults_to_profile_budget() {
-    // server_n_ctx=0 → ceiling=16384; default 4096 < 16384 → 4096
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 0));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_uses_server_n_ctx() {
-    // 75% of 65536 = 49152; default 4096 < 49152 → 4096
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 65536));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_caps_at_seventy_five_percent_of_server_n_ctx() {
-    // 75% of 65536 = 49152; default 60000 > 49152 → capped at 49152
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(60000, 65536));
     assert_eq!(tokens, 49152);
 }
 
 #[test]
 fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
-    // server_n_ctx=0 → ceiling=16384; default 40000 > 16384 → capped at 16384
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(40000, 0));
     assert_eq!(tokens, 16384);
 }
 
 #[test]
 fn test_resolve_max_tokens_small_n_ctx_does_not_panic() {
-    // server_n_ctx=100 → ceiling=75 (< 128); must not panic in clamp
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 100));
     assert_eq!(tokens, 75);
 }
 
 #[test]
 fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
-    // server_n_ctx=1 → ceiling=0; boundary case for very small context
     let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 1));
     assert_eq!(tokens, 0);
 }
@@ -1371,6 +1366,37 @@ fn test_chat_compat_tool_definitions_match_base_tool_names() {
         .collect();
 
     assert_eq!(chat_compat_names, base_names);
+}
+
+#[test]
+fn test_messages_v1_tool_definitions_keep_input_schemas_structured() {
+    let tools = tool_definitions()
+        .as_array()
+        .expect("tool definitions must be an array");
+
+    assert!(
+        tools
+            .iter()
+            .all(|tool| matches!(tool.get("input_schema"), Some(Value::Object(_)))),
+        "messages-v1 tool definitions must keep input_schema as a JSON object"
+    );
+}
+
+#[test]
+fn test_chat_compat_tool_definitions_keep_parameters_structured() {
+    let chat_compat_tools = tool_definitions_chat_compat_with_extra(&[]);
+    let tools = chat_compat_tools
+        .as_array()
+        .expect("chat-compat tool definitions must be an array");
+
+    assert!(
+        tools.iter().all(|tool| matches!(
+            tool.get("function")
+                .and_then(|function| function.get("parameters")),
+            Some(Value::Object(_))
+        )),
+        "chat-compat tool definitions must keep function.parameters as a JSON object"
+    );
 }
 
 #[test]

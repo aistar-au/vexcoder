@@ -1,23 +1,3 @@
-//! Live local server integration tests.
-//!
-//! This file mixes two kinds of coverage:
-//! - smoke tests that probe a real local inference server when one is running
-//! - in-process axum fixtures that exercise stalled-stream fallback,
-//!   protocol discovery, and tool-call normalization end to end
-//!
-//! The smoke tests are skipped when no external server is reachable. The mock
-//! transport tests always run because they host their own local endpoints.
-//!
-//! Configuration:
-//!   VEX_LIVE_SERVER_URL — base URL of the local server (default: http://localhost:8000)
-//!
-//! Run with:
-//!   VEX_LIVE_SERVER_URL=http://localhost:8000 cargo nextest run -p vexcoder --test live_server_test
-
-// Unsafe env-var mutation is confined to the logging submodule, where tests
-// serialize access with `test_support::ENV_LOCK` before calling
-// `std::env::set_var` and `std::env::remove_var`.
-
 use axum::{
     Json, Router,
     response::{IntoResponse, Response},
@@ -39,7 +19,6 @@ mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
 
-/// Resolve the live server URL from the environment or use the default.
 fn live_server_url() -> String {
     std::env::var("VEX_LIVE_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }
@@ -48,11 +27,10 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
     vec![ApiMessage {
         role: "user".to_string(),
         content: Content::Text(text.to_string()),
+        cache_hint: None,
     }]
 }
 
-/// Check whether the live server is reachable. Returns the model name if
-/// available, or None if the server is unreachable.
 async fn probe_server(base_url: &str) -> Option<String> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
@@ -64,7 +42,6 @@ async fn probe_server(base_url: &str) -> Option<String> {
         return None;
     }
     let body: serde_json::Value = resp.json().await.ok()?;
-    // Support both standard {"data":[{"id":"..."}]} and local-runtime {"models":[{"model":"..."}]} formats
 
     body.get("data")
         .and_then(|d| d.as_array())
@@ -81,8 +58,6 @@ async fn probe_server(base_url: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Helper macro: skip the test with an overlay-style notice when no server
-/// is available instead of failing.
 macro_rules! require_live_server {
     ($base_url:expr) => {
         match probe_server($base_url).await {
@@ -288,10 +263,6 @@ fn stalled_messages_response() -> Value {
     })
 }
 
-// The timeout-specific startup regressions are covered in unit tests.
-// This integration harness only needs the local stream to terminate before the
-// first SSE event so the end-to-end fallback path stays exercised without
-// spending five seconds in every scenario.
 fn no_initial_sse_response() -> Response {
     (
         [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
@@ -456,10 +427,6 @@ fn assert_batch_jsonl_response(output_lines: &[String], expected_response: &str)
         Some(1)
     );
 }
-
-// ---------------------------------------------------------------------------
-// Tests — server probe
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn test_live_server_model_listing() {
@@ -681,10 +648,6 @@ async fn test_run_batch_auto_detects_messages_v1_and_preserves_fallback_jsonl_ou
     server.abort();
 }
 
-// ---------------------------------------------------------------------------
-// Response fixtures — empty-output and tool-call JSON-form variants
-// ---------------------------------------------------------------------------
-
 fn empty_string_content_chat_response() -> Value {
     json!({
         "id": "chatcmpl-empty-str",
@@ -729,10 +692,6 @@ fn null_content_no_tools_chat_response() -> Value {
     })
 }
 
-/// Chat-compat non-stream response where `arguments` is a JSON object (not a
-/// string), covering the `ChatCompatFunctionArguments::Json` normalization path
-/// that is only reachable from the non-stream fallback (streaming endpoints
-/// always emit string-form arguments in deltas).
 fn tool_calls_json_arguments_chat_response() -> Value {
     json!({
         "id": "chatcmpl-json-args",
@@ -768,8 +727,6 @@ fn tool_calls_json_arguments_chat_response() -> Value {
     })
 }
 
-/// Messages-v1 non-stream response with a tool_use block, used to verify
-/// stalled-stream + auto-detect tool-call round-trips.
 fn tool_calls_messages_v1_response() -> Value {
     json!({
         "id": "msg-tool-fallback",
@@ -792,10 +749,6 @@ fn tool_calls_messages_v1_response() -> Value {
         }
     })
 }
-
-// ---------------------------------------------------------------------------
-// Handlers and spawn helpers for new test scenarios
-// ---------------------------------------------------------------------------
 
 async fn empty_string_content_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
@@ -825,9 +778,6 @@ async fn tool_calls_messages_v1_handler(Json(payload): Json<Value>) -> Response 
     Json(tool_calls_messages_v1_response()).into_response()
 }
 
-/// Handler for the fallback POST path that intentionally exceeds
-/// `LOCAL_NON_STREAM_FALLBACK_TIMEOUT` (100 ms in test configuration), used
-/// to verify the timeout fires before the response arrives.
 async fn slow_non_stream_handler(_payload: Json<Value>) -> Response {
     tokio::time::sleep(Duration::from_millis(400)).await;
     Json(json!({"error": "too slow"})).into_response()
@@ -931,17 +881,6 @@ async fn spawn_auto_detect_messages_v1_tool_calls_server() -> (String, JoinHandl
     (format!("http://{addr}"), server)
 }
 
-// ---------------------------------------------------------------------------
-// Tests — slow fallback diagnostics
-// ---------------------------------------------------------------------------
-
-/// Verifies that a stalled stream followed by a slow non-stream POST resolves
-/// as an error instead of hanging or producing a bogus success result.
-///
-/// The bounded timeout regressions are unit-tested in `src/api/client/tests.rs`.
-/// This integration test replays the same end-to-end path through the live
-/// server harness so the fallback deadline remains enforced outside the unit
-/// test-only fixtures.
 #[tokio::test]
 async fn test_local_fallback_post_slow_response_surfaces_error() {
     let (base_url, server) = spawn_slow_fallback_server().await;
@@ -964,13 +903,6 @@ async fn test_local_fallback_post_slow_response_surfaces_error() {
     server.abort();
 }
 
-// ---------------------------------------------------------------------------
-// Tests — chat-compat empty-output normalization matrix
-// ---------------------------------------------------------------------------
-
-/// Verifies that a non-stream fallback response with an empty-string
-/// `content` field and no tool calls produces a well-formed `TurnEnd` event
-/// without hanging or erroring.
 #[tokio::test]
 async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end() {
     let (base_url, server) = spawn_empty_string_content_server().await;
@@ -1004,8 +936,6 @@ async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end(
     server.abort();
 }
 
-/// Verifies that a non-stream fallback response with a `null` content field
-/// and no tool calls produces a well-formed `TurnEnd` without tool-call events.
 #[tokio::test]
 async fn test_stalled_stream_chat_compat_null_content_no_tools_produces_turn_end() {
     let (base_url, server) = spawn_null_content_no_tools_server().await;
