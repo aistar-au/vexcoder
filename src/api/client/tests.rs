@@ -43,6 +43,7 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
     vec![ApiMessage {
         role: "user".to_string(),
         content: Content::Text(text.to_string()),
+        cache_hint: None,
     }]
 }
 

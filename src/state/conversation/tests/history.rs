@@ -196,22 +196,27 @@ fn test_prune_message_history_reanchors_to_user() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -232,26 +237,32 @@ fn test_prune_message_history_preserving_keeps_turn_user_anchor() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("anchor user prompt".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("tool_result read_file:\nA".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("tool_result read_file:\nB".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("round 3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -280,34 +291,42 @@ fn test_prune_message_history_preserving_allows_prune_when_anchor_is_far_behind(
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("anchor user prompt".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u3".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -378,18 +397,22 @@ fn test_prune_message_history_clears_if_no_user_remains() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -408,18 +431,22 @@ fn test_prune_message_history_reanchors_even_if_it_reduces_below_limit() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -445,6 +472,7 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
@@ -454,6 +482,7 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
                 input: json!({"path":"src/lib.rs"}),
                 metadata: None,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
@@ -462,18 +491,22 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
                 content: "ok".to_string(),
                 is_error: false,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a2".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -498,6 +531,7 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
@@ -506,10 +540,12 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
                 content: "ok".to_string(),
                 is_error: false,
             }]),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a1".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -583,6 +619,7 @@ fn test_condense_old_tool_results_clips_blocks() {
                 input: json!({}),
                 metadata: None,
             }]),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
@@ -591,6 +628,7 @@ fn test_condense_old_tool_results_clips_blocks() {
                 content: long_result.clone(),
                 is_error: false,
             }]),
+            cache_hint: None,
         });
     }
 
@@ -659,30 +697,37 @@ fn test_compact_for_context_overflow_keeps_recent_messages() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("old-u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("old-a0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("old-u1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("old-a1".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("recent-u2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("recent-a2".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("current-u3".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -716,10 +761,12 @@ fn test_compact_for_context_overflow_noop_when_small() {
         ApiMessage {
             role: "user".to_string(),
             content: Content::Text("u0".to_string()),
+            cache_hint: None,
         },
         ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text("a0".to_string()),
+            cache_hint: None,
         },
     ];
 
@@ -753,10 +800,12 @@ fn test_compaction_triggers_at_threshold() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user message number {} with padding text to reach a decent length for token estimation", i)),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant response {} with some additional text for token counting purposes here we go", i)),
+            cache_hint: None,
         });
     }
 
@@ -784,10 +833,12 @@ fn test_compaction_preserves_recent_turns() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
@@ -825,10 +876,12 @@ fn test_compaction_summary_replaces_prefix() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
@@ -855,10 +908,12 @@ fn test_compaction_summary_preserves_user_assistant_role_order() {
         manager.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(format!("user-{i}")),
+            cache_hint: None,
         });
         manager.api_messages.push(ApiMessage {
             role: "assistant".to_string(),
             content: Content::Text(format!("assistant-{i}")),
+            cache_hint: None,
         });
     }
 
@@ -884,18 +939,22 @@ fn test_compaction_failure_falls_back_to_full_history() {
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("user-0".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "assistant".to_string(),
         content: Content::Text("assistant-0".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("user-1".to_string()),
+        cache_hint: None,
     });
     manager.api_messages.push(ApiMessage {
         role: "assistant".to_string(),
         content: Content::Text("assistant-1".to_string()),
+        cache_hint: None,
     });
 
     // With keep_recent_turns=4, nothing should be removed.
@@ -946,6 +1005,7 @@ fn test_estimate_history_tokens() {
     manager.api_messages.push(ApiMessage {
         role: "user".to_string(),
         content: Content::Text("a".repeat(400)),
+        cache_hint: None,
     });
     assert_eq!(manager.estimate_history_tokens(), 100);
 }

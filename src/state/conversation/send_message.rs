@@ -31,6 +31,7 @@ impl ConversationManager {
             self.api_messages.push(ApiMessage {
                 role: "assistant".to_string(),
                 content: Content::Text(response.clone()),
+                cache_hint: None,
             });
             emit_text_update(stream_delta_tx, response.clone());
             self.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
@@ -457,11 +458,13 @@ impl ConversationManager {
                 self.api_messages.push(ApiMessage {
                     role: "assistant".to_string(),
                     content: Content::Blocks(assistant_content_blocks),
+                    cache_hint: None,
                 });
             } else {
                 self.api_messages.push(ApiMessage {
                     role: "assistant".to_string(),
                     content: Content::Text(assistant_history_text),
+                    cache_hint: None,
                 });
             }
             last_assistant_text_for_history = assistant_text_for_history.clone();
@@ -472,6 +475,7 @@ impl ConversationManager {
                     content: Content::Text(
                         core_policy.repeated_tool_round_instruction().to_string(),
                     ),
+                    cache_hint: None,
                 });
                 continue;
             }
@@ -487,6 +491,7 @@ impl ConversationManager {
                     self.api_messages.push(ApiMessage {
                         role: "user".to_string(),
                         content: Content::Text(core_policy.tool_retry_instruction().to_string()),
+                        cache_hint: None,
                     });
                     continue;
                 }
@@ -787,11 +792,13 @@ impl ConversationManager {
                 self.api_messages.push(ApiMessage {
                     role: "user".to_string(),
                     content: Content::Blocks(tool_result_blocks),
+                    cache_hint: None,
                 });
             } else {
                 self.api_messages.push(ApiMessage {
                     role: "user".to_string(),
                     content: Content::Text(text_protocol_tool_results.join("\n\n")),
+                    cache_hint: None,
                 });
             }
         }

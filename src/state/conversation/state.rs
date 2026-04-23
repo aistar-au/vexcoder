@@ -255,6 +255,7 @@ impl ConversationManager {
         self.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(input),
+            cache_hint: None,
         });
     }
 
