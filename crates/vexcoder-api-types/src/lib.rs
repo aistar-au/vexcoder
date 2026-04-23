@@ -4,10 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct ApiMessage {
     pub role: String,
     pub content: Content,
-    /// Opaque fingerprint identifying the shared-prefix cache entry this
-    /// message participates in. Emitted by the runtime multiplex prefix
-    /// manager and forwarded as a provider-specific cache key when the
-    /// downstream protocol exposes such a surface.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_hint: Option<String>,
 }
@@ -155,19 +151,10 @@ pub struct ApiUsage {
     pub prompt_tokens_details: Option<PromptTokenDetails>,
     #[serde(default)]
     pub completion_tokens_details: Option<CompletionTokenDetails>,
-    /// Shared-prefix cache statistics surfaced by the multiplex prefix
-    /// manager. Populated when a provider response carries cache-hit
-    /// metadata attributable to a registered prefix fingerprint.
     #[serde(default)]
     pub prefix_cache: Option<PrefixCacheStats>,
 }
 
-/// Observed cache behaviour for a registered shared-prefix fingerprint.
-///
-/// Distinct from `cache_creation_input_tokens` and
-/// `cache_read_input_tokens`, which are provider-native fields; this
-/// record normalises the same information into a single, protocol-neutral
-/// shape keyed by the multiplex prefix fingerprint.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PrefixCacheStats {
     #[serde(default)]

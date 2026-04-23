@@ -1,42 +1,7 @@
-//! Shared-prefix fingerprinting for prompt multiplexing.
-//!
-//! A subtask fan-out typically produces N requests that share an
-//! identical system prompt, tool schema, and workspace preamble, and
-//! differ only in a short task-specific tail. When the upstream
-//! transport exposes a prompt-cache key surface, issuing those N
-//! requests with a common stable identifier is sufficient for the
-//! provider to amortise prefix re-processing across the fan-out.
-//!
-//! This module produces such an identifier. It is an application-layer
-//! fingerprint; it is not cryptographically secure, and it does not
-//! attempt to detect adversarial collisions. Its sole property of
-//! interest is determinism: two `SharedPrefix` values that are
-//! semantically equal in the sense defined by [`SharedPrefix::canonicalise`]
-//! produce the same fingerprint across processes and Rust toolchain
-//! versions, subject to the `FINGERPRINT_VERSION` constant.
-//!
-//! # Canonicalisation
-//!
-//! The canonical form rejects three common sources of spurious
-//! divergence:
-//!
-//! 1. tool ordering — tools are sorted lexicographically by name;
-//! 2. trailing whitespace — each line of the system prompt is
-//!    right-trimmed and the prompt is terminated by a single newline;
-//! 3. empty workspace context — an absent preamble is treated as the
-//!    empty string.
-//!
-//! Additional volatile fields (wall-clock timestamps, git HEAD, process
-//! identifiers) are excluded by construction: they are not inputs to
-//! the fingerprint.
+use std::collections::{HashMap, VecDeque};
 
-use std::collections::HashMap;
-
-/// Fingerprint-format version. Bump when the canonicalisation rules
-/// change in a way that would invalidate previously cached entries.
 pub const FINGERPRINT_VERSION: u16 = 1;
 
-/// Canonical representation of a shared prompt prefix.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SharedPrefix {
     pub system_prompt: String,
@@ -44,12 +9,6 @@ pub struct SharedPrefix {
     pub workspace_context: String,
 }
 
-/// Minimal tool description used by the fingerprinter.
-///
-/// The `schema` field is the tool's JSON schema serialised as a
-/// canonical string; callers are responsible for emitting it with
-/// sorted keys. For schemas produced by `serde_json::to_string` on a
-/// `BTreeMap`-backed value this is automatic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolDescriptor {
     pub name: String,
@@ -57,28 +16,19 @@ pub struct ToolDescriptor {
 }
 
 impl SharedPrefix {
-    /// Return a deterministic, lowercase hex fingerprint of the
-    /// canonical representation.
-    ///
-    /// The fingerprint width is 32 hexadecimal characters (128 bits).
-    /// It is prefixed with `v{FINGERPRINT_VERSION}-` so that consumers
-    /// can route across version migrations without collision.
     pub fn fingerprint(&self) -> String {
         let canonical = self.canonicalise();
         let digest = fnv1a_128(canonical.as_bytes());
         format!("v{}-{:032x}", FINGERPRINT_VERSION, digest)
     }
 
-    /// Return the canonical byte sequence used to compute the
-    /// fingerprint. Exposed for test inspection and for callers that
-    /// wish to feed the canonical form into a different hash.
     pub fn canonicalise(&self) -> String {
         let mut out = String::new();
         out.push_str("system:\n");
         out.push_str(&normalise_prompt(&self.system_prompt));
         out.push_str("\ntools:\n");
         let mut tools = self.tools.clone();
-        tools.sort_by(|a, b| a.name.cmp(&b.name));
+        tools.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.schema.cmp(&b.schema)));
         for tool in &tools {
             out.push_str(&tool.name);
             out.push('\t');
@@ -103,9 +53,6 @@ fn normalise_prompt(input: &str) -> String {
     out
 }
 
-/// FNV-1a 128-bit fingerprint. Constants are from the published FNV
-/// reference <http://www.isthe.com/chongo/tech/comp/fnv/index.html>;
-/// no third-party attribution is required.
 fn fnv1a_128(bytes: &[u8]) -> u128 {
     const OFFSET: u128 = 0x6c62272e07bb014262b821756295c58d;
     const PRIME: u128 = 0x0000000001000000000000000000013b;
@@ -117,19 +64,11 @@ fn fnv1a_128(bytes: &[u8]) -> u128 {
     hash
 }
 
-/// Bounded in-memory registry that associates prefix fingerprints with
-/// arbitrary opaque blobs.
-///
-/// The registry uses a first-in, first-out eviction discipline when the
-/// `capacity` threshold is reached. FIFO is chosen in preference to a
-/// recency-based policy because the expected workload is a short burst
-/// of sibling subtasks sharing one or two prefixes, for which any
-/// reasonable policy produces equivalent cache residency.
 #[derive(Debug)]
 pub struct MultiplexPrefixManager {
     capacity: usize,
     entries: HashMap<String, Vec<u8>>,
-    insertion_order: Vec<String>,
+    insertion_order: VecDeque<String>,
 }
 
 impl MultiplexPrefixManager {
@@ -137,12 +76,10 @@ impl MultiplexPrefixManager {
         Self {
             capacity: capacity.max(1),
             entries: HashMap::new(),
-            insertion_order: Vec::new(),
+            insertion_order: VecDeque::new(),
         }
     }
 
-    /// Register `prefix` and return its fingerprint. If the fingerprint
-    /// is already known, no re-insertion occurs.
     pub fn register(&mut self, prefix: &SharedPrefix) -> String {
         let fingerprint = prefix.fingerprint();
         if self.entries.contains_key(&fingerprint) {
@@ -153,22 +90,19 @@ impl MultiplexPrefixManager {
         fingerprint
     }
 
-    /// Register pre-serialised blob under `fingerprint`. Intended for
-    /// callers that already hold the canonical form and wish to avoid
-    /// re-materialising it.
     pub fn insert(&mut self, fingerprint: String, blob: Vec<u8>) {
         if self.entries.contains_key(&fingerprint) {
             return;
         }
         while self.insertion_order.len() >= self.capacity {
-            if let Some(oldest) = self.insertion_order.first().cloned() {
-                self.insertion_order.remove(0);
-                self.entries.remove(&oldest);
-            } else {
-                break;
+            match self.insertion_order.pop_front() {
+                Some(oldest) => {
+                    self.entries.remove(&oldest);
+                }
+                None => break,
             }
         }
-        self.insertion_order.push(fingerprint.clone());
+        self.insertion_order.push_back(fingerprint.clone());
         self.entries.insert(fingerprint, blob);
     }
 
@@ -216,9 +150,10 @@ mod tests {
         let prefix = sample_prefix();
         let first = prefix.fingerprint();
         let second = prefix.fingerprint();
+        let version_prefix = format!("v{FINGERPRINT_VERSION}-");
         assert_eq!(first, second);
-        assert!(first.starts_with(&format!("v{FINGERPRINT_VERSION}-")));
-        assert_eq!(first.len(), "v1-".len() + 32);
+        assert!(first.starts_with(&version_prefix));
+        assert_eq!(first.len(), version_prefix.len() + 32);
     }
 
     #[test]
