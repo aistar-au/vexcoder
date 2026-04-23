@@ -177,18 +177,10 @@ impl StreamParser {
         )
     }
 
-    /// Return the last SSE event ID observed from an `id:` field.
-    ///
-    /// Callers can reuse this value when reconnecting with `Last-Event-ID`
-    /// semantics after a transport interruption.
     pub fn last_event_id(&self) -> Option<&str> {
         self.last_event_id.as_deref()
     }
 
-    /// Return the most recent SSE reconnection delay advertised via `retry:`.
-    ///
-    /// The value is recorded exactly as provided by the upstream stream so
-    /// reconnecting callers can apply the server's preferred backoff.
     pub fn reconnect_delay_ms(&self) -> Option<u64> {
         self.reconnect_delay_ms
     }

@@ -4,7 +4,7 @@ use super::mode::RuntimeMode;
 pub enum ScrollTarget {
     Overlay,
     Output,
-    /// Timeline/activity pane — moves selected step up or down.
+
     Timeline,
 }
 

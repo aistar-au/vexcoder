@@ -3,23 +3,27 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamBlock {
-    /// Assistant thinking phase text.
-    Thinking { content: String, collapsed: bool },
-    /// Tool invocation and lifecycle state.
+    Thinking {
+        content: String,
+        collapsed: bool,
+    },
+
     ToolCall {
         id: String,
         name: String,
         input: serde_json::Value,
         status: ToolStatus,
     },
-    /// Tool execution result.
+
     ToolResult {
         tool_call_id: String,
         output: String,
         is_error: bool,
     },
-    /// Final assistant text for the turn.
-    FinalText { content: String },
+
+    FinalText {
+        content: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

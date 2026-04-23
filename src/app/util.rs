@@ -208,8 +208,7 @@ pub(super) fn new_task_id() -> String {
     let ms = LAST_TASK_MS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |previous| {
         Some(now_ms.max(previous.saturating_add(1)))
     });
-    // `fetch_update` returns the previous value, so recompute the stored
-    // monotonic millisecond from that prior state before formatting the id.
+
     let stable_ms = ms
         .map(|previous| now_ms.max(previous.saturating_add(1)))
         .unwrap_or(now_ms);
@@ -234,11 +233,6 @@ pub(super) fn resolve_repo_label() -> String {
         .unwrap_or_else(|| "workspace".to_string())
 }
 
-/// Resolve the current git branch name via `git rev-parse --abbrev-ref HEAD`.
-///
-/// Returns an empty string when not inside a git repository or when the
-/// command fails for any reason. This is intentionally non-blocking and
-/// best-effort so the draw path never stalls.
 pub(super) fn resolve_git_branch() -> String {
     std::process::Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])

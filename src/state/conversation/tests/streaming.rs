@@ -2,16 +2,6 @@ use super::*;
 
 #[tokio::test]
 async fn test_crit_01_protocol_flow() -> Result<()> {
-    // ANCHOR: This test verifies the multi-turn conversation protocol.
-    // It will PASS if the protocol is correctly implemented.
-    //
-    // The test should:
-    // 1. Create a ConversationManager with a mock client
-    // 2. Send a message that triggers tool use
-    // 3. Verify the tool is executed
-    // 4. Verify the final response incorporates tool results
-
-    // Mock responses for the API client
     let first_response_sse = vec![
         r#"event: message_start
 data: {"type": "message_start", "message": {"id": "msg_mock_01", "type": "message", "role": "assistant", "model": "mock-model", "content": [], "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 10, "output_tokens": 1}}}"#.to_string(),
@@ -62,17 +52,14 @@ data: {"type": "message_stop"}"#.to_string(),
 
     assert!(final_text.contains("The content of file.txt is 'Hello from file.txt'"));
 
-    // Verify the message history order
     let messages = &manager.api_messages;
     assert_eq!(messages.len(), 4);
 
-    // Initial user message
     assert_eq!(messages[0].role, "user");
     if let Content::Text(text) = &messages[0].content {
         assert!(text.contains("What is in file.txt?"));
     }
 
-    // Assistant message with tool_use
     assert_eq!(messages[1].role, "assistant");
     if let Content::Blocks(blocks) = &messages[1].content {
         assert_eq!(blocks.len(), 2);
@@ -88,7 +75,6 @@ data: {"type": "message_stop"}"#.to_string(),
         }
     }
 
-    // User message with tool_result
     assert_eq!(messages[2].role, "user");
     if let Content::Blocks(blocks) = &messages[2].content {
         assert_eq!(blocks.len(), 1);
@@ -105,7 +91,6 @@ data: {"type": "message_stop"}"#.to_string(),
         }
     }
 
-    // Final assistant message
     assert_eq!(messages[3].role, "assistant");
     if let Content::Blocks(blocks) = &messages[3].content {
         assert_eq!(blocks.len(), 1);
@@ -600,9 +585,6 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 #[tokio::test]
 async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<()> {
-    // Local endpoints use a tighter repeat threshold (1 vs 2) so the nudge
-    // fires after just one repeated round. Sequence: initial round → repeated
-    // round triggers nudge → recovery round produces final text.
     let mock_api_client =
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
             read_file_tool_round("msg_loop_nudge_01", "file.txt"),

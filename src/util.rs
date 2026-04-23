@@ -5,10 +5,6 @@ use serde_json::{Value, json};
 use std::io::Write;
 use std::path::Path;
 
-/// Serialize `value` as pretty JSON and replace `path` via rename.
-///
-/// Writes to an adjacent `.tmp` file, flushes to disk, then renames.
-/// `label` is used in error context messages (e.g. "task state").
 pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {
         anyhow!(
@@ -46,8 +42,6 @@ pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Res
     Ok(())
 }
 
-/// Build the standard tool-definition JSON entry used by both built-in
-/// and MCP tool registrations.
 pub fn tool_definition_entry(name: &str, description: &str, input_schema: Value) -> Value {
     json!({
         "name": name,
@@ -56,12 +50,10 @@ pub fn tool_definition_entry(name: &str, description: &str, input_schema: Value)
     })
 }
 
-/// Parse "true"/"false"/"1"/"0" from an owned String.
 pub fn parse_bool_flag(s: String) -> Option<bool> {
     parse_bool_str(&s)
 }
 
-/// Parse "true"/"false"/"1"/"0" from a &str.
 pub fn parse_bool_str(s: &str) -> Option<bool> {
     match s.trim().to_lowercase().as_str() {
         "true" | "1" | "yes" | "on" => Some(true),
@@ -70,10 +62,6 @@ pub fn parse_bool_str(s: &str) -> Option<bool> {
     }
 }
 
-/// Returns true for localhost, loopback, link-local, and RFC 1918 private
-/// network URLs. Local model servers commonly expose only plain HTTP — this
-/// function identifies endpoints where TLS is not required, including
-/// same-machine loopback and LAN-reachable private addresses.
 pub fn is_local_endpoint_url(url: &str) -> bool {
     let parsed = match Url::parse(url.trim()) {
         Ok(parsed) => parsed,
@@ -90,16 +78,11 @@ pub fn is_local_endpoint_url(url: &str) -> bool {
             {
                 return true;
             }
-            // RFC 1918 private networks — LAN-reachable model servers bound
-            // on 0.0.0.0 are typically reached via these addresses.
+
             if let Ok(ip) = normalized.parse::<std::net::IpAddr>() {
                 return match ip {
-                    std::net::IpAddr::V4(v4) => {
-                        v4.is_private()         // 10/8, 172.16/12, 192.168/16
-                            || v4.is_link_local() // 169.254/16
-                    }
+                    std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
                     std::net::IpAddr::V6(v6) => {
-                        // fe80::/10 link-local or fc00::/7 unique-local
                         let seg = v6.segments();
                         (seg[0] & 0xffc0) == 0xfe80 || (seg[0] & 0xfe00) == 0xfc00
                     }
@@ -153,16 +136,15 @@ mod tests {
 
     #[test]
     fn test_is_local_endpoint_url_private_networks() {
-        // RFC 1918 private addresses — LAN-reachable model servers
         assert!(is_local_endpoint_url("http://192.168.1.100:11434/v1"));
         assert!(is_local_endpoint_url("http://10.0.0.5:8080/v1/messages"));
         assert!(is_local_endpoint_url("http://172.16.0.1:8000/v1"));
         assert!(is_local_endpoint_url("http://172.31.255.254:8000/v1"));
-        // 172.32+ is NOT private
+
         assert!(!is_local_endpoint_url("http://172.32.0.1:8000/v1"));
-        // Link-local
+
         assert!(is_local_endpoint_url("http://169.254.1.1:8080/v1"));
-        // Public IPs — must NOT match
+
         assert!(!is_local_endpoint_url("http://8.8.8.8:8080/v1"));
         assert!(!is_local_endpoint_url("http://203.0.113.1:8080/v1"));
     }

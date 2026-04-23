@@ -79,10 +79,7 @@ impl DeltaAccumulator {
 
             if self.estimate_memory_usage(&map) > self.memory_watermark_bytes {
                 self.drop_oldest_pending(&mut map);
-                // Second check: if still over watermark after eviction (e.g. all
-                // entries are finished and nothing was removed), surface the error
-                // so callers can observe memory pressure rather than silently losing
-                // the new entry.
+
                 if self.estimate_memory_usage(&map) > self.memory_watermark_bytes {
                     return Err(AccumulationError::MemoryPressure);
                 }
@@ -259,11 +256,7 @@ pub enum AccumulationError {
     DuplicateId(ToolCallId),
     #[error("malformed partial json")]
     MalformedPartial,
-    /// Returned when the memory watermark is exceeded and no eligible pending
-    /// entry can be evicted (for example, all in-flight entries are already
-    /// finished). Callers should treat this as a best-effort degradation signal;
-    /// the accumulator will not panic and the caller may continue without the
-    /// new entry.
+
     #[error("memory watermark exceeded")]
     MemoryPressure,
 }
@@ -464,19 +457,14 @@ mod tests {
 
     #[test]
     fn memory_pressure_returned_when_no_pending_entry_can_be_evicted() {
-        // A 1-byte watermark ensures any single entry exceeds the limit.
         let accumulator = DeltaAccumulator::new(1);
 
-        // Insert and immediately finish one entry so it becomes ineligible for
-        // eviction (drop_oldest_pending skips finished entries).
         let id = "tx_1_aaaa".to_string();
         accumulator
             .start_tool(id.clone(), "task-wp".to_string(), "read_file".to_string())
             .unwrap();
         accumulator.finish(&id);
 
-        // A second start must observe MemoryPressure: the watermark is still
-        // exceeded after the eviction pass because no pending entry exists.
         let result = accumulator.start_tool(
             "tx_2_bbbb".to_string(),
             "task-wp".to_string(),

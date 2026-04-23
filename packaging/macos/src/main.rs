@@ -1,20 +1,3 @@
-//! macOS application launcher for vexcoder — ADR-024 Phase H (PH-01/PH-02).
-//!
-//! This binary is embedded in Vex.app at Contents/MacOS/vex-launcher.  Its
-//! sole responsibilities are:
-//!
-//!   PH-01 — Locate the bundled vex binary and open a system cli session
-//!            with it running.  The launcher exits once the cli is open;
-//!            all agent logic runs inside the spawned vex process.
-//!
-//!   PH-02 — Read VEX_MODEL_TOKEN from the macOS system keychain before
-//!            launching vex, and inject it as an environment variable so the
-//!            agent process receives the credential without it ever being
-//!            written to disk by this launcher.
-//!
-//! Phase H boundary: this file must not contain model calls, conversation
-//! state, tool dispatch, or any import from the vexcoder library crate.
-
 mod bundle;
 mod keychain;
 
@@ -29,12 +12,8 @@ fn main() {
         }
     };
 
-    // Read credential from the system keychain (PH-02).  A missing token is
-    // non-fatal: the vex binary produces its own missing-token diagnostic.
     let token = keychain::read_model_token();
 
-    // Build and exec into the cli command.  On success the exec call
-    // replaces this process image; control only returns on failure.
     let mut cmd = terminal_command(&vex_binary, token.as_deref());
 
     #[cfg(unix)]
@@ -57,13 +36,6 @@ fn main() {
     }
 }
 
-/// Builds the command that opens a cli session running the vex binary.
-///
-/// On macOS the system Terminal.app is launched via `osascript` so that the
-/// new window inherits the full GUI session context.  The launcher process
-/// exits once the AppleScript hand-off completes.
-///
-/// On other platforms (development/CI only) the binary is invoked directly.
 fn terminal_command(vex_binary: &std::path::Path, token: Option<&str>) -> process::Command {
     #[cfg(target_os = "macos")]
     {
@@ -119,8 +91,7 @@ mod tests {
     #[test]
     fn terminal_command_contains_vex_binary_path() {
         let cmd = terminal_command(Path::new("/usr/local/bin/vex"), None);
-        // On macOS the first argument to osascript should contain the binary path.
-        // On other platforms the program itself should be the binary path.
+        
         #[cfg(target_os = "macos")]
         {
             let args: Vec<_> = cmd

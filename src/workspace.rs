@@ -22,8 +22,6 @@ pub fn resolve_relative_to_workspace(start: &Path, path: PathBuf) -> PathBuf {
     }
 }
 
-/// Compute a workspace-relative path from an absolute path.
-/// Returns the path unchanged if it is not under the workspace root.
 pub fn make_relative(workspace: &Path, absolute: &Path) -> PathBuf {
     pathdiff::diff_paths(dunce::simplified(absolute), dunce::simplified(workspace))
         .unwrap_or_else(|| absolute.to_path_buf())

@@ -5,8 +5,6 @@ mod fork;
 mod permissions;
 mod runtime;
 
-// -- PI-04 / PI-05 / PJ-01 / PJ-02 ---------------------------------------
-
 #[test]
 fn test_tui_new_saves_current_state_before_reset() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -259,8 +257,6 @@ fn test_tui_resume_restores_legacy_subdir_state() {
     );
 }
 
-// -- PK-01: /quit and /exit ------------------------------------------------
-
 #[test]
 fn test_tui_quit_command_requests_quit() {
     let mut mode = TuiMode::new();
@@ -292,8 +288,6 @@ fn test_tui_exit_is_alias_for_quit() {
         "/exit must not start a model turn"
     );
 }
-
-// -- PK-02: /about ---------------------------------------------------------
 
 #[test]
 fn test_tui_about_renders_without_model_turn() {

@@ -18,8 +18,6 @@ impl ToolOperator {
         fs::read_to_string(resolved).context("Failed to read file")
     }
 
-    /// Read a file with optional line-based offset and limit to preserve
-    /// context budget on small-window servers.
     pub fn read_file_range(
         &self,
         path: &str,

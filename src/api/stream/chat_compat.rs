@@ -49,10 +49,7 @@ pub(crate) struct ChatCompatDelta {
     pub(crate) role: Option<String>,
     #[serde(default)]
     pub(crate) content: Option<String>,
-    // Some chat-compatible local runtimes emit `reasoning_content`, while
-    // others surface the same payload as `thinking`. Both are normalized to
-    // one transcript-text delta at ingress so downstream code stays
-    // protocol-agnostic.
+
     #[serde(default, alias = "thinking")]
     pub(crate) reasoning_content: Option<String>,
     #[serde(default)]

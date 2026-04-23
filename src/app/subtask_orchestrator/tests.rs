@@ -97,7 +97,6 @@ fn poll_fan_out_join_returns_none_when_tasks_are_live() {
     orc.schedule_team("parent-poll", &team, &agents, "work")
         .unwrap();
 
-    // Tasks default to Pending (active) — join should not fire.
     let outcome = orc.poll_fan_out_join("parent-poll").unwrap();
     assert!(outcome.is_none(), "expected None while tasks are active");
 }
@@ -111,7 +110,6 @@ fn poll_fan_out_join_returns_outcome_when_all_terminal() {
     orc.schedule_team("parent-done", &team, &agents, "work")
         .unwrap();
 
-    // Transition both tasks to final states.
     let mut state = TaskState::load(orc.state_dir.as_path(), "parent-done").unwrap();
     let ids: Vec<String> = state.session_tasks.iter().map(|t| t.id.clone()).collect();
     for id in &ids {
@@ -135,11 +133,9 @@ fn advance_sequential_returns_none_while_first_task_is_live() {
     let agents = vec![make_agent("alpha"), make_agent("beta")];
     let team = make_team("seq", &["alpha", "beta"], TeamScheduler::Sequential);
 
-    // Create only alpha's task (sequential first step).
     orc.schedule_team("parent-seq2", &team, &agents, "work")
         .unwrap();
 
-    // alpha is still Pending — advance should block.
     let next = orc
         .advance_sequential("parent-seq2", &team, &agents, "work")
         .unwrap();
@@ -155,13 +151,11 @@ fn advance_sequential_creates_next_task_after_first_completes() {
     orc.schedule_team("parent-seq3", &team, &agents, "work")
         .unwrap();
 
-    // Transition alpha to Completed.
     let mut state = TaskState::load(orc.state_dir.as_path(), "parent-seq3").unwrap();
     let alpha_id = state.session_tasks[0].id.clone();
     state.update_session_task_status(&alpha_id, SessionTaskStatus::Completed);
     state.save(orc.state_dir.as_path()).unwrap();
 
-    // Now advance should create beta's task.
     let next = orc
         .advance_sequential("parent-seq3", &team, &agents, "work")
         .unwrap();
@@ -182,7 +176,6 @@ fn advance_sequential_returns_none_when_all_members_done() {
     orc.schedule_team("parent-seq4", &team, &agents, "work")
         .unwrap();
 
-    // Mark alpha done, advance to create beta.
     let mut state = TaskState::load(orc.state_dir.as_path(), "parent-seq4").unwrap();
     let alpha_id = state.session_tasks[0].id.clone();
     state.update_session_task_status(&alpha_id, SessionTaskStatus::Completed);
@@ -191,7 +184,6 @@ fn advance_sequential_returns_none_when_all_members_done() {
     orc.advance_sequential("parent-seq4", &team, &agents, "work")
         .unwrap();
 
-    // Mark beta done too.
     let mut state = TaskState::load(orc.state_dir.as_path(), "parent-seq4").unwrap();
     let beta_id = state
         .session_tasks
@@ -203,7 +195,6 @@ fn advance_sequential_returns_none_when_all_members_done() {
     state.update_session_task_status(&beta_id, SessionTaskStatus::Completed);
     state.save(orc.state_dir.as_path()).unwrap();
 
-    // All done — advance should return None.
     let next = orc
         .advance_sequential("parent-seq4", &team, &agents, "work")
         .unwrap();
@@ -281,10 +272,8 @@ fn live_session_task_count_returns_correct_count() {
     orc.schedule_team("parent-count", &team, &agents, "work")
         .unwrap();
 
-    // Both tasks are Pending (active).
     assert_eq!(orc.live_session_task_count("parent-count").unwrap(), 2);
 
-    // Complete one.
     let mut state = TaskState::load(orc.state_dir.as_path(), "parent-count").unwrap();
     let first_id = state.session_tasks[0].id.clone();
     state.update_session_task_status(&first_id, SessionTaskStatus::Completed);

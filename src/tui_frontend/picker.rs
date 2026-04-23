@@ -170,8 +170,6 @@ pub fn render_file_picker_hint(
     lines.join("\n")
 }
 
-/// Parse the slash-prefix token from input (e.g. "/ed" from "/ed something").
-/// Returns `None` if the trimmed input does not start with `/`.
 pub fn slash_prefix_token(input: &str) -> Option<&str> {
     let trimmed = input.trim_start();
     if !trimmed.starts_with('/') {
@@ -228,7 +226,7 @@ pub fn apply_slash_picker_selection(editor: &mut InputEditor, command: &str) {
 pub fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
     let range =
         file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
-    // Directories (trailing /) stay open for drill-down — no trailing space.
+
     let is_directory = path.ends_with('/');
     let suffix_needs_space = !is_directory
         && editor

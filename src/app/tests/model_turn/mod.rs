@@ -6,8 +6,6 @@ mod slash_commands;
 mod tool_approval;
 mod tool_rendering;
 
-// -- changed-file tracking ---------------------------------------------------
-
 #[test]
 fn tool_call_only_marks_changed_files_after_successful_result() {
     let mut mode = TuiMode::new();
@@ -105,9 +103,6 @@ fn error_reset_clears_live_changed_file_projection() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // In the new document model in-flight changed files only exist inside an
-    // active turn.  Without a live turn the projection is always empty.
-
     mode.on_model_update(UiUpdate::Error("reset".to_string()), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
@@ -148,8 +143,6 @@ fn error_reset_records_single_error_marker_in_transcript_views() {
         state.output_rows
     );
 }
-
-// -- interrupt / feedback / quit ---------------------------------------------
 
 #[test]
 fn test_idle_interrupt_shows_feedback() {

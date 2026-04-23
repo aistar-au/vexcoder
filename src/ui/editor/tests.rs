@@ -143,8 +143,6 @@ fn visual_layout_treats_wrapped_row_start_as_current_row() {
     assert_eq!(layout.row_bounds(1), (4, 5));
 }
 
-// -- @ mention edge cases -------------------------------------------------
-
 #[test]
 fn file_mention_range_bare_at_returns_token() {
     let range = file_mention_range("@", 1).expect("bare @ is a mention");
@@ -174,13 +172,11 @@ fn file_mention_range_no_at_prefix_returns_none() {
 
 #[test]
 fn file_mention_range_at_followed_by_space_cursor_past_space() {
-    // Buffer: "@ ", cursor at 2 (after the space) — no active mention.
     assert!(file_mention_range("@ ", 2).is_none());
 }
 
 #[test]
 fn file_mention_range_at_followed_by_space_cursor_on_at() {
-    // Buffer: "@ ", cursor at 0 — still on the @ token.
     let range = file_mention_range("@ ", 0).expect("cursor on @");
     assert_eq!(range, 0..1);
 }
@@ -203,7 +199,7 @@ fn file_mention_range_at_with_path_cursor_in_middle() {
 #[test]
 fn file_mention_range_multiple_at_tokens_first() {
     let input = "@one @two @three";
-    let cursor = 2; // inside "one"
+    let cursor = 2;
     let range = file_mention_range(input, cursor).expect("first token");
     assert_eq!(&input[range], "@one");
 }
@@ -234,21 +230,19 @@ fn file_mention_range_adjacent_to_newline() {
 #[test]
 fn file_mention_range_bare_at_between_words() {
     let input = "hello @ world";
-    let cursor = 6; // on the @
+    let cursor = 6;
     let range = file_mention_range(input, cursor).expect("bare @ between words");
     assert_eq!(&input[range], "@");
 }
 
-// -- ADR-021 Item 18: buffer cap ------------------------------------------
-
 #[test]
 fn insert_str_silently_drops_input_above_cap() {
     let mut editor = InputEditor::new();
-    // Fill to exactly the cap.
+
     let filler = "x".repeat(MAX_INPUT_BYTES);
     editor.input_state.buffer = filler.clone();
     editor.input_state.cursor = MAX_INPUT_BYTES;
-    // Attempt to insert one more byte — must be silently ignored.
+
     editor.insert_str("z");
     assert_eq!(editor.input_state.buffer.len(), MAX_INPUT_BYTES);
     assert_eq!(editor.input_state.buffer, filler);
@@ -260,7 +254,7 @@ fn insert_str_allows_input_up_to_cap() {
     let filler = "x".repeat(MAX_INPUT_BYTES - 1);
     editor.input_state.buffer = filler;
     editor.input_state.cursor = MAX_INPUT_BYTES - 1;
-    // One byte below the cap — must succeed.
+
     editor.insert_str("z");
     assert_eq!(editor.input_state.buffer.len(), MAX_INPUT_BYTES);
 }

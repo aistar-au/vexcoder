@@ -4,9 +4,6 @@ use std::sync::OnceLock;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 
-// Keep markdown parser and syntax-highlighting crates localized to this file so
-// future renderer upgrades land here instead of across the UI surface.
-
 use crate::ui::tui::{
     line, span,
     style::{Color, Modifier, Style},
@@ -37,7 +34,6 @@ impl MarkdownSemanticPalette {
     }
 }
 
-/// Parse a single logical markdown row when it can be rendered as one line.
 pub fn markdown_to_inline_line(input: &str) -> Option<Line<'static>> {
     let mut lines = markdown_to_lines(input)
         .into_iter()
@@ -46,9 +42,6 @@ pub fn markdown_to_inline_line(input: &str) -> Option<Line<'static>> {
     if lines.len() == 1 { lines.pop() } else { None }
 }
 
-/// Parse a markdown string into styled ratatui `Line`s for transcript rendering.
-/// Handles headings, bold, italic, code spans, and fenced code blocks with
-/// syntax highlighting via `syntect`.
 pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
     let ss = markdown_syntax_set();
     let theme = markdown_theme();

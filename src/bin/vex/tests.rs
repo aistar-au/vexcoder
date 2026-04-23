@@ -1,5 +1,3 @@
-// Tests in this module use std::env::set_var/remove_var (unsafe in Rust 2024
-// edition) via EnvLockGuard, which serialises access with ENV_LOCK.
 #![allow(unsafe_code)]
 
 use super::{
@@ -186,8 +184,6 @@ fn startup_paste_filter_still_ignores_transcript_noise_during_startup() {
     );
 }
 
-// -- PM-01 ----------------------------------------------------------------
-
 #[test]
 fn test_recall_coordinates_flag_cli_parses_with_id() {
     let cli = Cli::parse_from(["vex", "--recall-coordinates", "task-1234"]);
@@ -197,7 +193,6 @@ fn test_recall_coordinates_flag_cli_parses_with_id() {
 
 #[test]
 fn test_recall_coordinates_flag_cli_parses_without_id() {
-    // --recall-coordinates with no argument should default to empty string (most-recent path).
     let cli = Cli::parse_from(["vex", "--recall-coordinates"]);
     assert_eq!(cli.recall_coordinates, Some(String::new()));
 }
@@ -362,8 +357,6 @@ fn task_list_noninteractive_render_keeps_line_mode_and_origin_copy() {
     );
 }
 
-// -- PM-03 ----------------------------------------------------------------
-
 #[test]
 fn test_project_map_only_flag_cli_parses() {
     let cli = Cli::parse_from(["vex", "-p", "hello world"]);
@@ -462,8 +455,6 @@ fn test_cli_rejects_obsolete_json_map_encoding_alias() {
     );
 }
 
-// -- PB-01 ----------------------------------------------------------------
-
 #[test]
 fn test_help_paths_emit_display_help_without_running_the_binary() {
     for argv in [
@@ -515,8 +506,6 @@ fn test_completions_cli_parses_powershell() {
     ));
 }
 
-// -- PB-02 ----------------------------------------------------------------
-
 #[test]
 fn test_install_hooks_cli_parses() {
     let cli = Cli::parse_from(["vex", "install-hooks"]);
@@ -531,7 +520,6 @@ fn test_doctor_cli_parses() {
 
 #[test]
 fn test_doctor_cli_rejects_obsolete_json_flag() {
-    // --json was removed from `doctor`; JSON output is selected via -m jsonl.
     assert!(Cli::try_parse_from(["vex", "doctor", "--json"]).is_err());
 }
 
@@ -543,8 +531,6 @@ fn test_privacy_cli_parses() {
 
 #[test]
 fn test_credentials_set_cli_parses_account() {
-    // --stdin and --from-env have been removed from the normalized surface;
-    // secret source is determined automatically by stdin TTY state.
     let cli = Cli::parse_from(["vex", "credentials", "set", "model-token"]);
     match cli.command {
         Some(Commands::Credentials {
@@ -558,13 +544,11 @@ fn test_credentials_set_cli_parses_account() {
 
 #[test]
 fn test_credentials_set_cli_rejects_obsolete_stdin_flag() {
-    // --stdin was removed; piped stdin is accepted automatically.
     assert!(Cli::try_parse_from(["vex", "credentials", "set", "model-token", "--stdin"]).is_err());
 }
 
 #[test]
 fn test_credentials_set_cli_rejects_obsolete_from_env_flag() {
-    // --from-env was removed from the normalized surface.
     assert!(
         Cli::try_parse_from([
             "vex",
@@ -585,8 +569,6 @@ fn test_credentials_set_cli_rejects_positional_secret() {
 
 #[test]
 fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
-    // With no stdin source and no TTY prompt available, an error is required.
-    // The error must not suggest using argv (which is not a supported source).
     let err = resolve_credentials_secret("model-token", false, None, false, |_| unreachable!())
         .unwrap_err();
     assert!(
@@ -627,8 +609,6 @@ fn test_read_secret_from_env_var_reads_named_value() {
 
 #[test]
 fn test_export_cli_parses_task_id() {
-    // --format, --output, and --force have been removed; format is controlled
-    // by -m/--set-map-encoding and output is always stdout.
     let cli = Cli::parse_from(["vex", "export", "task-123"]);
     match cli.command {
         Some(Commands::Export { task_id }) => {
@@ -640,7 +620,6 @@ fn test_export_cli_parses_task_id() {
 
 #[test]
 fn test_export_cli_rejects_obsolete_format_flag() {
-    // --format was removed; export format is now governed by -m.
     assert!(Cli::try_parse_from(["vex", "export", "task-123", "--format", "markdown"]).is_err());
 }
 
@@ -670,8 +649,6 @@ fn test_uninstall_hooks_cli_parses() {
     assert!(matches!(cli.command, Some(Commands::UninstallHooks)));
 }
 
-// -- PB-03 ----------------------------------------------------------------
-
 #[test]
 fn test_skills_list_cli_parses() {
     let cli = Cli::parse_from(["vex", "skills", "list"]);
@@ -696,11 +673,8 @@ fn test_skills_remove_cli_parses() {
     }
 }
 
-// -- PJ-04: vex init ------------------------------------------------------
-
 #[test]
 fn test_init_cli_parses() {
-    // --dir was removed; `init` always targets the current working directory.
     let cli = Cli::parse_from(["vex", "init"]);
     assert!(matches!(cli.command, Some(Commands::Init)));
 }
@@ -796,8 +770,6 @@ fn test_vex_init_writes_validate_commands_stub() {
         "validate template must not contain leading indentation"
     );
 }
-
-// -- PK-08: vex branch / vex pr-summary ------------------------------------
 
 #[tokio::test]
 async fn test_vex_branch_creates_git_branch() {

@@ -11,9 +11,6 @@ use super::{
 };
 
 impl TaskDocumentCondenser {
-    /// Produce a [`TaskState`] snapshot suitable for persistence. This is a
-    /// lossy projection: completed turns are summarised as
-    /// [`TurnEvidenceState`] records.
     pub fn persistable_snapshot(&self, doc: &TaskDocument) -> TaskState {
         let turns = doc
             .completed_turns
@@ -65,9 +62,6 @@ impl TaskDocumentCondenser {
         }
     }
 
-    /// Reconstruct a [`TaskDocument`] from a persisted [`TaskState`]. The
-    /// active turn is always absent after restore; the runtime must call
-    /// `begin_turn` once the first user message arrives.
     pub fn restore_from_snapshot(&self, snapshot: TaskState) -> TaskDocument {
         let completed_turns: Vec<TurnDocument> = snapshot
             .turns

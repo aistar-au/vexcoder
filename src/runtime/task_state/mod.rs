@@ -27,8 +27,7 @@ pub enum TaskStatus {
     Completed,
     Failed,
     Cancelled,
-    /// Headless batch run stopped because `--max-turns` was reached before the
-    /// task completed. Distinct from `Completed` so CI can treat it as failure.
+
     MaxTurnsReached,
 }
 

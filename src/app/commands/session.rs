@@ -89,15 +89,13 @@ impl TuiMode {
             })
             .unwrap_or_else(|| "project-tests".to_string())
     }
-    /// PC-01: `/model <n>` — name-only switch within the same backend/protocol.
+
     pub(crate) fn handle_model_command(&mut self, name: &str, ctx: &RuntimeContext) {
         if name.is_empty() {
             self.push_history_line(format!("[model] {}", self.model_name));
             return;
         }
-        // Models prefixed with `local/` are local-runtime-only; all other
-        // names are assumed compatible with the API backend. Reject any
-        // name that would require switching backends mid-session.
+
         let target_is_local = name.starts_with("local/");
         let current_is_local = self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
 
@@ -123,7 +121,7 @@ impl TuiMode {
         let old = std::mem::replace(&mut self.model_name, name.to_string());
         self.push_history_line(format!("[model] {} -> {}", old, self.model_name));
     }
-    /// PK-07: `/diff [--staged]` — show git diff output, capped at 200 lines.
+
     pub(crate) fn handle_diff_command(&mut self, args: &str) {
         let diff_defaults = self.context_assembler.clone();
         let max_diff_lines = diff_defaults.max_diff_lines;
@@ -300,7 +298,6 @@ impl TuiMode {
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
 
-        // Record the compaction before clearing.
         self.task_doc
             .context_compaction
             .push(ContextCompactionRecord {
@@ -354,7 +351,6 @@ impl TuiMode {
                 }
             }
             None => {
-                // File did not exist before the tool call — remove it.
                 if checkpoint.path.exists()
                     && let Err(e) = std::fs::remove_file(&checkpoint.path)
                 {
@@ -372,8 +368,6 @@ impl TuiMode {
     }
 
     pub(crate) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
-        // Persist the parent state before forking.  If this fails, abort so the
-        // parent task id is left unchanged.
         let parent_snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);
         let state_dir = TaskState::state_dir_from(&self.working_dir);
         if let Err(error) = parent_snapshot.save(&state_dir) {

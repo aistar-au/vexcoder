@@ -4,13 +4,9 @@ use std::collections::BinaryHeap;
 use std::path::Path;
 
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
-// Keep a wider ranked heap than the visible hint window so the top 12 entries
-// stay stable regardless of filesystem walk order.
+
 const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
 
-/// Directories excluded from the @ file picker.  `.github/` and `.agents/`
-/// are intentionally kept because the server works with workflow and agent
-/// configuration files inside them.
 const PICKER_EXCLUDED_PREFIXES: &[&str] = &[".git/", "target/", "node_modules/"];
 
 fn is_picker_excluded_path(entry: &str) -> bool {
@@ -56,8 +52,6 @@ impl TuiMode {
             .filter(|entry| !is_picker_excluded_path(entry))
             .collect();
 
-        // Derive directory entries from file paths so the picker shows both
-        // files and directories (ADR-032 §7).
         let mut dir_set = std::collections::BTreeSet::new();
         for entry in &entries {
             let mut path = Path::new(entry);
@@ -162,8 +156,6 @@ impl TuiMode {
         .collect()
     }
 
-    /// Returns `None`; the active-assistant-index concept has been removed.
-    /// Kept for compatibility with call sites being migrated.
     pub fn active_assistant_index(&self) -> Option<usize> {
         None
     }
@@ -308,13 +300,6 @@ impl TuiMode {
         self.file_prompt_matches_with_total(prefix).0
     }
 
-    /// List immediate children of `dir_prefix`, optionally filtered by `name_filter`.
-    ///
-    /// For `dir_prefix = "src/"` and `name_filter = ""`:
-    ///   returns `["src/app/", "src/ui/", "src/lib.rs", ...]`
-    ///
-    /// For `dir_prefix = "src/ui/"` and `name_filter = "ed"`:
-    ///   returns `["src/ui/editor.rs"]`
     fn directory_filtered_children(&self, dir_prefix: &str, name_filter: &str) -> Vec<String> {
         let filter_lower = name_filter.to_ascii_lowercase();
         let dir_lower = dir_prefix.to_ascii_lowercase();
@@ -329,15 +314,13 @@ impl TuiMode {
                 continue;
             }
 
-            // Read the immediate child: first path segment after the prefix.
             let child_end = if let Some(slash_pos) = rest.find('/') {
-                dir_prefix.len() + slash_pos + 1 // include trailing /
+                dir_prefix.len() + slash_pos + 1
             } else {
-                entry.len() // file entry: full path
+                entry.len()
             };
             let child_entry = &entry[..child_end];
 
-            // Filter on the entry's own name.
             let child_name_lower = child_entry[dir_prefix.len()..].to_ascii_lowercase();
             if !filter_lower.is_empty()
                 && !child_name_lower.starts_with(&filter_lower)
@@ -356,7 +339,6 @@ impl TuiMode {
         self.display_column_width.set(width.max(1));
     }
 
-    /// Total number of timeline entries available for selection.
     pub(super) fn timeline_entry_count(&self) -> usize {
         let (has_input, tool_count, command_sessions_len) =
             if let Some(active) = self.task_doc.active_turn.as_ref() {

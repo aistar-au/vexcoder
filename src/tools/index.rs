@@ -4,7 +4,6 @@ use std::path::Path;
 use crate::tools::operator::ToolOperator;
 use crate::tools::workspace_ignore::WorkspaceIgnore;
 
-/// Kind of a source-level item extracted by the structural index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemKind {
     Function,
@@ -38,14 +37,12 @@ impl ItemKind {
     }
 }
 
-/// A single indexed code chunk extracted from a Rust source file.
 #[derive(Debug, Clone)]
 pub struct IndexChunk {
-    /// Workspace-relative path (forward slashes).
     pub path: String,
-    /// 1-based start line.
+
     pub start_line: usize,
-    /// 1-based end line (inclusive).
+
     pub end_line: usize,
     pub kind: ItemKind,
     pub name: String,
@@ -64,8 +61,6 @@ enum SourceLanguage {
 
 impl SourceLanguage {
     fn parser_language(self) -> tree_sitter::Language {
-        // Keep tree-sitter grammar wiring in one place so grammar crate bumps
-        // only need code review in this file.
         match self {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
             Self::Python => tree_sitter_python::LANGUAGE.into(),
@@ -76,20 +71,10 @@ impl SourceLanguage {
     }
 }
 
-/// Build a structural index of all `.rs` files under `workspace_root`.
-///
-/// Walks the source tree, parses each Rust file with Tree-sitter, and extracts
-/// named items (functions, structs, enums, impls, traits, modules, consts,
-/// statics, type aliases).
-///
-/// `exclude` is a list of workspace-relative path prefixes (e.g. `"target/"`)
-/// to skip.  `max_file_size` sets the byte limit above which files are ignored.
-/// Pass `&[]` and `usize::MAX` to apply no filtering.
 pub fn build_index(workspace_root: &Path) -> Vec<IndexChunk> {
     build_index_filtered(workspace_root, &[], usize::MAX)
 }
 
-/// Like [`build_index`] but respects caller-supplied exclusion rules.
 pub fn build_index_filtered(
     workspace_root: &Path,
     exclude: &[String],
@@ -128,12 +113,10 @@ pub fn build_index_filtered(
     chunks
 }
 
-/// Re-index a single file: remove old chunks for that path and re-parse.
 pub fn update_index(index: &mut Vec<IndexChunk>, changed_path: &Path, workspace_root: &Path) {
     update_index_filtered(index, changed_path, workspace_root, &[], usize::MAX);
 }
 
-/// Re-index a single file with caller-supplied exclusion and size filters.
 pub fn update_index_filtered(
     index: &mut Vec<IndexChunk>,
     changed_path: &Path,
@@ -259,13 +242,11 @@ fn extract_rust_items(
                 scope_name.clone(),
             );
 
-            // Recurse into impl/trait/mod bodies for nested items.
             if kind == ItemKind::Impl || kind == ItemKind::Trait || kind == ItemKind::Module {
                 let scope = scope_name.as_deref();
                 extract_rust_items(child, source, rel_path, scope, chunks);
             }
         } else if kind_str == "declaration_list" {
-            // Recurse into declaration_list (body of impl/trait/mod blocks).
             extract_rust_items(child, source, rel_path, parent_scope, chunks);
         }
     }
@@ -429,9 +410,7 @@ fn push_chunk(
 }
 
 fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> String {
-    // For impl blocks, look for the type being implemented.
     if *kind == ItemKind::Impl {
-        // Try to find `type_identifier` child for `impl Foo { ... }`
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "type_identifier" || child.kind() == "generic_type" {
@@ -441,7 +420,6 @@ fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> Stri
         return "_impl".to_string();
     }
 
-    // For other items, look for the `name` field or first `identifier`/`type_identifier`.
     if let Some(name_node) = node.child_by_field_name("name") {
         return name_node.utf8_text(source).unwrap_or("_").to_string();
     }
@@ -490,7 +468,7 @@ mod tests {
         let mut chunks = Vec::new();
         parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
-        assert!(names.contains(&"Foo")); // struct + impl
+        assert!(names.contains(&"Foo"));
         assert!(names.contains(&"bar"));
         assert!(names.contains(&"baz"));
     }
@@ -599,17 +577,14 @@ mod tests {
         );
     }
 
-    /// Anchor test: `build_index_filtered` must not index files under
-    /// workspace-relative paths that appear in the exclusion list.
     #[test]
     fn test_search_config_respects_exclude_paths() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        // Create src/lib.rs — should be indexed.
+
         let src = tmp.path().join("src");
         fs::create_dir_all(&src).expect("mkdir src");
         fs::write(src.join("lib.rs"), "pub fn included_fn() {}\n").expect("write lib.rs");
 
-        // Create src/vendor/mod.rs — excluded by "src/vendor/" prefix.
         let vendor = src.join("vendor");
         fs::create_dir_all(&vendor).expect("mkdir vendor");
         fs::write(vendor.join("mod.rs"), "pub fn excluded_fn() {}\n").expect("write vendor/mod.rs");
@@ -628,10 +603,6 @@ mod tests {
         );
     }
 
-    /// Regression: exclude prefix with trailing slash must not match
-    /// directories that merely share a common stem (e.g. `"src/data/"`
-    /// must not match `"src/data_backup/lib.rs"`).  The config layer
-    /// normalizes entries to include a trailing slash.
     #[test]
     fn exclude_prefix_requires_path_boundary() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -642,7 +613,6 @@ mod tests {
         fs::write(data.join("lib.rs"), "pub fn in_data() {}\n").expect("write");
         fs::write(data_backup.join("lib.rs"), "pub fn in_data_backup() {}\n").expect("write");
 
-        // With trailing slash — only src/data/ is excluded, not src/data_backup/.
         let chunks = build_index_filtered(tmp.path(), &["src/data/".to_string()], usize::MAX);
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
         assert!(!names.contains(&"in_data"), "src/data/ must be excluded");
@@ -652,8 +622,6 @@ mod tests {
         );
     }
 
-    /// Anchor test: a file write followed by `update_index` must refresh the
-    /// index incrementally without a full rebuild.
     #[test]
     fn test_incremental_update_after_write_file() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -668,7 +636,6 @@ mod tests {
             "initial index must contain before_write"
         );
 
-        // Simulate an external file write that changes the symbol.
         fs::write(&file_path, "fn after_write() {}\n").expect("overwrite");
         update_index(&mut chunks, &file_path, tmp.path());
 
@@ -736,17 +703,14 @@ mod tests {
         );
     }
 
-    /// Anchor test: `build_index_filtered` must not index files whose byte size
-    /// exceeds the configured `max_file_size` limit.
     #[test]
     fn test_build_index_filtered_skips_oversized_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let src = tmp.path().join("src");
         fs::create_dir_all(&src).expect("mkdir");
 
-        // Small file that should be indexed.
         fs::write(src.join("small.rs"), "fn small_fn() {}\n").expect("write small.rs");
-        // Larger file (~47 bytes), will be excluded with a 30-byte cap.
+
         fs::write(
             src.join("large.rs"),
             "fn large_fn_that_is_too_big_for_this_cap() {}\n",
@@ -765,8 +729,6 @@ mod tests {
         );
     }
 
-    /// Anchor test: forcing a full reindex via the public helper must rebuild the
-    /// index from the workspace and return a non-zero chunk count.
     #[test]
     fn test_reindex_rebuilds_full_index() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -778,7 +740,6 @@ mod tests {
         )
         .expect("write");
 
-        // Build via the filtered entry-point (the same path used by force_full_reindex).
         let chunks = build_index_filtered(tmp.path(), &[], usize::MAX);
         assert!(
             !chunks.is_empty(),

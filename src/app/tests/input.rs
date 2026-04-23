@@ -97,7 +97,7 @@ fn test_input_editor_unicode_cursor_backspace_delete_safe() {
     assert_eq!(editor.input_state.buffer, "a");
 
     editor.insert_str("\u{1F600}b");
-    editor.input_state.cursor = 2; // intentionally non-boundary (inside emoji codepoint)
+    editor.input_state.cursor = 2;
     editor.delete();
     assert_eq!(editor.input_state.buffer, "ab");
 }
@@ -318,8 +318,6 @@ fn test_bang_prefix_requires_run_command_approval() {
             .any(|line| { line.contains("[tool approval requested:") })
     );
 }
-
-// -- @ mention prompt interactivity tests -------------------------------------
 
 #[test]
 fn test_bare_at_submitted_passes_through_as_literal() {
@@ -571,7 +569,6 @@ fn test_file_prompt_matches_directory_drill_down() {
     let mut mode = TuiMode::new();
     mode.working_dir = temp.path().to_path_buf();
 
-    // `src/` should show immediate children only
     let matches = mode.file_prompt_matches("src/");
     assert!(
         matches.contains(&"src/ui/".to_string()),
@@ -605,7 +602,6 @@ fn test_file_prompt_matches_directory_drill_deeper() {
     let mut mode = TuiMode::new();
     mode.working_dir = temp.path().to_path_buf();
 
-    // `src/ui/` should show files in that directory
     let matches = mode.file_prompt_matches("src/ui/");
     assert!(
         matches.contains(&"src/ui/editor.rs".to_string()),
@@ -629,7 +625,6 @@ fn test_file_prompt_matches_directory_with_filter() {
     let mut mode = TuiMode::new();
     mode.working_dir = temp.path().to_path_buf();
 
-    // `src/ui/ed` should filter to editor.rs only
     let matches = mode.file_prompt_matches("src/ui/ed");
     assert!(
         matches.contains(&"src/ui/editor.rs".to_string()),

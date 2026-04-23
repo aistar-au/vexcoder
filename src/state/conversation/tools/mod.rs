@@ -20,7 +20,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
-// Imports from extracted submodules
 use self::config::{append_capped, max_command_output_bytes};
 use self::index::{CODEBASE_INDEX, build_codebase_index, refresh_codebase_index};
 
@@ -67,8 +66,6 @@ impl ConversationManager {
         response_rx.await.unwrap_or(false)
     }
 
-    // The streamless shim keeps direct unit tests on the hook path small while
-    // production call sites route through the update-aware variant below.
     #[cfg(test)]
     pub(super) async fn execute_tool_with_timeout(
         &self,
@@ -87,13 +84,8 @@ impl ConversationManager {
         tool_timeout: Duration,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
-        // Normalize commonly-hallucinated shell tool aliases to the accepted
-        // run_command name so they all route through the approval gate (ADR-042 D5/D6).
         let name = normalize_shell_tool_alias(name);
 
-        // Defense-in-depth: reject mutating tools when the session-level tool
-        // policy restricts to read-only or chat-only mode, even if the model
-        // hallucinated a tool that was not in the schema.
         let policy = self.client.tool_policy();
         match policy {
             ToolPolicy::Chat => {
@@ -407,11 +399,6 @@ async fn execute_mcp_tool(
     }
 }
 
-/// Normalize commonly-hallucinated shell tool aliases to the accepted `run_command`
-/// name so they all pass through the defense-in-depth approval overlay (ADR-042 D5/D6).
-///
-/// Names covered: `bash`, `run_shell_command`, `execute_command`, `execute_bash`.
-/// Any other name is returned unchanged.
 fn normalize_shell_tool_alias(name: &str) -> &str {
     match name {
         "run_shell_command" | "bash" | "execute_command" | "execute_bash" => "run_command",
@@ -419,12 +406,6 @@ fn normalize_shell_tool_alias(name: &str) -> &str {
     }
 }
 
-/// Execute `run_command` as a sandboxed command session.
-///
-/// Registered in the model-facing tool schema as `run_command` (ADR-042 D5 amendment).
-/// Dispatch aliases (`bash`, `run_shell_command`, `execute_command`, `execute_bash`)
-/// are normalized to this name by `normalize_shell_tool_alias` before reaching this
-/// path, ensuring every shell call passes through the approval overlay (ADR-042 D6).
 async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
     sandbox: &ConfiguredSandbox,
@@ -597,7 +578,6 @@ fn render_command_session_command(program: &str, args: &[String]) -> String {
     command
 }
 
-// Submodules extracted from this file
 pub(crate) mod config;
 pub(crate) mod dispatch;
 pub(crate) mod formatting;
@@ -606,7 +586,6 @@ pub(crate) mod index;
 mod tests;
 pub(crate) mod validation;
 
-// Re-export all submodule items so `use super::tools::*` works for sibling modules
 pub(crate) use self::dispatch::*;
 pub(crate) use self::formatting::*;
 pub(crate) use self::index::*;

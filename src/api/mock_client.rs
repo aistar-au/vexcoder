@@ -31,16 +31,6 @@ impl MockStreamProducer for MockApiClient {
         }
         let chunks = responses_guard.remove(0);
 
-        // Process chunks lazily, one at a time, so that events from chunk N
-        // are yielded before chunk N+1 is even parsed.  This matches the
-        // timing of a real EventSource stream and allows tests to observe
-        // per-chunk event delivery.
-        //
-        // Each chunk is framed with a trailing "\n\n" when absent so that
-        // individual test response strings (which typically omit it) are
-        // treated as complete SSE events.  Tests that need to exercise
-        // split-frame parser behaviour should supply a raw "\n\n"-terminated
-        // sequence explicitly.
         let stream = stream::try_unfold(
             (
                 chunks.into_iter(),
