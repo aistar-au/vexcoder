@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-ADR files follow the format: `ADR-XXX-<slug>.md`. Open ADRs are in `adr/`; completed records are in `adr/completed/`.
+ADR files follow the format: `ADR-XXX-<slug>.md`. Records under active maintenance live in `adr/`. Implementation-complete ADRs may remain in `adr/` until archival is finished; archived completed records live in `adr/completed/`.
 
 Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 
@@ -51,7 +51,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-047 amend 04-20](ADR-047-amendment-2026-04-20.md) | RuntimeEnvelope consumer boundary | Amended |
 | [ADR-048](ADR-048-operator-permissions-overlay-and-mode-precedence.md) | Operator permissions overlay and mode precedence | Proposed |
 
-## Implementation-Complete ADRs (pending move to `completed/`)
+## Top-Level ADRs Pending Archival
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
@@ -61,7 +61,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted |
 
-## Completed ADR Records
+## Archived Completed ADR Records
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
