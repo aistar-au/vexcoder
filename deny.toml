@@ -99,6 +99,10 @@ id = "RUSTSEC-2026-0099"
 reason = "rustls-webpki 0.101.7 vulnerability (wildcard certificate name constraint bypass) pulled in transitively via hickory-resolver v0.24.4 → tokio-rustls. This codebase uses DoH only; the DNS resolution path does not verify wildcard name constraints against user-controlled certificates. Resolution: remove when hickory-resolver upgrades to rustls-webpki ≥0.102."
 
 [[advisories.ignore]]
+id = "RUSTSEC-2026-0104"
+reason = "rustls-webpki 0.101.7 reachable panic in CRL parsing via BorrowedCertRevocationList::from_der / OwnedCertRevocationList::from_der; pulled in transitively via hickory-resolver v0.24.4 → rustls v0.21.12. This codebase does not parse certificate revocation lists; the advisory explicitly states applications that do not use CRLs are not affected. The 0.103.13 fix only targets the 0.103.x branch; no 0.101.x patch exists upstream. Resolution: remove when hickory-resolver upgrades to rustls ≥0.23."
+
+[[advisories.ignore]]
 id = "RUSTSEC-2025-0012"
 reason = "backoff 0.4.0 is intentionally used for bounded local-startup connection retries on the CLI API transport path. The retry scope is local connect failures before any streaming response exists, and the dependency is not exposed across trust boundaries. Resolution: remove this exception when the requested retry lane migrates to a maintained equivalent such as backon without widening the transport surface."
 
