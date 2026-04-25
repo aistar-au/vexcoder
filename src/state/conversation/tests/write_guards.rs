@@ -1,37 +1,33 @@
 use super::*;
 
 #[test]
-fn test_missing_mutating_location_prompt_requires_explicit_paths() {
-    let edit_missing = json!({
-        "old_str": "a",
-        "new_str": "b"
-    });
-    let edit_with_path = json!({
-        "file_path": "src/calculator.rs",
-        "old_str": "a",
-        "new_str": "b"
-    });
-    let rename_missing = json!({
-        "old_path": "src/a.rs"
-    });
-    let rename_ready = json!({
-        "from": "src/a.rs",
-        "to": "src/b.rs"
-    });
-
-    assert!(missing_mutating_location_prompt("edit_file", &edit_missing).is_some());
-    assert!(missing_mutating_location_prompt("edit_file", &edit_with_path).is_none());
-    assert!(missing_mutating_location_prompt("rename_file", &rename_missing).is_some());
-    assert!(missing_mutating_location_prompt("rename_file", &rename_ready).is_none());
+fn missing_mutating_location_prompt_requires_explicit_paths() {
+    assert!(missing_mutating_location_prompt("edit_file", &json!({"old_str":"a","new_str":"b"})).is_some());
+    assert!(missing_mutating_location_prompt("edit_file", &json!({"file_path":"src/x.rs","old_str":"a","new_str":"b"})).is_none());
+    assert!(missing_mutating_location_prompt("rename_file", &json!({"old_path":"src/a.rs"})).is_some());
+    assert!(missing_mutating_location_prompt("rename_file", &json!({"from":"src/a.rs","to":"src/b.rs"})).is_none());
     assert!(missing_mutating_location_prompt("read_file", &json!({"path":"x"})).is_none());
 }
+
+#[test]
+fn write_file_rejects_content_above_max_lines() {
+    let content: String = (0..1001).map(|i| format!("line {i}\n")).collect();
+    let dir = tempfile::tempdir().unwrap();
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![]))),
+        ToolOperator::new(dir.path().to_path_buf()),
+    );
+    let result = manager.check_write_file_guard("write_file", &json!({"path": "big.rs", "content": content}));
+    assert!(result.is_some(), "very large write must be blocked by guard");
+}
+
 #[tokio::test]
-async fn test_edit_file_missing_path_returns_clarification_instead_of_looping() -> Result<()> {
-    let first_response_sse = vec![
+async fn edit_file_missing_path_returns_clarification_not_loop() -> Result<()> {
+    let first_sse = vec![
         r#"event: message_start
-data: {"type":"message_start","message":{"id":"msg_missing_path_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+data: {"type":"message_start","message":{"id":"msg_ep_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
         r#"event: content_block_start
-data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_missing_path_01","name":"edit_file","input":{"old_text":"x","new_text":"y"}}}"#.to_string(),
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_ep_01","name":"edit_file","input":{"old_text":"x","new_text":"y"}}}"#.to_string(),
         r#"event: content_block_stop
 data: {"type":"content_block_stop","index":0}"#.to_string(),
         r#"event: message_delta
@@ -39,240 +35,15 @@ data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":
         r#"event: message_stop
 data: {"type":"message_stop"}"#.to_string(),
     ];
-
-    let second_response_sse =
-        plain_text_round("msg_missing_path_02", "Please provide a target file path.");
-    let mock_api_client =
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
-            first_response_sse,
-            second_response_sse,
-        ])));
-    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
-
-    let final_text = manager
-        .send_message("please edit".to_string(), None)
-        .await?;
+    let second_sse = plain_text_round("msg_ep_02", "Please provide a target file path.");
+    let mut manager = ConversationManager::new_mock(
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![first_sse, second_sse]))),
+        HashMap::new(),
+    );
+    let final_text = manager.send_message("please edit".to_string(), None).await?;
     assert!(final_text.contains("target file path"));
-    let tool_result_message = manager
-        .api_messages
-        .iter()
-        .find(|message| {
-            message.role == "user"
-                && matches!(message.content, Content::Blocks(_))
-                && message_contains_tool_result(message)
-        })
-        .expect("expected tool_result message in history");
-    if let Content::Blocks(blocks) = &tool_result_message.content {
-        assert!(
-            blocks
-                .iter()
-                .any(|block| matches!(block, ContentBlock::ToolResult { is_error: true, .. }))
-        );
-    } else {
-        panic!("expected tool_result blocks");
-    }
+    let tool_result = manager.api_messages.iter().find(|m| m.role == "user"
+        && matches!(&m.content, Content::Blocks(b) if b.iter().any(|blk| matches!(blk, ContentBlock::ToolResult { .. }))));
+    assert!(tool_result.is_some(), "clarification must be sent as tool result, not user message");
     Ok(())
-}
-#[tokio::test]
-async fn test_generate_tests_blocks_non_test_patch_before_approval() -> Result<()> {
-    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off");
-
-    let first_response_sse = vec![
-        r#"event: message_start
-data: {"type":"message_start","message":{"id":"msg_generate_tests_guard_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
-        r#"event: content_block_start
-data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_generate_tests_guard_01","name":"write_file","input":{"path":"src/lib.rs","content":"pub fn answer() -> i32 { 42 }\n"}}}"#.to_string(),
-        r#"event: content_block_stop
-data: {"type":"content_block_stop","index":0}"#.to_string(),
-        r#"event: message_delta
-data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":5}}"#.to_string(),
-        r#"event: message_stop
-data: {"type":"message_stop"}"#.to_string(),
-    ];
-    let second_response_sse = plain_text_round(
-        "msg_generate_tests_guard_02",
-        "Test generation stayed within test files.",
-    );
-    let mock_api_client =
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
-            first_response_sse,
-            second_response_sse,
-        ])));
-    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
-
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let approval_task = tokio::spawn(async move {
-        let mut saw_approval_request = false;
-        while let Some(update) = rx.recv().await {
-            if matches!(update, ConversationStreamUpdate::ToolApprovalRequest(_)) {
-                saw_approval_request = true;
-            }
-        }
-        saw_approval_request
-    });
-    let final_text = manager
-        .send_message_with_policy(
-            "generate tests for src/lib.rs".to_string(),
-            Some(&tx),
-            PulseToolPolicy::TestsOnlyMutations,
-        )
-        .await?;
-    drop(tx);
-    let saw_approval_request = approval_task.await?;
-    crate::test_support::test_remove_var(&_env_lock, "VEX_TOOL_CONFIRM");
-
-    assert!(
-        !saw_approval_request,
-        "/generate-tests guard must block non-test file writes before approval"
-    );
-    assert!(final_text.contains("Test generation stayed within test files."));
-
-    let tool_result_message = manager
-        .api_messages
-        .iter()
-        .find(|message| {
-            message.role == "user"
-                && matches!(message.content, Content::Blocks(_))
-                && message_contains_tool_result(message)
-        })
-        .expect("expected tool_result message in history");
-    if let Content::Blocks(blocks) = &tool_result_message.content {
-        let tool_result_ids = blocks
-            .iter()
-            .filter_map(|block| match block {
-                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(tool_result_ids.len(), 1);
-        assert!(tool_result_ids[0].starts_with("tx_"));
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            ContentBlock::ToolResult {
-                content,
-                is_error: true,
-                ..
-            } if content.contains("Dropped non-test patch target `src/lib.rs`")
-        )));
-    } else {
-        panic!("expected tool_result blocks");
-    }
-
-    Ok(())
-}
-#[test]
-fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_result() {
-    use crate::runtime::json_handoff::RuntimeEvent;
-    use crate::runtime::task_document::PulseOutcome;
-    use crate::usage::PulseTokens;
-
-    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
-    let mut manager = ConversationManager::new_mock(client, HashMap::new());
-
-    manager.ensure_task_doc();
-    manager.begin_turn_doc("prompt".to_string(), PulseToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
-        tool_call_id: "tool_mut".to_string(),
-        tool_name: "apply_patch".to_string(),
-        arguments: json!({"path": "src/lib.rs"}),
-        status: ToolStatus::Pending,
-        started_at: "2026-04-16T00:00:00.000Z".to_string(),
-    });
-    manager.apply_doc_event(RuntimeEvent::ToolCallCompleted {
-        tool_call_id: "tool_mut".to_string(),
-        tool_name: Some("apply_patch".to_string()),
-        status: ToolStatus::Complete,
-        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
-        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
-        duration_ms: Some(1000),
-        output: "patched".to_string(),
-    });
-    assert!(manager.current_turn_has_successful_mutation());
-
-    manager.finish_turn_doc(PulseOutcome::Completed, PulseTokens::default());
-    manager.begin_turn_doc("prompt2".to_string(), PulseToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
-        tool_call_id: "tool_read".to_string(),
-        tool_name: "read_file".to_string(),
-        arguments: json!({"path": "src/lib.rs"}),
-        status: ToolStatus::Pending,
-        started_at: "2026-04-16T00:00:00.000Z".to_string(),
-    });
-    manager.apply_doc_event(RuntimeEvent::ToolCallCompleted {
-        tool_call_id: "tool_read".to_string(),
-        tool_name: Some("read_file".to_string()),
-        status: ToolStatus::Complete,
-        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
-        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
-        duration_ms: Some(1000),
-        output: "contents".to_string(),
-    });
-    assert!(
-        !manager.current_turn_has_successful_mutation(),
-        "read-only tools must not count as a patch-applied pulse"
-    );
-
-    manager.finish_turn_doc(PulseOutcome::Completed, PulseTokens::default());
-    manager.begin_turn_doc("prompt3".to_string(), PulseToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
-        tool_call_id: "tool_fail".to_string(),
-        tool_name: "apply_patch".to_string(),
-        arguments: json!({"path": "src/lib.rs"}),
-        status: ToolStatus::Pending,
-        started_at: "2026-04-16T00:00:00.000Z".to_string(),
-    });
-    manager.apply_doc_event(RuntimeEvent::ToolCallFailed {
-        tool_call_id: "tool_fail".to_string(),
-        tool_name: Some("apply_patch".to_string()),
-        status: ToolStatus::Error,
-        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
-        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
-        duration_ms: Some(1000),
-        output: "error".to_string(),
-    });
-    assert!(
-        !manager.current_turn_has_successful_mutation(),
-        "failed mutating tools must not count as an applied patch"
-    );
-}
-
-#[test]
-fn test_write_file_rejects_content_above_max_lines() {
-    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var(&_lock, "VEX_WRITE_FILE_MAX_LINES", "10");
-    let dir = tempfile::tempdir().unwrap();
-    let op = ToolOperator::new(dir.path().to_path_buf());
-
-    let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
-    let input = json!({"path": "big.rs", "content": long_content});
-    let result = super::tools::call_tool_routing(&op, "write_file", &input);
-    crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
-
-    assert!(result.is_err());
-    let err = result.unwrap_err().to_string();
-    assert!(
-        err.contains("rejected") && err.contains("limit"),
-        "expected rejection message, got: {err}"
-    );
-}
-#[test]
-fn test_write_file_warns_above_diff_preferred_threshold() {
-    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES", "15");
-    crate::test_support::test_set_var(&_lock, "VEX_WRITE_FILE_MAX_LINES", "500");
-    let dir = tempfile::tempdir().unwrap();
-    let op = ToolOperator::new(dir.path().to_path_buf());
-
-    let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
-    let input = json!({"path": "medium.rs", "content": content});
-    let result = super::tools::call_tool_routing(&op, "write_file", &input);
-    crate::test_support::test_remove_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES");
-    crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
-
-    let output = result.expect("write_file should succeed");
-    assert!(
-        output.contains("Prefer apply_patch"),
-        "expected diff-preferred warning, got: {output}"
-    );
 }

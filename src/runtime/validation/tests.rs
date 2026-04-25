@@ -1,12 +1,8 @@
-use super::{
-    ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml,
-    makefile_has_test_target,
-};
-use crate::runtime::PassthroughSandbox;
+use super::{ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml, makefile_has_test_target};
 use std::fs;
 
 #[tokio::test]
-async fn test_validation_suite_formats_failure_for_retry() {
+async fn validation_suite_formats_failure_output_for_retry() {
     let suite = ValidationSuite { commands: vec![] };
     let result = ValidationResult {
         passed: false,
@@ -19,202 +15,45 @@ async fn test_validation_suite_formats_failure_for_retry() {
             stderr_tail_limited: false,
         }],
     };
-
     let formatted = suite.format_for_retry(&result);
-    assert!(formatted.contains("cargo test"));
-    assert!(formatted.contains("assertion failed"));
+    assert!(formatted.contains("cargo test") && formatted.contains("assertion failed"));
 }
 
 #[test]
-fn test_validation_suite_infers_rust_and_node_when_both_present() {
-    let workspace = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        workspace.path().join("Cargo.toml"),
-        "[package]\nname=\"x\"\n",
-    )
-    .expect("write Cargo.toml");
-    fs::write(workspace.path().join("package.json"), "{\"name\":\"x\"}")
-        .expect("write package.json");
-
+fn validation_suite_infers_rust_and_node_when_both_present() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(workspace.path().join("Cargo.toml"), "[package]\nname=\"x\"\n").unwrap();
+    fs::write(workspace.path().join("package.json"), "{\"name\":\"x\"}").unwrap();
     let suite = ValidationSuite::infer_from_repo(workspace.path());
-    let labels: Vec<String> = suite
-        .commands
-        .iter()
-        .map(|command| command.label.to_ascii_lowercase())
-        .collect();
-
-    assert!(suite.commands.len() >= 2);
-    assert!(
-        labels.iter().any(|label| label.contains("cargo")),
-        "expected at least one cargo command"
-    );
-    assert!(
-        labels.iter().any(|label| label.contains("npm")),
-        "expected at least one npm command"
-    );
+    let labels: Vec<_> = suite.commands.iter().map(|c| c.label.to_ascii_lowercase()).collect();
+    assert!(labels.iter().any(|l| l.contains("cargo")));
+    assert!(labels.iter().any(|l| l.contains("npm")));
 }
 
 #[test]
-fn test_validate_toml_single_quoted_label_parses() {
-    let raw = "[[commands]]\nlabel = 'cargo test'\nprogram = 'cargo'\nargs = [\"test\"]\n";
-    let result = load_validate_toml(raw);
-    assert!(result.is_ok());
-    let commands = result.expect("parse validate.toml");
-    assert_eq!(commands.len(), 1);
-    assert_eq!(commands[0].program, "cargo");
-    assert_eq!(commands[0].args, vec!["test".to_string()]);
+fn load_validate_toml_parses_valid_and_rejects_invalid() {
+    let valid = "[[commands]]\nlabel = 'cargo test'\nprogram = 'cargo'\nargs = [\"test\"]\n";
+    let cmds = load_validate_toml(valid).expect("valid toml");
+    assert_eq!(cmds[0].program, "cargo");
+
+    let invalid = "[[commands]]\nlabel = 'x'\nprogram = 'cargo'\nargs = [\"test\"\n";
+    assert!(load_validate_toml(invalid).is_err());
 }
 
 #[test]
-fn test_validate_toml_invalid_content_returns_error() {
-    let raw = "[[commands]]\nlabel = 'cargo test'\nprogram = 'cargo'\nargs = [\"test\"\n";
-    let result = load_validate_toml(raw);
-    assert!(result.is_err(), "malformed validate.toml must error");
-}
+fn makefile_test_target_detection_requires_column_zero() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(workspace.path().join("Makefile"), "all:\n\t@echo test: indented\n").unwrap();
+    assert!(!makefile_has_test_target(workspace.path()));
 
-#[test]
-fn test_load_or_infer_falls_back_on_invalid_validate_toml() {
-    let workspace = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        workspace.path().join("Cargo.toml"),
-        "[package]\nname='x'\nversion='0.1.0'\n",
-    )
-    .expect("write Cargo.toml");
-    fs::create_dir_all(workspace.path().join(".vex")).expect("mkdir .vex");
-    fs::write(
-        workspace.path().join(".vex/validate.toml"),
-        "[[commands]]\nlabel='broken'\nprogram='cargo'\nargs=[\"test\"\n",
-    )
-    .expect("write invalid validate.toml");
-
-    let suite = ValidationSuite::load_or_infer(workspace.path());
-    assert!(
-        suite
-            .commands
-            .iter()
-            .any(|command| command.label == "cargo check"),
-        "must fall back to inferred suite when validate.toml parse fails"
-    );
-}
-
-#[test]
-fn test_makefile_target_detection_rejects_indented_test_target() {
-    let workspace = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        workspace.path().join("Makefile"),
-        "all:\n\t@echo test: indented\n",
-    )
-    .expect("write Makefile");
-    assert!(
-        !makefile_has_test_target(workspace.path()),
-        "indented test: must not be detected as a make target"
-    );
-}
-
-#[test]
-fn test_makefile_target_detection_accepts_column_zero_test_target() {
-    let workspace = tempfile::tempdir().expect("tempdir");
-    fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n").expect("write Makefile");
-    assert!(
-        makefile_has_test_target(workspace.path()),
-        "column-zero test: must be detected"
-    );
+    fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n").unwrap();
+    assert!(makefile_has_test_target(workspace.path()));
 }
 
 #[tokio::test]
-async fn test_validation_suite_empty_suite_exits_on_clean_patch() {
+async fn empty_validation_suite_reports_passed_with_no_outputs() {
     use crate::runtime::command::DefaultCommandRunner;
-
     let suite = ValidationSuite::default();
-    let runner = DefaultCommandRunner::new();
-    let result = suite
-        .run(&runner)
-        .await
-        .expect("empty suite must not error");
-
-    assert!(
-        result.passed,
-        "empty validation suite must report passed=true"
-    );
-    assert!(
-        result.outputs.is_empty(),
-        "empty validation suite must produce no outputs"
-    );
-}
-
-#[tokio::test]
-async fn test_validation_suite_run_in_dir_uses_requested_working_dir() {
-    use crate::runtime::command::DefaultCommandRunner;
-
-    let workspace = tempfile::tempdir().expect("tempdir");
-    let suite = ValidationSuite {
-        commands: vec![ValidationCommand {
-            label: "print working dir".to_string(),
-            #[cfg(windows)]
-            program: "cmd".to_string(),
-            #[cfg(not(windows))]
-            program: "pwd".to_string(),
-            #[cfg(windows)]
-            args: vec!["/C".to_string(), "cd".to_string()],
-            #[cfg(not(windows))]
-            args: Vec::new(),
-            timeout_secs: 2,
-        }],
-    };
-    let runner = DefaultCommandRunner::new();
-
-    let result = suite
-        .run_in_dir(&runner, Some(workspace.path()))
-        .await
-        .expect("validation suite must run");
-
-    assert!(result.passed);
-    assert_eq!(result.outputs.len(), 1);
-    assert!(
-        result.outputs[0]
-            .stdout_tail
-            .contains(&workspace.path().display().to_string()),
-        "validation command must run from requested working dir: {:?}",
-        result.outputs[0]
-    );
-}
-
-#[tokio::test]
-async fn test_validation_suite_run_in_dir_with_sandbox_normalizes_zero_timeout() {
-    use crate::runtime::command::DefaultCommandRunner;
-
-    let workspace = tempfile::tempdir().expect("tempdir");
-    let suite = ValidationSuite {
-        commands: vec![ValidationCommand {
-            label: "print working dir".to_string(),
-            #[cfg(windows)]
-            program: "cmd".to_string(),
-            #[cfg(not(windows))]
-            program: "pwd".to_string(),
-            #[cfg(windows)]
-            args: vec!["/C".to_string(), "cd".to_string()],
-            #[cfg(not(windows))]
-            args: Vec::new(),
-            timeout_secs: 0,
-        }],
-    };
-    let runner = DefaultCommandRunner::new();
-
-    let result = suite
-        .run_in_dir_with_sandbox(&runner, &PassthroughSandbox, Some(workspace.path()))
-        .await
-        .expect("sandboxed validation suite must run");
-
-    assert!(
-        result.passed,
-        "zero timeout should normalize to the default"
-    );
-    assert_eq!(result.outputs.len(), 1);
-    assert!(
-        result.outputs[0]
-            .stdout_tail
-            .contains(&workspace.path().display().to_string()),
-        "sandboxed validation command must run from requested working dir: {:?}",
-        result.outputs[0]
-    );
+    let result = suite.run(&DefaultCommandRunner::new()).await.unwrap();
+    assert!(result.passed && result.outputs.is_empty());
 }

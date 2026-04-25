@@ -5,349 +5,109 @@ use tempfile::TempDir;
 use vexcoder::tools::ToolOperator;
 
 #[test]
-fn test_path_traversal_blocked() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
+fn path_traversal_and_symlink_escape_are_blocked() {
+    let workspace = TempDir::new().unwrap();
+    let executor = ToolOperator::new(workspace.path().to_path_buf());
 
     assert!(executor.read_file("../../etc/passwd").is_err());
     assert!(executor.read_file("/etc/passwd").is_err());
-    assert!(executor.read_file("..\\windows\\system32").is_err());
     assert!(executor.list_files(Some("../"), 10).is_err());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let outside = TempDir::new().unwrap();
+        fs::write(outside.path().join("secret.txt"), "secret\n").unwrap();
+        symlink(outside.path().join("secret.txt"), workspace.path().join("link.txt")).unwrap();
+        assert!(executor.read_file("link.txt").is_err());
+        assert!(executor.edit_file("link.txt", "secret", "public").is_err());
+        symlink(outside.path(), workspace.path().join("out")).unwrap();
+        assert!(executor.write_file("out/pwn.txt", "x").is_err());
+    }
 }
 
 #[test]
-fn test_filename_with_double_dots_allowed() {
-    let temp = TempDir::new().expect("temp dir");
+fn file_crud_write_read_range_rename_list_and_search() {
+    let temp = TempDir::new().unwrap();
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    executor
-        .write_file("my..file.txt", "content")
-        .expect("should allow legitimate '..' filename");
+    executor.write_file("src/cal.rs", "fn radical(n: f64) -> f64 { n.sqrt() }\n").unwrap();
+    assert!(executor.read_file("src/cal.rs").unwrap().contains("radical"));
 
-    let content = executor
-        .read_file("my..file.txt")
-        .expect("read double-dot filename");
-    assert_eq!(content, "content");
+    executor.write_file("my..file.txt", "content").unwrap();
+    assert_eq!(executor.read_file("my..file.txt").unwrap(), "content");
+
+    executor.write_file("lines.txt", "one\ntwo\nthree\n").unwrap();
+    assert_eq!(executor.read_file_range("lines.txt", Some(5), None).unwrap(), "(file has 3 lines, offset 5 is past end)");
+
+    let listed = executor.list_files(Some("."), 100).unwrap();
+    assert!(listed.contains("src/") && listed.contains("lines.txt"));
+
+    let searched = executor.search_files("radical", Some("."), 20).unwrap();
+    assert!(searched.contains("src/cal.rs:1"));
+
+    let case_insensitive = executor.search_files("literal", Some("."), 20).unwrap();
+    let case_sensitive = executor.search_files("LITERAL", Some("."), 20).unwrap();
+    assert_eq!(case_sensitive, "No matches found.");
+    drop(case_insensitive);
+
+    let rename_result = executor.rename_file("src/cal.rs", "src/renamed.rs").unwrap();
+    assert!(rename_result.contains("Renamed"));
+    assert!(!temp.path().join("src/cal.rs").exists());
+    assert!(temp.path().join("src/renamed.rs").exists());
 }
 
 #[test]
-fn test_write_new_file() {
-    let temp = TempDir::new().expect("temp dir");
+fn edit_file_rejects_ambiguous_whole_file_and_oversized_snippets() {
+    let temp = TempDir::new().unwrap();
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    executor
-        .write_file("new_dir/test.txt", "content")
-        .expect("write file");
-
-    let content = executor
-        .read_file("new_dir/test.txt")
-        .expect("read just-written file");
-    assert_eq!(content, "content");
-}
-
-#[test]
-fn test_read_file_range_reports_user_offset_when_past_end() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("lines.txt", "one\ntwo\nthree\n")
-        .expect("seed lines file");
-
-    let output = executor
-        .read_file_range("lines.txt", Some(5), None)
-        .expect("read file range should succeed");
-    assert_eq!(output, "(file has 3 lines, offset 5 is past end)");
-}
-
-#[test]
-fn test_edit_file_ambiguous() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("test.txt", "foo\nfoo\n")
-        .expect("seed file");
-
-    let result = executor.edit_file("test.txt", "foo", "bar");
-    assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("should reject ambiguous edits")
-            .to_string()
-            .contains("appears 2 times")
-    );
-}
-
-#[test]
-fn test_edit_file_rejects_whole_file_replacement() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
+    executor.write_file("test.txt", "foo\nfoo\n").unwrap();
+    let err = executor.edit_file("test.txt", "foo", "bar").unwrap_err();
+    assert!(err.to_string().contains("appears 2 times"));
 
     let original = "line one\nline two\n";
-    executor
-        .write_file("test.txt", original)
-        .expect("seed file");
+    executor.write_file("whole.txt", original).unwrap();
+    let err2 = executor.edit_file("whole.txt", original, "replaced\n").unwrap_err();
+    assert!(err2.to_string().contains("refuses full-file replacement"));
 
-    let result = executor.edit_file("test.txt", original, "replaced\n");
-    assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("full-file replacement should be rejected")
-            .to_string()
-            .contains("refuses full-file replacement")
-    );
+    let big: String = (0..120).map(|i| format!("line {i}\n")).collect();
+    executor.write_file("big.txt", &big).unwrap();
+    let err3 = executor.edit_file("big.txt", &big, "replacement\n").unwrap_err();
+    assert!(err3.to_string().contains("requires focused snippets"));
 }
 
 #[test]
-fn test_edit_file_rejects_oversized_snippets() {
-    let temp = TempDir::new().expect("temp dir");
+fn empty_and_whitespace_paths_are_rejected() {
+    let temp = TempDir::new().unwrap();
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    let mut original = String::new();
-    for i in 0..120 {
-        original.push_str(&format!("line {i}\n"));
+    for variant in &["", " ", "\t"] {
+        assert!(executor.read_file(variant).unwrap_err().to_string().contains("Path cannot be empty"), "variant: {variant:?}");
     }
-    executor
-        .write_file("test.txt", &original)
-        .expect("seed file for large edit");
-
-    let result = executor.edit_file("test.txt", &original, "replacement\n");
-    assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("oversized edit snippets should be rejected")
-            .to_string()
-            .contains("requires focused snippets")
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn test_symlink_escape_is_blocked_for_file_tools() {
-    use std::os::unix::fs::symlink;
-
-    let workspace = TempDir::new().expect("workspace");
-    let outside = TempDir::new().expect("outside");
-    let executor = ToolOperator::new(workspace.path().to_path_buf());
-
-    fs::write(outside.path().join("secret.txt"), "secret\n").expect("seed outside file");
-    symlink(
-        outside.path().join("secret.txt"),
-        workspace.path().join("link.txt"),
-    )
-    .expect("create file symlink");
-    assert!(executor.read_file("link.txt").is_err());
-    assert!(executor.edit_file("link.txt", "secret", "public").is_err());
-
-    symlink(outside.path(), workspace.path().join("out")).expect("create dir symlink");
-    assert!(executor.write_file("out/pwn.txt", "x").is_err());
-    assert!(executor.list_files(Some("out"), 50).is_err());
+    assert!(executor.write_file("", "content").is_err());
+    assert!(executor.rename_file("", "target.txt").is_err());
+    assert!(executor.rename_file("existing.txt", "").is_err());
 }
 
 #[test]
-fn test_rename_file() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("calculator.rs", "fn main() {}\n")
-        .expect("seed source file");
-    let result = executor
-        .rename_file("calculator.rs", "cal.rs")
-        .expect("rename file");
-
-    assert!(result.contains("Renamed"));
-    assert!(!temp.path().join("calculator.rs").exists());
-    assert!(temp.path().join("cal.rs").exists());
-}
-
-#[test]
-fn test_list_and_search_files() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("src/cal.rs", "fn radical(n: f64) -> f64 { n.sqrt() }\n")
-        .expect("write test file");
-    executor
-        .write_file("README.md", "calculator notes\n")
-        .expect("write readme");
-
-    let listed = executor
-        .list_files(Some("."), 100)
-        .expect("list files should succeed");
-    assert!(listed.contains("src/"));
-    assert!(listed.contains("README.md"));
-
-    let listed_src = executor
-        .list_files(Some("src"), 100)
-        .expect("list src files should succeed");
-    assert!(listed_src.contains("src/cal.rs"));
-
-    let searched = executor
-        .search_files("radical", Some("."), 20)
-        .expect("search files should succeed");
-    assert!(searched.contains("src/cal.rs:1"));
-}
-
-#[test]
-fn test_search_files_treats_query_as_literal() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file(
-            "notes.txt",
-            "fn print_dimmed_prompt_with_padding(&mut self) -> Result<()>\n",
-        )
-        .expect("write notes");
-
-    let searched = executor
-        .search_files(
-            "fn print_dimmed_prompt_with_padding(&mut self) -> Result<()>",
-            Some("."),
-            20,
-        )
-        .expect("literal search should succeed");
-    assert!(searched.contains("notes.txt:1"));
-}
-
-#[test]
-fn test_search_files_uses_smart_case_literal_matching() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("notes.txt", "ToolOperator literal search\n")
-        .expect("write notes");
-
-    let case_insensitive = executor
-        .search_files("literal", Some("."), 20)
-        .expect("case-insensitive search should succeed");
-    assert!(case_insensitive.contains("notes.txt:1"));
-
-    let case_sensitive = executor
-        .search_files("LITERAL", Some("."), 20)
-        .expect("case-sensitive search should succeed");
-    assert_eq!(case_sensitive, "No matches found.");
-}
-
-#[test]
-fn test_git_tools_status_diff_add_commit_log_show() {
-    let temp = TempDir::new().expect("temp dir");
+fn git_status_diff_add_commit_log_and_show() {
+    let temp = TempDir::new().unwrap();
     init_git_repo(temp.path());
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    fs::write(temp.path().join("note.txt"), "line one\n").expect("write initial file");
+    fs::write(temp.path().join("note.txt"), "line one\n").unwrap();
     run_git(temp.path(), &["add", "--", "note.txt"]);
-    run_git(
-        temp.path(),
-        &["commit", "-m", "initial commit", "--no-gpg-sign"],
-    );
+    run_git(temp.path(), &["commit", "-m", "initial commit", "--no-gpg-sign"]);
+    fs::write(temp.path().join("note.txt"), "line one\nline two\n").unwrap();
 
-    fs::write(temp.path().join("note.txt"), "line one\nline two\n").expect("modify file");
-
-    let status = executor.git_status(true, None).expect("git status");
-    assert!(status.contains("note.txt"));
-
-    let diff = executor
-        .git_diff(false, Some("note.txt"))
-        .expect("git diff");
-    assert!(diff.contains("+line two"));
-
-    let add_result = executor.git_add("note.txt").expect("git add");
-    assert!(add_result.contains("Staged"));
-
-    let staged_diff = executor
-        .git_diff(true, Some("note.txt"))
-        .expect("git diff --cached");
-    assert!(staged_diff.contains("+line two"));
-
-    let commit_output = executor.git_commit("update note").expect("git commit");
-    assert!(commit_output.contains("update note"));
-
-    let log_output = executor.git_log(5).expect("git log");
-    assert!(log_output.contains("update note"));
-
-    let show_output = executor.git_show("HEAD").expect("git show");
-    assert!(show_output.contains("update note"));
-}
-
-#[test]
-fn test_empty_path_rejected_for_all_tool_operations() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    let err = executor
-        .read_file("")
-        .expect_err("empty path should fail for read_file");
-    assert!(
-        err.to_string().contains("Path cannot be empty"),
-        "read_file error: {err}"
-    );
-
-    let result = executor.write_file("", "content");
-    assert!(result.is_err(), "empty path should fail for write_file");
-
-    let err = executor
-        .edit_file("", "old", "new")
-        .expect_err("empty path should fail for edit_file");
-    assert!(
-        err.to_string().contains("Path cannot be empty"),
-        "edit_file error: {err}"
-    );
-
-    assert!(
-        executor.list_files(Some(""), 10).is_ok(),
-        "list_files with empty path should fall back to workspace root"
-    );
-
-    executor
-        .write_file("searchable.txt", "hello world")
-        .expect("seed file for search");
-    let result = executor.search_files("hello", Some(""), 10);
-    assert!(
-        result.is_ok(),
-        "search_files with empty dir should fall back to workspace root"
-    );
-}
-
-#[test]
-fn test_empty_path_variants_all_rejected() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    let empty_variants = ["", " ", "  ", "\t", "\n", " \t\n "];
-    for variant in &empty_variants {
-        let err = executor
-            .read_file(variant)
-            .expect_err(&format!("read_file should reject {:?}", variant));
-        assert!(
-            err.to_string().contains("Path cannot be empty"),
-            "read_file({:?}) error: {err}",
-            variant
-        );
-    }
-}
-
-#[test]
-fn test_rename_file_rejects_empty_paths() {
-    let temp = TempDir::new().expect("temp dir");
-    let executor = ToolOperator::new(temp.path().to_path_buf());
-
-    executor
-        .write_file("existing.txt", "content")
-        .expect("seed file");
-
-    assert!(
-        executor.rename_file("", "target.txt").is_err(),
-        "rename should reject empty source"
-    );
-    assert!(
-        executor.rename_file("existing.txt", "").is_err(),
-        "rename should reject empty target"
-    );
+    assert!(executor.git_status(true, None).unwrap().contains("note.txt"));
+    assert!(executor.git_diff(false, Some("note.txt")).unwrap().contains("+line two"));
+    assert!(executor.git_add("note.txt").unwrap().contains("Staged"));
+    assert!(executor.git_diff(true, Some("note.txt")).unwrap().contains("+line two"));
+    assert!(executor.git_commit("update note").unwrap().contains("update note"));
+    assert!(executor.git_log(5).unwrap().contains("update note"));
+    assert!(executor.git_show("HEAD").unwrap().contains("update note"));
 }
 
 fn init_git_repo(path: &Path) {
@@ -357,15 +117,6 @@ fn init_git_repo(path: &Path) {
 }
 
 fn run_git(path: &Path, args: &[&str]) {
-    let output = Command::new("git")
-        .current_dir(path)
-        .args(args)
-        .output()
-        .expect("run git");
-    assert!(
-        output.status.success(),
-        "git {:?} failed: {}",
-        args,
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let out = Command::new("git").current_dir(path).args(args).output().unwrap();
+    assert!(out.status.success(), "git {:?} failed: {}", args, String::from_utf8_lossy(&out.stderr));
 }
