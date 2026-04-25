@@ -457,11 +457,7 @@ mod tests {
                 ItemKind::Function,
                 "fn unrelated_util() {}",
             ),
-            make_chunk(
-                "route_request",
-                ItemKind::Function,
-                "fn route_request() {}",
-            ),
+            make_chunk("route_request", ItemKind::Function, "fn route_request() {}"),
         ];
         let results = codebase_search("ranked_handler", &index, Some(10));
         assert!(

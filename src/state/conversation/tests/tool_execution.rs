@@ -110,7 +110,7 @@ fn test_search_files_accepts_common_query_aliases() {
     std::fs::write(temp.path().join("notes.txt"), "hello alias world\n").unwrap();
     let operator = ToolOperator::new(temp.path().to_path_buf());
 
-    let result = execute_tool_dispatch(
+    let result = execute_tool_routing(
         &operator,
         "search_files",
         &json!({

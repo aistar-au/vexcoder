@@ -246,7 +246,7 @@ fn test_write_file_rejects_content_above_max_lines() {
 
     let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "big.rs", "content": long_content});
-    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::execute_tool_routing(&op, "write_file", &input);
     crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 
     assert!(result.is_err());
@@ -266,7 +266,7 @@ fn test_write_file_warns_above_diff_preferred_threshold() {
 
     let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "medium.rs", "content": content});
-    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::execute_tool_routing(&op, "write_file", &input);
     crate::test_support::test_remove_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES");
     crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 

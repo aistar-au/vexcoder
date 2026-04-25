@@ -579,14 +579,14 @@ fn render_command_session_command(program: &str, args: &[String]) -> String {
 }
 
 pub(crate) mod config;
-pub(crate) mod routing;
 pub(crate) mod formatting;
 pub(crate) mod index;
+pub(crate) mod routing;
 #[cfg(test)]
 mod tests;
 pub(crate) mod validation;
 
-pub(crate) use self::routing::*;
 pub(crate) use self::formatting::*;
 pub(crate) use self::index::*;
+pub(crate) use self::routing::*;
 pub(crate) use self::validation::*;
