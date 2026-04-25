@@ -1,6 +1,6 @@
 use super::super::stream_block::ToolStatus;
 use super::{
-    ConversationManager, ConversationStreamUpdate, TurnToolPolicy, UndoCheckpoint, streaming::*,
+    ConversationManager, ConversationStreamUpdate, PulseToolPolicy, UndoCheckpoint, streaming::*,
     tools::*,
 };
 use crate::types::{ContentBlock, StreamChunkMetadata};
@@ -121,7 +121,7 @@ impl ConversationManager {
         content: String,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
-        self.send_message_with_policy(content, stream_delta_tx, TurnToolPolicy::Default)
+        self.send_message_with_policy(content, stream_delta_tx, PulseToolPolicy::Default)
             .await
     }
 }

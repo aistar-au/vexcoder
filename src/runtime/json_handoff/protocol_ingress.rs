@@ -1,5 +1,5 @@
 use super::derived::{empty_json_object, token_usage_from_turn_tokens};
-use super::{RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext};
+use super::{RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, PulseEndContext};
 use crate::api::stream::MAX_TOOL_CALL_INDEX;
 use crate::api::stream::chat_compat::{
     ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatFunctionArguments,
@@ -8,7 +8,7 @@ use crate::api::stream::chat_compat::{
 use crate::api::stream::provider::{ProviderDelta, ProviderStreamEvent};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ApiUsage, StreamChunkMetadata};
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use opentelemetry::KeyValue;
 use opentelemetry_semantic_conventions::attribute as semconv;
 use serde::Deserialize;
@@ -19,7 +19,7 @@ pub(super) struct ProtocolIngressState {
     turn_started: bool,
 
     open_blocks: BTreeSet<usize>,
-    turn_tokens: TurnTokens,
+    turn_tokens: PulseTokens,
     chat_compat_message_started: bool,
 
     chat_compat_tool_lifecycles: BTreeMap<usize, PendingChatCompatToolState>,
@@ -180,8 +180,8 @@ impl RuntimeEnvelopeNormalizer {
             );
         }
         envelopes.extend(self.normalize_ui_update(
-            &super::UiUpdate::TurnComplete,
-            Some(TurnEndContext {
+            &super::UiUpdate::PulseComplete,
+            Some(PulseEndContext {
                 usage,
                 changed_files: Vec::new(),
             }),
@@ -304,8 +304,8 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         }
 
-        tracing::trace!(target: "vex::protocol", "protocol ingress turn started");
-        let envelope = self.start_turn(1, None);
+        tracing::trace!(target: "vex::protocol", "protocol ingress pulse started");
+        let envelope = self.start_pulse(1, None);
         self.protocol_ingress.turn_started = true;
         vec![envelope]
     }
@@ -956,7 +956,7 @@ fn token_usage_from_api_usage(usage: &ApiUsage) -> Option<super::TokenUsageEnvel
     .then_some(usage)
 }
 
-fn accumulate_turn_tokens(turn_tokens: &mut TurnTokens, usage: &ApiUsage) {
+fn accumulate_turn_tokens(turn_tokens: &mut PulseTokens, usage: &ApiUsage) {
     if let Some(input) = usage.input_tokens {
         turn_tokens.input = turn_tokens.input.saturating_add(input);
     }

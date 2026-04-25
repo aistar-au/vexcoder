@@ -50,7 +50,7 @@ they still serve renderer or envelope-projection duties.
 - `src/runtime/update.rs`
 - `src/app.rs`
 - `src/app/model_update.rs`
-- `src/app/turn.rs`
+- `src/app/pulse.rs`
 - `src/local_api.rs`
 - `src/batch_mode.rs`
 - focused tests covering conversation emission, runtime forwarding, and TUI
@@ -67,7 +67,7 @@ they still serve renderer or envelope-projection duties.
   `ContentBlock::ToolUse` input there when the accumulated JSON becomes
   parseable.
 - [x] Remove the ratatui-side `streaming_tool_input_buffers` path from
-  `src/app.rs`, `src/app/turn.rs`, and `src/app/model_update.rs`.
+  `src/app.rs`, `src/app/pulse.rs`, and `src/app/model_update.rs`.
 - [x] Keep raw `StreamBlockDelta` updates available for local envelope
   projection and renderer-oriented block handling.
 - [x] Accept both streamed JSON-string argument deltas and fully materialized

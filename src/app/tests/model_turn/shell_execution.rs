@@ -10,10 +10,10 @@ async fn test_bang_prefix_runs_without_model_turn_after_approval() {
 
     mode.on_user_input(successful_bang_input(), &mut ctx);
     assert!(mode.overlay_state.pending_approval.is_some());
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 
     mode.on_user_input("1".to_string(), &mut ctx);
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
 
     drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
 
@@ -22,7 +22,7 @@ async fn test_bang_prefix_runs_without_model_turn_after_approval() {
         !mode.command_session_active(),
         "command session completion should restore normal TUI polling"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert_eq!(ctx.test_message_count().await, initial_messages);
     assert!(
         mode.history_lines()
@@ -110,7 +110,7 @@ fn test_command_session_updates_track_matching_session() {
 
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -121,7 +121,7 @@ fn test_command_session_updates_track_matching_session() {
     );
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -135,21 +135,21 @@ fn test_command_session_updates_track_matching_session() {
         UiUpdate::CommandSessionFinished { session_id: first },
         &mut ctx,
     );
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
             .len(),
         1
     );
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -163,15 +163,15 @@ fn test_command_session_updates_track_matching_session() {
         UiUpdate::CommandSessionFinished { session_id: second },
         &mut ctx,
     );
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.command_sessions.is_empty())
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn test_command_session_started_update_creates_running_session() {
 
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -206,7 +206,7 @@ fn test_command_session_started_update_creates_running_session() {
     );
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -217,7 +217,7 @@ fn test_command_session_started_update_creates_running_session() {
     );
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -228,7 +228,7 @@ fn test_command_session_started_update_creates_running_session() {
     );
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -239,7 +239,7 @@ fn test_command_session_started_update_creates_running_session() {
     );
     assert_eq!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .unwrap()
             .command_sessions
@@ -259,19 +259,19 @@ fn test_turn_complete_waits_for_last_command_session_to_finish() {
     mode.begin_turn_capture("!echo delayed-finish".to_string());
     let session_id = mode.begin_command_session("echo delayed-finish".to_string());
 
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
-    assert!(mode.is_turn_in_progress());
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
+    assert!(mode.is_pulse_in_progress());
     assert!(mode.turn_completion_pending);
 
     mode.on_model_update(UiUpdate::CommandSessionFinished { session_id }, &mut ctx);
 
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.command_sessions.is_empty())
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert!(!mode.turn_completion_pending);
     assert_eq!(mode.task_doc.info.status, crate::runtime::TaskStatus::Ready);
 }
@@ -363,12 +363,12 @@ async fn test_bang_prefix_cancellation_completes_turn() {
 
     mode.on_user_input(input, &mut ctx);
     mode.on_user_input("1".to_string(), &mut ctx);
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
 
     mode.on_interrupt(&mut ctx);
     drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
 
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert!(
         mode.history_lines()
             .iter()

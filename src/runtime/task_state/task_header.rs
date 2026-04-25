@@ -91,7 +91,7 @@ mod tests {
     fn ignores_large_fields_without_allocating_them() {
         let dir = TempDir::new().unwrap();
         let mut big = String::from(
-            r#"{"id":"big","status":"Completed","updated_at":9,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[],"turns":["#,
+            r#"{"id":"big","status":"Completed","updated_at":9,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[],"pulses":["#,
         );
         for i in 0..100 {
             if i > 0 {

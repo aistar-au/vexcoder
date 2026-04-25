@@ -1,4 +1,4 @@
-use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
+use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, PulseToolPolicy};
 use crate::api::client::is_readonly_tool;
 use crate::config::{HookEvent, HookOnFail, SearchConfig};
 use crate::mcp::McpRegistry;
@@ -127,7 +127,7 @@ impl ConversationManager {
             let mut task = tokio::task::spawn_blocking(move || {
                 #[cfg(test)]
                 {
-                    execute_tool_blocking_with_operator(
+                    call_tool_blocking_with_operator(
                         &task_executor,
                         &task_name,
                         &task_input,
@@ -137,7 +137,7 @@ impl ConversationManager {
                 }
                 #[cfg(not(test))]
                 {
-                    execute_tool_blocking_with_operator(
+                    call_tool_blocking_with_operator(
                         &task_executor,
                         &task_name,
                         &task_input,
@@ -248,7 +248,7 @@ impl ConversationManager {
                     }
                 }
                 Err(error) => {
-                    let msg = format!("hook '{}' failed to execute", hook.command);
+                    let msg = format!("hook '{}' failed to call", hook.command);
                     match hook.on_fail {
                         HookOnFail::Abort => return Err(error).context(msg),
                         HookOnFail::Warn => {
@@ -401,7 +401,7 @@ async fn execute_mcp_tool(
 
 fn normalize_shell_tool_alias(name: &str) -> &str {
     match name {
-        "run_shell_command" | "bash" | "execute_command" | "execute_bash" => "run_command",
+        "run_shell_command" | "bash" | "call_command" | "call_bash" => "run_command",
         other => other,
     }
 }

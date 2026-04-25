@@ -2,7 +2,7 @@ use super::super::*;
 
 impl TuiMode {
     pub(crate) fn handle_edit_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
-        if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
+        if self.active_edit_loop.is_some() && self.task_doc.active_pulse.is_some() {
             self.push_history_line(
                 "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
                     .to_string(),
@@ -35,7 +35,7 @@ impl TuiMode {
         ctx.start_edit_loop(edit_loop, instruction);
     }
     pub(crate) fn handle_fix_command(&mut self, ctx: &mut RuntimeContext) {
-        if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
+        if self.active_edit_loop.is_some() && self.task_doc.active_pulse.is_some() {
             self.push_history_line(
                 "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
                     .to_string(),
@@ -101,7 +101,7 @@ impl TuiMode {
                 .cloned()
                 .or_else(|| {
                     self.task_doc
-                        .active_turn
+                        .active_pulse
                         .as_ref()?
                         .changed_files
                         .iter()

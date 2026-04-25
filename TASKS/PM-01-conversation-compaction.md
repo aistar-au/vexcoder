@@ -14,7 +14,7 @@ with every LLM request. This causes:
 1. Token usage to grow quadratically with conversation length.
 2. Context window overflow for extended sessions, forcing the user to start a
    new conversation.
-3. Increased latency per turn as payload size increases.
+3. Increased latency per pulse as payload size increases.
 
 An overflow fallback already exists via
 `ConversationManager::compact_for_context_overflow`, and compaction events are
@@ -41,8 +41,8 @@ compaction pipeline. The pipeline:
 4. Replaces older messages with a compact summary when summary generation is
    available; otherwise it falls back to the current keep-recent pruning
    behavior.
-5. Retains the most recent N turns verbatim (configurable via
-   `compaction_keep_recent`, default: 4 turns).
+5. Retains the most recent N pulses verbatim (configurable via
+   `compaction_keep_recent`, default: 4 pulses).
 
 ### Configuration surface
 
@@ -52,13 +52,13 @@ compaction pipeline. The pipeline:
 [compaction]
 enabled              = true       # default: false
 threshold_percent    = 80         # trigger at 80% of context window
-keep_recent_turns    = 4          # always keep last 4 turns verbatim
+keep_recent_turns    = 4          # always keep last 4 pulses verbatim
 summary_max_tokens   = 1024       # max tokens for the summary message
 ```
 
 ### Execution contract
 
-- Compaction runs between turns, never mid-tool-call.
+- Compaction runs between pulses, never mid-tool-call.
 - Summary material replaces the compacted prefix while preserving the
    MessagesV1 invariant that history still begins with a plain user message.
 - Original messages are not deleted from the on-disk session log (only from
@@ -91,7 +91,7 @@ summary_max_tokens   = 1024       # max tokens for the summary message
    config layers.
 2. When `enabled = true` and token count exceeds threshold, older messages are
    replaced with a summary.
-3. Most recent `keep_recent_turns` turns are preserved verbatim.
+3. Most recent `keep_recent_turns` pulses are preserved verbatim.
 4. Summary is generated via a dedicated LLM call with a fixed prompt.
 5. If summarization fails, conversation continues with full history.
 6. Existing overflow fallback remains available as a last resort.

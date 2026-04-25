@@ -50,8 +50,8 @@ fn test_tui_new_creates_fresh_task_id() {
         "/new must assign a new task-id"
     );
     assert!(
-        !mode.is_turn_in_progress(),
-        "/new must not leave a stale turn active"
+        !mode.is_pulse_in_progress(),
+        "/new must not leave a stale pulse active"
     );
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
@@ -67,7 +67,7 @@ fn test_tui_new_clears_active_edit_loop() {
     mode.on_user_input("/new".to_string(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
+        !mode.is_pulse_in_progress(),
         "/new must clear active edit-loop state"
     );
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
@@ -84,7 +84,7 @@ fn test_tui_resume_restores_active_grants() {
         crate::runtime::Capability::ApplyPatch,
         crate::runtime::ApprovalScope::Session,
     );
-    saved.turns.push(crate::turn_evidence::TurnEvidenceState {
+    saved.pulses.push(crate::pulse_evidence::TurnEvidenceState {
         input: "prior work".to_string(),
         response: "done".to_string(),
         changed_files: vec!["src/app.rs".to_string()],
@@ -202,8 +202,8 @@ fn test_tui_resume_does_not_restore_conversation() {
         "/resume must clear prior transcript state"
     );
     assert!(
-        !mode.is_turn_in_progress(),
-        "/resume must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/resume must not start a model pulse"
     );
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
@@ -268,8 +268,8 @@ fn test_tui_quit_command_requests_quit() {
         "/quit must set quit_requested immediately"
     );
     assert!(
-        mode.task_doc.active_turn.is_none(),
-        "/quit must not start a model turn"
+        mode.task_doc.active_pulse.is_none(),
+        "/quit must not start a model pulse"
     );
 }
 
@@ -284,8 +284,8 @@ fn test_tui_exit_is_alias_for_quit() {
         "/exit must behave identically to /quit"
     );
     assert!(
-        mode.task_doc.active_turn.is_none(),
-        "/exit must not start a model turn"
+        mode.task_doc.active_pulse.is_none(),
+        "/exit must not start a model pulse"
     );
 }
 
@@ -296,8 +296,8 @@ fn test_tui_about_renders_without_model_turn() {
 
     mode.on_user_input("/about".to_string(), &mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_none(),
-        "/about must not start a model turn"
+        mode.task_doc.active_pulse.is_none(),
+        "/about must not start a model pulse"
     );
     let has_version = mode.history_lines().iter().any(|l| l.starts_with("vex "));
     assert!(has_version, "/about must render version line");

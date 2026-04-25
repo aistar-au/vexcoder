@@ -449,16 +449,16 @@ fn assert_batch_jsonl_response(output_lines: &[String], expected_response: &str)
     assert_eq!(
         output_lines.len(),
         2,
-        "expected one turn record and one summary"
+        "expected one pulse record and one summary"
     );
 
     let turn_record: Value =
-        serde_json::from_str(&output_lines[0]).expect("turn record should be valid JSON");
+        serde_json::from_str(&output_lines[0]).expect("pulse record should be valid JSON");
     assert_eq!(
         turn_record.get("response").and_then(Value::as_str),
         Some(expected_response)
     );
-    assert_eq!(turn_record.get("turn").and_then(Value::as_u64), Some(1));
+    assert_eq!(turn_record.get("pulse").and_then(Value::as_u64), Some(1));
 
     let summary_record: Value =
         serde_json::from_str(&output_lines[1]).expect("summary record should be valid JSON");
@@ -537,7 +537,7 @@ async fn test_stalled_stream_chat_compat_falls_back_to_non_stream_json() {
     )));
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
+        RuntimeEvent::PulseEnd { status, usage: Some(usage), .. }
             if status == "completed" && usage.input == 9 && usage.output == 3
     )));
 
@@ -595,7 +595,7 @@ async fn test_stalled_stream_messages_v1_falls_back_to_non_stream_json() {
     )));
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd { status, usage: Some(usage), .. }
+        RuntimeEvent::PulseEnd { status, usage: Some(usage), .. }
             if status == "completed" && usage.input == 9 && usage.output == 3
     )));
 
@@ -970,8 +970,8 @@ async fn test_stalled_stream_chat_compat_empty_string_content_produces_turn_end(
     assert!(
         envelopes
             .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::TurnEnd { .. })),
-        "empty-string content fallback must emit TurnEnd; got {:?}",
+            .any(|e| matches!(&e.event, RuntimeEvent::PulseEnd { .. })),
+        "empty-string content fallback must emit PulseEnd; got {:?}",
         envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
     assert!(
@@ -1003,8 +1003,8 @@ async fn test_stalled_stream_chat_compat_null_content_no_tools_produces_turn_end
     assert!(
         envelopes
             .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::TurnEnd { .. })),
-        "null-no-tools fallback must emit TurnEnd; got {:?}",
+            .any(|e| matches!(&e.event, RuntimeEvent::PulseEnd { .. })),
+        "null-no-tools fallback must emit PulseEnd; got {:?}",
         envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
     assert!(

@@ -76,8 +76,8 @@ fn test_tui_fork_does_not_copy_conversation() {
         "/fork must clear prior transcript state"
     );
     assert!(
-        !mode.is_turn_in_progress(),
-        "/fork must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/fork must not start a model pulse"
     );
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }

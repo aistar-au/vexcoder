@@ -87,7 +87,7 @@ ADR-041 D15 (word-wrap plain-text rows to display width, `expand_rows_for_displa
 `transcript_window_rows`) merged in PR #333 on 2026-04-04.
 ADR-041 D17-D22 (host scrollback sink abstraction, committed/live viewport
 split, restricted main-surface scroll state, width-aware wrapping for new
-rendering paths, turn-boundary reset semantics, idle u16 cap removal) defined
+rendering paths, pulse-boundary reset semantics, idle u16 cap removal) defined
 in the 2026-04-08 ADR amendment; initial wiring landed in PR #363 and resize
 hardening plus ratatui `scrolling-regions` enablement landed in PR #364.
 
@@ -218,7 +218,7 @@ Concrete targets (6 display-facing strings across 3 files):
 | :--- | :--- | :--- |
 | `src/app/commands/mod.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
 | `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
-| `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
+| `src/app/input.rs` | 2 | `busy` -> `occupied` in pulse-in-progress status lines |
 
 Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
 contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
@@ -315,15 +315,15 @@ would duplicate traversal logic.
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
 | PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
-| PM-01 | `work/vexcoder-conversation-compaction` | #271 | **Merged** | In-memory summarization of older turns when token count exceeds threshold |
+| PM-01 | `work/vexcoder-conversation-compaction` | #271 | **Merged** | In-memory summarization of older pulses when token count exceeds threshold |
 | PM-02 | `work/vexcoder-undo-checkpoints` | #272 | **Merged** | `/undo` slash command and per-change checkpoint stack |
 | PM-03 | `work/vexcoder-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
-| PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
+| PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation pulses |
 | ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
 | ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
 | ADR-041-D17D22 | PR #363 / #364 | #363, #364 | **Merged** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus inline viewport wiring, ratatui `scrolling-regions` enablement, and resize hardening for committed-history insertion |
 
-Each branch had a task manifest in `TASKS/` defining scope, constraints, and anchor tests.
+Each branch had a task checklist in `TASKS/` defining scope, constraints, and anchor tests.
 
 ---
 

@@ -15,7 +15,7 @@ data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"
         .process(chunk)
         .expect("message_start event should parse");
     assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(&events[0].event, RuntimeEvent::PulseStart { .. }));
     assert!(matches!(
         &events[1].event,
         RuntimeEvent::UsageUpdated { usage } if usage.input == 25 && usage.output == 1
@@ -34,7 +34,7 @@ data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":
         .process(chunk)
         .expect("message_delta event should parse");
     assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(&events[0].event, RuntimeEvent::PulseStart { .. }));
     assert!(matches!(
         &events[1].event,
         RuntimeEvent::UsageUpdated { usage } if usage.output == 15
@@ -55,7 +55,7 @@ data: {"type":"content_block_start","index":0,"content_block":{"type":"text","te
     assert_eq!(start_events.len(), 2);
     assert!(matches!(
         &start_events[0].event,
-        RuntimeEvent::TurnStart { .. }
+        RuntimeEvent::PulseStart { .. }
     ));
     assert!(matches!(
         &start_events[1].event,
@@ -91,7 +91,7 @@ fn test_fragmented_events() {
         b"_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\n\n";
     let events2 = parser.process(chunk2).expect("second chunk parse");
     assert_eq!(events2.len(), 3);
-    assert!(matches!(&events2[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(&events2[0].event, RuntimeEvent::PulseStart { .. }));
     assert!(matches!(
         &events2[1].event,
         RuntimeEvent::TranscriptBlockStart {
@@ -131,7 +131,7 @@ fn test_partial_json_delta_is_parsed() {
     assert_eq!(start_events.len(), 3);
     assert!(matches!(
         &start_events[0].event,
-        RuntimeEvent::TurnStart { .. }
+        RuntimeEvent::PulseStart { .. }
     ));
     assert!(matches!(
         &start_events[1].event,
@@ -175,7 +175,7 @@ fn test_chat_compat_tool_call_stream_maps_to_runtime_events() {
         .process(chunk1)
         .expect("chat-compat content delta should parse");
     assert_eq!(events1.len(), 4);
-    assert!(matches!(&events1[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(&events1[0].event, RuntimeEvent::PulseStart { .. }));
     assert!(matches!(
         &events1[1].event,
         RuntimeEvent::ServerMetadata { metadata }

@@ -11,7 +11,7 @@ async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
     rebuild_codebase_index_for_tests(temp.path());
 
     let operator = ToolOperator::new(temp.path().to_path_buf());
-    let before = execute_tool_routing(
+    let before = call_tool_routing(
         &operator,
         "codebase_search",
         &json!({
@@ -21,7 +21,7 @@ async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
     )?;
     assert!(before.contains("src/old_name.rs:1-1"));
 
-    let rename_result = execute_tool_routing(
+    let rename_result = call_tool_routing(
         &operator,
         "rename_file",
         &json!({
@@ -31,7 +31,7 @@ async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
     )?;
     assert!(rename_result.contains("Renamed src/old_name.rs -> src/new_name.rs"));
 
-    let after = execute_tool_routing(
+    let after = call_tool_routing(
         &operator,
         "codebase_search",
         &json!({

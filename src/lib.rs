@@ -34,7 +34,7 @@ pub mod tool_preview;
 pub mod tools;
 pub mod tui_frontend;
 pub mod tui_handle;
-pub mod turn_evidence;
+pub mod pulse_evidence;
 pub mod types;
 pub mod ui;
 pub mod usage;

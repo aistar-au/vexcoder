@@ -1,17 +1,17 @@
 use crate::runtime::CommandEvidence;
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TurnEvidenceRecord {
-    pub turn: usize,
+    pub pulse: usize,
     pub input: String,
     pub response: String,
     pub instructions_path: Option<String>,
     pub changed_files: Vec<String>,
     pub command_history: Vec<CommandEvidence>,
-    pub tokens: TurnTokens,
+    pub tokens: PulseTokens,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,15 +45,15 @@ pub struct TurnEvidenceState {
     #[serde(default)]
     pub tool_invocations: Vec<ToolInvocationSummary>,
     #[serde(default)]
-    pub tokens: TurnTokens,
+    pub tokens: PulseTokens,
 }
 
-pub fn normalize_tool_invocation_step_ids(turns: &mut [TurnEvidenceState]) {
+pub fn normalize_tool_invocation_step_ids(pulses: &mut [TurnEvidenceState]) {
     let mut next_step_id = 1_u64;
     let mut seen = HashSet::new();
 
-    for turn in turns {
-        for invocation in &mut turn.tool_invocations {
+    for pulse in pulses {
+        for invocation in &mut pulse.tool_invocations {
             if invocation.step_id == 0 || !seen.insert(invocation.step_id) {
                 while !seen.insert(next_step_id) {
                     next_step_id = next_step_id.saturating_add(1);
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn normalize_tool_invocation_step_ids_backfills_missing_and_duplicate_values() {
-        let mut turns = vec![
+        let mut pulses = vec![
             TurnEvidenceState {
                 input: "one".to_string(),
                 response: String::new(),
@@ -196,10 +196,10 @@ mod tests {
             },
         ];
 
-        normalize_tool_invocation_step_ids(&mut turns);
+        normalize_tool_invocation_step_ids(&mut pulses);
 
-        assert_eq!(turns[0].tool_invocations[0].step_id, 1);
-        assert_eq!(turns[0].tool_invocations[1].step_id, 2);
-        assert_eq!(turns[1].tool_invocations[0].step_id, 3);
+        assert_eq!(pulses[0].tool_invocations[0].step_id, 1);
+        assert_eq!(pulses[0].tool_invocations[1].step_id, 2);
+        assert_eq!(pulses[1].tool_invocations[0].step_id, 3);
     }
 }

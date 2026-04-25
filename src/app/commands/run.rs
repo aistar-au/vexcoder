@@ -120,7 +120,7 @@ impl TuiMode {
         self.push_history_line(format!("[{label}] {summary}"));
     }
     pub(crate) fn handle_context_command(&mut self, ctx: &RuntimeContext) {
-        let turns = if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
+        let pulses = if self.active_edit_loop.is_some() && self.task_doc.active_pulse.is_some() {
             "1".to_string()
         } else {
             "\u{2014}".to_string()
@@ -144,7 +144,7 @@ impl TuiMode {
         self.push_history_line(format!("  profile   : {profile_name}"));
         self.push_history_line(format!("  task      : {}", self.task_doc.info.id));
         self.push_history_line(format!("  status    : {:?}", self.task_doc.info.status));
-        self.push_history_line(format!("  turns     : {turns}"));
+        self.push_history_line(format!("  pulses     : {pulses}"));
         self.push_history_line(format!("  files     : {files}"));
         self.push_history_line(format!("  git       : {git_summary}"));
         self.push_history_line(format!(

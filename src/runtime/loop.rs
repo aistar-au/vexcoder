@@ -108,7 +108,7 @@ mod tests {
             self.interrupt_calls += 1;
         }
 
-        fn is_turn_in_progress(&self) -> bool {
+        fn is_pulse_in_progress(&self) -> bool {
             false
         }
     }

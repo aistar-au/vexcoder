@@ -61,12 +61,12 @@ async fn test_model_does_not_start_turn() {
     let initial_messages = ctx.test_message_count().await;
 
     mode.on_user_input("/model".to_string(), &mut ctx);
-    assert!(!mode.is_turn_in_progress(), "/model must not start a turn");
+    assert!(!mode.is_pulse_in_progress(), "/model must not start a pulse");
 
     mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
     assert!(
-        !mode.is_turn_in_progress(),
-        "/model <n> must not start a turn"
+        !mode.is_pulse_in_progress(),
+        "/model <n> must not start a pulse"
     );
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
@@ -194,8 +194,8 @@ async fn test_tui_diff_does_not_start_model_turn() {
     mode.on_user_input("/diff".to_string(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
-        "/diff must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/diff must not start a model pulse"
     );
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
@@ -210,7 +210,7 @@ fn test_tui_edit_command_starts_edit_loop() {
         "/edit must set active_edit_loop"
     );
     assert!(
-        mode.is_turn_in_progress(),
+        mode.is_pulse_in_progress(),
         "/edit must mark turn_in_progress"
     );
 }
@@ -247,7 +247,7 @@ fn test_tui_fix_without_prior_loop_emits_guidance() {
             .any(|l| l.contains("[no recent validation failure in this session")),
         "expected guidance message when no prior loop exists"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -276,7 +276,7 @@ fn test_tui_edit_empty_instruction_emits_usage() {
             .any(|l| l.contains("[edit] usage: /edit <instruction>")),
         "expected usage hint when /edit called without instruction"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert!(mode.active_edit_loop.is_none());
 }
 
@@ -294,11 +294,11 @@ fn test_tui_edit_loop_completion_clears_busy_state() {
         &mut ctx,
     );
 
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.contains("[edit loop reached max turns]")),
+            .any(|line| line.contains("[edit loop reached max pulses]")),
         "expected loop completion summary"
     );
 }
@@ -397,13 +397,13 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
     mode.on_user_input("/explain src/app.rs".to_string(), &mut ctx);
     assert!(
         mode.read_only_turn_active,
-        "/explain must mark the active turn as read-only"
+        "/explain must mark the active pulse as read-only"
     );
 
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
     assert!(
         !mode.read_only_turn_active,
-        "turn completion must clear the read-only turn indicator"
+        "pulse completion must clear the read-only pulse indicator"
     );
 
     let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -419,11 +419,11 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
     let mut response_rx = Box::pin(response_rx);
     assert!(
         response_rx.as_mut().now_or_never().is_none(),
-        "normal turns must keep approval unresolved until operator input"
+        "normal pulses must keep approval unresolved until operator input"
     );
     assert!(
         mode.overlay_state.pending_approval.is_some(),
-        "normal turns must restore the approval overlay"
+        "normal pulses must restore the approval overlay"
     );
 }
 
@@ -492,7 +492,7 @@ async fn test_tui_review_base_flag_validates_ref() {
                 && prompt.contains("tracked.txt")
                 && prompt.contains("+changed")
         }),
-        "/review --base must start a turn with the requested diff"
+        "/review --base must start a pulse with the requested diff"
     );
 }
 
@@ -516,8 +516,8 @@ async fn test_tui_review_invalid_ref_emits_error_no_turn() {
             .any(|line| line == "[review: invalid base ref 'missing-ref']")
     );
     assert!(
-        !mode.is_turn_in_progress(),
-        "invalid /review base refs must not start a turn"
+        !mode.is_pulse_in_progress(),
+        "invalid /review base refs must not start a pulse"
     );
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
@@ -538,7 +538,7 @@ async fn test_tui_review_mutual_exclusion_base_and_files() {
             .iter()
             .any(|line| line == "[review: --base and --files are mutually exclusive]")
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
 

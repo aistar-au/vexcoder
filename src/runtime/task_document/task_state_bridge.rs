@@ -3,25 +3,25 @@ use std::collections::HashMap;
 use crate::runtime::ModelBackendKind;
 use crate::runtime::task_state::{CacheUsageStats, ConversationCheckpoint, TaskState};
 use crate::state::ToolStatus;
-use crate::turn_evidence::{ToolInvocationSummary, TurnEvidenceState};
+use crate::pulse_evidence::{ToolInvocationSummary, TurnEvidenceState};
 
 use super::{
     AssistantBlockEntry, AssistantPhase, TaskDocument, TaskDocumentCondenser, TaskInfo,
-    TurnDocument, TurnEntry, TurnOutcome,
+    TurnDocument, PulseEntry, PulseOutcome,
 };
 
 impl TaskDocumentCondenser {
     pub fn persistable_snapshot(&self, doc: &TaskDocument) -> TaskState {
-        let turns = doc
+        let pulses = doc
             .completed_turns
             .iter()
-            .map(|turn| TurnEvidenceState {
-                input: turn.input.clone(),
-                response: extract_final_text(&turn.entries),
-                changed_files: turn.changed_files.clone(),
-                command_history: turn.command_history.clone(),
-                tool_invocations: extract_tool_invocations(&turn.entries),
-                tokens: turn.tokens,
+            .map(|pulse| TurnEvidenceState {
+                input: pulse.input.clone(),
+                response: extract_final_text(&pulse.entries),
+                changed_files: pulse.changed_files.clone(),
+                command_history: pulse.command_history.clone(),
+                tool_invocations: extract_tool_invocations(&pulse.entries),
+                tokens: pulse.tokens,
             })
             .collect();
 
@@ -39,12 +39,12 @@ impl TaskDocumentCondenser {
             changed_files: doc
                 .completed_turns
                 .iter()
-                .flat_map(|turn| turn.changed_files.iter().map(std::path::PathBuf::from))
+                .flat_map(|pulse| pulse.changed_files.iter().map(std::path::PathBuf::from))
                 .collect(),
             command_history: doc
                 .completed_turns
                 .iter()
-                .flat_map(|turn| turn.command_history.iter().cloned())
+                .flat_map(|pulse| pulse.command_history.iter().cloned())
                 .collect(),
             conversation_snapshot: ConversationCheckpoint {
                 message_count: doc.completed_turns.len(),
@@ -53,7 +53,7 @@ impl TaskDocumentCondenser {
             interrupted_sessions: Vec::new(),
             branch_name: doc.info.branch_name.clone(),
             instructions_path: doc.info.instructions_path.clone(),
-            turns,
+            pulses,
             plan: None,
             session_notes: doc.session_notes.clone(),
             context_compaction: doc.context_compaction.clone(),
@@ -64,14 +64,14 @@ impl TaskDocumentCondenser {
 
     pub fn restore_from_snapshot(&self, snapshot: TaskState) -> TaskDocument {
         let completed_turns: Vec<TurnDocument> = snapshot
-            .turns
+            .pulses
             .iter()
             .enumerate()
             .map(|(turn_index, evidence)| TurnDocument {
                 turn_index,
                 input: evidence.input.clone(),
                 entries: entries_from_evidence(turn_index as u64, evidence),
-                outcome: TurnOutcome::Completed,
+                outcome: PulseOutcome::Completed,
                 changed_files: evidence.changed_files.clone(),
                 command_history: evidence.command_history.clone(),
                 tokens: evidence.tokens,
@@ -84,7 +84,7 @@ impl TaskDocumentCondenser {
 
         let next_step_id = completed_turns
             .iter()
-            .flat_map(|turn| turn.entries.iter())
+            .flat_map(|pulse| pulse.entries.iter())
             .map(entry_step_id)
             .max()
             .unwrap_or(0)
@@ -109,7 +109,7 @@ impl TaskDocumentCondenser {
                 next_step_id,
             },
             completed_turns,
-            active_turn: None,
+            active_pulse: None,
             session_notes: snapshot.session_notes,
             context_compaction: snapshot.context_compaction,
             session_tasks: snapshot.session_tasks,
@@ -118,11 +118,11 @@ impl TaskDocumentCondenser {
     }
 }
 
-fn extract_final_text(entries: &[TurnEntry]) -> String {
+fn extract_final_text(entries: &[PulseEntry]) -> String {
     entries
         .iter()
         .filter_map(|entry| {
-            if let TurnEntry::AssistantBlock { block, .. } = entry
+            if let PulseEntry::AssistantBlock { block, .. } = entry
                 && block.phase == AssistantPhase::Final
             {
                 return Some(block.content.as_str());
@@ -133,13 +133,13 @@ fn extract_final_text(entries: &[TurnEntry]) -> String {
         .join("")
 }
 
-fn extract_tool_invocations(entries: &[TurnEntry]) -> Vec<ToolInvocationSummary> {
+fn extract_tool_invocations(entries: &[PulseEntry]) -> Vec<ToolInvocationSummary> {
     let mut tool_calls = HashMap::new();
     let mut invocations = Vec::new();
 
     for entry in entries {
         match entry {
-            TurnEntry::ToolCall {
+            PulseEntry::ToolCall {
                 step_id,
                 id,
                 name,
@@ -148,7 +148,7 @@ fn extract_tool_invocations(entries: &[TurnEntry]) -> Vec<ToolInvocationSummary>
             } => {
                 tool_calls.insert(id.clone(), (*step_id, name.clone(), status.clone()));
             }
-            TurnEntry::ToolResult {
+            PulseEntry::ToolResult {
                 tool_call_id,
                 output,
                 is_error,
@@ -177,18 +177,18 @@ fn extract_tool_invocations(entries: &[TurnEntry]) -> Vec<ToolInvocationSummary>
     invocations
 }
 
-fn entries_from_evidence(base_step: u64, evidence: &TurnEvidenceState) -> Vec<TurnEntry> {
+fn entries_from_evidence(base_step: u64, evidence: &TurnEvidenceState) -> Vec<PulseEntry> {
     let mut entries = Vec::new();
     let mut step = base_step.saturating_mul(1000);
 
-    entries.push(TurnEntry::UserInput {
+    entries.push(PulseEntry::UserInput {
         step_id: step,
         text: evidence.input.clone(),
     });
     step = step.saturating_add(1);
 
     if !evidence.response.is_empty() {
-        entries.push(TurnEntry::AssistantBlock {
+        entries.push(PulseEntry::AssistantBlock {
             step_id: step,
             block: AssistantBlockEntry {
                 block_index: 0,
@@ -205,7 +205,7 @@ fn entries_from_evidence(base_step: u64, evidence: &TurnEvidenceState) -> Vec<Tu
         let step_id = invocation.step_id.max(step);
         step = step_id;
 
-        entries.push(TurnEntry::ToolCall {
+        entries.push(PulseEntry::ToolCall {
             step_id,
             id: format!("restored-{}", invocation.step_id),
             name: invocation.name.clone(),
@@ -254,15 +254,15 @@ fn tool_status_from_outcome(outcome: &str) -> ToolStatus {
     }
 }
 
-fn entry_step_id(entry: &TurnEntry) -> u64 {
+fn entry_step_id(entry: &PulseEntry) -> u64 {
     match entry {
-        TurnEntry::UserInput { step_id, .. }
-        | TurnEntry::AssistantBlock { step_id, .. }
-        | TurnEntry::ToolCall { step_id, .. }
-        | TurnEntry::ToolResult { step_id, .. }
-        | TurnEntry::ApprovalRequest { step_id, .. }
-        | TurnEntry::ApprovalResolved { step_id, .. }
-        | TurnEntry::CommandSession { step_id, .. }
-        | TurnEntry::SystemNotice { step_id, .. } => *step_id,
+        PulseEntry::UserInput { step_id, .. }
+        | PulseEntry::AssistantBlock { step_id, .. }
+        | PulseEntry::ToolCall { step_id, .. }
+        | PulseEntry::ToolResult { step_id, .. }
+        | PulseEntry::ApprovalRequest { step_id, .. }
+        | PulseEntry::ApprovalResolved { step_id, .. }
+        | PulseEntry::CommandSession { step_id, .. }
+        | PulseEntry::SystemNotice { step_id, .. } => *step_id,
     }
 }

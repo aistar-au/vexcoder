@@ -54,7 +54,7 @@ Full policy and progressive-adoption guide: `docs/src/linting.md`.
 - Keep direct dependency version requirements centralized in the root
   `[workspace.dependencies]` table and inherit them with `workspace = true`
   where possible. This is the single source of truth for every version
-  requirement; future bumps touch one line, not N crate manifests.
+  requirement; future bumps touch one line, not N crate checklists.
 - When a dependency bump needs Rust source edits, consult
   `[workspace.metadata.upgrade-seams]` and `[workspace.metadata.upgrade-notes]`
   in the root `Cargo.toml` first. Those tables are the reviewed map of which
@@ -64,7 +64,7 @@ Full policy and progressive-adoption guide: `docs/src/linting.md`.
   to confirm the new crate's license is on the allow-list in `deny.toml`.
 - Follow the workspace's existing version convention (semver ranges such as
   `"1"` or `"0.8"`). Rely on `Cargo.lock` and CI to detect breakage.
-- Use `cargo upgrade` to change manifest requirements and `cargo update` to
+- Use `cargo upgrade` to change checklist requirements and `cargo update` to
   refresh `Cargo.lock`; they solve different parts of an upgrade and must not
   be confused. `cargo update` alone never changes `Cargo.toml`.
 - Run `make deps-deny` (cargo-deny: RustSec advisories, license compliance,
@@ -82,7 +82,7 @@ Full policy and progressive-adoption guide: `docs/src/linting.md`.
 ```bash
 make deps-deny                             # security + license gate
 make deps-audit                            # find stale direct deps
-make deps-plan ARGS='-p <crate>@<version>' # dry-run manifest edit
+make deps-plan ARGS='-p <crate>@<version>' # dry-run checklist edit
 make deps-upgrade ARGS='-p <crate>@<version>' # apply + cargo update + check
 make deps-deny                             # re-run gate after upgrade
 make gate                                  # full CI gate before pushing

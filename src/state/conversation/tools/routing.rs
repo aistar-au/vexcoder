@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 #[cfg(test)]
-pub(crate) fn execute_tool_blocking_with_operator(
+pub(crate) fn call_tool_blocking_with_operator(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
@@ -35,29 +35,29 @@ pub(crate) fn execute_tool_blocking_with_operator(
         }
     }
 
-    execute_tool_routing_with_config(tool_operator, name, input, search_config)
+    call_tool_routing_with_config(tool_operator, name, input, search_config)
 }
 
 #[cfg(not(test))]
-pub(crate) fn execute_tool_blocking_with_operator(
+pub(crate) fn call_tool_blocking_with_operator(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
     search_config: &SearchConfig,
 ) -> Result<String> {
-    execute_tool_routing_with_config(tool_operator, name, input, search_config)
+    call_tool_routing_with_config(tool_operator, name, input, search_config)
 }
 
 #[cfg(test)]
-pub(crate) fn execute_tool_routing(
+pub(crate) fn call_tool_routing(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
 ) -> Result<String> {
-    execute_tool_routing_with_config(tool_operator, name, input, &SearchConfig::default())
+    call_tool_routing_with_config(tool_operator, name, input, &SearchConfig::default())
 }
 
-pub(crate) fn execute_tool_routing_with_config(
+pub(crate) fn call_tool_routing_with_config(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
@@ -305,7 +305,7 @@ pub(crate) fn execute_tool_routing_with_config(
             Ok(search::format_search_results(query, &results))
         }
 
-        "run_command" => bail!("run_command must execute through the async runtime command runner"),
+        "run_command" => bail!("run_command must call through the async runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
     }
 }

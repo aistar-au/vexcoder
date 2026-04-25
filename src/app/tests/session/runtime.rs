@@ -111,10 +111,10 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
             turn_index: 0,
             input: "summarize the diff".to_string(),
             entries: vec![],
-            outcome: crate::runtime::task_document::TurnOutcome::Completed,
+            outcome: crate::runtime::task_document::PulseOutcome::Completed,
             changed_files: vec![],
             command_history: vec![],
-            tokens: crate::usage::TurnTokens {
+            tokens: crate::usage::PulseTokens {
                 input: 1000,
                 output: 500,
                 estimated: false,
@@ -125,7 +125,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
             ttft_ms: None,
             timings: None,
         });
-    ctx.test_record_session_turn(crate::usage::TurnTokens {
+    ctx.test_record_session_pulse(crate::usage::PulseTokens {
         input: 1000,
         output: 500,
         estimated: false,
@@ -142,7 +142,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
 
     assert!(
         mode.task_doc.completed_turns.is_empty(),
-        "/compact must clear turn evidence to reset token counter"
+        "/compact must clear pulse evidence to reset token counter"
     );
     let status_after = mode.status_line();
     assert!(
@@ -163,10 +163,10 @@ fn test_tui_compact_preserves_task_id_but_clears_turns() {
             turn_index: 0,
             input: "test".to_string(),
             entries: vec![],
-            outcome: crate::runtime::task_document::TurnOutcome::Completed,
+            outcome: crate::runtime::task_document::PulseOutcome::Completed,
             changed_files: vec![],
             command_history: vec![],
-            tokens: crate::usage::TurnTokens {
+            tokens: crate::usage::PulseTokens {
                 ..Default::default()
             },
             started_at_ms: 0,
@@ -184,7 +184,7 @@ fn test_tui_compact_preserves_task_id_but_clears_turns() {
     );
     assert!(
         mode.task_doc.completed_turns.is_empty(),
-        "/compact must clear accumulated turns"
+        "/compact must clear accumulated pulses"
     );
     assert!(
         !mode.task_doc.info.active_grants.is_empty() || mode.task_doc.info.active_grants.is_empty(),

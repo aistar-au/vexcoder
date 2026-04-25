@@ -57,7 +57,7 @@ Template substitution in `args`:
 
 - All hook commands route through `SandboxDriver::wrap`.
 - Hooks require `Capability::RunCommand` approval. A hook skipped for missing
-  approval must emit a warning and allow the turn to continue. It must never
+  approval must emit a warning and allow the pulse to continue. It must never
   silently block the tool call.
 - `on_fail = "warn"`: log warning, continue.
 - `on_fail = "abort"`: abort the pending tool result and surface the error to
@@ -121,7 +121,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ---
 
-## Work Verification (work manifest only — implementation not yet merged into current `main`)
+## Work Verification (work checklist only — implementation not yet merged into current `main`)
 
 ### [PL-01] - Pre/post-tool-call hooks
 
@@ -135,7 +135,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - This branch stages the PL-01 work manifest only.
+  - This branch stages the PL-01 work checklist only.
   - Do not mark PL-01 green until the implementation branch lands and all
     anchor tests pass.
 

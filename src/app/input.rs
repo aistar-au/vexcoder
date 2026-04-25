@@ -18,7 +18,7 @@ impl TuiMode {
             }
         }
 
-        if self.task_doc.active_turn.is_some() {
+        if self.task_doc.active_pulse.is_some() {
             let trimmed = input.trim();
             let reentrant_edit_command =
                 self.active_edit_loop.is_some() && Self::is_reentrant_edit_command(trimmed);
@@ -30,12 +30,12 @@ impl TuiMode {
             }
             if self
                 .task_doc
-                .active_turn
+                .active_pulse
                 .as_ref()
                 .is_some_and(|t| t.cancel_pending)
             {
                 self.push_history_line(
-                    "[busy - cancelling current turn, input ignored]".to_string(),
+                    "[busy - cancelling current pulse, input ignored]".to_string(),
                 );
             } else {
                 let trimmed = input.trim();
@@ -48,7 +48,7 @@ impl TuiMode {
                     self.handle_bang_command(command, ctx);
                     return;
                 }
-                self.push_history_line("[busy - turn in progress, input ignored]".to_string());
+                self.push_history_line("[busy - pulse in progress, input ignored]".to_string());
             }
             return;
         }
@@ -81,32 +81,32 @@ impl TuiMode {
             self.last_turn_input = Some(turn_input.clone());
         }
 
-        ctx.start_turn(turn_input);
+        ctx.start_pulse(turn_input);
     }
 
     pub(super) fn on_interrupt(&mut self, ctx: &mut RuntimeContext) {
-        if self.task_doc.active_turn.is_some() {
+        if self.task_doc.active_pulse.is_some() {
             if self
                 .task_doc
-                .active_turn
+                .active_pulse
                 .as_ref()
                 .is_some_and(|t| t.cancel_pending)
             {
                 return;
             }
-            ctx.cancel_turn();
+            ctx.cancel_pulse();
             self.resolve_pending_approval(false, ctx);
             self.resolve_pending_patch_approval(false);
-            if let Some(active) = self.task_doc.active_turn.as_mut() {
+            if let Some(active) = self.task_doc.active_pulse.as_mut() {
                 active.cancel_pending = true;
             }
             let has_command_sessions = self
                 .task_doc
-                .active_turn
+                .active_pulse
                 .as_ref()
                 .is_some_and(|t| !t.command_sessions.is_empty());
             if has_command_sessions {
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     for session in active.command_sessions.values_mut() {
                         session.status = "cancelling".to_string();
                     }
@@ -114,7 +114,7 @@ impl TuiMode {
                 self.set_task_status(TaskStatus::Cancelling);
                 self.push_history_line("[command session cancellation requested]".to_string());
             } else {
-                self.push_history_line("[turn cancellation requested]".to_string());
+                self.push_history_line("[pulse cancellation requested]".to_string());
             }
             self.pending_quit = false;
             self.quit_requested = false;

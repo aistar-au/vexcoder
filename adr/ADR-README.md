@@ -38,7 +38,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted |
 | [ADR-038 amend 04-13](ADR-038-amendment-2026-04-13.md) | Task-state cold-start memory bounds | Amended |
 | [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batches B–D pending) |
-| [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed |
+| [ADR-040](ADR-040-real-time-local-pulse-telemetry.md) | Real-time local pulse telemetry | Proposed |
 | [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer and compact tool paragraphs | Accepted |
 | [ADR-042](ADR-042-tool-registration-and-approval-layer.md) | Tool registration and approval layer | Accepted |
 | [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Active |
@@ -65,7 +65,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
-| [ADR-001](completed/ADR-001-tdm-agentic-manifest-strategy.md) | TDM agentic manifest strategy | Accepted |
+| [ADR-001](completed/ADR-001-tdm-agentic-checklist-strategy.md) | TDM agentic checklist strategy | Accepted |
 | [ADR-002](completed/ADR-002-lexical-path-normalization.md) | Lexical path normalization | Accepted |
 | [ADR-003](completed/ADR-003-dual-protocol-api-auto-detection.md) | Dual-protocol API auto-detection | Accepted |
 | [ADR-004](completed/ADR-004-runtime-seam-headless-first.md) | Runtime seam headless-first | Deprecated by ADR-006/007 |

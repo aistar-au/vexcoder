@@ -14,5 +14,5 @@ pub trait RuntimeMode {
             UserInputEvent::Scroll { .. } => {}
         }
     }
-    fn is_turn_in_progress(&self) -> bool;
+    fn is_pulse_in_progress(&self) -> bool;
 }

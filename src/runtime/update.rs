@@ -39,7 +39,7 @@ pub enum UiUpdate {
     CommandSessionFinished {
         session_id: u64,
     },
-    TurnComplete,
+    PulseComplete,
     Error(String),
 
     ContextCompacted {

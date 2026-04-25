@@ -138,7 +138,7 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
     )));
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+        RuntimeEvent::PulseEnd { status, .. } if status == "completed"
     )));
 }
 
@@ -229,7 +229,7 @@ async fn test_create_stream_falls_back_when_local_stream_closes_without_initial_
     )));
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+        RuntimeEvent::PulseEnd { status, .. } if status == "completed"
     )));
 }
 
@@ -406,7 +406,7 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_too
     assert_eq!(usage_updates, vec![(13, 4)]);
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd {
+        RuntimeEvent::PulseEnd {
             status,
             usage: Some(usage),
             ..
@@ -676,7 +676,7 @@ async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
     assert_eq!(usage_updates, vec![(11, 3)]);
     assert!(envelopes.iter().any(|envelope| matches!(
         &envelope.event,
-        RuntimeEvent::TurnEnd {
+        RuntimeEvent::PulseEnd {
             status,
             usage: Some(usage),
             ..
@@ -1497,7 +1497,7 @@ fn test_edit_tools_discourage_non_rustfmt_rust_diffs() {
 
 #[test]
 fn test_system_prompt_includes_history_condensing_awareness() {
-    assert!(BASE_SYSTEM_PROMPT.contains("Tool results from earlier turns may be condensed"));
+    assert!(BASE_SYSTEM_PROMPT.contains("Tool results from earlier pulses may be condensed"));
 }
 
 #[test]

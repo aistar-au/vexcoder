@@ -294,7 +294,7 @@ fn test_process_chat_compat_ignores_empty_content_without_emitting_text_block() 
     );
     assert!(events.iter().any(|event| matches!(
         &event.event,
-        RuntimeEvent::TurnEnd { status, .. } if status == "completed"
+        RuntimeEvent::PulseEnd { status, .. } if status == "completed"
     )));
 }
 

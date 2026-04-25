@@ -91,7 +91,7 @@ impl TuiMode {
 
         let starting_batch = self
             .task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.command_sessions.is_empty());
         if starting_batch {

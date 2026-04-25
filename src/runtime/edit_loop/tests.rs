@@ -239,7 +239,7 @@ async fn test_edit_loop_skips_validation_when_no_patch_is_applied() {
     assert!(matches!(outcome, EditLoopOutcome::MaxTurnsReached { .. }));
     assert!(
         edit_loop.last_validation_result().is_none(),
-        "validation must not run when the turn applied no patch"
+        "validation must not run when the pulse applied no patch"
     );
 }
 
@@ -310,7 +310,7 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
                 | UiUpdate::CommandSessionStarted { .. }
                 | UiUpdate::CommandSessionAttached { .. }
                 | UiUpdate::CommandSessionFinished { .. }
-                | UiUpdate::TurnComplete
+                | UiUpdate::PulseComplete
                 | UiUpdate::EditLoopComplete { .. }
                 | UiUpdate::Error(_)
                 | UiUpdate::ContextCompacted { .. } => {}
@@ -343,19 +343,19 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
     assert!(
         transcript
             .iter()
-            .any(|line| line.contains("[edit loop turn 2/2]")),
-        "validation failure must advance the orchestrator into the next turn: {:?}",
+            .any(|line| line.contains("[edit loop pulse 2/2]")),
+        "validation failure must advance the orchestrator into the next pulse: {:?}",
         *transcript
     );
     assert!(
         workspace.path().join("src/lib.rs").is_file(),
-        "write_file turn must mutate the workspace before validation retries"
+        "write_file pulse must mutate the workspace before validation retries"
     );
     let content =
         std::fs::read_to_string(workspace.path().join("src/lib.rs")).expect("read retried file");
     assert!(
         content.contains("RETRY_ROUND"),
-        "mutation turn must leave a concrete edit behind before validation retries: {content}"
+        "mutation pulse must leave a concrete edit behind before validation retries: {content}"
     );
     let validation = edit_loop
         .last_validation_result()

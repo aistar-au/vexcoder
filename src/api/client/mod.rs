@@ -251,7 +251,7 @@ After each tool_result, reassess the task and either call the next needed tool o
 Repeat this loop until the task is complete; do not stop early after a single tool result when more evidence is required.\n\
 For requests that mention specific files/paths or code edits, do not answer with planning text; emit a tool call first.\n\
 Never claim a file was read/written/renamed/searched unless the corresponding tool call succeeded.\n\
-Do not narrate intended actions without executing the tool call.\n\
+Do not narrate intended actions without calling the tool call.\n\
 Use codebase_search to find functions, types, and code patterns before reading files. Only use read_file with offset/limit when you know the exact location.\n\
 Prefer search_files for targeted string matches and avoid full-file reads unless required.\n\
 Use list_files/search_files/read_file before saying a file is missing or present.\n\
@@ -263,10 +263,10 @@ For Rust edits, keep diffs rustfmt-consistent and avoid formatting-only churn: p
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
-Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search, run_command. Shell aliases (run_shell_command, bash, execute_command, execute_bash) all route to run_command. Every run_command call requires explicit user approval before execution. For counting, aggregation, or analysis, prefer search_files/read_file results and compute in your response before resorting to run_command. Rely on workspace context and prior tool results (memory) rather than assuming shell access.\n\
+Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search, run_command. Shell aliases (run_shell_command, bash, call_command, call_bash) all route to run_command. Every run_command call requires explicit user approval before execution. For counting, aggregation, or analysis, prefer search_files/read_file results and compute in your response before resorting to run_command. Rely on workspace context and prior tool results (memory) rather than assuming shell access.\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
-Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the shortened excerpt is complete.";
+Tool results from earlier pulses may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the shortened excerpt is complete.";
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {

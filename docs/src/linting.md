@@ -8,7 +8,7 @@ consistent enforcement everywhere.
 ## How it works
 
 `[workspace.lints]` in the root `Cargo.toml` (stable since Rust 1.74,
-[RFC 3389](https://rust-lang.github.io/rfcs/3389-manifest-lint.html)) holds
+[RFC 3389](https://rust-lang.github.io/rfcs/3389-checklist-lint.html)) holds
 the shared rule set. Each member crate opts in with a single stanza:
 
 ```toml

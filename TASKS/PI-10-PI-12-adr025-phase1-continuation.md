@@ -76,10 +76,10 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
   - `StreamBlock::ToolResult { tool_call_id, output, is_error }` to
     `ToolResult { tool_call_id, tool_name, is_error, output }`
   - `UiUpdate::StreamDelta(text)` to `AssistantDelta { text }`
-  - `UiUpdate::TurnComplete` to `AssistantMessage { content }` then
-    `TurnEnd { status: "completed", ... }`
+  - `UiUpdate::PulseComplete` to `AssistantMessage { content }` then
+    `PulseEnd { status: "completed", ... }`
   - `UiUpdate::Error(message)` to `Error { code, message, recoverable }` then
-    `TurnEnd { status: "failed", ... }`
+    `PulseEnd { status: "failed", ... }`
   - `UiUpdate::ToolApprovalRequest(req)` to
     `ApprovalRequest { capability, scope, tool_name }`
   - `RuntimeRequest::ApproveCapability` to
@@ -90,9 +90,9 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
     (TUI render bookkeeping only)
   - Grammar `tool_call_array` produces one `ToolCall` envelope per array
     element with runtime-generated `id` and `seq`
-- `AssistantMessage` assembly: `TurnComplete` is the normative source; deltas
+- `AssistantMessage` assembly: `PulseComplete` is the normative source; deltas
   are accumulated, a final `AssistantMessage` is emitted immediately before
-  `TurnEnd`, and `BatchMode` derives `TurnRecord.response` from that content.
+  `PulseEnd`, and `BatchMode` derives `TurnRecord.response` from that content.
 - `ToolResult.tool_name` remains `Option<String>` until ADR-024 PF-01/PF-02
   (McpRegistry and approval wiring) are complete.
 - `StreamBlockStart/Delta/Complete` explicit no-project rule: these are TUI
@@ -116,7 +116,7 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
 - BatchMode derivation tests (replaying shared envelopes reconstructs the
   existing summarized JSONL shape)
 - Required assertions:
-  - First envelope of every turn has `seq == 1`
+  - First envelope of every pulse has `seq == 1`
   - `TurnRecord` + `SummaryRecord` replay from shared envelopes matches the
     existing JSONL shape modulo JSON field ordering
   - `TurnRecord.response` uses `AssistantMessage.content` when present and
@@ -124,7 +124,7 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
   - `TurnRecord.changed_files` matches `turn_end.changed_files`
   - `SummaryRecord.status` matches final `turn_end.status`
   - Recoverable vs non-recoverable `error` envelopes follow ordering rules
-  - `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }`
+  - `MaxTurnsReached` is always followed by `PulseEnd { status: "failed" }`
 
 PI-12 depends on both PI-10 and PI-11. Do not start PI-12 until PI-10 is
 complete.

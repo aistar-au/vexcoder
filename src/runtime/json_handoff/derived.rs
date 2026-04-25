@@ -1,11 +1,11 @@
 use super::{RuntimeEvent, TokenUsageEnvelope};
 use crate::runtime::task_state::CommandEvidence;
 use crate::state::ToolApprovalRequest;
-use crate::turn_evidence::TurnEvidenceRecord;
-use crate::usage::TurnTokens;
+use crate::pulse_evidence::TurnEvidenceRecord;
+use crate::usage::PulseTokens;
 use indexmap::IndexMap;
 
-pub fn token_usage_from_turn_tokens(tokens: TurnTokens) -> Option<TokenUsageEnvelope> {
+pub fn token_usage_from_turn_tokens(tokens: PulseTokens) -> Option<TokenUsageEnvelope> {
     if tokens.is_zero() {
         None
     } else {
@@ -19,8 +19,8 @@ pub fn token_usage_from_turn_tokens(tokens: TurnTokens) -> Option<TokenUsageEnve
     }
 }
 
-pub(super) fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> TurnTokens {
-    TurnTokens {
+pub(super) fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> PulseTokens {
+    PulseTokens {
         input: usage.input,
         output: usage.output,
         estimated: usage.estimated,
@@ -56,13 +56,13 @@ pub(super) fn empty_json_object() -> serde_json::Value {
 
 #[derive(Default)]
 pub(super) struct DerivedTurnState {
-    pub(super) turn: usize,
+    pub(super) pulse: usize,
     pub(super) input: String,
     pub(super) transcript_response: String,
     pub(super) pending_final_text_blocks: IndexMap<usize, String>,
     pub(super) changed_files: Vec<String>,
     pub(super) command_history: Vec<CommandEvidence>,
-    pub(super) tokens: TurnTokens,
+    pub(super) tokens: PulseTokens,
 }
 
 impl DerivedTurnState {
@@ -94,7 +94,7 @@ impl DerivedTurnState {
         let response = self.transcript_response;
 
         TurnEvidenceRecord {
-            turn: self.turn,
+            pulse: self.pulse,
             input: self.input,
             response,
             instructions_path,

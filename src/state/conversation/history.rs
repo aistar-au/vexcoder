@@ -12,7 +12,7 @@ use std::time::Duration;
 
 const COMPACTION_SUMMARY_PROMPT: &str = "\
 You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary \
-for the next turn. Include: current progress and key decisions made, important \
+for the next pulse. Include: current progress and key decisions made, important \
 constraints or user preferences, what remains to be done (clear next steps), \
 and any critical data or references needed to continue. Be concise and structured.";
 

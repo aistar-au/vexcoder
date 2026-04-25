@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtime::{AssistantPhase, NoticeSeverity, TurnEntry};
+use crate::runtime::{AssistantPhase, NoticeSeverity, PulseEntry};
 use crate::state::StreamBlock;
 
 fn compact_preview_text(text: &str) -> String {
@@ -31,16 +31,16 @@ impl TuiMode {
         id
     }
 
-    fn append_turn_entry(&mut self, entry: TurnEntry) {
-        if let Some(active) = self.task_doc.active_turn.as_mut() {
+    fn append_turn_entry(&mut self, entry: PulseEntry) {
+        if let Some(active) = self.task_doc.active_pulse.as_mut() {
             active.entries.push(entry);
         }
     }
 
     pub(super) fn push_document_notice(&mut self, message: String, severity: NoticeSeverity) {
-        if self.task_doc.active_turn.is_some() {
+        if self.task_doc.active_pulse.is_some() {
             let step_id = self.alloc_step_id();
-            self.append_turn_entry(TurnEntry::SystemNotice {
+            self.append_turn_entry(PulseEntry::SystemNotice {
                 step_id,
                 message,
                 severity,
@@ -54,7 +54,7 @@ impl TuiMode {
         match update {
             UiUpdate::TranscriptLine(line) => {
                 let previous_output_len = self.expanded_output_row_count();
-                if self.task_doc.active_turn.is_some() {
+                if self.task_doc.active_pulse.is_some() {
                     self.task_doc.info.status = TaskStatus::Running;
                 }
                 const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
@@ -75,7 +75,7 @@ impl TuiMode {
                 let previous_output_len = self.expanded_output_row_count();
                 if self
                     .task_doc
-                    .active_turn
+                    .active_pulse
                     .as_ref()
                     .is_some_and(|t| t.cancel_pending)
                 {
@@ -85,21 +85,21 @@ impl TuiMode {
                 if self.stream_uses_structured_final_output {
                     return;
                 }
-                if self.task_doc.active_turn.is_some() {
+                if self.task_doc.active_pulse.is_some() {
                     self.task_doc.info.status = TaskStatus::Running;
                 }
                 if self.ttft.is_none()
                     && let Some(started) = self.turn_started_at
                 {
                     self.ttft = Some(started.elapsed());
-                    if let Some(active) = self.task_doc.active_turn.as_mut() {
+                    if let Some(active) = self.task_doc.active_pulse.as_mut() {
                         active.ttft_ms =
                             Some(started.elapsed().as_millis().try_into().unwrap_or(u64::MAX));
                     }
                 }
-                let appended = if let Some(active) = self.task_doc.active_turn.as_mut() {
+                let appended = if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     active.entries.iter_mut().rev().any(|e| {
-                        if let TurnEntry::AssistantBlock { block, .. } = e
+                        if let PulseEntry::AssistantBlock { block, .. } = e
                             && block.streaming
                             && block.phase == AssistantPhase::Final
                         {
@@ -111,9 +111,9 @@ impl TuiMode {
                 } else {
                     false
                 };
-                if !appended && self.task_doc.active_turn.is_some() {
+                if !appended && self.task_doc.active_pulse.is_some() {
                     let step_id = self.alloc_step_id();
-                    self.append_turn_entry(TurnEntry::AssistantBlock {
+                    self.append_turn_entry(PulseEntry::AssistantBlock {
                         step_id,
                         block: crate::runtime::AssistantBlockEntry {
                             block_index: usize::MAX,
@@ -132,13 +132,13 @@ impl TuiMode {
                 let metadata = *metadata;
                 if self
                     .task_doc
-                    .active_turn
+                    .active_pulse
                     .as_ref()
                     .is_some_and(|t| t.cancel_pending)
                 {
                     return;
                 }
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     if let Some(progress) = metadata.prompt_progress {
                         active.prompt_progress = Some(progress);
                     }
@@ -149,7 +149,7 @@ impl TuiMode {
             }
 
             UiUpdate::StreamBlockStart { index, block } => {
-                if self.task_doc.active_turn.is_some() {
+                if self.task_doc.active_pulse.is_some() {
                     self.task_doc.info.status = TaskStatus::Running;
                 }
                 let previous_output_len = self.expanded_output_row_count();
@@ -159,15 +159,15 @@ impl TuiMode {
                             && let Some(started) = self.turn_started_at
                         {
                             self.ttft = Some(started.elapsed());
-                            if let Some(active) = self.task_doc.active_turn.as_mut() {
+                            if let Some(active) = self.task_doc.active_pulse.as_mut() {
                                 active.ttft_ms = Some(
                                     started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
                                 );
                             }
                         }
                         let updated_existing =
-                            if let Some(active) = self.task_doc.active_turn.as_mut() {
-                                if let Some(TurnEntry::AssistantBlock { block, .. }) =
+                            if let Some(active) = self.task_doc.active_pulse.as_mut() {
+                                if let Some(PulseEntry::AssistantBlock { block, .. }) =
                                     active.entries.last_mut()
                                 {
                                     if block.block_index == index {
@@ -193,7 +193,7 @@ impl TuiMode {
                             return;
                         }
                         let step_id = self.alloc_step_id();
-                        self.append_turn_entry(TurnEntry::AssistantBlock {
+                        self.append_turn_entry(PulseEntry::AssistantBlock {
                             step_id,
                             block: crate::runtime::AssistantBlockEntry {
                                 block_index: index,
@@ -206,8 +206,8 @@ impl TuiMode {
                     }
                     StreamBlock::Thinking { content, collapsed } => {
                         let updated_existing =
-                            if let Some(active) = self.task_doc.active_turn.as_mut() {
-                                if let Some(TurnEntry::AssistantBlock { block, .. }) =
+                            if let Some(active) = self.task_doc.active_pulse.as_mut() {
+                                if let Some(PulseEntry::AssistantBlock { block, .. }) =
                                     active.entries.last_mut()
                                 {
                                     if block.block_index == index {
@@ -233,7 +233,7 @@ impl TuiMode {
                             return;
                         }
                         let step_id = self.alloc_step_id();
-                        self.append_turn_entry(TurnEntry::AssistantBlock {
+                        self.append_turn_entry(PulseEntry::AssistantBlock {
                             step_id,
                             block: crate::runtime::AssistantBlockEntry {
                                 block_index: index,
@@ -250,9 +250,9 @@ impl TuiMode {
                         input,
                         status,
                     } => {
-                        let exists = if let Some(active) = self.task_doc.active_turn.as_mut() {
+                        let exists = if let Some(active) = self.task_doc.active_pulse.as_mut() {
                             active.entries.iter_mut().any(|e| {
-                                if let TurnEntry::ToolCall {
+                                if let PulseEntry::ToolCall {
                                     id: existing_id,
                                     status: existing_status,
                                     ..
@@ -269,7 +269,7 @@ impl TuiMode {
                         };
                         if !exists {
                             let step_id = self.alloc_step_id();
-                            self.append_turn_entry(TurnEntry::ToolCall {
+                            self.append_turn_entry(PulseEntry::ToolCall {
                                 step_id,
                                 id,
                                 name,
@@ -288,9 +288,9 @@ impl TuiMode {
                         output,
                         is_error,
                     } => {
-                        if let Some(active) = self.task_doc.active_turn.as_mut() {
+                        if let Some(active) = self.task_doc.active_pulse.as_mut() {
                             for entry in &mut active.entries {
-                                if let TurnEntry::ToolCall { id, status, .. } = entry
+                                if let PulseEntry::ToolCall { id, status, .. } = entry
                                     && *id == tool_call_id
                                 {
                                     *status = if is_error {
@@ -303,9 +303,9 @@ impl TuiMode {
                             }
                         }
                         if !is_error {
-                            let name_and_input = self.task_doc.active_turn.as_ref().and_then(|a| {
+                            let name_and_input = self.task_doc.active_pulse.as_ref().and_then(|a| {
                                 a.entries.iter().rev().find_map(|e| {
-                                    if let TurnEntry::ToolCall {
+                                    if let PulseEntry::ToolCall {
                                         id, name, input, ..
                                     } = e
                                         && *id == tool_call_id
@@ -320,14 +320,14 @@ impl TuiMode {
                                 note_changed_files_from_tool_call(&mut changed, &name, &input);
                                 if !changed.is_empty() {
                                     self.invalidate_file_prompt_entries();
-                                    if let Some(active) = self.task_doc.active_turn.as_mut() {
+                                    if let Some(active) = self.task_doc.active_pulse.as_mut() {
                                         active.changed_files.extend(changed);
                                     }
                                 }
                             }
                         }
                         let step_id = self.alloc_step_id();
-                        self.append_turn_entry(TurnEntry::ToolResult {
+                        self.append_turn_entry(PulseEntry::ToolResult {
                             step_id,
                             tool_call_id,
                             tool_name: None,
@@ -341,9 +341,9 @@ impl TuiMode {
             }
 
             UiUpdate::StreamBlockDelta { index, delta } => {
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     active.entries.iter_mut().rev().any(|e| {
-                        if let TurnEntry::AssistantBlock { block, .. } = e
+                        if let PulseEntry::AssistantBlock { block, .. } = e
                             && block.block_index == index
                         {
                             block.content.push_str(&delta);
@@ -362,9 +362,9 @@ impl TuiMode {
                 arguments,
             } => {
                 let previous_output_len = self.expanded_output_row_count();
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     for entry in active.entries.iter_mut().rev() {
-                        if let TurnEntry::ToolCall {
+                        if let PulseEntry::ToolCall {
                             id, name, input, ..
                         } = entry
                             && *id == tool_call_id
@@ -382,9 +382,9 @@ impl TuiMode {
             }
 
             UiUpdate::StreamBlockComplete { index } => {
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     for entry in active.entries.iter_mut().rev() {
-                        if let TurnEntry::AssistantBlock { block, .. } = entry
+                        if let PulseEntry::AssistantBlock { block, .. } = entry
                             && block.block_index == index
                         {
                             block.streaming = false;
@@ -401,7 +401,7 @@ impl TuiMode {
             }) => {
                 if self
                     .task_doc
-                    .active_turn
+                    .active_pulse
                     .as_ref()
                     .is_some_and(|t| t.cancel_pending)
                 {
@@ -479,7 +479,7 @@ impl TuiMode {
                 outcome,
                 last_validation_result,
             } => {
-                if let Some(t) = self.task_doc.active_turn.as_mut() {
+                if let Some(t) = self.task_doc.active_pulse.as_mut() {
                     t.command_sessions.clear();
                 }
                 self.last_error_message = None;
@@ -490,7 +490,7 @@ impl TuiMode {
                 }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     active.cancel_pending = false;
                 }
                 match &outcome {
@@ -506,8 +506,8 @@ impl TuiMode {
                     EditLoopOutcome::MaxTurnsReached { last_error } => {
                         let msg = last_error
                             .as_ref()
-                            .map(|e| format!("[edit loop reached max turns — last error: {e}]"))
-                            .unwrap_or_else(|| "[edit loop reached max turns]".to_string());
+                            .map(|e| format!("[edit loop reached max pulses — last error: {e}]"))
+                            .unwrap_or_else(|| "[edit loop reached max pulses]".to_string());
                         self.push_document_notice(msg, NoticeSeverity::Warning);
                     }
                     EditLoopOutcome::ApprovalDenied => {
@@ -527,14 +527,14 @@ impl TuiMode {
                 self.last_turn_ttft = self.ttft;
                 self.append_turn_timing_line();
 
-                if self.task_doc.active_turn.is_some() {
+                if self.task_doc.active_pulse.is_some() {
                     let turn_outcome = match &outcome {
-                        EditLoopOutcome::Success { .. } => TurnOutcome::Completed,
-                        EditLoopOutcome::MaxTurnsReached { .. } => TurnOutcome::MaxTurnsReached,
-                        EditLoopOutcome::ApprovalDenied => TurnOutcome::Cancelled,
-                        EditLoopOutcome::Cancelled => TurnOutcome::Cancelled,
+                        EditLoopOutcome::Success { .. } => PulseOutcome::Completed,
+                        EditLoopOutcome::MaxTurnsReached { .. } => PulseOutcome::MaxTurnsReached,
+                        EditLoopOutcome::ApprovalDenied => PulseOutcome::Cancelled,
+                        EditLoopOutcome::Cancelled => PulseOutcome::Cancelled,
                     };
-                    let turn_tokens = ctx.session_tokens_rollup().last_turn();
+                    let turn_tokens = ctx.session_tokens_rollup().last_pulse();
                     self.task_doc_condenser.finish_turn(
                         &mut self.task_doc,
                         turn_outcome,
@@ -564,7 +564,7 @@ impl TuiMode {
             UiUpdate::CommandSessionAttached { session_id, pid } => {
                 if let Some(session) = self
                     .task_doc
-                    .active_turn
+                    .active_pulse
                     .as_mut()
                     .and_then(|t| t.command_sessions.get_mut(&session_id))
                 {
@@ -573,13 +573,13 @@ impl TuiMode {
             }
 
             UiUpdate::CommandSessionFinished { session_id } => {
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     active.command_sessions.remove(&session_id);
                 }
                 self.complete_turn_if_idle(ctx);
             }
 
-            UiUpdate::TurnComplete => {
+            UiUpdate::PulseComplete => {
                 self.turn_completion_pending = true;
                 self.complete_turn_if_idle(ctx);
             }
@@ -602,7 +602,7 @@ impl TuiMode {
             }
 
             UiUpdate::Error(msg) => {
-                if let Some(t) = self.task_doc.active_turn.as_mut() {
+                if let Some(t) = self.task_doc.active_pulse.as_mut() {
                     t.command_sessions.clear();
                 }
                 self.resolve_pending_approval(false, ctx);
@@ -610,16 +610,16 @@ impl TuiMode {
                 self.last_turn_duration = self.turn_started_at.map(|s| s.elapsed());
                 self.last_error_message = Some(msg.clone());
                 self.push_document_notice(msg.clone(), NoticeSeverity::Error);
-                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                if let Some(active) = self.task_doc.active_pulse.as_mut() {
                     active.cancel_pending = false;
                 }
                 self.read_only_turn_active = false;
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
-                let tokens = ctx.session_tokens_rollup().last_turn();
+                let tokens = ctx.session_tokens_rollup().last_pulse();
                 self.task_doc_condenser.finish_turn(
                     &mut self.task_doc,
-                    TurnOutcome::Failed { message: msg },
+                    PulseOutcome::Failed { message: msg },
                     tokens,
                     crate::runtime::session_task::now_millis(),
                 );

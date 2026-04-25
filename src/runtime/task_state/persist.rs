@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::{TaskId, TaskState};
 use crate::runtime::session_task::{SessionTask, now_millis};
-use crate::turn_evidence::normalize_tool_invocation_step_ids;
+use crate::pulse_evidence::normalize_tool_invocation_step_ids;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskStateFile {
@@ -132,7 +132,7 @@ impl TaskState {
             state.updated_at = now_millis();
         }
 
-        normalize_tool_invocation_step_ids(&mut state.turns);
+        normalize_tool_invocation_step_ids(&mut state.pulses);
 
         Ok(state)
     }
@@ -299,7 +299,7 @@ mod tests {
         InterruptedCommand, SessionNote, TaskStatus,
     };
     use crate::test_support::ENV_LOCK;
-    use crate::turn_evidence::TurnEvidenceState;
+    use crate::pulse_evidence::TurnEvidenceState;
     use tempfile::TempDir;
 
     #[test]
@@ -329,7 +329,7 @@ mod tests {
             }],
             branch_name: Some("feature/task-001".to_string()),
             instructions_path: Some("AGENTS.md".to_string()),
-            turns: vec![TurnEvidenceState {
+            pulses: vec![TurnEvidenceState {
                 input: "explain the error".to_string(),
                 response: "world".to_string(),
                 changed_files: vec!["src/main.rs".to_string()],
@@ -346,7 +346,7 @@ mod tests {
                 turn_index: 1,
                 messages_before: 20,
                 messages_after: 4,
-                summary: "trimmed early turns".to_string(),
+                summary: "trimmed early pulses".to_string(),
             }],
             cache_usage: CacheUsageStats {
                 total_cache_creation_tokens: 500,
@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(loaded.interrupted_sessions.len(), 1);
         assert_eq!(loaded.branch_name, state.branch_name);
         assert_eq!(loaded.instructions_path, state.instructions_path);
-        assert_eq!(loaded.turns, state.turns);
+        assert_eq!(loaded.pulses, state.pulses);
         assert_eq!(loaded.plan, state.plan);
         assert_eq!(loaded.session_notes, state.session_notes);
         assert_eq!(loaded.context_compaction, state.context_compaction);
@@ -416,7 +416,7 @@ mod tests {
             "command_history": [],
             "conversation_snapshot": {"message_count": 0, "summary": ""},
             "interrupted_sessions": [],
-            "turns": [
+            "pulses": [
                 {
                     "input": "hi",
                     "response": "done",
@@ -435,7 +435,7 @@ mod tests {
         std::fs::write(dir.path().join("task-step-legacy.json"), legacy_json).unwrap();
 
         let loaded = TaskState::load(dir.path(), "task-step-legacy").expect("load failed");
-        let step_ids = loaded.turns[0]
+        let step_ids = loaded.pulses[0]
             .tool_invocations
             .iter()
             .map(|invocation| invocation.step_id)
@@ -468,7 +468,7 @@ mod tests {
             interrupted_sessions: Vec::new(),
             branch_name: None,
             instructions_path: None,
-            turns: Vec::new(),
+            pulses: Vec::new(),
             plan: None,
             session_notes: Vec::new(),
             context_compaction: Vec::new(),

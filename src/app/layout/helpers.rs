@@ -103,7 +103,7 @@ pub(super) fn tool_scope_detail(tool_name: &str) -> String {
         .into_iter()
         .find(|tool| tool.name == tool_name)
         .map(|tool| tool.description)
-        .unwrap_or_else(|| "Tool invocation recorded in the completed turn.".to_string())
+        .unwrap_or_else(|| "Tool invocation recorded in the completed pulse.".to_string())
 }
 
 #[cfg(test)]

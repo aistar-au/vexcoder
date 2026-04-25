@@ -7,14 +7,14 @@ use crate::runtime::context::RuntimeContext;
 use crate::runtime::delta_accumulator::{DeltaAccumulator, PeerDeltaEvent};
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
 use crate::runtime::json_handoff::{
-    RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext,
+    RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, PulseEndContext,
     runtime_approval_request_event,
 };
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::tokio::sync::{Mutex as AsyncMutex, broadcast, mpsc, oneshot};
 #[cfg(test)]
 use crate::state::ConversationManager;
-use crate::state::TurnToolPolicy;
+use crate::state::PulseToolPolicy;
 #[cfg(test)]
 use crate::tools::ToolOperator;
 use std::collections::{BTreeSet, HashMap, VecDeque};
@@ -132,7 +132,7 @@ impl FrontendAdapter<LocalApiMode> for LocalApiFrontend {
             };
         }
 
-        if !mode.is_turn_in_progress() {
+        if !mode.is_pulse_in_progress() {
             return self.initial_input.take().map(UserInputEvent::Text);
         }
 
@@ -171,11 +171,11 @@ impl LocalApiMode {
         }
 
         let envelopes = if shared.interrupted {
-            shared.normalizer.emit_cancelled(TurnEndContext::default())
+            shared.normalizer.emit_cancelled(PulseEndContext::default())
         } else {
             shared
                 .normalizer
-                .normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default()))
+                .normalize_ui_update(&UiUpdate::PulseComplete, Some(PulseEndContext::default()))
         };
         shared.turn_completion_pending = false;
         shared.turn_in_progress = false;
@@ -192,11 +192,11 @@ impl RuntimeMode for LocalApiMode {
         shared.active_command_sessions.clear();
         shared.turn_completion_pending = false;
         shared.quit.store(false, Ordering::SeqCst);
-        let start = shared.normalizer.start_turn(1, Some(input.clone()));
+        let start = shared.normalizer.start_pulse(1, Some(input.clone()));
         Self::emit_envelopes(&mut shared, vec![start]);
         drop(shared);
 
-        ctx.start_turn_with_system_prompt_and_policy(input, None, TurnToolPolicy::Default);
+        ctx.start_pulse_with_system_prompt_and_policy(input, None, PulseToolPolicy::Default);
     }
 
     fn on_interrupt(&mut self, ctx: &mut RuntimeContext) {
@@ -206,7 +206,7 @@ impl RuntimeMode for LocalApiMode {
         }
         shared.interrupted = true;
         drop(shared);
-        ctx.cancel_turn();
+        ctx.cancel_pulse();
     }
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
@@ -259,7 +259,7 @@ impl RuntimeMode for LocalApiMode {
                 Self::emit_envelopes(&mut shared, vec![envelope]);
             }
             UiUpdate::ServerMetadata(_) => {}
-            UiUpdate::TurnComplete => {
+            UiUpdate::PulseComplete => {
                 shared.turn_completion_pending = true;
                 Self::complete_turn_if_idle(&mut shared);
             }
@@ -268,7 +268,7 @@ impl RuntimeMode for LocalApiMode {
                     "runtime_error".to_string(),
                     message,
                     false,
-                    TurnEndContext::default(),
+                    PulseEndContext::default(),
                 );
                 shared.active_command_sessions.clear();
                 shared.turn_completion_pending = false;
@@ -290,7 +290,7 @@ impl RuntimeMode for LocalApiMode {
         }
     }
 
-    fn is_turn_in_progress(&self) -> bool {
+    fn is_pulse_in_progress(&self) -> bool {
         self.shared
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -352,13 +352,13 @@ mod tests {
         mode.on_user_input("review src/app.rs".to_string(), &mut ctx);
         let _ = envelope_rx.recv().await.unwrap();
         mode.on_interrupt(&mut ctx);
-        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+        mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
         let final_envelope: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
             final_envelope.event,
-            RuntimeEvent::TurnEnd { ref status, .. } if status == "cancelled"
+            RuntimeEvent::PulseEnd { ref status, .. } if status == "cancelled"
         ));
     }
 
@@ -453,7 +453,7 @@ mod tests {
 
         mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
         mode.on_model_update(UiUpdate::StreamDelta("working".to_string()), &mut ctx);
-        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+        mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
         let envelopes = [
             serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
@@ -465,7 +465,7 @@ mod tests {
 
         let seqs: Vec<u64> = envelopes.iter().map(|envelope| envelope.seq).collect();
         assert_eq!(seqs, vec![1, 2, 3, 4, 5]);
-        assert!(matches!(envelopes[0].event, RuntimeEvent::TurnStart { .. }));
+        assert!(matches!(envelopes[0].event, RuntimeEvent::PulseStart { .. }));
         let final_text_index = match &envelopes[1].event {
             RuntimeEvent::TranscriptBlockStart {
                 index,
@@ -489,7 +489,7 @@ mod tests {
         ));
         assert!(matches!(
             envelopes[4].event,
-            RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
+            RuntimeEvent::PulseEnd { ref status, .. } if status == "completed"
         ));
     }
 
@@ -731,7 +731,7 @@ mod tests {
         mode.on_user_input("run delayed command".to_string(), &mut ctx);
         let start: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        assert!(matches!(start.event, RuntimeEvent::TurnStart { .. }));
+        assert!(matches!(start.event, RuntimeEvent::PulseStart { .. }));
 
         mode.on_model_update(
             UiUpdate::CommandSessionStarted {
@@ -740,7 +740,7 @@ mod tests {
             },
             &mut ctx,
         );
-        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+        mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
         {
             let shared = shared.lock().unwrap();
@@ -760,7 +760,7 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
             final_envelope.event,
-            RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
+            RuntimeEvent::PulseEnd { ref status, .. } if status == "completed"
         ));
 
         {
@@ -798,7 +798,7 @@ mod tests {
         mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
         let start: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        assert!(matches!(start.event, RuntimeEvent::TurnStart { .. }));
+        assert!(matches!(start.event, RuntimeEvent::PulseStart { .. }));
         mode.on_model_update(UiUpdate::Error("stream failed".to_string()), &mut ctx);
 
         let error: RuntimeEnvelope =
@@ -816,7 +816,7 @@ mod tests {
         ));
         assert!(matches!(
             final_envelope.event,
-            RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
+            RuntimeEvent::PulseEnd { ref status, .. } if status == "failed"
         ));
     }
 }

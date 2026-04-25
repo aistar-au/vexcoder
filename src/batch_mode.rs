@@ -18,11 +18,11 @@ use crate::runtime::{
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
-use crate::turn_evidence::{
+use crate::pulse_evidence::{
     SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
     note_changed_files_from_tool_call,
 };
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use opentelemetry::KeyValue;
 use std::path::PathBuf;
 use tracing::Instrument;
@@ -82,7 +82,7 @@ pub struct BatchMode {
     current_turn_text_block_indices: BTreeSet<usize>,
     task_changed_files: BTreeSet<String>,
     current_turn_command_history: Vec<CommandEvidence>,
-    current_turn_tokens: TurnTokens,
+    current_turn_tokens: PulseTokens,
     pending_tool_calls: HashMap<String, PendingToolCall>,
     output_lines: Vec<String>,
 }
@@ -117,7 +117,7 @@ impl BatchMode {
             current_turn_text_block_indices: BTreeSet::new(),
             task_changed_files: BTreeSet::new(),
             current_turn_command_history: Vec::new(),
-            current_turn_tokens: TurnTokens::default(),
+            current_turn_tokens: PulseTokens::default(),
             pending_tool_calls: HashMap::new(),
             output_lines: Vec::new(),
         }
@@ -145,7 +145,7 @@ impl BatchMode {
         self.current_turn_changed_files.clear();
         self.current_turn_text_block_indices.clear();
         self.current_turn_command_history.clear();
-        self.current_turn_tokens = TurnTokens::default();
+        self.current_turn_tokens = PulseTokens::default();
         self.pending_tool_calls.clear();
     }
 
@@ -156,7 +156,7 @@ impl BatchMode {
         self.turn_in_progress = false;
     }
 
-    fn finish_turn(&mut self, tokens: TurnTokens) {
+    fn finish_turn(&mut self, tokens: PulseTokens) {
         self.current_turn += 1;
         self.current_turn_tokens = tokens;
 
@@ -173,7 +173,7 @@ impl BatchMode {
         match self.format {
             OutputFormat::Jsonl => {
                 let record = TurnEvidenceRecord {
-                    turn: self.current_turn,
+                    pulse: self.current_turn,
                     input: input_text,
                     response,
                     instructions_path: self.instructions_path.clone(),
@@ -182,7 +182,7 @@ impl BatchMode {
                     tokens: self.current_turn_tokens,
                 };
                 let line = serde_json::to_string(&record)
-                    .expect("batch JSONL turn record serialization must succeed");
+                    .expect("batch JSONL pulse record serialization must succeed");
                 self.output_lines.push(line);
             }
             OutputFormat::Text => {
@@ -194,7 +194,7 @@ impl BatchMode {
         }
 
         self.turn_in_progress = false;
-        self.current_turn_tokens = TurnTokens::default();
+        self.current_turn_tokens = PulseTokens::default();
         self.current_turn_text_block_indices.clear();
         self.pending_tool_calls.clear();
     }
@@ -223,7 +223,7 @@ impl BatchMode {
         self.turn_in_progress = true;
         self.current_turn_input = input.to_string();
         self.current_response = message;
-        self.finish_turn(TurnTokens::default());
+        self.finish_turn(PulseTokens::default());
         if !self.done {
             self.status = TaskStatus::Completed;
             self.append_summary();
@@ -237,7 +237,7 @@ impl BatchMode {
         self.turn_in_progress = true;
         self.current_turn_input = input.to_string();
         self.current_response = message;
-        self.finish_turn(TurnTokens::default());
+        self.finish_turn(PulseTokens::default());
         if !self.done {
             self.status = TaskStatus::Failed;
             self.append_summary();
@@ -318,7 +318,7 @@ impl RuntimeMode for BatchMode {
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
         self.current_turn_input = input.clone();
-        ctx.start_turn(input);
+        ctx.start_pulse(input);
     }
 
     fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
@@ -327,8 +327,8 @@ impl RuntimeMode for BatchMode {
             UiUpdate::StreamDelta(text) => {
                 self.current_response.push_str(&text);
             }
-            UiUpdate::TurnComplete => {
-                self.finish_turn(ctx.session_tokens_rollup().last_turn());
+            UiUpdate::PulseComplete => {
+                self.finish_turn(ctx.session_tokens_rollup().last_pulse());
                 if !self.done {
                     self.status = TaskStatus::Completed;
                     self.append_summary();
@@ -337,7 +337,7 @@ impl RuntimeMode for BatchMode {
             }
             UiUpdate::Error(msg) => {
                 self.current_response.push_str(&msg);
-                self.finish_turn(TurnTokens::default());
+                self.finish_turn(PulseTokens::default());
                 if !self.done {
                     self.status = TaskStatus::Failed;
                     self.append_summary();
@@ -392,7 +392,7 @@ impl RuntimeMode for BatchMode {
         }
     }
 
-    fn is_turn_in_progress(&self) -> bool {
+    fn is_pulse_in_progress(&self) -> bool {
         self.turn_in_progress
     }
 }
@@ -414,7 +414,7 @@ impl FrontendAdapter<BatchMode> for BatchFrontend {
         if mode.is_done() {
             return None;
         }
-        if mode.is_turn_in_progress() {
+        if mode.is_pulse_in_progress() {
             return None;
         }
         self.pending.pop_front()
@@ -615,7 +615,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         while let Some(update) = update_rx.recv().await {
             mode.on_model_update(update, &mut ctx);
             if let Some(ref pb) = spinner {
-                pb.set_message(format!("turn {} · working…", mode.current_turn));
+                pb.set_message(format!("pulse {} · working…", mode.current_turn));
             }
             if mode.is_done() {
                 break;

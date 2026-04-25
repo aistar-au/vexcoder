@@ -28,7 +28,7 @@ requirements live in the root `Cargo.toml` `[workspace.dependencies]` table;
 use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrade`
 (documented in `docs/src/dependency-upgrades.md`) for dependency work.
 If a release-prep change also includes a dependency bump, consult
-`workspace.metadata.upgrade-seams` in the same manifest and keep any API fallout
+`workspace.metadata.upgrade-seams` in the same checklist and keep any API fallout
 inside those seam files.
 `make bump` changes the package version only.
 

@@ -275,7 +275,7 @@ fn test_prune_message_history_preserving_keeps_turn_user_anchor() {
             &manager.api_messages.first().map(|m| (&m.role, &m.content)),
             Some((role, Content::Text(text))) if role.as_str() == "user" && text == "anchor user prompt"
         ),
-        "turn anchor user prompt must be preserved during loop pruning"
+        "pulse anchor user prompt must be preserved during loop pruning"
     );
 }
 #[test]
@@ -560,7 +560,7 @@ fn test_clear_messages_resets_cached_conversation_state() {
 
     manager.push_user_message("hello".to_string());
     manager.ensure_task_doc();
-    manager.begin_turn_doc("hello".to_string(), TurnToolPolicy::Default);
+    manager.begin_turn_doc("hello".to_string(), PulseToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::TranscriptBlockStart {
         index: 0,
         block: crate::state::stream_block::StreamBlock::FinalText {
@@ -642,7 +642,7 @@ fn test_condense_old_tool_results_clips_blocks() {
                     } else {
                         assert!(
                             !content.contains("more lines"),
-                            "last turn should not be condensed, got: {content}"
+                            "last pulse should not be condensed, got: {content}"
                         );
                     }
                 }

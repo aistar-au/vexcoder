@@ -14,7 +14,7 @@ directories.
 Cold-start scans read a small header projection from each selected task-state
 file instead of deserialising the full `TaskState` graph. The projection keeps
 the fields needed for recent-task discovery and live session-task counts while
-skipping the large turn-history, approval, and command-evidence collections.
+skipping the large pulse-history, approval, and command-evidence collections.
 
 Production cold-start paths currently use header-only scans plus direct
 candidate loads. The process-global header cache is keyed by full path so the

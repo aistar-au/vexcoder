@@ -110,8 +110,8 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("plan it".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
@@ -408,9 +408,9 @@ fn test_commit_completed_turn_uses_normalized_stream_text_once() {
 
     mode.commit_completed_turn(&ctx);
 
-    let last_turn = mode.task_doc.completed_turns.last().expect("recorded turn");
+    let last_pulse = mode.task_doc.completed_turns.last().expect("recorded pulse");
     let response =
-        crate::app::transcript_projection::extract_assistant_response(&last_turn.entries);
+        crate::app::transcript_projection::extract_assistant_response(&last_pulse.entries);
     assert_eq!(response, "Hello");
 
     let state = mode.task_layout_state().expect("task layout state");
@@ -455,8 +455,8 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("inspect the file".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
@@ -479,15 +479,15 @@ fn test_timeline_home_and_end_via_frontend_event_preserve_browse_contract() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("inspect the file".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
             input: serde_json::json!({}),
             status: crate::state::ToolStatus::Complete,
         });
-        active.entries.push(TurnEntry::ToolCall {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 2,
             id: "tc2".to_string(),
             name: "check".to_string(),
@@ -525,8 +525,8 @@ fn test_manual_timeline_browse_stays_selected_when_new_transcript_rows_arrive() 
     let mut ctx = setup_ctx();
 
     mode.on_user_input("inspect the file".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
@@ -554,7 +554,7 @@ fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("ship the fix".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
         for (i, name) in [
             "read_file",
             "edit_file",
@@ -565,7 +565,7 @@ fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
         .iter()
         .enumerate()
         {
-            active.entries.push(TurnEntry::ToolCall {
+            active.entries.push(PulseEntry::ToolCall {
                 step_id: (i + 1) as u64,
                 id: format!("tc{i}"),
                 name: name.to_string(),
@@ -573,7 +573,7 @@ fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
                 status: crate::state::ToolStatus::Complete,
             });
         }
-        active.entries.push(TurnEntry::ToolCall {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 6,
             id: "tc6".to_string(),
             name: "validate".to_string(),
@@ -596,15 +596,15 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("ship the fix".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 3,
             id: "tc3".to_string(),
             name: "edit_file".to_string(),
             input: serde_json::json!({}),
             status: crate::state::ToolStatus::Pending,
         });
-        active.entries.push(TurnEntry::ToolCall {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 4,
             id: "tc4".to_string(),
             name: "validate".to_string(),
@@ -636,15 +636,15 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("run the validation".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
             input: serde_json::json!({}),
             status: crate::state::ToolStatus::Complete,
         });
-        active.entries.push(TurnEntry::ToolCall {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 2,
             id: "tc2".to_string(),
             name: "run_command".to_string(),
@@ -652,7 +652,7 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             status: crate::state::ToolStatus::Pending,
         });
     }
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
         active.command_sessions.insert(
             99,
             crate::runtime::task_document::CommandSessionDocument {
@@ -690,15 +690,15 @@ fn test_timeline_end_reaches_last_mixed_step_with_command_sessions() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("run the validation".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
             input: serde_json::json!({}),
             status: crate::state::ToolStatus::Complete,
         });
-        active.entries.push(TurnEntry::ToolCall {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 2,
             id: "tc2".to_string(),
             name: "run_command".to_string(),
@@ -781,8 +781,8 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("run lint".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "read_file".to_string(),
@@ -797,8 +797,8 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
     assert!(state.follow_mode);
     assert_eq!(state.selected_step, 1);
 
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 2,
             id: "tc2".to_string(),
             name: "run_command".to_string(),
@@ -868,7 +868,7 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
 
     mode.on_user_input("summarise the diff".to_string(), &mut ctx);
     mode.turn_started_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(3));
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
         active.timings = Some(crate::types::StreamTimings {
             prompt_ms: Some(1000.0),
             prompt_n: Some(10),
@@ -878,7 +878,7 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
         });
     }
 
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
     let summary = state
@@ -902,17 +902,17 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
 #[test]
 fn test_task_layout_state_merges_live_changed_files_before_turn_commit() {
     let mut mode = TuiMode::new();
-    use crate::runtime::task_document::{TurnDocument, TurnOutcome};
-    use crate::usage::TurnTokens;
+    use crate::runtime::task_document::{TurnDocument, PulseOutcome};
+    use crate::usage::PulseTokens;
 
     mode.task_doc.completed_turns.push(TurnDocument {
         turn_index: 0,
         input: "prev".to_string(),
         entries: vec![],
-        outcome: TurnOutcome::Completed,
+        outcome: PulseOutcome::Completed,
         changed_files: vec!["src/lib.rs".to_string()],
         command_history: vec![],
-        tokens: TurnTokens {
+        tokens: PulseTokens {
             input: 0,
             output: 0,
             ..Default::default()
@@ -923,7 +923,7 @@ fn test_task_layout_state_merges_live_changed_files_before_turn_commit() {
         timings: None,
     });
     mode.begin_turn_capture("curr".to_string());
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
         active.changed_files.insert("src/main.rs".to_string());
     }
 
@@ -983,8 +983,8 @@ fn test_inspector_title_includes_row_count() {
     let mut ctx = setup_ctx();
 
     mode.on_user_input("multilang check".to_string(), &mut ctx);
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
-        active.entries.push(TurnEntry::ToolCall {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
+        active.entries.push(PulseEntry::ToolCall {
             step_id: 1,
             id: "tc1".to_string(),
             name: "run_command".to_string(),

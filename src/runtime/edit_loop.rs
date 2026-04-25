@@ -110,7 +110,7 @@ impl EditLoop {
         let runner = DefaultCommandRunner::new();
 
         let mut retry_context = String::new();
-        for turn in 0..self.max_turns {
+        for pulse in 0..self.max_turns {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
             }
@@ -123,13 +123,13 @@ impl EditLoop {
                 format!("{instruction}\n\n{retry_context}")
             };
 
-            ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
+            ctx.emit_transcript_line(format!("[edit loop pulse {}/{}]", pulse + 1, self.max_turns));
 
             let patch_applied = match ctx.drive_edit_turn(message).await {
                 Ok(turn_result) => turn_result.patch_applied,
                 Err(err) => {
-                    ctx.emit_transcript_line(format!("[edit loop turn error: {err}]"));
-                    retry_context = format!("[previous turn failed: {err}]");
+                    ctx.emit_transcript_line(format!("[edit loop pulse error: {err}]"));
+                    retry_context = format!("[previous pulse failed: {err}]");
                     continue;
                 }
             };
@@ -141,7 +141,7 @@ impl EditLoop {
             if !patch_applied {
                 ctx.emit_transcript_line("[edit loop: no patch applied, retrying]".to_string());
                 retry_context =
-                    "[previous turn produced no patch; propose and apply a concrete edit]"
+                    "[previous pulse produced no patch; propose and apply a concrete edit]"
                         .to_string();
                 continue;
             }
@@ -186,7 +186,7 @@ impl EditLoop {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(error) => {
                 return Err(error)
-                    .context("failed to execute git status for workspace-dirty check");
+                    .context("failed to call git status for workspace-dirty check");
             }
         };
 
@@ -221,8 +221,8 @@ impl EditLoop {
     }
 }
 
-fn clamp_turns(turns: u8) -> u8 {
-    turns.clamp(1, HARD_MAX_TURNS)
+fn clamp_turns(pulses: u8) -> u8 {
+    pulses.clamp(1, HARD_MAX_TURNS)
 }
 
 #[cfg(test)]

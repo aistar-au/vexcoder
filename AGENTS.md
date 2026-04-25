@@ -72,8 +72,8 @@ Ignore this section in repository-hosted background sessions.
   sandbox worktree. The only permitted `main` operation is sync:
   `git fetch origin --prune && git merge --ff-only origin/main`.
 - **`gh pr merge` requires explicit user instruction** — by default, present
-  merge readiness and the recommended command without executing. When the user
-  explicitly instructs the agent to merge in the current conversation, execute
+  merge readiness and the recommended command without calling. When the user
+  explicitly instructs the agent to merge in the current conversation, call
   `gh pr merge --merge --delete-branch` immediately without re-asking. The
   user's instruction is the confirmation.
 - Release tags are an operator-workstation step after the reviewed merge commit lands
@@ -103,7 +103,7 @@ Run `make gate-fast` when the branch touches layout, renderers, tests,
 workflows, or documentation tied to the same feature lane.
 
 For dependency maintenance, use `make deps-audit`, `make deps-plan`, and
-`make deps-upgrade` so stale-version discovery and manifest edits follow the
+`make deps-upgrade` so stale-version discovery and checklist edits follow the
 repository's centralized workflow.
 
 ## Language and review hygiene

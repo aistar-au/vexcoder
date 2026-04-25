@@ -1,14 +1,14 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::core::{CompletedToolCall, emit_server_metadata_update};
 use super::{
-    ConversationManager, ConversationStreamUpdate, TurnToolPolicy, history::*, streaming::*,
+    ConversationManager, ConversationStreamUpdate, PulseToolPolicy, history::*, streaming::*,
     tools::*,
 };
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
-use crate::runtime::task_document::TurnOutcome;
+use crate::runtime::task_document::PulseOutcome;
 use crate::runtime::{RuntimeEvent, TokenUsageEnvelope};
 use crate::types::{ApiMessage, Content, ContentBlock};
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -20,9 +20,9 @@ impl ConversationManager {
         &mut self,
         content: String,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
-        turn_tool_policy: TurnToolPolicy,
+        turn_tool_policy: PulseToolPolicy,
     ) -> Result<String> {
-        self.last_turn_tokens = TurnTokens::default();
+        self.last_turn_tokens = PulseTokens::default();
         let original_user_input = content.clone();
         self.ensure_task_doc();
         self.begin_turn_doc(content.clone(), turn_tool_policy);
@@ -34,7 +34,7 @@ impl ConversationManager {
                 cache_hint: None,
             });
             emit_text_update(stream_delta_tx, response.clone());
-            self.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
+            self.finish_turn_doc(PulseOutcome::Completed, PulseTokens::default());
             return Ok(response);
         }
         let mut turn_user_anchor_index = self.api_messages.len().saturating_sub(1);
@@ -56,7 +56,7 @@ impl ConversationManager {
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
-        let mut turn_tokens = TurnTokens::default();
+        let mut turn_tokens = PulseTokens::default();
         let mut compacted_this_turn = false;
         self.condense_old_tool_results(history_keep_turns);
 
@@ -95,7 +95,7 @@ impl ConversationManager {
                         ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
                     );
                 }
-                self.finish_turn_doc(TurnOutcome::MaxTurnsReached, TurnTokens::default());
+                self.finish_turn_doc(PulseOutcome::MaxTurnsReached, PulseTokens::default());
                 return Ok(msg);
             }
 
@@ -130,7 +130,7 @@ impl ConversationManager {
                 }
                 Err(e) => {
                     self.finish_turn_doc(
-                        TurnOutcome::Failed {
+                        PulseOutcome::Failed {
                             message: e.to_string(),
                         },
                         turn_tokens,
@@ -151,7 +151,7 @@ impl ConversationManager {
                     Ok(envelope) => envelope.event,
                     Err(error) => {
                         self.finish_turn_doc(
-                            TurnOutcome::Failed {
+                            PulseOutcome::Failed {
                                 message: error.to_string(),
                             },
                             turn_tokens,
@@ -161,7 +161,7 @@ impl ConversationManager {
                 };
 
                 match event.clone() {
-                    RuntimeEvent::TurnStart { .. } => {}
+                    RuntimeEvent::PulseStart { .. } => {}
                     RuntimeEvent::TranscriptLine { line } => {
                         self.apply_doc_event(event);
                         emit_stream_update(
@@ -328,7 +328,7 @@ impl ConversationManager {
                         saw_usage_update = true;
                         accumulate_usage_envelope(&mut turn_tokens, Some(&usage));
                     }
-                    RuntimeEvent::TurnEnd { usage, .. } => {
+                    RuntimeEvent::PulseEnd { usage, .. } => {
                         if !saw_usage_update {
                             accumulate_usage_envelope(&mut turn_tokens, usage.as_ref());
                         }
@@ -384,7 +384,7 @@ impl ConversationManager {
                             ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
                         );
                     }
-                    self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                    self.finish_turn_doc(PulseOutcome::Completed, self.last_turn_tokens);
                     return Ok(msg);
                 }
 
@@ -419,7 +419,7 @@ impl ConversationManager {
                                 ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
                             );
                         }
-                        self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                        self.finish_turn_doc(PulseOutcome::Completed, self.last_turn_tokens);
                         return Ok(msg);
                     }
                 }
@@ -496,12 +496,12 @@ impl ConversationManager {
                             ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
                         );
                     }
-                    self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                    self.finish_turn_doc(PulseOutcome::Completed, self.last_turn_tokens);
                     return Ok(msg);
                 }
                 self.promote_thinking_blocks_to_final_text(stream_delta_tx);
                 self.last_turn_tokens = turn_tokens;
-                self.finish_turn_doc(TurnOutcome::Completed, turn_tokens);
+                self.finish_turn_doc(PulseOutcome::Completed, turn_tokens);
                 return Ok(assistant_text_for_history);
             }
 
@@ -822,7 +822,7 @@ pub(super) fn emit_tool_error(
     }
 }
 
-fn accumulate_usage_envelope(turn_tokens: &mut TurnTokens, usage: Option<&TokenUsageEnvelope>) {
+fn accumulate_usage_envelope(turn_tokens: &mut PulseTokens, usage: Option<&TokenUsageEnvelope>) {
     let Some(usage) = usage else {
         return;
     };

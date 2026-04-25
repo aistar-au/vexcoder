@@ -66,7 +66,7 @@ pub(crate) fn render_tool_denied_message(tool_name: &str) -> String {
 pub(crate) fn render_missing_tool_evidence_guard_message(last_assistant_text: &str) -> String {
     render_loop_guard_message(
         last_assistant_text,
-        "Model did not execute any tool call required to answer this request with workspace evidence."
+        "Model did not call any tool call required to answer this request with workspace evidence."
             .to_string(),
     )
 }
@@ -154,8 +154,8 @@ pub(crate) fn tool_requires_confirmation(name: &str) -> bool {
             | "run_command"
             | "run_shell_command"
             | "bash"
-            | "execute_command"
-            | "execute_bash"
+            | "call_command"
+            | "call_bash"
     )
 }
 

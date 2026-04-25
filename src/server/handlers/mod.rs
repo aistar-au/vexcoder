@@ -21,7 +21,7 @@ use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
 use crate::privacy::{PrivacyStatement, privacy_statement};
-use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
+use crate::runtime::json_handoff::{RuntimeRequest, PulseEndContext};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
 };
@@ -456,7 +456,7 @@ fn spawn_local_api_task(
                 "local_api_server".to_string(),
                 error.to_string(),
                 false,
-                TurnEndContext::default(),
+                PulseEndContext::default(),
             );
             shared.quit.store(true, Ordering::SeqCst);
             LocalApiMode::emit_envelopes(&mut shared, envelopes);

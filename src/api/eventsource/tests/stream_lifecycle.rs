@@ -30,7 +30,7 @@ async fn eof_still_flushes_provider_normalized_turn_end() {
 
     let event = next_stream_event(&mut state).await.unwrap().unwrap();
 
-    assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
+    assert!(matches!(event.event, RuntimeEvent::PulseEnd { .. }));
     assert!(next_stream_event(&mut state).await.unwrap().is_none());
 }
 
@@ -73,7 +73,7 @@ async fn eof_after_pending_turn_end_does_not_poll_upstream_again() {
 
     let event = next_stream_event(&mut state).await.unwrap().unwrap();
 
-    assert!(matches!(event.event, RuntimeEvent::TurnEnd { .. }));
+    assert!(matches!(event.event, RuntimeEvent::PulseEnd { .. }));
     assert!(next_stream_event(&mut state).await.unwrap().is_none());
     assert_eq!(polls.load(Ordering::SeqCst), 1);
 }
@@ -125,8 +125,8 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
     assert!(
         emitted
             .iter()
-            .any(|event| matches!(event.event, RuntimeEvent::TurnEnd { .. })),
-        "chat-compatible [DONE] must flush a TurnEnd before terminating; got {:?}",
+            .any(|event| matches!(event.event, RuntimeEvent::PulseEnd { .. })),
+        "chat-compatible [DONE] must flush a PulseEnd before terminating; got {:?}",
         emitted.iter().map(|event| &event.event).collect::<Vec<_>>()
     );
     assert_eq!(polls.load(Ordering::SeqCst), 1);

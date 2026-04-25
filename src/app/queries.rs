@@ -25,12 +25,12 @@ impl TuiMode {
             "quit-arm"
         } else if self
             .task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_some_and(|t| t.cancel_pending)
         {
             "cancelling"
-        } else if self.task_doc.active_turn.is_some() {
+        } else if self.task_doc.active_pulse.is_some() {
             "streaming"
         } else {
             "ready"
@@ -187,7 +187,7 @@ impl TuiMode {
 
     pub fn command_session_active(&self) -> bool {
         self.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_some_and(|t| !t.command_sessions.is_empty())
     }
@@ -341,11 +341,11 @@ impl TuiMode {
 
     pub(super) fn timeline_entry_count(&self) -> usize {
         let (has_input, tool_count, command_sessions_len) =
-            if let Some(active) = self.task_doc.active_turn.as_ref() {
+            if let Some(active) = self.task_doc.active_pulse.as_ref() {
                 let tools = active
                     .entries
                     .iter()
-                    .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                    .filter(|e| matches!(e, crate::runtime::PulseEntry::ToolCall { .. }))
                     .count();
                 (
                     !active.input.trim().is_empty(),
@@ -356,7 +356,7 @@ impl TuiMode {
                 let tools = last
                     .entries
                     .iter()
-                    .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                    .filter(|e| matches!(e, crate::runtime::PulseEntry::ToolCall { .. }))
                     .count();
                 (!last.input.trim().is_empty(), tools, 0)
             } else {

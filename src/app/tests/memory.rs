@@ -15,7 +15,7 @@ fn test_tui_memory_renders_empty_notes() {
             .any(|l| l.contains("[memory] no notes")),
         "expected '[memory] no notes' in history"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn test_tui_memory_add_appends_to_file() {
     );
     let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
     assert_eq!(saved.session_notes, mode.task_doc.session_notes);
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 #[test]
@@ -96,7 +96,7 @@ fn test_tui_memory_clear_requires_confirmation() {
 
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(content.contains("existing note"));
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 #[test]
 fn test_tui_memory_clear_cancellable() {
@@ -158,21 +158,21 @@ fn test_tui_memory_does_not_call_start_turn() {
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
 
     mode.on_user_input("/memory".to_string(), &mut ctx);
-    assert!(!mode.is_turn_in_progress(), "/memory must not start a turn");
+    assert!(!mode.is_pulse_in_progress(), "/memory must not start a pulse");
 
     mode.on_user_input("/memory add another".to_string(), &mut ctx);
     assert!(
-        !mode.is_turn_in_progress(),
-        "/memory add must not start a turn"
+        !mode.is_pulse_in_progress(),
+        "/memory add must not start a pulse"
     );
 
     mode.on_user_input("/memory clear".to_string(), &mut ctx);
     assert!(
-        !mode.is_turn_in_progress(),
-        "/memory clear must not start a turn"
+        !mode.is_pulse_in_progress(),
+        "/memory clear must not start a pulse"
     );
     mode.on_user_input("n".to_string(), &mut ctx);
-    assert!(!mode.is_turn_in_progress(), "cancel must not start a turn");
+    assert!(!mode.is_pulse_in_progress(), "cancel must not start a pulse");
 }
 #[test]
 fn test_tui_memory_ignores_old_home_notes_path() {

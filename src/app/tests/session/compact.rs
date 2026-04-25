@@ -23,7 +23,7 @@ fn test_tui_compact_resets_conversation_history() {
         "expected compaction boundary marker, got: {}",
         mode.history_lines()[1]
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -39,10 +39,10 @@ fn test_tui_compact_persists_cleared_turns() {
             turn_index: 0,
             input: "draft a plan".to_string(),
             entries: vec![],
-            outcome: crate::runtime::task_document::TurnOutcome::Completed,
+            outcome: crate::runtime::task_document::PulseOutcome::Completed,
             changed_files: vec![],
             command_history: vec![],
-            tokens: crate::usage::TurnTokens {
+            tokens: crate::usage::PulseTokens {
                 ..Default::default()
             },
             started_at_ms: 0,
@@ -58,8 +58,8 @@ fn test_tui_compact_persists_cleared_turns() {
 
     let saved = TaskState::load(temp.path(), &task_id).unwrap();
     assert!(
-        saved.turns.is_empty(),
-        "/compact must persist cleared turns"
+        saved.pulses.is_empty(),
+        "/compact must persist cleared pulses"
     );
 
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
@@ -90,7 +90,7 @@ fn test_tui_compact_preserves_task_id_and_grants() {
         "/compact must preserve active grants"
     );
     assert!(
-        !mode.is_turn_in_progress(),
+        !mode.is_pulse_in_progress(),
         "/compact must clear active edit-loop state"
     );
 }
@@ -102,7 +102,7 @@ fn test_tui_compact_clears_active_edit_loop() {
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
+        !mode.is_pulse_in_progress(),
         "/compact must clear active edit-loop state"
     );
 }

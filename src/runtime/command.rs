@@ -178,7 +178,7 @@ impl CommandRunner for DefaultCommandRunner {
         let output = command
             .output()
             .await
-            .with_context(|| format!("Failed to execute command: {}", req.program))?;
+            .with_context(|| format!("Failed to call command: {}", req.program))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

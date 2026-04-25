@@ -515,7 +515,7 @@ fn test_batch_run_opts_default_format_is_jsonl() {
     );
     assert!(
         opts.max_turns.is_none(),
-        "default must impose no turn limit"
+        "default must impose no pulse limit"
     );
     assert!(opts.auto_approve.is_none(), "default must not auto-approve");
 }

@@ -26,13 +26,13 @@ const CLIENT_PROTECTIONS: &[&str] = &[
 ];
 
 const SERVER_LOCAL_STORAGE: &[&str] = &[
-    "Active turn state, approval state, and streamed envelope buffers are held in memory while a task is running.",
+    "Active pulse state, approval state, and streamed envelope buffers are held in memory while a task is running.",
     "Persistent task state still uses the same `.vex/state/` files as the CLI surface; the server does not create a second hosted history store.",
     "Unix-socket mode uses a filesystem path under `${XDG_RUNTIME_DIR}` or `/tmp` on supported platforms.",
 ];
 
 const SERVER_REMOTE_TRANSFER: &[&str] = &[
-    "Authorized LocalApiServer clients receive prompts, transcript rows, tool results, and turn metadata over `POST /v1/turns` and the related control routes.",
+    "Authorized LocalApiServer clients receive prompts, transcript rows, tool results, and pulse metadata over `POST /v1/pulses` and the related control routes.",
     "If the server is bound beyond loopback, those payloads travel over the configured TLS surface.",
     "Metadata endpoints such as `/v1/health`, `/v1/schema`, and `/v1/privacy` expose service or policy data rather than runtime envelopes.",
 ];
@@ -50,15 +50,15 @@ const CREDENTIAL_ITEMS: &[&str] = &[
 ];
 
 const TELEMETRY_ITEMS: &[&str] = &[
-    "Interactive turn telemetry is displayed in the CLI transcript and status surface as local state rather than as a separate analytics export.",
-    "When the configured model endpoint returns usage metadata, VexCoder may persist or render that metadata with the turn because it is part of the model response.",
+    "Interactive pulse telemetry is displayed in the CLI transcript and status surface as local state rather than as a separate analytics export.",
+    "When the configured model endpoint returns usage metadata, VexCoder may persist or render that metadata with the pulse because it is part of the model response.",
     "Crash or debug logs are opt-in via `RUST_LOG`; without it, the runtime does not create rolling log files.",
 ];
 
 const RETENTION_ITEMS: &[&str] = &[
     "Saved task state, peer-message files, indexes, and exports remain on disk until the operator removes them or changes the configured storage path.",
     "Notes remain at the configured `notes_path` until they are edited or deleted.",
-    "Active LocalApiServer task buffers are retained in memory for the life of the active turn and then released.",
+    "Active LocalApiServer task buffers are retained in memory for the life of the active pulse and then released.",
     "Remote retention for model endpoints, MCP servers, and other external services is controlled by those services rather than by VexCoder.",
 ];
 
