@@ -5,7 +5,7 @@
 
 ## Context
 
-A structured gap analysis against available open-source reference implementations identified 35 feature gaps outside ADR-022 and ADR-023 scope, covering sandboxing, headless mode, layered config, MCP, distribution, skills, and migration tooling.
+A structured gap analysis against available open-source reference implementations identified 35 feature gaps outside ADR-022 and ADR-023 scope, covering sandboxing, headless mode, layered config, MCP, distribution, skills, and config-import and environment-onboarding tooling.
 
 ## Decision
 

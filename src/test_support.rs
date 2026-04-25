@@ -1,4 +1,5 @@
 use crate::runtime::tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+use std::sync::{Arc, Mutex};
 
 pub struct EnvLock {
     inner: AsyncMutex<()>,
@@ -83,6 +84,37 @@ pub fn test_set_var(lock: &EnvLockGuard<'_>, key: &str, value: impl AsRef<std::f
 
 pub fn test_remove_var(lock: &EnvLockGuard<'_>, key: &str) {
     lock.remove_var(key)
+}
+
+/// Shared type for recording HTTP request bodies in test servers.
+/// A single `Arc<Mutex<Vec<serde_json::Value>>>` is cloned into the server's
+/// axum state, and the original handle is kept by the test for post-run assertions.
+pub type RequestLog = Arc<Mutex<Vec<serde_json::Value>>>;
+
+/// Spawn an ephemeral axum server bound to a random loopback port.
+/// Returns the join handle and the bound `SocketAddr` for URL construction.
+/// Call `.abort()` on the handle after the test's assertions are complete.
+///
+/// # Example
+/// ```ignore
+/// let log: RequestLog = Arc::new(Mutex::new(vec![]));
+/// let (server, addr) = spawn_axum_server(
+///     Router::new().route("/api", post(handler)).with_state(log.clone())
+/// ).await;
+/// // ... make requests to format!("http://{addr}/api") ...
+/// server.abort();
+/// ```
+pub async fn spawn_axum_server(
+    router: axum::Router,
+) -> (tokio::task::JoinHandle<()>, std::net::SocketAddr) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    (handle, addr)
 }
 
 #[cfg(test)]

@@ -7,4 +7,4 @@
 
 - `json_handoff.rs` envelope metadata additions (Phase A) target `event_id`, `emitted_at`, `source`, optional `request_id`, `parent_event_id`.
 - `ToolCallParser` and text-protocol fallback are listed as retirement targets after envelope schema is extended; not deprecated yet.
-- `RuntimeMode` and `FrontendAdapter` are simplification targets, not current migration items.
+- `RuntimeMode` and `FrontendAdapter` are simplification targets, not current code-shape refactoring items.

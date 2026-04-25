@@ -2,7 +2,7 @@ use super::*;
 use crate::config::CompactionConfig;
 use crate::runtime::RuntimeEvent;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
-use crate::test_support::ENV_LOCK;
+use crate::test_support::{ENV_LOCK, RequestLog, spawn_axum_server};
 use crate::types::{ApiMessage, Content};
 use axum::Json;
 use axum::Router;
@@ -51,8 +51,6 @@ mod protocol;
 
 #[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -92,20 +90,12 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/chat/completions", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/chat/completions", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/chat/completions"),
@@ -144,8 +134,6 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_response() {
 
 #[tokio::test]
 async fn test_create_stream_falls_back_when_local_stream_closes_without_initial_sse_event() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -183,20 +171,12 @@ async fn test_create_stream_falls_back_when_local_stream_closes_without_initial_
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/chat/completions", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/chat/completions", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/chat/completions"),
@@ -235,8 +215,6 @@ async fn test_create_stream_falls_back_when_local_stream_closes_without_initial_
 
 #[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_tool_calls() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -300,20 +278,12 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_too
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/chat/completions", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/chat/completions", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/chat/completions"),
@@ -416,8 +386,6 @@ async fn test_create_stream_falls_back_to_non_streaming_chat_compat_parallel_too
 
 #[tokio::test]
 async fn test_create_stream_rejects_malformed_chat_compat_non_stream_fallback_response() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -441,20 +409,12 @@ async fn test_create_stream_rejects_malformed_chat_compat_non_stream_fallback_re
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/chat/completions", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/chat/completions", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/chat/completions"),
@@ -489,8 +449,6 @@ async fn test_create_stream_rejects_malformed_chat_compat_non_stream_fallback_re
 
 #[tokio::test]
 async fn test_create_stream_times_out_when_chat_compat_non_stream_fallback_stalls() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -521,20 +479,12 @@ async fn test_create_stream_times_out_when_chat_compat_non_stream_fallback_stall
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/chat/completions", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/chat/completions", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/chat/completions"),
@@ -576,8 +526,6 @@ async fn test_create_stream_times_out_when_chat_compat_non_stream_fallback_stall
 
 #[tokio::test]
 async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -618,20 +566,12 @@ async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/messages"),
@@ -691,8 +631,6 @@ async fn test_create_stream_falls_back_to_non_streaming_messages_v1_tool_use() {
 
 #[tokio::test]
 async fn test_create_stream_times_out_when_messages_v1_non_stream_fallback_stalls() {
-    type RequestLog = Arc<Mutex<Vec<Value>>>;
-
     async fn handler(
         State(log): State<RequestLog>,
         Json(payload): Json<Value>,
@@ -723,20 +661,12 @@ async fn test_create_stream_times_out_when_messages_v1_non_stream_fallback_stall
 
     let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
     let request_log = requests.clone();
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", post(handler))
-                .with_state(requests),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", post(handler))
+            .with_state(requests),
+    )
+    .await;
 
     let config = local_stream_test_config(
         format!("http://{addr}/v1/messages"),
@@ -789,20 +719,12 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
         )
     }
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", get(messages_v1_probe))
-                .route("/v1/chat/completions", get(chat_compat_probe)),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", get(messages_v1_probe))
+            .route("/v1/chat/completions", get(chat_compat_probe)),
+    )
+    .await;
 
     let mut config = crate::config::Config::default_for_tui();
     config.model_name = "local/test-model".to_string();
@@ -841,20 +763,12 @@ async fn test_populate_server_info_prefers_messages_v1_when_base_url_exposes_bot
         )
     }
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", get(messages_v1_probe))
-                .route("/v1/chat/completions", get(chat_compat_probe)),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", get(messages_v1_probe))
+            .route("/v1/chat/completions", get(chat_compat_probe)),
+    )
+    .await;
 
     let mut config = crate::config::Config::default_for_tui();
     config.model_name = "local/test-model".to_string();
@@ -887,20 +801,12 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
         )
     }
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", get(messages_v1_probe))
-                .route("/v1/chat/completions", get(chat_compat_probe)),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", get(messages_v1_probe))
+            .route("/v1/chat/completions", get(chat_compat_probe)),
+    )
+    .await;
 
     let mut config = crate::config::Config::default_for_tui();
     config.model_name = "local/test-model".to_string();
@@ -955,22 +861,14 @@ async fn test_populate_server_info_infers_chat_compat_from_server_props_when_sse
         )
     }
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/props", get(server_props))
-                .route("/v1/models", get(models))
-                .route("/v1/messages", get(missing_probe))
-                .route("/v1/chat/completions", get(missing_probe)),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/props", get(server_props))
+            .route("/v1/models", get(models))
+            .route("/v1/messages", get(missing_probe))
+            .route("/v1/chat/completions", get(missing_probe)),
+    )
+    .await;
 
     let mut config = crate::config::Config::default_for_tui();
     config.model_name = "local/test-model".to_string();
@@ -1002,20 +900,12 @@ async fn test_populate_server_info_respects_probe_timeout_config() {
         )
     }
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new()
-                .route("/v1/messages", get(slow_probe))
-                .route("/v1/chat/completions", get(slow_probe)),
-        )
-        .await
-        .unwrap();
-    });
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", get(slow_probe))
+            .route("/v1/chat/completions", get(slow_probe)),
+    )
+    .await;
 
     let mut config = crate::config::Config::default_for_tui();
     config.model_name = "local/test-model".to_string();

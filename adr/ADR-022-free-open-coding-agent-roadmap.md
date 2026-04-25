@@ -6,7 +6,7 @@
 
 ## Context
 
-`vexcoder` targets release as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. This ADR defines the first-release feature scope and eight-phase migration from the pre-release baseline.
+`vexcoder` targets release as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. This ADR defines the first-release feature scope and eight-phase source-transformation sequence from the pre-release baseline.
 
 ## Decision
 
@@ -17,7 +17,7 @@
 - Command execution is a first-class built-in capability, not a plugin.
 - Capability-based approval tracks `Capability` variants, not raw tool names.
 - Remove all provider-branded config keys and defaults from `Config`; use neutral names.
-- Eight-phase migration order: neutralize config → command execution → diff-native writes → approval policy → durable task state → TUI rework → repo tools → defer browser/editor.
+- Eight-phase restructuring order: neutralize config → command execution → diff-native writes → approval policy → durable task state → TUI rework → repo tools → defer browser/editor.
 
 ## References
 

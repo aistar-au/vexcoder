@@ -1694,7 +1694,7 @@ dependencies = [
  "bstr",
  "gix-date",
  "gix-error",
- "winnow",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -1809,7 +1809,7 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.18",
  "unicode-bom",
- "winnow",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -2103,7 +2103,7 @@ dependencies = [
  "itoa",
  "smallvec",
  "thiserror 2.0.18",
- "winnow",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -2201,7 +2201,7 @@ dependencies = [
  "maybe-async",
  "nonempty 0.12.0",
  "thiserror 2.0.18",
- "winnow",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -2233,7 +2233,7 @@ dependencies = [
  "gix-validate",
  "memmap2",
  "thiserror 2.0.18",
- "winnow",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -2486,6 +2486,12 @@ dependencies = [
  "gix-traverse",
  "parking_lot",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "globset"
@@ -4347,6 +4353,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-crate"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f"
+dependencies = [
+ "toml_edit 0.25.11+spec-1.1.0",
+]
+
+[[package]]
 name = "proc-macro-error-attr2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4771,6 +4786,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
+name = "relative-path"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
+
+[[package]]
 name = "reqwest"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4847,6 +4868,35 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "rstest"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5a3193c063baaa2a95a33f03035c8a72b83d97a54916055ba22d35ed3839d49"
+dependencies = [
+ "futures-timer",
+ "futures-util",
+ "rstest_macros",
+]
+
+[[package]]
+name = "rstest_macros"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c845311f0ff7951c5506121a9ad75aec44d083c31583b2ea5a30bcb0b0abba0"
+dependencies = [
+ "cfg-if",
+ "glob",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "relative-path",
+ "rustc_version",
+ "syn 2.0.117",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -5844,7 +5894,7 @@ dependencies = [
  "serde",
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
- "toml_edit",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]
@@ -5888,7 +5938,28 @@ dependencies = [
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
  "toml_write",
- "winnow",
+ "winnow 0.7.15",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.25.11+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b59c4d22ed448339746c59b905d24568fcbb3ab65a500494f7b8c3e97739f2b"
+dependencies = [
+ "indexmap",
+ "toml_datetime 1.1.1+spec-1.1.0",
+ "toml_parser",
+ "winnow 1.0.2",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.1.2+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
+dependencies = [
+ "winnow 1.0.2",
 ]
 
 [[package]]
@@ -6365,6 +6436,7 @@ dependencies = [
  "regex-lite",
  "reqwest",
  "rmcp",
+ "rstest",
  "rustls 0.23.37",
  "serde",
  "serde_json",
@@ -7070,6 +7142,15 @@ name = "winnow"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "winnow"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee1708bef14716a11bae175f579062d4554d95be2c6829f518df847b7b3fdd0"
 dependencies = [
  "memchr",
 ]
