@@ -13,7 +13,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | **Accepted** | In effect — code must conform |
 | **Locked** | Accepted and immutable — requires a new ADR to amend |
 | **Complete** | All scoped items merged; pending housekeeping move to `completed/` |
-| **Amended** | Base decision unchanged; specific items superseded by an amendment ADR |
+| **Amended** | Base decision unchanged; specific items updated by an amendment ADR |
 | **Deprecated by ADR-XXX** | Replaced; retained as a deprecated design record |
 
 ## Open ADRs

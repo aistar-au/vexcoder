@@ -7,7 +7,7 @@
 
 - `LocalApiServer` binds to `127.0.0.1:0`; assigned port reported via stdout at startup.
 - HTTP bodies use `application/json`; SSE responses use `text/event-stream`.
-- Server lifetime tied to the parent runtime process; no daemonization.
+- Server lifetime tied to the owning runtime process; no daemonization.
 
 ## References
 

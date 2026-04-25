@@ -4,4 +4,4 @@
 
 ## Decision
 
-Deprecated. Correctness cutover superseded by full-screen TUI command-session capture (ADR-027).
+Deprecated. Correctness cutover moved to full-screen TUI command-session capture (ADR-027).

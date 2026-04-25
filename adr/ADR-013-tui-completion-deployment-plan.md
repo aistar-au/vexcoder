@@ -7,4 +7,4 @@
 
 - Full-screen TUI activated via `--ui` flag; batch/headless paths remain unchanged.
 - Deployment gated on passing `tests/tui_integration.rs` with a real console emulator.
-- All phases complete; see `adr/completed/` records for superseded design context.
+- All phases complete; see `adr/completed/` records for archived and deprecated design context.
