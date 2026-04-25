@@ -1,147 +1,24 @@
 # ADR-032: Prompt Area Interactivity and Context Guard
 
-- **Status:** Accepted
-- **Date:** 2026-03-22
-- **Deciders:** Core maintainer
-- **Depends on:** ADR-031, ADR-015
-- **Deprecates:** None
-- **Deprecated by:** None
+**Status:** Accepted (bottom-anchored prompt amendment corrected 2026-04-09)  
+**Chain:** ADR-031, ADR-015
 
 ## Context
 
-Local inference servers expose a fixed context
-window via `--ctx-size` or equivalent. When conversation history grows beyond
-this limit the server returns HTTP 400 with a body describing the overflow.
-The original error handler did not read the response body, so the user saw a
-generic protocol-hint message instead of the actionable context-overflow
-diagnosis.
-
-The prompt area also lacked interactive feedback: no character count, no
-focus indicator, no responsive fullscreen reflow contract for the multiline
-composer, and no in-session context recovery path. Users running
-small-context local models had no way to know they were approaching the limit
-or to recover without restarting, and resizing the display could leave the
-prompt area described as a fixed reservation instead of a viewport-fitted
-surface.
+The prompt area lacked character-count feedback, file/command pickers, and automatic compaction on context overflow. Item 9 (hybrid retrieval) was transferred to ADR-033.
 
 ## Decision
 
-### Context-overflow error recovery
-
-1. The API client reads the response body on any 4xx before constructing the
-   error. Pattern matching on the body text distinguishes context-overflow
-   errors from protocol mismatches.
-
-2. Context-overflow errors surface the server's message verbatim (truncated
-   to 300 characters) and append actionable guidance:
-   - For local endpoints: suggest `--ctx-size <N>` and `/compact`.
-   - For remote endpoints: suggest `/compact`.
-
-3. Non-context-overflow 400s on local endpoints retain the existing protocol
-   detection hint (MessagesV1 vs ChatCompat).
-
-### Prompt area interactivity contracts
-
-4. **Character count indicator** — the prompt status line shows a current
-   character count so users can gauge input size relative to the context
-   budget before submitting.
-
-5. **Focus indicator** — the prompt border or status area visually
-   distinguishes focused (active input) from unfocused (scrolling transcript)
-   state.
-
-6. **`/compact` for context recovery** — the `/compact` command resets
-   conversation history while preserving the active task. Context-overflow
-   error messages explicitly suggest `/compact` as the recovery path. The
-   runtime also performs automatic compaction when a context-overflow HTTP 400
-   is detected: it retains the last four messages and retries the request
-   once, displaying a `[context: compacted N -> M messages]` indicator.
-
-7. **`@` file picker** — the `@` prefix surfaces files and directories from
-   the current working directory with arrow-key navigation and Enter to select.
-   Selecting a directory (trailing `/`) keeps the picker open for hierarchical
-   drill-down into subdirectories. A `/` slash picker offers the same
-   Up/Down/Enter/Esc navigation for slash commands.
-
-### Context-proportional offset reading
-
-8. The `read_file` tool accepts `offset` (1-based line) and `limit`
-   parameters. When no explicit limit is given, an auto-cap derived from
-   `VEX_MAX_TOKENS` prevents full-file reads from exhausting the context
-   window. The heuristic allocates ~10% of the context budget per file read
-   at ~20 tokens per line:
-
-   - 4K context: ~50 lines per read
-   - 32K context: ~160 lines
-   - 128K context: ~640 lines
-   - 1M+ context: up to 10,000 lines
-
-   Configurable via `VEX_READ_FILE_MAX_LINES` for explicit override.
-
-### Target architecture: hybrid retrieval
-
-9. The offset/limit mechanism is a pragmatic first step. The target
-   architecture for large-codebase context management uses a hybrid
-   retrieval pipeline:
-
-   - **AST-aware chunking**: structural graph at function/type boundaries
-     (Tree-sitter for Rust). Never reads a full file unless explicitly
-     requested; returns snippets with file:line references.
-   - **Semantic search tool** (`codebase_search`): vector-indexed semantic
-     queries return ranked snippets, not whole files. Indexing is
-     incremental and persistent.
-   - **Diff-native edits**: `apply_diff` / patch-style edits preferred over
-     full-file writes to prevent truncation on files exceeding ~500 lines.
-   - **Task extraction**: complex refactors extracted into isolated
-     subtasks with slim per-task context. Results summarized before passing
-     back to the orchestrator.
-   - **Context condensing**: conversation history auto-summarized; oldest
-     messages dropped to stay under the model window.
-   - **Observe-revise self-correction**: agent runs tests/linters on
-     changes, observes failures, then uses index to pull just the broken
-     part for the next turn rather than re-scanning files.
-
-### Bottom-anchored prompt over the owned transcript surface
-
-10. Under the owned-transcript model corrected on 2026-04-09, the prompt
-  stays in a reserved bottom viewport. Committed transcript history remains
-  on the app-owned transcript surface above the live viewport.
-
-11. Up and Down keys in the multiline composer continue to mean cursor
-    motion, input history recall, or picker navigation within the composer.
-    They do not scroll the main-surface committed transcript. Main-surface
-    transcript inspection stays on the owned task surface or an explicit
-    transcript overlay, not host scrollback.
-
-12. In-app transcript inspection, when needed, uses an explicit transcript
-    overlay (detail surface) or the owned transcript surface rather than a
-    host-scrollback review contract.
-
-13. Character count indicator, focus indicator, `/compact` recovery, `@`
-    file picker, and fullscreen reflow contracts remain unchanged by the
-    2026-04-09 owned-transcript correction.
-
-14. The prompt area must not imply that app-level idle transcript scrolling
-    is required for the main surface. Interactive transcript review on the
-    main path remains within the task surface, with explicit overlays for
-    deeper inspection.
-
-## Consequences
-
-- Users see the actual server error on context overflow instead of a
-  misleading protocol hint.
-- `/compact` becomes the documented recovery path for context exhaustion,
-  both as a manual command and as an automatic server-side recovery step.
-- Prompt area focus and character count reduce guesswork during input.
-  The fullscreen composer now reflows within the current display row and column
-  budget so prompt-area affordances remain visible when the window is resized,
-  including half-screen and quarter-screen display snaps.
-- Context-proportional auto-cap prevents file reads from exhausting small
-  context windows while allowing generous reads on large contexts.
-- The hybrid retrieval target ensures the architecture scales to massive
-  codebases without naive full-file reads.
+- Character count indicator rendered in prompt status line.
+- Focus indicator distinguishes focused input from unfocused scroll.
+- `/compact` resets conversation history, preserving the active task.
+- Automatic compaction on HTTP 400 context-overflow: retain last 4 messages, retry once.
+- `@` file picker and `/` slash picker with arrow-key navigation.
+- Context-proportional auto-cap for `read_file`: allocates ~10% of context budget per file.
+- Bottom-anchored prompt rendered over the app-owned transcript surface (ADR-031).
+- Items 10–14 align prompt/navigation with the owned-transcript review model; no host-scrollback dependency.
 
 ## References
 
-- [ADR-031](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-031-operator-surface-ui-overhaul.md) — operator surface UI overhaul
-- [ADR-015](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-015-local-endpoint-text-protocol-default.md) — local endpoint text protocol default
+- [`ratatui`](https://docs.rs/ratatui) — prompt widget
+- [RFC 7231 §6.5.1](https://www.rfc-editor.org/rfc/rfc7231#section-6.5.1) — HTTP 400 Bad Request

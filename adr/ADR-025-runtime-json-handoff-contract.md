@@ -8,8 +8,4 @@
 - `RuntimeEnvelope` is the normalized internal event type produced at the ingress boundary.
 - JSON handoff serializes `RuntimeEnvelope` to JSONL for cross-process transport.
 - All consumers receive envelopes; no consumer inspects provider-native event formats.
-- See ADR-047 amendments for subsequent envelope extensions.
-
-## References
-
-- [`serde_json`](https://docs.rs/serde_json) — envelope serialization ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259))
+- Complete; see ADR-047 amendments for subsequent envelope extensions.
