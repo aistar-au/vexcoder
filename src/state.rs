@@ -3,7 +3,7 @@ mod stream_block;
 pub(crate) mod transcript_delta;
 
 pub use conversation::{
-    ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, PulseToolPolicy,
+    ConversationManager, ConversationStreamUpdate, PulseToolPolicy, ToolApprovalRequest,
     UndoCheckpoint,
 };
 #[cfg(test)]

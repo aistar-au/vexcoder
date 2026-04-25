@@ -1,4 +1,4 @@
-use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, PulseToolPolicy};
+use super::{ConversationManager, ConversationStreamUpdate, PulseToolPolicy, ToolApprovalRequest};
 use crate::api::client::is_readonly_tool;
 use crate::config::{HookEvent, HookOnFail, SearchConfig};
 use crate::mcp::McpRegistry;

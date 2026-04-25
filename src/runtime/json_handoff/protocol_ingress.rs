@@ -1,5 +1,5 @@
 use super::derived::{empty_json_object, token_usage_from_turn_tokens};
-use super::{RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, PulseEndContext};
+use super::{PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent};
 use crate::api::stream::MAX_TOOL_CALL_INDEX;
 use crate::api::stream::chat_compat::{
     ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatFunctionArguments,

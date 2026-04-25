@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::stream::StreamParser;
 use crate::app::UiUpdate;
-use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeEvent, PulseEndContext};
+use crate::runtime::json_handoff::{PulseEndContext, RuntimeEnvelopeNormalizer, RuntimeEvent};
 use crate::state::{StreamBlock, ToolStatus};
 use serde_json::json;
 

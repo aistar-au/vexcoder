@@ -303,18 +303,19 @@ impl TuiMode {
                             }
                         }
                         if !is_error {
-                            let name_and_input = self.task_doc.active_pulse.as_ref().and_then(|a| {
-                                a.entries.iter().rev().find_map(|e| {
-                                    if let PulseEntry::ToolCall {
-                                        id, name, input, ..
-                                    } = e
-                                        && *id == tool_call_id
-                                    {
-                                        return Some((name.clone(), input.clone()));
-                                    }
-                                    None
-                                })
-                            });
+                            let name_and_input =
+                                self.task_doc.active_pulse.as_ref().and_then(|a| {
+                                    a.entries.iter().rev().find_map(|e| {
+                                        if let PulseEntry::ToolCall {
+                                            id, name, input, ..
+                                        } = e
+                                            && *id == tool_call_id
+                                        {
+                                            return Some((name.clone(), input.clone()));
+                                        }
+                                        None
+                                    })
+                                });
                             if let Some((name, input)) = name_and_input {
                                 let mut changed = std::collections::BTreeSet::new();
                                 note_changed_files_from_tool_call(&mut changed, &name, &input);

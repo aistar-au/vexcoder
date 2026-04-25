@@ -404,9 +404,7 @@ pub(super) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Watch
         | SlashCommandId::Reindex => "retrieve + context",
         SlashCommandId::Edit | SlashCommandId::Fix | SlashCommandId::Diff => "edit + inspect",
-        SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => {
-            "validate + call"
-        }
+        SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => "validate + call",
         SlashCommandId::Init
         | SlashCommandId::Model
         | SlashCommandId::Permissions

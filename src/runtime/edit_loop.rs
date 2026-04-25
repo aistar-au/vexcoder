@@ -123,7 +123,11 @@ impl EditLoop {
                 format!("{instruction}\n\n{retry_context}")
             };
 
-            ctx.emit_transcript_line(format!("[edit loop pulse {}/{}]", pulse + 1, self.max_turns));
+            ctx.emit_transcript_line(format!(
+                "[edit loop pulse {}/{}]",
+                pulse + 1,
+                self.max_turns
+            ));
 
             let patch_applied = match ctx.drive_edit_turn(message).await {
                 Ok(turn_result) => turn_result.patch_applied,
@@ -185,8 +189,7 @@ impl EditLoop {
             Ok(o) => o,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(error) => {
-                return Err(error)
-                    .context("failed to call git status for workspace-dirty check");
+                return Err(error).context("failed to call git status for workspace-dirty check");
             }
         };
 

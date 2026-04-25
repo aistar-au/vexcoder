@@ -7,7 +7,7 @@ use crate::runtime::context::RuntimeContext;
 use crate::runtime::delta_accumulator::{DeltaAccumulator, PeerDeltaEvent};
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
 use crate::runtime::json_handoff::{
-    RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, PulseEndContext,
+    PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent,
     runtime_approval_request_event,
 };
 use crate::runtime::mode::RuntimeMode;
@@ -465,7 +465,10 @@ mod tests {
 
         let seqs: Vec<u64> = envelopes.iter().map(|envelope| envelope.seq).collect();
         assert_eq!(seqs, vec![1, 2, 3, 4, 5]);
-        assert!(matches!(envelopes[0].event, RuntimeEvent::PulseStart { .. }));
+        assert!(matches!(
+            envelopes[0].event,
+            RuntimeEvent::PulseStart { .. }
+        ));
         let final_text_index = match &envelopes[1].event {
             RuntimeEvent::TranscriptBlockStart {
                 index,

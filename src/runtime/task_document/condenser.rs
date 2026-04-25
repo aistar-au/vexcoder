@@ -2,12 +2,12 @@ use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability};
-use crate::state::{StreamBlock, PulseToolPolicy};
+use crate::state::{PulseToolPolicy, StreamBlock};
 use crate::usage::PulseTokens;
 
 use super::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase, NoticeSeverity,
-    TaskDocument, TaskErrorState, TaskInfo, TurnDocument, PulseEntry, PulseOutcome,
+    PulseEntry, PulseOutcome, TaskDocument, TaskErrorState, TaskInfo, TurnDocument,
 };
 
 #[derive(Debug, Default)]

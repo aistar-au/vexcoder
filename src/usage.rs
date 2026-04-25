@@ -85,7 +85,7 @@ pub fn estimate_tokens(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{SessionTokens, PulseTokens, estimate_tokens};
+    use super::{PulseTokens, SessionTokens, estimate_tokens};
 
     #[test]
     fn estimate_tokens_uses_char_quarters() {

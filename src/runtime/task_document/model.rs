@@ -7,7 +7,7 @@ use crate::runtime::task_state::{
     CommandEvidence, ContextCompactionRecord, SessionNote, TaskStatus,
 };
 use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
-use crate::state::{ToolStatus, PulseToolPolicy};
+use crate::state::{PulseToolPolicy, ToolStatus};
 use crate::types::{StreamPromptProgress, StreamTimings};
 use crate::usage::PulseTokens;
 

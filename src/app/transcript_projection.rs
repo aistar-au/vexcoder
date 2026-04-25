@@ -1,6 +1,6 @@
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::task_document::{
-    ActiveTurnDocument, AssistantPhase, NoticeSeverity, TaskDocument, PulseEntry,
+    ActiveTurnDocument, AssistantPhase, NoticeSeverity, PulseEntry, TaskDocument,
 };
 use crate::state::ToolStatus;
 use crate::status_contract::{

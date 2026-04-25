@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::{TaskId, TaskState};
-use crate::runtime::session_task::{SessionTask, now_millis};
 use crate::pulse_evidence::normalize_tool_invocation_step_ids;
+use crate::runtime::session_task::{SessionTask, now_millis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskStateFile {
@@ -293,13 +293,13 @@ impl TaskState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pulse_evidence::TurnEvidenceState;
     use crate::runtime::approval::{ApprovalScope, Capability};
     use crate::runtime::task_state::{
         CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
         InterruptedCommand, SessionNote, TaskStatus,
     };
     use crate::test_support::ENV_LOCK;
-    use crate::pulse_evidence::TurnEvidenceState;
     use tempfile::TempDir;
 
     #[test]

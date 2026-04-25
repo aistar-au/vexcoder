@@ -408,7 +408,11 @@ fn test_commit_completed_turn_uses_normalized_stream_text_once() {
 
     mode.commit_completed_turn(&ctx);
 
-    let last_pulse = mode.task_doc.completed_turns.last().expect("recorded pulse");
+    let last_pulse = mode
+        .task_doc
+        .completed_turns
+        .last()
+        .expect("recorded pulse");
     let response =
         crate::app::transcript_projection::extract_assistant_response(&last_pulse.entries);
     assert_eq!(response, "Hello");
@@ -902,7 +906,7 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
 #[test]
 fn test_task_layout_state_merges_live_changed_files_before_turn_commit() {
     let mut mode = TuiMode::new();
-    use crate::runtime::task_document::{TurnDocument, PulseOutcome};
+    use crate::runtime::task_document::{PulseOutcome, TurnDocument};
     use crate::usage::PulseTokens;
 
     mode.task_doc.completed_turns.push(TurnDocument {

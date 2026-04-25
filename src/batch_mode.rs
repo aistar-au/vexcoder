@@ -5,6 +5,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
 use crate::mcp::McpRegistry;
+use crate::pulse_evidence::{
+    SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
+    note_changed_files_from_tool_call,
+};
 use crate::runtime::{
     TaskState, UiUpdate,
     context::RuntimeContext,
@@ -18,10 +22,6 @@ use crate::runtime::{
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
-use crate::pulse_evidence::{
-    SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
-    note_changed_files_from_tool_call,
-};
 use crate::usage::PulseTokens;
 use opentelemetry::KeyValue;
 use std::path::PathBuf;

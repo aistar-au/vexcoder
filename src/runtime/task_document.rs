@@ -5,8 +5,8 @@ mod task_state_bridge;
 pub use condenser::{TaskDocumentCondenser, TaskMutationSummary};
 pub use model::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
-    CommandSessionDocument, NoticeSeverity, TaskDocument, TaskErrorState, TaskInfo, TurnDocument,
-    PulseEntry, PulseOutcome,
+    CommandSessionDocument, NoticeSeverity, PulseEntry, PulseOutcome, TaskDocument, TaskErrorState,
+    TaskInfo, TurnDocument,
 };
 
 #[cfg(test)]

@@ -158,7 +158,10 @@ fn test_tui_memory_does_not_call_start_turn() {
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
 
     mode.on_user_input("/memory".to_string(), &mut ctx);
-    assert!(!mode.is_pulse_in_progress(), "/memory must not start a pulse");
+    assert!(
+        !mode.is_pulse_in_progress(),
+        "/memory must not start a pulse"
+    );
 
     mode.on_user_input("/memory add another".to_string(), &mut ctx);
     assert!(
@@ -172,7 +175,10 @@ fn test_tui_memory_does_not_call_start_turn() {
         "/memory clear must not start a pulse"
     );
     mode.on_user_input("n".to_string(), &mut ctx);
-    assert!(!mode.is_pulse_in_progress(), "cancel must not start a pulse");
+    assert!(
+        !mode.is_pulse_in_progress(),
+        "cancel must not start a pulse"
+    );
 }
 #[test]
 fn test_tui_memory_ignores_old_home_notes_path() {

@@ -7,6 +7,9 @@ use crate::prompts::{
     render_explain_prompt, render_generate_tests_prompt, render_plan_prompt, render_review_prompt,
 };
 #[cfg(test)]
+use crate::pulse_evidence::ToolInvocationSummary;
+use crate::pulse_evidence::note_changed_files_from_tool_call;
+#[cfg(test)]
 use crate::runtime::CommandResult;
 #[cfg(test)]
 use crate::runtime::PulseEntry;
@@ -21,8 +24,8 @@ use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
-    DefaultCommandRunner, EditLoopOutcome, SandboxDriver, TaskDocument, TaskDocumentCondenser,
-    TaskState, TaskStatus, PulseOutcome, format_command_session_cancelled,
+    DefaultCommandRunner, EditLoopOutcome, PulseOutcome, SandboxDriver, TaskDocument,
+    TaskDocumentCondenser, TaskState, TaskStatus, format_command_session_cancelled,
     format_command_session_exit, format_command_session_output, format_command_session_started,
     truncate_head_bytes,
 };
@@ -37,11 +40,8 @@ use crate::session_notes::{
 };
 #[cfg(test)]
 use crate::state::StreamBlock;
-use crate::state::{ConversationManager, ToolApprovalRequest, PulseToolPolicy};
+use crate::state::{ConversationManager, PulseToolPolicy, ToolApprovalRequest};
 use crate::tools::ToolOperator;
-#[cfg(test)]
-use crate::pulse_evidence::ToolInvocationSummary;
-use crate::pulse_evidence::note_changed_files_from_tool_call;
 use crate::types::ModelProfile;
 #[cfg(test)]
 use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};

@@ -21,7 +21,7 @@ use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
 use crate::privacy::{PrivacyStatement, privacy_statement};
-use crate::runtime::json_handoff::{RuntimeRequest, PulseEndContext};
+use crate::runtime::json_handoff::{PulseEndContext, RuntimeRequest};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
 };

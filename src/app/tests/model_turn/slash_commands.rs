@@ -61,7 +61,10 @@ async fn test_model_does_not_start_turn() {
     let initial_messages = ctx.test_message_count().await;
 
     mode.on_user_input("/model".to_string(), &mut ctx);
-    assert!(!mode.is_pulse_in_progress(), "/model must not start a pulse");
+    assert!(
+        !mode.is_pulse_in_progress(),
+        "/model must not start a pulse"
+    );
 
     mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
     assert!(
