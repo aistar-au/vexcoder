@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::pulse_evidence::TurnEvidenceState;
 use crate::runtime::session_task::{SessionTask, SessionTaskStatus, now_millis};
 use crate::runtime::{ApprovalScope, Capability};
-use crate::turn_evidence::TurnEvidenceState;
 
 pub(crate) mod header_cache;
 #[cfg(test)]
@@ -113,7 +113,7 @@ pub struct TaskState {
     #[serde(default)]
     pub instructions_path: Option<String>,
     #[serde(default)]
-    pub turns: Vec<TurnEvidenceState>,
+    pub pulses: Vec<TurnEvidenceState>,
     #[serde(default)]
     pub plan: Option<String>,
     #[serde(default)]
@@ -146,7 +146,7 @@ impl TaskState {
             interrupted_sessions: Vec::new(),
             branch_name: None,
             instructions_path: None,
-            turns: Vec::new(),
+            pulses: Vec::new(),
             plan: None,
             session_notes: Vec::new(),
             context_compaction: Vec::new(),

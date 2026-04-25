@@ -2,12 +2,12 @@ use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability};
-use crate::state::{StreamBlock, TurnToolPolicy};
-use crate::usage::TurnTokens;
+use crate::state::{PulseToolPolicy, StreamBlock};
+use crate::usage::PulseTokens;
 
 use super::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase, NoticeSeverity,
-    TaskDocument, TaskErrorState, TaskInfo, TurnDocument, TurnEntry, TurnOutcome,
+    PulseEntry, PulseOutcome, TaskDocument, TaskErrorState, TaskInfo, TurnDocument,
 };
 
 #[derive(Debug, Default)]
@@ -31,7 +31,7 @@ impl TaskDocumentCondenser {
         TaskDocument {
             info,
             completed_turns: Vec::new(),
-            active_turn: None,
+            active_pulse: None,
             session_notes: Vec::new(),
             context_compaction: Vec::new(),
             session_tasks: Vec::new(),
@@ -44,11 +44,11 @@ impl TaskDocumentCondenser {
         doc: &mut TaskDocument,
         input: String,
         started_at_ms: u64,
-        tool_policy: TurnToolPolicy,
+        tool_policy: PulseToolPolicy,
     ) {
         assert!(
-            doc.active_turn.is_none(),
-            "begin_turn called while an active turn is already open"
+            doc.active_pulse.is_none(),
+            "begin_turn called while an active pulse is already open"
         );
 
         let turn_index = doc.completed_turns.len();
@@ -56,10 +56,10 @@ impl TaskDocumentCondenser {
 
         doc.info.status = TaskStatus::Running;
         doc.info.updated_at_ms = started_at_ms;
-        doc.active_turn = Some(ActiveTurnDocument {
+        doc.active_pulse = Some(ActiveTurnDocument {
             turn_index,
             input: input.clone(),
-            entries: vec![TurnEntry::UserInput {
+            entries: vec![PulseEntry::UserInput {
                 step_id,
                 text: input,
             }],
@@ -84,11 +84,11 @@ impl TaskDocumentCondenser {
         let mut summary = TaskMutationSummary::default();
 
         match event {
-            RuntimeEvent::TurnStart { .. } => {}
+            RuntimeEvent::PulseStart { .. } => {}
             RuntimeEvent::TranscriptLine { line } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::SystemNotice {
+                    active.entries.push(PulseEntry::SystemNotice {
                         step_id,
                         message: line,
                         severity: NoticeSeverity::Info,
@@ -98,7 +98,7 @@ impl TaskDocumentCondenser {
                 }
             }
             RuntimeEvent::TranscriptBlockStart { index, block } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     let (phase, content, collapsed) = match block {
                         StreamBlock::Thinking { content, collapsed } => {
                             (AssistantPhase::Thinking, content, collapsed)
@@ -109,7 +109,7 @@ impl TaskDocumentCondenser {
                         _ => return summary,
                     };
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::AssistantBlock {
+                    active.entries.push(PulseEntry::AssistantBlock {
                         step_id,
                         block: AssistantBlockEntry {
                             block_index: index,
@@ -124,7 +124,7 @@ impl TaskDocumentCondenser {
                 }
             }
             RuntimeEvent::TranscriptBlockDelta { index, delta } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     Self::update_block_content(active, index, |entry| {
                         entry.content.push_str(&delta);
                     });
@@ -135,7 +135,7 @@ impl TaskDocumentCondenser {
                 }
             }
             RuntimeEvent::TranscriptBlockComplete { index } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     Self::update_block_content(active, index, |entry| {
                         entry.streaming = false;
                     });
@@ -146,9 +146,9 @@ impl TaskDocumentCondenser {
                 tool_call_id,
                 status,
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall {
+                        if let PulseEntry::ToolCall {
                             id,
                             status: current_status,
                             ..
@@ -167,7 +167,7 @@ impl TaskDocumentCondenser {
                 phase,
                 streaming,
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     Self::update_block_content(active, index, |entry| {
                         entry.phase = phase.clone();
                         entry.streaming = streaming;
@@ -182,9 +182,9 @@ impl TaskDocumentCondenser {
                 status,
                 ..
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::ToolCall {
+                    active.entries.push(PulseEntry::ToolCall {
                         step_id,
                         id: tool_call_id,
                         name: tool_name,
@@ -204,9 +204,9 @@ impl TaskDocumentCondenser {
                 status,
                 ..
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall {
+                        if let PulseEntry::ToolCall {
                             id,
                             status: entry_status,
                             ..
@@ -219,7 +219,7 @@ impl TaskDocumentCondenser {
                     }
 
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::ToolResult {
+                    active.entries.push(PulseEntry::ToolResult {
                         step_id,
                         tool_call_id,
                         tool_name,
@@ -237,9 +237,9 @@ impl TaskDocumentCondenser {
                 status,
                 ..
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall {
+                        if let PulseEntry::ToolCall {
                             id,
                             status: entry_status,
                             ..
@@ -252,7 +252,7 @@ impl TaskDocumentCondenser {
                     }
 
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::ToolResult {
+                    active.entries.push(PulseEntry::ToolResult {
                         step_id,
                         tool_call_id,
                         tool_name,
@@ -268,7 +268,7 @@ impl TaskDocumentCondenser {
                 scope,
                 tool_name,
             } => {
-                if let Some(active) = doc.active_turn.as_mut()
+                if let Some(active) = doc.active_pulse.as_mut()
                     && let (Ok(capability), Ok(scope)) = (
                         capability.parse::<Capability>(),
                         scope.parse::<ApprovalScope>(),
@@ -285,7 +285,7 @@ impl TaskDocumentCondenser {
                     active.pending_approval = Some(approval.clone());
                     active
                         .entries
-                        .push(TurnEntry::ApprovalRequest { step_id, approval });
+                        .push(PulseEntry::ApprovalRequest { step_id, approval });
                     doc.info.status = TaskStatus::AwaitingApproval;
                     summary.active_turn_changed = true;
                     summary.approval_changed = true;
@@ -297,7 +297,7 @@ impl TaskDocumentCondenser {
                 scope,
                 approved,
             } => {
-                if let Some(active) = doc.active_turn.as_mut()
+                if let Some(active) = doc.active_pulse.as_mut()
                     && let (Ok(capability), Ok(scope)) = (
                         capability.parse::<Capability>(),
                         scope.parse::<ApprovalScope>(),
@@ -305,7 +305,7 @@ impl TaskDocumentCondenser {
                 {
                     active.pending_approval = None;
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::ApprovalResolved {
+                    active.entries.push(PulseEntry::ApprovalResolved {
                         step_id,
                         capability,
                         scope,
@@ -331,7 +331,7 @@ impl TaskDocumentCondenser {
             }
             RuntimeEvent::ValidationResult { .. } => {}
             RuntimeEvent::ServerMetadata { metadata } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     if let Some(prompt_progress) = metadata.prompt_progress {
                         active.prompt_progress = Some(prompt_progress);
                     }
@@ -342,12 +342,12 @@ impl TaskDocumentCondenser {
                 }
             }
             RuntimeEvent::UsageUpdated { .. } => {}
-            RuntimeEvent::TurnEnd {
+            RuntimeEvent::PulseEnd {
                 status: _,
                 changed_files,
                 ..
             } => {
-                if let Some(active) = doc.active_turn.as_mut() {
+                if let Some(active) = doc.active_pulse.as_mut() {
                     let before = active.changed_files.len();
                     for path in changed_files {
                         active.changed_files.insert(path);
@@ -382,26 +382,26 @@ impl TaskDocumentCondenser {
     pub fn finish_turn(
         &self,
         doc: &mut TaskDocument,
-        outcome: TurnOutcome,
-        tokens: TurnTokens,
+        outcome: PulseOutcome,
+        tokens: PulseTokens,
         completed_at_ms: u64,
     ) -> TaskMutationSummary {
         let mut summary = TaskMutationSummary::default();
-        let Some(mut active) = doc.active_turn.take() else {
+        let Some(mut active) = doc.active_pulse.take() else {
             return summary;
         };
 
         for entry in &mut active.entries {
-            if let TurnEntry::AssistantBlock { block, .. } = entry {
+            if let PulseEntry::AssistantBlock { block, .. } = entry {
                 block.streaming = false;
             }
         }
 
         doc.info.status = match &outcome {
-            TurnOutcome::Completed => TaskStatus::Ready,
-            TurnOutcome::Failed { .. } => TaskStatus::Failed,
-            TurnOutcome::Cancelled => TaskStatus::Cancelled,
-            TurnOutcome::MaxTurnsReached => TaskStatus::MaxTurnsReached,
+            PulseOutcome::Completed => TaskStatus::Ready,
+            PulseOutcome::Failed { .. } => TaskStatus::Failed,
+            PulseOutcome::Cancelled => TaskStatus::Cancelled,
+            PulseOutcome::MaxTurnsReached => TaskStatus::MaxTurnsReached,
         };
         doc.info.updated_at_ms = completed_at_ms;
 
@@ -435,7 +435,7 @@ impl TaskDocumentCondenser {
         mutate: impl Fn(&mut AssistantBlockEntry),
     ) {
         for entry in active.entries.iter_mut().rev() {
-            if let TurnEntry::AssistantBlock { block, .. } = entry
+            if let PulseEntry::AssistantBlock { block, .. } = entry
                 && block.block_index == block_index
             {
                 mutate(block);

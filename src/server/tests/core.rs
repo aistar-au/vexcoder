@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::stream::StreamParser;
 use crate::app::UiUpdate;
-use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext};
+use crate::runtime::json_handoff::{PulseEndContext, RuntimeEnvelopeNormalizer, RuntimeEvent};
 use crate::state::{StreamBlock, ToolStatus};
 use serde_json::json;
 
@@ -387,7 +387,7 @@ async fn test_turns_invalid_request_uses_problem_details_content_type() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/v1/turns")
+                .uri("/v1/pulses")
                 .header(CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     r#"{"type":"interrupt","request_id":"req-1","task_id":"task-1"}"#,
@@ -522,9 +522,9 @@ async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists()
     });
 
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-runtime-sse");
-    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    let mut envelopes = vec![normalizer.start_pulse(1, Some("inspect file".to_string()))];
     envelopes.extend(
-        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+        normalizer.normalize_ui_update(&UiUpdate::PulseComplete, Some(PulseEndContext::default())),
     );
     for envelope in envelopes {
         sender
@@ -587,7 +587,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_over_http(
     });
 
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-block-sse");
-    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    let mut envelopes = vec![normalizer.start_pulse(1, Some("inspect file".to_string()))];
     envelopes.extend(normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
             index: 1,
@@ -610,7 +610,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_over_http(
     envelopes
         .extend(normalizer.normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 1 }, None));
     envelopes.extend(
-        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+        normalizer.normalize_ui_update(&UiUpdate::PulseComplete, Some(PulseEndContext::default())),
     );
     for envelope in envelopes {
         sender
@@ -665,7 +665,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_over_http(
                 RuntimeEvent::TranscriptBlockComplete { .. } => {
                     saw_tool_block_complete = true;
                 }
-                RuntimeEvent::TurnEnd { .. } => {
+                RuntimeEvent::PulseEnd { .. } => {
                     saw_turn_end = true;
                     break;
                 }
@@ -689,7 +689,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_over_http(
         saw_tool_block_complete,
         "expected tool block completion over runtime-envelope SSE"
     );
-    assert!(saw_turn_end, "expected turn end over runtime-envelope SSE");
+    assert!(saw_turn_end, "expected pulse end over runtime-envelope SSE");
 
     server.abort();
 }
@@ -731,7 +731,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_without_ac
     });
 
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-choices-sse");
-    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    let mut envelopes = vec![normalizer.start_pulse(1, Some("inspect file".to_string()))];
     envelopes.extend(normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
             index: 0,
@@ -754,7 +754,7 @@ async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_without_ac
     envelopes
         .extend(normalizer.normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None));
     envelopes.extend(
-        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+        normalizer.normalize_ui_update(&UiUpdate::PulseComplete, Some(PulseEndContext::default())),
     );
     for envelope in envelopes {
         sender
@@ -1004,7 +1004,7 @@ async fn test_turns_endpoint_rejects_schema_invalid_request() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/v1/turns")
+                .uri("/v1/pulses")
                 .header(AUTHORIZATION, "Bearer token-123")
                 .header(CONTENT_TYPE, "application/json")
                 .body(Body::from(
@@ -1025,10 +1025,10 @@ async fn test_turns_endpoint_returns_sse_headers() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/v1/turns")
+                .uri("/v1/pulses")
                 .header(CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"type":"submit_input","request_id":"req-turns-sse","input":"hello"}"#,
+                    r#"{"type":"submit_input","request_id":"req-pulses-sse","input":"hello"}"#,
                 ))
                 .unwrap(),
         )

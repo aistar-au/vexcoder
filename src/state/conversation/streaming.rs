@@ -1,7 +1,7 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::{ConversationManager, ConversationStreamUpdate};
 use crate::runtime::json_handoff::RuntimeEvent;
-use crate::runtime::task_document::{AssistantPhase, TurnEntry};
+use crate::runtime::task_document::{AssistantPhase, PulseEntry};
 use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
 
@@ -158,10 +158,10 @@ impl ConversationManager {
     ) -> String {
         let (delta, found_entry) = {
             let doc_opt = self.task_doc.as_ref();
-            match doc_opt.and_then(|d| d.active_turn.as_ref()) {
+            match doc_opt.and_then(|d| d.active_pulse.as_ref()) {
                 Some(active) => {
                     let maybe_block = active.entries.iter().rev().find_map(|entry| {
-                        if let TurnEntry::AssistantBlock { block, .. } = entry
+                        if let PulseEntry::AssistantBlock { block, .. } = entry
                             && block.block_index == index
                         {
                             return Some(block);
@@ -224,14 +224,14 @@ impl ConversationManager {
         let emit_info: Option<(usize, StreamBlock)> = {
             self.task_doc
                 .as_ref()
-                .and_then(|d| d.active_turn.as_ref())
+                .and_then(|d| d.active_pulse.as_ref())
                 .and_then(|active| {
                     active
                         .entries
                         .iter()
                         .enumerate()
                         .find_map(|(entry_idx, entry)| {
-                            if let TurnEntry::ToolCall {
+                            if let PulseEntry::ToolCall {
                                 id, name, input, ..
                             } = entry
                                 && id == tool_call_id
@@ -277,10 +277,10 @@ impl ConversationManager {
             let tool_name = self
                 .task_doc
                 .as_ref()
-                .and_then(|d| d.active_turn.as_ref())
+                .and_then(|d| d.active_pulse.as_ref())
                 .and_then(|a| {
                     a.entries.iter().rev().find_map(|e| {
-                        if let TurnEntry::ToolCall { id, name, .. } = e
+                        if let PulseEntry::ToolCall { id, name, .. } = e
                             && id == tool_call_id
                         {
                             return Some(name.clone());
@@ -302,7 +302,7 @@ impl ConversationManager {
         let index = self
             .task_doc
             .as_ref()
-            .and_then(|d| d.active_turn.as_ref())
+            .and_then(|d| d.active_pulse.as_ref())
             .map(|a| a.entries.len().saturating_sub(1))
             .unwrap_or(0);
 
@@ -329,13 +329,13 @@ impl ConversationManager {
             let Some(doc) = self.task_doc.as_ref() else {
                 return;
             };
-            let Some(active) = doc.active_turn.as_ref() else {
+            let Some(active) = doc.active_pulse.as_ref() else {
                 return;
             };
             active.entries[round_start..]
                 .iter()
                 .filter_map(|entry| {
-                    if let TurnEntry::AssistantBlock { block, .. } = entry
+                    if let PulseEntry::AssistantBlock { block, .. } = entry
                         && block.phase == AssistantPhase::Thinking
                     {
                         return Some(block.block_index);

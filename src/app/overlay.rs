@@ -7,10 +7,10 @@ use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
 
 impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
-        let entries = &self.task_doc.active_turn.as_ref()?.entries;
+        let entries = &self.task_doc.active_pulse.as_ref()?.entries;
 
         let exact_match = entries.iter().find_map(|e| {
-            if let crate::runtime::TurnEntry::ToolCall {
+            if let crate::runtime::PulseEntry::ToolCall {
                 step_id,
                 name,
                 input,
@@ -35,7 +35,7 @@ impl TuiMode {
             entries
                 .iter()
                 .filter_map(|e| {
-                    if let crate::runtime::TurnEntry::ToolCall { step_id, name, .. } = e
+                    if let crate::runtime::PulseEntry::ToolCall { step_id, name, .. } = e
                         && name == tool_name
                     {
                         return Some(*step_id);

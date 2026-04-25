@@ -61,7 +61,7 @@ max_checkpoints = 20      # max entries in the undo stack
 ### Execution contract
 
 - `/undo` is a slash command, not a tool call. It does not appear in the
-  tool dispatch table and does not trigger hooks.
+  tool work table and does not trigger hooks.
 - `/undo` with an empty stack emits a diagnostic message ("Nothing to undo").
 - `/undo` restores file content by writing the snapshot bytes. It does not
   use git operations.

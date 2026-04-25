@@ -115,7 +115,7 @@ data: {"type":"message_stop"}"#.to_string(),
         .send_message_with_policy(
             "generate tests for src/lib.rs".to_string(),
             Some(&tx),
-            TurnToolPolicy::TestsOnlyMutations,
+            PulseToolPolicy::TestsOnlyMutations,
         )
         .await?;
     drop(tx);
@@ -164,14 +164,14 @@ data: {"type":"message_stop"}"#.to_string(),
 #[test]
 fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_result() {
     use crate::runtime::json_handoff::RuntimeEvent;
-    use crate::runtime::task_document::TurnOutcome;
-    use crate::usage::TurnTokens;
+    use crate::runtime::task_document::PulseOutcome;
+    use crate::usage::PulseTokens;
 
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
 
     manager.ensure_task_doc();
-    manager.begin_turn_doc("prompt".to_string(), TurnToolPolicy::Default);
+    manager.begin_turn_doc("prompt".to_string(), PulseToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
         tool_call_id: "tool_mut".to_string(),
         tool_name: "apply_patch".to_string(),
@@ -190,8 +190,8 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     });
     assert!(manager.current_turn_has_successful_mutation());
 
-    manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
-    manager.begin_turn_doc("prompt2".to_string(), TurnToolPolicy::Default);
+    manager.finish_turn_doc(PulseOutcome::Completed, PulseTokens::default());
+    manager.begin_turn_doc("prompt2".to_string(), PulseToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
         tool_call_id: "tool_read".to_string(),
         tool_name: "read_file".to_string(),
@@ -210,11 +210,11 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     });
     assert!(
         !manager.current_turn_has_successful_mutation(),
-        "read-only tools must not count as a patch-applied turn"
+        "read-only tools must not count as a patch-applied pulse"
     );
 
-    manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
-    manager.begin_turn_doc("prompt3".to_string(), TurnToolPolicy::Default);
+    manager.finish_turn_doc(PulseOutcome::Completed, PulseTokens::default());
+    manager.begin_turn_doc("prompt3".to_string(), PulseToolPolicy::Default);
     manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
         tool_call_id: "tool_fail".to_string(),
         tool_name: "apply_patch".to_string(),
@@ -246,7 +246,7 @@ fn test_write_file_rejects_content_above_max_lines() {
 
     let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "big.rs", "content": long_content});
-    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::call_tool_routing(&op, "write_file", &input);
     crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 
     assert!(result.is_err());
@@ -266,7 +266,7 @@ fn test_write_file_warns_above_diff_preferred_threshold() {
 
     let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "medium.rs", "content": content});
-    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::call_tool_routing(&op, "write_file", &input);
     crate::test_support::test_remove_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES");
     crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 

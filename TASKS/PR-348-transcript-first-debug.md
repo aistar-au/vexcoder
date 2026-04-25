@@ -15,7 +15,7 @@ The transcript-first cutover is already in place for the API/runtime envelope:
 
 - `src/runtime/json_handoff.rs` no longer defines `AssistantDelta` or
   `AssistantMessage`.
-- `src/runtime/json_handoff/derived.rs` derives turn responses from transcript
+- `src/runtime/json_handoff/derived.rs` derives pulse responses from transcript
   final-text blocks only.
 - `src/runtime/json_handoff/tests.rs` now verifies the transcript-block-only
   batch derivation path.

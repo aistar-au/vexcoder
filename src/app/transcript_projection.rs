@@ -1,6 +1,6 @@
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::task_document::{
-    ActiveTurnDocument, AssistantPhase, NoticeSeverity, TaskDocument, TurnEntry,
+    ActiveTurnDocument, AssistantPhase, NoticeSeverity, PulseEntry, TaskDocument,
 };
 use crate::state::ToolStatus;
 use crate::status_contract::{
@@ -16,7 +16,7 @@ pub(super) fn project_transcript_rows(
 ) -> Vec<TranscriptRow> {
     let mut rows = project_committed_transcript_rows(task_doc, pre_session_notices);
     rows.extend(project_active_transcript_rows(
-        task_doc.active_turn.as_ref(),
+        task_doc.active_pulse.as_ref(),
     ));
     rows
 }
@@ -58,20 +58,20 @@ pub(crate) fn project_committed_transcript_rows(
 }
 
 pub(crate) fn project_active_transcript_rows(
-    active_turn: Option<&ActiveTurnDocument>,
+    active_pulse: Option<&ActiveTurnDocument>,
 ) -> Vec<TranscriptRow> {
     let mut rows = Vec::new();
-    if let Some(active) = active_turn {
+    if let Some(active) = active_pulse {
         append_active_turn_rows(&mut rows, active);
     }
     rows
 }
 
-fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
+fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[PulseEntry]) {
     let tool_results: std::collections::HashMap<&str, (&str, bool)> = entries
         .iter()
         .filter_map(|e| {
-            if let TurnEntry::ToolResult {
+            if let PulseEntry::ToolResult {
                 tool_call_id,
                 output,
                 is_error,
@@ -91,7 +91,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
     let mut idx = 0;
     while idx < entries.len() {
         match &entries[idx] {
-            TurnEntry::UserInput { text, .. } => {
+            PulseEntry::UserInput { text, .. } => {
                 if !text.trim().is_empty() {
                     rows.push(TranscriptRow::UserInput(text.clone()));
                 }
@@ -99,7 +99,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 repeat_count = 0;
                 idx += 1;
             }
-            TurnEntry::AssistantBlock { block, .. } => {
+            PulseEntry::AssistantBlock { block, .. } => {
                 if block.phase == AssistantPhase::Thinking && block.collapsed {
                     idx += 1;
                     continue;
@@ -127,7 +127,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 }
                 idx += 1;
             }
-            TurnEntry::ToolCall {
+            PulseEntry::ToolCall {
                 id: call_id,
                 name,
                 input,
@@ -225,10 +225,10 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 }
                 idx += 1;
             }
-            TurnEntry::ToolResult { .. } => {
+            PulseEntry::ToolResult { .. } => {
                 idx += 1;
             }
-            TurnEntry::SystemNotice {
+            PulseEntry::SystemNotice {
                 message, severity, ..
             } => {
                 match severity {
@@ -239,9 +239,9 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 repeat_count = 0;
                 idx += 1;
             }
-            TurnEntry::ApprovalRequest { .. }
-            | TurnEntry::ApprovalResolved { .. }
-            | TurnEntry::CommandSession { .. } => {
+            PulseEntry::ApprovalRequest { .. }
+            | PulseEntry::ApprovalResolved { .. }
+            | PulseEntry::CommandSession { .. } => {
                 idx += 1;
             }
         }
@@ -254,9 +254,9 @@ fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDoc
     let has_streamed_content = active.entries.iter().any(|e| {
         matches!(
             e,
-            TurnEntry::AssistantBlock { .. }
-                | TurnEntry::ToolCall { .. }
-                | TurnEntry::ToolResult { .. }
+            PulseEntry::AssistantBlock { .. }
+                | PulseEntry::ToolCall { .. }
+                | PulseEntry::ToolResult { .. }
         )
     });
 
@@ -434,10 +434,10 @@ fn first_pathish_token(text: &str) -> Option<String> {
     })
 }
 
-pub(super) fn extract_assistant_response(entries: &[TurnEntry]) -> String {
+pub(super) fn extract_assistant_response(entries: &[PulseEntry]) -> String {
     let mut parts = Vec::new();
     for entry in entries {
-        if let TurnEntry::AssistantBlock { block, .. } = entry
+        if let PulseEntry::AssistantBlock { block, .. } = entry
             && block.phase == AssistantPhase::Final
         {
             parts.push(block.content.as_str());

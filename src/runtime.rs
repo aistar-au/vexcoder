@@ -66,8 +66,8 @@ pub use secrets::{contains_secret, revise_secrets, rewrite_url_for_logs};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_document::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
-    CommandSessionDocument, NoticeSeverity, TaskDocument, TaskDocumentCondenser, TaskErrorState,
-    TaskInfo, TaskMutationSummary, TurnDocument, TurnEntry, TurnOutcome,
+    CommandSessionDocument, NoticeSeverity, PulseEntry, PulseOutcome, TaskDocument,
+    TaskDocumentCondenser, TaskErrorState, TaskInfo, TaskMutationSummary, TurnDocument,
 };
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
@@ -100,7 +100,7 @@ mod tests {
                 _ctx: &mut RuntimeContext,
             ) {
             }
-            fn is_turn_in_progress(&self) -> bool {
+            fn is_pulse_in_progress(&self) -> bool {
                 false
             }
         }

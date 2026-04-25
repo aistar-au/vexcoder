@@ -49,7 +49,7 @@ impl TuiMode {
             ctx,
             false,
             Some(self.selected_system_prompt()),
-            TurnToolPolicy::TestsOnlyMutations,
+            PulseToolPolicy::TestsOnlyMutations,
         );
     }
     pub(crate) fn default_generate_tests_path(&self) -> Option<String> {
@@ -67,7 +67,7 @@ impl TuiMode {
                     .cloned()
                     .or_else(|| {
                         self.task_doc
-                            .active_turn
+                            .active_pulse
                             .as_ref()?
                             .changed_files
                             .iter()
@@ -304,14 +304,14 @@ impl TuiMode {
                 turn_index,
                 messages_before: turns_before,
                 messages_after: 0,
-                summary: format!("/compact: cleared {turns_before} completed turn(s)"),
+                summary: format!("/compact: cleared {turns_before} completed pulse(s)"),
             });
 
         self.task_doc.completed_turns.clear();
         self.persist_task_document();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
-            "[compacted: {turns_before} turn(s) cleared; task {task_id} continues]"
+            "[compacted: {turns_before} pulse(s) cleared; task {task_id} continues]"
         ));
     }
 

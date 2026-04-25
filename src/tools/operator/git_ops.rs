@@ -83,7 +83,7 @@ impl ToolOperator {
             .current_dir(&self.working_dir)
             .args(&args)
             .output()
-            .context("Failed to execute git command")?;
+            .context("Failed to call git command")?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();

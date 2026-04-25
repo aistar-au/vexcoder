@@ -7,4 +7,4 @@
 - `RuntimeMode` is a trait in `src/runtime/mode.rs`; concrete modes implement the trait rather than selecting enum variants.
 - `UserInputEvent` carries typed frontend events, including text, interrupt, and scroll actions.
 - Each mode implementation owns its event-loop behavior; prompt and approval policy remain mode-independent in `RuntimeCorePolicy`.
-- `RuntimeContext::start_turn` is the sole dispatch path after REF-05.
+- `RuntimeContext::start_pulse` is the sole work path after REF-05.

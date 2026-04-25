@@ -23,7 +23,7 @@ async fn test_ref_04_start_turn_dispatches_message() {
 
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
-    ctx.start_turn("test input".to_string());
+    ctx.start_pulse("test input".to_string());
 
     let mut saw_delta = false;
     let mut saw_complete = false;
@@ -32,7 +32,7 @@ async fn test_ref_04_start_turn_dispatches_message() {
             Ok(Some(UiUpdate::StreamDelta(_))) | Ok(Some(UiUpdate::StreamBlockDelta { .. })) => {
                 saw_delta = true
             }
-            Ok(Some(UiUpdate::TurnComplete)) => {
+            Ok(Some(UiUpdate::PulseComplete)) => {
                 saw_complete = true;
                 break;
             }
@@ -43,7 +43,7 @@ async fn test_ref_04_start_turn_dispatches_message() {
     }
 
     assert!(saw_delta, "expected at least one streamed text update");
-    assert!(saw_complete, "expected TurnComplete");
+    assert!(saw_complete, "expected PulseComplete");
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn test_ref_07_no_runtime_guard() {
     let conversation = ConversationManager::new_mock(client, HashMap::new());
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
-    ctx.start_turn("test".to_string());
+    ctx.start_pulse("test".to_string());
 
     let update = rx.try_recv().expect("expected error update");
     match update {
@@ -196,7 +196,7 @@ async fn test_ref_08_start_turn_full_protocol_parity() {
     let conversation = ConversationManager::new_mock(client, HashMap::new());
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
-    ctx.start_turn("test".to_string());
+    ctx.start_pulse("test".to_string());
 
     let mut events: Vec<&str> = vec![];
     loop {
@@ -206,8 +206,8 @@ async fn test_ref_08_start_turn_full_protocol_parity() {
             Ok(Some(UiUpdate::StreamBlockComplete { .. })) => events.push("BlockComplete"),
             Ok(Some(UiUpdate::StreamDelta(_))) => events.push("Delta"),
             Ok(Some(UiUpdate::ToolApprovalRequest(_))) => events.push("ToolApproval"),
-            Ok(Some(UiUpdate::TurnComplete)) => {
-                events.push("TurnComplete");
+            Ok(Some(UiUpdate::PulseComplete)) => {
+                events.push("PulseComplete");
                 break;
             }
             Ok(Some(UiUpdate::Error(e))) => panic!("unexpected error: {e}"),
@@ -216,13 +216,13 @@ async fn test_ref_08_start_turn_full_protocol_parity() {
     }
 
     assert!(
-        events.contains(&"TurnComplete"),
-        "must terminate with TurnComplete"
+        events.contains(&"PulseComplete"),
+        "must terminate with PulseComplete"
     );
     assert_eq!(
-        events.iter().filter(|&&e| e == "TurnComplete").count(),
+        events.iter().filter(|&&e| e == "PulseComplete").count(),
         1,
-        "exactly one TurnComplete"
+        "exactly one PulseComplete"
     );
 }
 
@@ -268,7 +268,7 @@ data: {"type":"message_stop"}"#.to_string(),
     let conversation = ConversationManager::new_mock(client, HashMap::new());
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
-    ctx.start_turn("read file".to_string());
+    ctx.start_pulse("read file".to_string());
 
     let mut saw_request = false;
     let mut saw_complete = false;
@@ -278,7 +278,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 saw_request = true;
                 let _ = request.response_tx.send(false);
             }
-            Ok(Some(UiUpdate::TurnComplete)) => {
+            Ok(Some(UiUpdate::PulseComplete)) => {
                 saw_complete = true;
                 break;
             }
@@ -289,7 +289,7 @@ data: {"type":"message_stop"}"#.to_string(),
     }
 
     assert!(saw_request, "must forward tool approval request");
-    assert!(saw_complete, "must finish turn after approval response");
+    assert!(saw_complete, "must finish pulse after approval response");
     crate::test_support::test_remove_var(&_env_lock, "VEX_TOOL_CONFIRM");
 }
 
@@ -487,18 +487,18 @@ async fn test_ref_08_cancel_turn_resets_root_token_for_next_turn() {
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
     assert!(!ctx.test_root_cancelled());
-    ctx.cancel_turn();
+    ctx.cancel_pulse();
     assert!(
         !ctx.test_root_cancelled(),
-        "cancel_turn must replace root token with a fresh non-cancelled token"
+        "cancel_pulse must replace root token with a fresh non-cancelled token"
     );
 
-    ctx.start_turn("turn B".to_string());
+    ctx.start_pulse("pulse B".to_string());
 
     let progressed = tokio::time::timeout(Duration::from_millis(800), async {
         loop {
             match rx.recv().await {
-                Some(UiUpdate::StreamDelta(_) | UiUpdate::TurnComplete) => return true,
+                Some(UiUpdate::StreamDelta(_) | UiUpdate::PulseComplete) => return true,
                 Some(UiUpdate::Error(_)) | None => return false,
                 Some(_) => {}
             }
@@ -509,7 +509,7 @@ async fn test_ref_08_cancel_turn_resets_root_token_for_next_turn() {
 
     assert!(
         progressed,
-        "turn after cancel_turn must emit at least one normal update with fresh root token"
+        "pulse after cancel_pulse must emit at least one normal update with fresh root token"
     );
 }
 
@@ -522,13 +522,13 @@ async fn test_ref_08_cancel_path_emits_single_terminal_event() {
     let conversation = ConversationManager::new_mock(client, HashMap::new());
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
-    ctx.start_turn("test".to_string());
-    ctx.cancel_turn();
+    ctx.start_pulse("test".to_string());
+    ctx.cancel_pulse();
 
     let mut terminal_count = 0;
     for _ in 0..6 {
         match tokio::time::timeout(Duration::from_millis(200), rx.recv()).await {
-            Ok(Some(UiUpdate::TurnComplete | UiUpdate::Error(_))) => terminal_count += 1,
+            Ok(Some(UiUpdate::PulseComplete | UiUpdate::Error(_))) => terminal_count += 1,
             Ok(Some(_)) => {}
             _ => break,
         }

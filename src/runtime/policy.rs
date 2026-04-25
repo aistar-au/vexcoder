@@ -7,7 +7,7 @@ pub trait RuntimeCorePolicy {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DefaultRuntimeCorePolicy;
 
-const TOOL_RETRY_INSTRUCTION: &str = "Your previous answer did not execute any tool call. This request \
+const TOOL_RETRY_INSTRUCTION: &str = "Your previous answer did not call any tool call. This request \
 requires tool-backed evidence from the workspace. Call the appropriate tool now before \
 answering.";
 

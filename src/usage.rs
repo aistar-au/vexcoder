@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TurnTokens {
+pub struct PulseTokens {
     pub input: u64,
     pub output: u64,
     #[serde(default)]
@@ -12,7 +12,7 @@ pub struct TurnTokens {
     pub cache_read_input_tokens: u64,
 }
 
-impl TurnTokens {
+impl PulseTokens {
     pub fn is_zero(self) -> bool {
         self.input == 0
             && self.output == 0
@@ -42,21 +42,21 @@ pub struct SessionTokens {
 }
 
 impl SessionTokens {
-    pub fn record_turn(&mut self, turn: TurnTokens) {
-        self.input = self.input.saturating_add(turn.input);
-        self.output = self.output.saturating_add(turn.output);
-        self.last_input = turn.input;
-        self.last_output = turn.output;
-        self.last_estimated = turn.estimated;
-        self.estimated = self.estimated || turn.estimated;
+    pub fn record_pulse(&mut self, pulse: PulseTokens) {
+        self.input = self.input.saturating_add(pulse.input);
+        self.output = self.output.saturating_add(pulse.output);
+        self.last_input = pulse.input;
+        self.last_output = pulse.output;
+        self.last_estimated = pulse.estimated;
+        self.estimated = self.estimated || pulse.estimated;
         self.cache_creation_input_tokens = self
             .cache_creation_input_tokens
-            .saturating_add(turn.cache_creation_input_tokens);
+            .saturating_add(pulse.cache_creation_input_tokens);
         self.cache_read_input_tokens = self
             .cache_read_input_tokens
-            .saturating_add(turn.cache_read_input_tokens);
-        self.last_cache_creation_input_tokens = turn.cache_creation_input_tokens;
-        self.last_cache_read_input_tokens = turn.cache_read_input_tokens;
+            .saturating_add(pulse.cache_read_input_tokens);
+        self.last_cache_creation_input_tokens = pulse.cache_creation_input_tokens;
+        self.last_cache_read_input_tokens = pulse.cache_read_input_tokens;
     }
 
     pub fn reset(&mut self) {
@@ -67,8 +67,8 @@ impl SessionTokens {
         self.input > 0 || self.output > 0 || self.last_input > 0 || self.last_output > 0
     }
 
-    pub fn last_turn(&self) -> TurnTokens {
-        TurnTokens {
+    pub fn last_pulse(&self) -> PulseTokens {
+        PulseTokens {
             input: self.last_input,
             output: self.last_output,
             estimated: self.last_estimated,
@@ -85,7 +85,7 @@ pub fn estimate_tokens(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{SessionTokens, TurnTokens, estimate_tokens};
+    use super::{PulseTokens, SessionTokens, estimate_tokens};
 
     #[test]
     fn estimate_tokens_uses_char_quarters() {
@@ -97,13 +97,13 @@ mod tests {
     #[test]
     fn session_tokens_accumulate_turns() {
         let mut session = SessionTokens::default();
-        session.record_turn(TurnTokens {
+        session.record_pulse(PulseTokens {
             input: 10,
             output: 5,
             estimated: false,
             ..Default::default()
         });
-        session.record_turn(TurnTokens {
+        session.record_pulse(PulseTokens {
             input: 4,
             output: 3,
             estimated: true,
@@ -121,13 +121,13 @@ mod tests {
     #[test]
     fn session_tokens_last_turn_preserves_per_turn_estimate_flag() {
         let mut session = SessionTokens::default();
-        session.record_turn(TurnTokens {
+        session.record_pulse(PulseTokens {
             input: 10,
             output: 5,
             estimated: true,
             ..Default::default()
         });
-        session.record_turn(TurnTokens {
+        session.record_pulse(PulseTokens {
             input: 4,
             output: 3,
             estimated: false,
@@ -136,11 +136,11 @@ mod tests {
 
         assert!(
             session.estimated,
-            "session should remember any estimated turn"
+            "session should remember any estimated pulse"
         );
         assert!(
-            !session.last_turn().estimated,
-            "last_turn should reflect only the latest turn"
+            !session.last_pulse().estimated,
+            "last_pulse should reflect only the latest pulse"
         );
     }
 }

@@ -1,27 +1,27 @@
-# Task Dispatch Map
+# Task Work Map
 
-Descriptive index for repo-local dispatch sources, active task manifests, and tracked-file map dependencies.
+Descriptive index for repo-local work sources, active task checklists, and tracked-file map dependencies.
 
 Current active ADR summary: `TASKS/ACTIVE-ROADMAP.md`.
 Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 
-## Current Repo-Local Task Manifests
+## Current Repo-Local Task Checklists
 
-| Manifest | ADR source | Depends on | Scope |
+| Checklist | ADR source | Depends on | Scope |
 | :--- | :--- | :--- | :--- |
 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. Complete. |
 | `TASKS/PJ-03-memory-notes-injection.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. Complete. |
 | `TASKS/PM-01-conversation-compaction.md` | Pre-ADR | None | In-memory conversation compaction via LLM summarization. Branch only. |
 | `TASKS/PM-02-undo-checkpoints.md` | Pre-ADR | None | `/undo` slash command and per-change checkpoint stack. Branch only. |
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
-| `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
+| `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation pulses. Branch only. |
 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
-| `TASKS/PR-405-permissions-overlay-followup.md` | `ADR-048`, PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task manifest covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
+| `TASKS/PR-405-permissions-overlay-followup.md` | `ADR-048`, PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task checklist covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
 | `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | `REF-01`, PR #404 follow-up | `adr/ADR-047-amendment-2026-04-20.md`, `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | Runtime-owned typed tool-argument projection for CLI/TUI consumers; preserve raw block deltas only for envelope and local-API projection. Active. |
 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | PR #390 replacement follow-up | `AGENTS.md`, `CONTRIBUTING.md` | Local-session detached-worktree skill-bootstrap audit and repo-root anchoring. Branch only. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 
-## Open ADR Dispatch Sources
+## Open ADR Work Sources
 
 Source of truth: `adr/ADR-README.md`.
 
@@ -31,7 +31,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-amendment-2026-04-20.md` | Amended | Flag normalization cutover: 10-flag normative table, ChatCompat CLI removal |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (initial validation passed) | Second-stage G/H |
-| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-release complete) | 1 external item in the next batch (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-release complete) | 1 external item in the next batch (PG-03 auto-release after tap repo exists); all in-tree G/H work complete 2026-03-28 |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped, multiline, and `super::`-relative `server`/`bin` imports |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | 0 items remaining; all 8 decision items verified in Tier 5 (PR #249) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | 0 items remaining; all 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -59,7 +59,7 @@ Batch A is merged on main (PR #292): `Mapping adjacent sectors...`,
 surfaces. A subsequent fix in PR #293 normalizes `search.exclude` entries with
 a trailing slash. Remaining work covers the broader vocabulary set, active indicator,
 and denser paragraph stream. The only external item in the next batch remains
-ADR-024 PG-03 tap auto-dispatch, which stays blocked until the separate tap
+ADR-024 PG-03 tap auto-release, which stays blocked until the separate tap
 repository exists.
 
 | Tier | Source | Items | Status | Description |
@@ -71,7 +71,7 @@ repository exists.
 | ~~5~~ | ADR-029/030/032 | ~~3~~ | Complete | Verification of already-implemented work (2026-03-28) |
 | ~~6~~ | ADR-021 P2 | ~~13~~ | Complete (2026-03-28) | All 13 items complete; Items 10/12/14 in this batch; Item 11 addressed |
 | ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
-| 8 | ADR-024 G/H + ADR-022 | 1 | Next batch planned (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
+| 8 | ADR-024 G/H + ADR-022 | 1 | Next batch planned (external prerequisite) | Tap repository auto-release after the separate tap repo is created |
 | 12 | PR #342 docs alignment | 1 | Active | Neutral crate-boundary wording, structured tool-call docs, and next-batch dependency decisions |
 | ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; grouped, multiline, and relative `super::` import checks close the remaining known `server`/`bin` test bypasses |
 | 11 | ADR-039 | 3 | Proposed | Broader vocabulary pass, active indicator, paragraph progress stream |
@@ -103,12 +103,12 @@ operator-surface lane. ADR-025, ADR-026, and ADR-027 have been moved to
 Tiers 1–10 are complete for existing in-tree work. ADR-039 is the next
 proposed lane, starting with low-gain status anchors and semantic color
 feedback (Batch A, merged on main) before later vocabulary and transcript-model changes. The only external item in the next batch is PG-03
-tap auto-dispatch, which depends on the separate tap repository existing first.
+tap auto-release, which depends on the separate tap repository existing first.
 See `TASKS/ACTIVE-ROADMAP.md` for the current breakdown.
 
 ## Tracking Notes
 
 - Update `TASKS/ACTIVE-ROADMAP.md` when the active ADR set changes.
-- Update this file when repo-local task manifests are added, removed, or re-scoped.
+- Update this file when repo-local task checklists are added, removed, or re-scoped.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
-- Source ADR documents and task manifests remain the behavioral source of truth.
+- Source ADR documents and task checklists remain the behavioral source of truth.

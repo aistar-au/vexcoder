@@ -267,11 +267,11 @@ pub(super) fn tool_definitions() -> &'static Value {
                 },
                 {
                     "name": "run_command",
-                    "description": "Run a shell command in the workspace. IMPORTANT: every invocation requires explicit user approval before the command executes. The user must confirm or deny via the approval overlay; no command runs without an affirmative response. Use this only when file and search tools cannot satisfy the need. Aliases run_shell_command, bash, execute_command, and execute_bash all route to this tool.",
+                    "description": "Run a shell command in the workspace. IMPORTANT: every invocation requires explicit user approval before the command calls. The user must confirm or deny via the approval overlay; no command runs without an affirmative response. Use this only when file and search tools cannot satisfy the need. Aliases run_shell_command, bash, call_command, and call_bash all route to this tool.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
-                            "command": { "type": "string", "description": "Shell command to execute" }
+                            "command": { "type": "string", "description": "Shell command to call" }
                         },
                         "required": ["command"]
                     }

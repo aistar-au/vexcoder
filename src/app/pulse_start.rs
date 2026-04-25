@@ -14,7 +14,7 @@ impl TuiMode {
             ctx,
             read_only,
             supplementary_system_prompt,
-            TurnToolPolicy::Default,
+            PulseToolPolicy::Default,
         );
     }
 
@@ -24,7 +24,7 @@ impl TuiMode {
         ctx: &mut RuntimeContext,
         read_only: bool,
         supplementary_system_prompt: Option<&str>,
-        turn_tool_policy: TurnToolPolicy,
+        turn_tool_policy: PulseToolPolicy,
     ) {
         self.read_only_turn_active = read_only;
         self.begin_turn_capture_with_policy(rendered.clone(), turn_tool_policy);
@@ -32,7 +32,7 @@ impl TuiMode {
         {
             self.last_turn_input = Some(rendered.clone());
         }
-        ctx.start_turn_with_system_prompt_and_policy(
+        ctx.start_pulse_with_system_prompt_and_policy(
             rendered,
             supplementary_system_prompt.map(ToString::to_string),
             turn_tool_policy,

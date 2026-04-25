@@ -18,7 +18,7 @@ fn test_permissions_empty_grants() {
             "expected {cap_name} with (none) in empty-grants permissions output"
         );
     }
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn test_permissions_lists_active_grants() {
         has_apply_patch_none,
         "expected apply-patch (none) for absent grant"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn test_allow_inserts_grant() {
             .any(|l| l.contains("[allow: run-command granted for session]")),
         "expected grant confirmation"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_allow_unknown_capability_emits_error() {
         "expected unknown-capability error"
     );
     assert!(mode.task_doc.info.active_grants.is_empty());
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_allow_task_scope_emits_error() {
         "expected task scope rejection"
     );
     assert!(mode.task_doc.info.active_grants.is_empty());
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn test_allow_unknown_scope_emits_error() {
         "expected unknown-scope error"
     );
     assert!(mode.task_doc.info.active_grants.is_empty());
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -157,7 +157,7 @@ fn test_deny_removes_grant() {
             .any(|l| l.contains("[deny: apply-patch removed]")),
         "expected revoke confirmation"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn test_deny_no_grant_emits_info() {
             .any(|l| l.contains("[deny: browser not in active grants]")),
         "expected no-active-grant info message"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn test_deny_unknown_capability_emits_error() {
             .any(|l| l.contains("[deny: unknown capability 'not-a-thing']")),
         "expected unknown-capability error"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]

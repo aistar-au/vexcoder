@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
-use crate::state::{ToolStatus, TurnToolPolicy};
-use crate::usage::TurnTokens;
+use crate::state::{PulseToolPolicy, ToolStatus};
+use crate::usage::PulseTokens;
 
-use super::{TaskDocumentCondenser, TaskInfo, TurnEntry, TurnOutcome};
+use super::{PulseEntry, PulseOutcome, TaskDocumentCondenser, TaskInfo};
 
 fn test_meta() -> TaskInfo {
     TaskInfo {
@@ -33,7 +33,7 @@ fn begin_task_produces_empty_document() {
     let condenser = TaskDocumentCondenser::new();
     let doc = condenser.begin_task(test_meta());
     assert!(doc.completed_turns.is_empty());
-    assert!(doc.active_turn.is_none());
+    assert!(doc.active_pulse.is_none());
     assert_eq!(doc.info.id, "test-task-01");
 }
 
@@ -46,14 +46,14 @@ fn begin_turn_opens_active_turn_with_user_input_entry() {
         &mut doc,
         "analyze the test output".to_string(),
         2000,
-        TurnToolPolicy::Default,
+        PulseToolPolicy::Default,
     );
 
-    let active = doc.active_turn.as_ref().expect("active turn");
+    let active = doc.active_pulse.as_ref().expect("active pulse");
     assert_eq!(active.turn_index, 0);
     assert_eq!(active.input, "analyze the test output");
     assert_eq!(active.entries.len(), 1);
-    assert!(matches!(active.entries[0], TurnEntry::UserInput { .. }));
+    assert!(matches!(active.entries[0], PulseEntry::UserInput { .. }));
 }
 
 #[test]
@@ -61,15 +61,15 @@ fn finish_turn_moves_active_turn_to_completed() {
     let condenser = TaskDocumentCondenser::new();
     let mut doc = condenser.begin_task(test_meta());
 
-    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, PulseToolPolicy::Default);
     let summary = condenser.finish_turn(
         &mut doc,
-        TurnOutcome::Completed,
-        TurnTokens::default(),
+        PulseOutcome::Completed,
+        PulseTokens::default(),
         2000,
     );
 
-    assert!(doc.active_turn.is_none());
+    assert!(doc.active_pulse.is_none());
     assert_eq!(doc.completed_turns.len(), 1);
     assert!(summary.active_turn_changed);
     assert!(summary.task_status_changed);
@@ -81,7 +81,7 @@ fn apply_tool_call_event_appends_entry() {
     let condenser = TaskDocumentCondenser::new();
     let mut doc = condenser.begin_task(test_meta());
 
-    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, PulseToolPolicy::Default);
     let summary = condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCallStarted {
@@ -93,12 +93,12 @@ fn apply_tool_call_event_appends_entry() {
         },
     );
 
-    let active = doc.active_turn.as_ref().expect("active turn");
+    let active = doc.active_pulse.as_ref().expect("active pulse");
     assert!(
         active
             .entries
             .iter()
-            .any(|entry| matches!(entry, TurnEntry::ToolCall { .. }))
+            .any(|entry| matches!(entry, PulseEntry::ToolCall { .. }))
     );
     assert!(summary.active_turn_changed);
 }
@@ -108,7 +108,7 @@ fn tool_result_advances_tool_call_status() {
     let condenser = TaskDocumentCondenser::new();
     let mut doc = condenser.begin_task(test_meta());
 
-    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, PulseToolPolicy::Default);
     condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCallStarted {
@@ -132,9 +132,9 @@ fn tool_result_advances_tool_call_status() {
         },
     );
 
-    let active = doc.active_turn.as_ref().expect("active turn");
+    let active = doc.active_pulse.as_ref().expect("active pulse");
     let call_status = active.entries.iter().find_map(|entry| {
-        if let TurnEntry::ToolCall { id, status, .. } = entry
+        if let PulseEntry::ToolCall { id, status, .. } = entry
             && id == "tc-01"
         {
             return Some(status.clone());
@@ -151,31 +151,31 @@ fn snapshot_roundtrip_preserves_turn_count() {
 
     condenser.begin_turn(
         &mut doc,
-        "turn one".to_string(),
+        "pulse one".to_string(),
         1000,
-        TurnToolPolicy::Default,
+        PulseToolPolicy::Default,
     );
     condenser.finish_turn(
         &mut doc,
-        TurnOutcome::Completed,
-        TurnTokens::default(),
+        PulseOutcome::Completed,
+        PulseTokens::default(),
         2000,
     );
     condenser.begin_turn(
         &mut doc,
-        "turn two".to_string(),
+        "pulse two".to_string(),
         3000,
-        TurnToolPolicy::Default,
+        PulseToolPolicy::Default,
     );
     condenser.finish_turn(
         &mut doc,
-        TurnOutcome::Completed,
-        TurnTokens::default(),
+        PulseOutcome::Completed,
+        PulseTokens::default(),
         4000,
     );
 
     let snapshot = condenser.persistable_snapshot(&doc);
-    assert_eq!(snapshot.turns.len(), 2);
+    assert_eq!(snapshot.pulses.len(), 2);
 
     let restored = condenser.restore_from_snapshot(snapshot);
     assert_eq!(restored.completed_turns.len(), 2);
@@ -218,7 +218,7 @@ fn approval_resolution_updates_grants_by_scope() {
     let condenser = TaskDocumentCondenser::new();
     let mut doc = condenser.begin_task(test_meta());
 
-    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, PulseToolPolicy::Default);
 
     condenser.apply_runtime_event(
         &mut doc,
@@ -249,7 +249,7 @@ fn snapshot_preserves_denied_tool_outcome_on_restore() {
     let condenser = TaskDocumentCondenser::new();
     let mut doc = condenser.begin_task(test_meta());
 
-    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, PulseToolPolicy::Default);
     condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCallStarted {
@@ -274,20 +274,20 @@ fn snapshot_preserves_denied_tool_outcome_on_restore() {
     );
     condenser.finish_turn(
         &mut doc,
-        TurnOutcome::Completed,
-        TurnTokens::default(),
+        PulseOutcome::Completed,
+        PulseTokens::default(),
         2000,
     );
 
     let snapshot = condenser.persistable_snapshot(&doc);
-    assert_eq!(snapshot.turns[0].tool_invocations[0].outcome, "denied");
+    assert_eq!(snapshot.pulses[0].tool_invocations[0].outcome, "denied");
 
     let restored = condenser.restore_from_snapshot(snapshot);
     let restored_status = restored.completed_turns[0]
         .entries
         .iter()
         .find_map(|entry| {
-            if let TurnEntry::ToolCall { status, .. } = entry {
+            if let PulseEntry::ToolCall { status, .. } = entry {
                 return Some(status.clone());
             }
             None

@@ -10,7 +10,7 @@ impl TuiMode {
         let groups = [
             "retrieve + context",
             "edit + inspect",
-            "validate + execute",
+            "validate + call",
             "session + control",
         ];
         let mut seen = std::collections::HashSet::new();
@@ -186,7 +186,7 @@ impl TuiMode {
     pub(crate) fn handle_usage_command(&mut self, ctx: &RuntimeContext) {
         let usage = ctx.session_tokens_rollup();
         if !usage.has_completed_turns() {
-            self.push_history_line("[usage] no turns completed this session".to_string());
+            self.push_history_line("[usage] no pulses completed this session".to_string());
             return;
         }
 
@@ -194,7 +194,7 @@ impl TuiMode {
         let session_estimated = Self::summarize_usage_line_suffix(usage.estimated);
         self.push_history_line("[usage]".to_string());
         self.push_history_line(format!(
-            "  this turn   : {} in / {} out{}",
+            "  this pulse   : {} in / {} out{}",
             usage.last_input, usage.last_output, turn_estimated
         ));
         self.push_history_line(format!(

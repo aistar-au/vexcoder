@@ -31,17 +31,17 @@ within a token budget.
 
    ```
    /memory
-       Render current notes file contents via push_history_line. No model turn.
+       Render current notes file contents via push_history_line. No model pulse.
        If file missing or empty: "[memory] no notes".
 
    /memory add <note>
        Append <note> as a new line. Create file if absent.
-       Emit "[memory: note added]". No model turn.
+       Emit "[memory: note added]". No model pulse.
 
    /memory clear
        Confirmation overlay ("clear all notes? [y/N]") via existing overlay path.
        On confirm: "[memory: cleared]". On cancel: "[memory: cancelled]".
-       No model turn. BatchMode without --auto-approve: error.
+       No model pulse. BatchMode without --auto-approve: error.
    ```
 
 4. At session start, inject notes file contents into the system context
@@ -56,7 +56,7 @@ within a token budget.
 
 ## Constraints
 
-- `/memory` commands must never call `ctx.start_turn`. All output is via
+- `/memory` commands must never call `ctx.start_pulse`. All output is via
   `push_history_line`.
 - The notes file path is resolved from the user config layer only.
   Repo-local `.vex/config.toml` specifying a notes path is a hard startup
@@ -83,7 +83,7 @@ within a token budget.
 
 ## Definition of Done
 
-1. `/memory` renders notes or "[memory] no notes" with no model turn.
+1. `/memory` renders notes or "[memory] no notes" with no model pulse.
 2. `/memory add <note>` appends and creates the file if absent.
 3. `/memory clear` shows the confirmation overlay; cancellable.
 4. Notes are injected at session start within the token budget.
@@ -110,14 +110,14 @@ Primary verification anchor:
 fn test_tui_memory_does_not_call_start_turn() {
     // Given a session with a populated notes file,
     // /memory, /memory add, and /memory clear confirmation-cancel
-    // must each complete without calling ctx.start_turn.
+    // must each complete without calling ctx.start_pulse.
     // Verified by asserting no AppAction::StartTurn is emitted.
 }
 ```
 
 ---
 
-## Dispatch Verification (dispatch only — implementation not yet merged into current `main`)
+## Work Verification (work checklist only — implementation not yet merged into current `main`)
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
@@ -131,7 +131,7 @@ fn test_tui_memory_does_not_call_start_turn() {
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - This branch stages the PJ-03 dispatch manifest only.
+  - This branch stages the PJ-03 work checklist only.
   - Do not mark PJ-03 green until the implementation branch lands and all
     anchor tests pass.
 
@@ -162,4 +162,4 @@ fn test_tui_memory_does_not_call_start_turn() {
     (`src/batch_mode.rs`, `src/bin/vex.rs`, `src/runtime/task_state/mod.rs`,
     `TASKS/PE-01-batch-mode.md`).
   - Batch mode now handles `/memory clear` locally: no `--auto-approve`
-    returns an error; `--auto-approve` clears notes with no model turn.
+    returns an error; `--auto-approve` clears notes with no model pulse.

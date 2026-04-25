@@ -14,7 +14,7 @@ Unstructured `read_file` calls were the sole context-gathering mechanism, produc
 - Results capped at `VEX_SEARCH_MAX_RESULTS` (default 10) and `VEX_SEARCH_MAX_TOKENS`.
 - Phase 2: Optional vector embeddings when provider is configured; not required for operation.
 - Phase 3: `apply_diff` preferred for files >200 lines; `write_file` rejected for files >500 lines.
-- Phase 4: Context condensing — summarize conversation history older than N turns via a compaction pass.
+- Phase 4: Context condensing — summarize conversation history older than N pulses via a compaction pass.
 - All four phases are accepted and in effect as of 2026-03-26.
 
 ## References

@@ -12,10 +12,10 @@ Task truth was divided between provider event order and in-memory state, causing
 - Runtime is the task-state-owned orchestrator: provider event → normalize → update task state → orchestrator decides next action.
 - Provider events are never task truth; stream completion does not end the task.
 - Managed command sessions outlive individual provider stream chunks.
-- Tool and command results re-enter task state before the next model turn.
+- Tool and command results re-enter task state before the next model pulse.
 - Downstream consumers (UI, batch, export) read shared `RuntimeEnvelope` events only; not provider-native names.
 - Application facade is not the orchestrator; it delegates to the runtime.
-- Six mandatory invariants: (1) task state owns truth, (2) provider events normalized at ingress, (3) orchestrator gates next turn, (4) tool results update state before retry, (5) UI reads envelopes, (6) facade delegates.
+- Six mandatory invariants: (1) task state owns truth, (2) provider events normalized at ingress, (3) orchestrator gates next pulse, (4) tool results update state before retry, (5) UI reads envelopes, (6) facade delegates.
 
 ## References
 

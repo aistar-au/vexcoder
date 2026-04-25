@@ -451,7 +451,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             return None;
         }
 
-        let poll_ms = if mode.is_turn_in_progress() { 1 } else { 16 };
+        let poll_ms = if mode.is_pulse_in_progress() { 1 } else { 16 };
         let Ok(has_event) = event::poll(Duration::from_millis(poll_ms)) else {
             self.quit = true;
             return None;

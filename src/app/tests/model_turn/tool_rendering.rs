@@ -11,7 +11,7 @@ fn test_waiting_indicator_appears_on_turn_start() {
         mode.history_lines()
             .iter()
             .any(|line| line == "[thinking] Mapping adjacent sectors..."),
-        "turn start must show waiting indicator"
+        "pulse start must show waiting indicator"
     );
 }
 
@@ -245,14 +245,14 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
     );
 
     assert!(
-        mode.task_doc.active_turn.as_ref().is_some_and(|t| {
+        mode.task_doc.active_pulse.as_ref().is_some_and(|t| {
             t.entries.iter().any(|e| {
                 matches!(e,
-                    crate::runtime::TurnEntry::ToolCall { id, .. } if id == "tc1"
+                    crate::runtime::PulseEntry::ToolCall { id, .. } if id == "tc1"
                 )
             })
         }),
-        "StreamBlockStart must register pending tool call in active turn entries"
+        "StreamBlockStart must register pending tool call in active pulse entries"
     );
 
     mode.on_model_update(
@@ -263,9 +263,9 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         &mut ctx,
     );
 
-    let tc1_input_partial = mode.task_doc.active_turn.as_ref().and_then(|t| {
+    let tc1_input_partial = mode.task_doc.active_pulse.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
-            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
+            if let crate::runtime::PulseEntry::ToolCall { id, input, .. } = e
                 && id == "tc1"
             {
                 return Some(input.clone());
@@ -288,9 +288,9 @@ fn test_typed_tool_argument_update_replaces_pending_tool_call_input() {
         &mut ctx,
     );
     mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
-    let tc1_input_complete = mode.task_doc.active_turn.as_ref().and_then(|t| {
+    let tc1_input_complete = mode.task_doc.active_pulse.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
-            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
+            if let crate::runtime::PulseEntry::ToolCall { id, input, .. } = e
                 && id == "tc1"
             {
                 return Some(input.clone());
@@ -552,7 +552,7 @@ fn test_tool_fold_state_resets_after_turn_ends() {
     let lines = &mode.history_lines();
     assert!(
         !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
-        "tool call in new turn must not fold against previous turn; got:\n{:#?}",
+        "tool call in new pulse must not fold against previous pulse; got:\n{:#?}",
         lines
     );
 }
@@ -747,7 +747,7 @@ fn test_edit_loop_lines_rendered_as_transcript() {
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
     mode.on_model_update(
-        UiUpdate::TranscriptLine("[edit loop turn 1/6]".to_string()),
+        UiUpdate::TranscriptLine("[edit loop pulse 1/6]".to_string()),
         &mut ctx,
     );
     mode.on_model_update(
@@ -761,8 +761,8 @@ fn test_edit_loop_lines_rendered_as_transcript() {
 
     let lines = &mode.history_lines();
     assert!(
-        lines.iter().any(|l| l.contains("edit loop turn 1/6")),
-        "edit loop turn marker must appear in transcript history"
+        lines.iter().any(|l| l.contains("edit loop pulse 1/6")),
+        "edit loop pulse marker must appear in transcript history"
     );
     assert!(
         lines
@@ -803,7 +803,7 @@ fn test_edit_loop_turn_error_preserved_in_transcript() {
     mode.on_user_input("edit task".to_string(), &mut ctx);
 
     mode.on_model_update(
-        UiUpdate::TranscriptLine("[edit loop turn error: connection timeout]".to_string()),
+        UiUpdate::TranscriptLine("[edit loop pulse error: connection timeout]".to_string()),
         &mut ctx,
     );
 
@@ -811,8 +811,8 @@ fn test_edit_loop_turn_error_preserved_in_transcript() {
     assert!(
         lines
             .iter()
-            .any(|l| l.contains("edit loop turn error: connection timeout")),
-        "edit loop turn error must appear in transcript history; got:\n{:#?}",
+            .any(|l| l.contains("edit loop pulse error: connection timeout")),
+        "edit loop pulse error must appear in transcript history; got:\n{:#?}",
         lines
     );
 }
@@ -829,7 +829,7 @@ fn test_edit_loop_complete_emits_telemetry_line() {
 
     mode.turn_started_at = Some(Instant::now());
     mode.ttft = Some(std::time::Duration::from_millis(200));
-    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+    if let Some(active) = mode.task_doc.active_pulse.as_mut() {
         active.timings = Some(StreamTimings {
             prompt_ms: Some(500.0),
             prompt_n: Some(100),

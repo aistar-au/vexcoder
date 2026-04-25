@@ -6,7 +6,7 @@ In progress — PR #349 (`work/vexcoder-task-document-pr1`) introduces the
 accepted `TaskDocument` runtime module rooted at `src/runtime/task_document.rs`
 with focused submodules in `src/runtime/task_document/{model,condenser,task_state_bridge,tests}.rs`.
 All core types (`TaskDocument`, `TaskInfo`, `ActiveTurnDocument`,
-`TurnDocument`, `TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and
+`TurnDocument`, `PulseEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and
 the snapshot round-trip adapter (`persistable_snapshot` /
 `restore_from_snapshot`) are now implemented and exported from
 `crate::runtime`. PR #349 stays within the PR-1 scope: no TUI ownership
@@ -18,7 +18,7 @@ rather than the intermediate `ToolStatus` display state.
 
 The API route is already transcript-first. `RuntimeEnvelopeNormalizer` emits
 `transcript_block_start`, `transcript_block_delta`, and
-`transcript_block_complete` for every streamed text turn. All downstream batch
+`transcript_block_complete` for every streamed text pulse. All downstream batch
 derivation and live event consumers read this single shape.
 
 The ratatui-native in-process task state is not yet transcript-first. It
@@ -27,7 +27,7 @@ maintains three separate mutable buffers that must be kept in sync:
 | Field | Module | Role |
 | :--- | :--- | :--- |
 | `history_state.lines` | `src/app/model_update.rs` | Committed transcript rows and tool paragraphs |
-| `current_turn_stream_segments` | `src/app/model_update.rs` | Current-turn streamed assistant text, indexed by `active_stream_segment_index` |
+| `current_turn_stream_segments` | `src/app/model_update.rs` | Current-pulse streamed assistant text, indexed by `active_stream_segment_index` |
 | `active_stream_blocks` | `src/app/model_update.rs` | Typed block metadata (`Thinking`, `FinalText`, `ToolCall`, `ToolResult`) and cursor state |
 
 A block completing (via `StreamBlockComplete`) removes it from
@@ -55,8 +55,8 @@ eliminates the need to:
 - Hold `active_stream_segment_index` as a separate cursor.
 - Call `clamp_transcript_after_mutation` at multiple independent callsites.
 - Snapshot `previous_output_len` before mutations to preserve scroll.
-- Re-derive the current-turn response text from `current_turn_stream_segments`
-  at turn completion.
+- Re-derive the current-pulse response text from `current_turn_stream_segments`
+  at pulse completion.
 
 Downstream consumers are simple: any tool that reads the `RuntimeEnvelope`
 stream can also read the in-process block list without a separate adapter.
@@ -95,12 +95,12 @@ math operates on the document paragraph list, not on `history_state.lines`.
 
 ## Items
 
-### TF-01 — Define `TaskDocument` and condenser-owned turn types
+### TF-01 — Define `TaskDocument` and condenser-owned pulse types
 
 **Files:** `src/runtime/task_document.rs`, `src/runtime/task_document/model.rs`,
 `src/runtime/task_document/condenser.rs`, `src/runtime/task_document/snapshot.rs`
 
-Define the accepted task and turn types at the runtime layer, keep the condenser
+Define the accepted task and pulse types at the runtime layer, keep the condenser
 adjacent to the model, and add the snapshot adapter that round-trips through
 `TaskState` and `TurnEvidenceState` without introducing a parallel event model.
 Add focused unit tests for approval parsing, grant persistence, and snapshot

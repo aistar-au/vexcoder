@@ -78,9 +78,9 @@ pub(super) async fn drain_until_turn_complete(
             .await
             .expect("timed out waiting for ui update")
             .expect("ui update channel closed");
-        let is_final_update = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
+        let is_final_update = matches!(update, UiUpdate::PulseComplete | UiUpdate::Error(_));
         mode.on_model_update(update, ctx);
-        if is_final_update && !mode.is_turn_in_progress() {
+        if is_final_update && !mode.is_pulse_in_progress() {
             break;
         }
     }
@@ -124,5 +124,5 @@ pub(super) async fn wait_for_model_turn(ctx: &RuntimeContext, label: &str) {
         }
     })
     .await
-    .unwrap_or_else(|_| panic!("{label} must start a single model turn"));
+    .unwrap_or_else(|_| panic!("{label} must start a single model pulse"));
 }

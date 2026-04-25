@@ -51,7 +51,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 40 | `TASKS/PR-405-permissions-overlay-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-405-permissions-overlay-followup.md> |
 | 41 | `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-cli-tui-envelope-consumer-audit.md> |
 | 42 | `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-runtime-envelope-api-sse-normalization.md> |
-| 43 | `TASKS/TASKS-DISPATCH-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 43 | `TASKS/TASKS-WORK-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-WORK-MAP.md> |
 | 44 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
 | 45 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 46 | `TASKS/transcript-first-task-state.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/transcript-first-task-state.md> |
@@ -78,7 +78,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 67 | `adr/ADR-038-amendment-2026-04-13.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-038-amendment-2026-04-13.md> |
 | 68 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md> |
 | 69 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md> |
-| 70 | `adr/ADR-040-real-time-local-turn-telemetry.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-040-real-time-local-turn-telemetry.md> |
+| 70 | `adr/ADR-040-real-time-local-pulse-telemetry.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-040-real-time-local-pulse-telemetry.md> |
 | 71 | `adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md> |
 | 72 | `adr/ADR-042-tool-registration-and-approval-layer.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-042-tool-registration-and-approval-layer.md> |
 | 73 | `adr/ADR-043-structured-output-parser-adoption-gates.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-adoption-gates.md> |
@@ -91,13 +91,13 @@ Canonical raw URL index for every tracked file in this repository.
 | 80 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 81 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md> |
 | 82 | `adr/ADR-README.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
-| 83 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
+| 83 | `adr/completed/ADR-001-tdm-agentic-checklist-strategy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-checklist-strategy.md> |
 | 84 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
 | 85 | `adr/completed/ADR-003-dual-protocol-api-auto-detection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-003-dual-protocol-api-auto-detection.md> |
 | 86 | `adr/completed/ADR-004-runtime-seam-headless-first.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-004-runtime-seam-headless-first.md> |
 | 87 | `adr/completed/ADR-005-cfg-test-mock-injection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-005-cfg-test-mock-injection.md> |
 | 88 | `adr/completed/ADR-006-runtime-mode-contracts.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-006-runtime-mode-contracts.md> |
-| 89 | `adr/completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md> |
+| 89 | `adr/completed/ADR-007-runtime-accepted-work-path-no-alt-routing.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-007-runtime-accepted-work-path-no-alt-routing.md> |
 | 90 | `adr/completed/ADR-008-runtime-cutover-parity-guardrails.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-008-runtime-cutover-parity-guardrails.md> |
 | 91 | `adr/completed/ADR-009-runtime-core-tui-interaction-contract.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-009-runtime-core-tui-interaction-contract.md> |
 | 92 | `adr/completed/ADR-010-runtime-core-tui-viewport-and-transcript.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-010-runtime-core-tui-viewport-and-transcript.md> |
@@ -229,8 +229,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 218 | `src/app/tests/transcript.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/transcript.rs> |
 | 219 | `src/app/transcript_projection.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/transcript_projection.rs> |
 | 220 | `src/app/transcript_row.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/transcript_row.rs> |
-| 221 | `src/app/turn.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn.rs> |
-| 222 | `src/app/turn_start.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
+| 221 | `src/app/pulse.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/pulse.rs> |
+| 222 | `src/app/pulse_start.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/pulse_start.rs> |
 | 223 | `src/app/util.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | 224 | `src/auto_memory.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/auto_memory.rs> |
 | 225 | `src/batch_mode.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
@@ -364,7 +364,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 353 | `src/state/conversation/tests/undo.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests/undo.rs> |
 | 354 | `src/state/conversation/tests/write_guards.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests/write_guards.rs> |
 | 355 | `src/state/conversation/tools/config.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/config.rs> |
-| 356 | `src/state/conversation/tools/dispatch.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/dispatch.rs> |
+| 356 | `src/state/conversation/tools/routing.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/routing.rs> |
 | 357 | `src/state/conversation/tools/formatting.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/formatting.rs> |
 | 358 | `src/state/conversation/tools/index.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/index.rs> |
 | 359 | `src/state/conversation/tools/mod.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
@@ -391,7 +391,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 380 | `src/tui_frontend.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend.rs> |
 | 381 | `src/tui_frontend/picker.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend/picker.rs> |
 | 382 | `src/tui_handle.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_handle.rs> |
-| 383 | `src/turn_evidence.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
+| 383 | `src/pulse_evidence.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/pulse_evidence.rs> |
 | 384 | `src/types.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
 | 385 | `src/types/model_profile.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | 386 | `src/ui.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |

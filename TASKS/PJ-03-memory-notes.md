@@ -1,7 +1,7 @@
 # Task PJ-03: User Persistent Notes (`/memory`)
 
 **Target files:**
-- Slash-command dispatch in `src/app.rs` — `/memory`, `/memory add`, `/memory clear`
+- Slash-command routing in `src/app.rs` — `/memory`, `/memory add`, `/memory clear`
 - Notes file storage: `~/.config/vex/memory.md` or `~/.vex/memory.md` fallback
 - Session prompt injection: `src/runtime/context.rs` (after project instructions, within token budget)
 
@@ -38,23 +38,23 @@ committed. PJ-03 must not begin until PA-01 (layered config) is green.
 ```
    /memory
        Renders notes file contents to transcript via push_history_line.
-       No model turn. If file absent or empty: "[memory] no notes".
+       No model pulse. If file absent or empty: "[memory] no notes".
 
    /memory add <note>
        Appends <note> as a new line to the notes file. Creates the file if
-       absent. Emits "[memory: note added]". No model turn.
+       absent. Emits "[memory: note added]". No model pulse.
 
    /memory clear
        Clears all notes after in-TUI confirmation prompt
        ("clear all notes? [y/N]" via existing overlay input path).
        Emits "[memory: cleared]" on confirmation; "[memory: cancelled]"
-       otherwise. No model turn.
+       otherwise. No model pulse.
 ```
 
 4. **Constraints:**
    - Notes file path resolved from user config layer only (priority 3 in
      Gap 3 layered chain). Must not be settable via repo-local `.vex/config.toml`.
-   - `/memory` commands must never start a model turn.
+   - `/memory` commands must never start a model pulse.
    - `/memory clear` requires confirmation overlay in `TuiMode`.
    - `BatchMode` treats `/memory clear` as denied unless `--auto-approve` passed.
    - Token budget overflow is a warning only; session proceeds without injection.
@@ -100,7 +100,7 @@ fn test_memory_injection_over_budget_emits_warning() { ... }
 **What NOT to do:**
 
 - Do not read the notes file path from repo-local `.vex/config.toml`.
-- Do not start a model turn from any `/memory` subcommand.
+- Do not start a model pulse from any `/memory` subcommand.
 - Do not skip the confirmation overlay for `/memory clear` in `TuiMode`.
 - Do not implement auto-memory (model-initiated capture) — formally deferred per ADR-024 Gap 16.
 - Do not begin this task until PA-01 (layered config) is green.

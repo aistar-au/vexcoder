@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tool_tests {
-    use super::super::TurnToolPolicy;
+    use super::super::PulseToolPolicy;
     use crate::state::conversation::tools::validation::{
         is_read_only_user_request, is_test_target_path, tests_only_mutation_conflict_prompt,
     };
@@ -15,7 +15,7 @@ mod tool_tests {
 
         assert_eq!(
             tests_only_mutation_conflict_prompt(
-                TurnToolPolicy::TestsOnlyMutations,
+                PulseToolPolicy::TestsOnlyMutations,
                 "write_file",
                 &input,
             ),
@@ -33,7 +33,7 @@ mod tool_tests {
         });
 
         let message = tests_only_mutation_conflict_prompt(
-            TurnToolPolicy::TestsOnlyMutations,
+            PulseToolPolicy::TestsOnlyMutations,
             "apply_patch",
             &input,
         )
@@ -54,7 +54,7 @@ mod tool_tests {
         });
 
         let message = tests_only_mutation_conflict_prompt(
-            TurnToolPolicy::TestsOnlyMutations,
+            PulseToolPolicy::TestsOnlyMutations,
             "apply_patch",
             &input,
         )

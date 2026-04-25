@@ -24,7 +24,7 @@ integrations, and CI jobs have no way to drive the agent headlessly. Reference
 implementations expose a `vex exec`-equivalent subcommand that reads a task
 prompt, runs the agent loop to completion, and writes structured JSONL or plain
 text to stdout. This capability is gated on PA-01 being green because
-`BatchMode` reads `--format`, `--max-turns`, and `--auto-approve` from the
+`BatchMode` reads `--format`, `--max-pulses`, and `--auto-approve` from the
 command line, but config-layer resolution must already be stable for the
 `ApprovalPolicy` defaults to behave correctly.
 
@@ -41,7 +41,7 @@ command line, but config-layer resolution must already be stable for the
    - `--task <TEXT>` — task prompt (mutually exclusive with `--task-file`)
    - `--task-file <PATH>` — read task prompt from file
    - `--auto-approve <SCOPE>` — optional; accepted values: `once`, `task`
-   - `--max-turns <N>` — stop after N turns; default: unlimited
+   - `--max-pulses <N>` — stop after N pulses; default: unlimited
    - `--output <PATH>` — write output to file instead of stdout
    - `--format <FORMAT>` — output format: `jsonl` (default) or `text`
 
@@ -60,11 +60,11 @@ command line, but config-layer resolution must already be stable for the
      `MaxTurnsReached` is non-zero because the task was not completed; a CI
      pipeline must not treat it as success.
 
-5. JSONL output (one object per turn, written after each turn completes):
+5. JSONL output (one object per pulse, written after each pulse completes):
 
    ```json
    {
-     "turn": 1,
+     "pulse": 1,
      "input": "...",
      "response": "...",
      "changed_files": ["src/foo.rs"],
@@ -85,10 +85,10 @@ command line, but config-layer resolution must already be stable for the
    ```
 
    Per ADR-024 Gap 28, a future `PL-03` extension adds a `tokens` object to
-   each JSONL turn record. That field is not part of `PE-01`/`PE-02`
+   each JSONL pulse record. That field is not part of `PE-01`/`PE-02`
    completion.
 
-6. Text output (`--format text`): plain assistant response text only, one turn
+6. Text output (`--format text`): plain assistant response text only, one pulse
    concatenated after the next, separated by a blank line. No JSONL envelope.
 
 7. The `check-boundary` Makefile target must be extended (or a separate check
@@ -129,16 +129,16 @@ async fn test_batch_mode_completes_on_final_allowed_turn() {
 
 #[tokio::test]
 async fn test_batch_mode_marks_second_turn_attempt_as_max_turns_reached() {
-    // max_turns = 1 allows the first turn and rejects the second turn attempt.
+    // max_turns = 1 allows the first pulse and rejects the second pulse attempt.
     let mut mode = BatchMode::new("test-task".to_string(), BatchRunOpts { max_turns: Some(1), ..Default::default() }, None, None);
     mode.current_turn = 1;
-    mode.on_user_input("second turn".to_string(), &mut ctx);
+    mode.on_user_input("second pulse".to_string(), &mut ctx);
     assert_eq!(mode.status, TaskStatus::MaxTurnsReached);
 }
 
 #[tokio::test]
 async fn test_batch_mode_interactive_approval_denied_by_default() {
-    // A turn that requires RunCommand approval with no --auto-approve must
+    // A pulse that requires RunCommand approval with no --auto-approve must
     // receive a deny decision and record it without panicking.
     let result = run_batch_mode_with_opts(
         "run: ls",
@@ -171,11 +171,11 @@ async fn test_batch_mode_auto_approve_once_grants_single_turn() {
 #[tokio::test]
 async fn test_batch_mode_jsonl_output_includes_required_fields() {
     let output = capture_batch_jsonl("echo hello", 3).await.unwrap();
-    // Each turn line must have at minimum: turn, input, response, changed_files,
+    // Each pulse line must have at minimum: pulse, input, response, changed_files,
     // command_history.
     let first_turn: serde_json::Value =
         serde_json::from_str(output.lines().next().unwrap()).unwrap();
-    assert!(first_turn.get("turn").is_some());
+    assert!(first_turn.get("pulse").is_some());
     assert!(first_turn.get("input").is_some());
     assert!(first_turn.get("response").is_some());
     assert!(first_turn.get("changed_files").is_some());
@@ -225,12 +225,12 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
   - PR `#54` merged the base `BatchMode` and `vex exec` surface.
-  - This closeout commit records submitted input in JSONL turn evidence,
-    including locally handled batch-mode turns such as `/memory clear`.
+  - This closeout commit records submitted input in JSONL pulse evidence,
+    including locally handled batch-mode pulses such as `/memory clear`.
   - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency
     rule is enforced by the repo gate.
   - `test_batch_mode_jsonl_output_includes_required_fields` now requires an
-    actual turn record and asserts the manifest fields `turn`, `input`,
+    actual pulse record and asserts the checklist fields `pulse`, `input`,
     `response`, `changed_files`, and `command_history`, plus the final summary.
   - `AutoApproveScope::Once` and `Task` remain distinct CLI/API variants, but
     the current `ToolApprovalRequest` response path is still boolean. Scope-

@@ -28,7 +28,7 @@ requirements live in the root `Cargo.toml` `[workspace.dependencies]` table;
 use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrade`
 (documented in `docs/src/dependency-upgrades.md`) for dependency work.
 If a release-prep change also includes a dependency bump, consult
-`workspace.metadata.upgrade-seams` in the same manifest and keep any API fallout
+`workspace.metadata.upgrade-seams` in the same checklist and keep any API fallout
 inside those seam files.
 `make bump` changes the package version only.
 
@@ -204,7 +204,7 @@ version.
 ## Automated version bump
 
 The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
-manual dispatch workflow that automates the version bump process:
+manual trigger workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
 2. Enter the new version (e.g. `0.1.0-rc.1`). No `v` prefix.
@@ -278,7 +278,7 @@ The workflow:
 | `v<semver>` | `v0.1.0-rc.8` | Stable or pre-release | Must match |
 | 7-char hex SHA | `bfb531d` | Pre-release (snapshot) | Skipped |
 
-Manual dispatch is available for re-running a failed release without
+Manual trigger is available for re-running a failed release without
 re-tagging when the tagged commit already contains the required fix and the
 expected assets were published with the original release entry. If an immutable
 release already exists without the required assets, land the fix and cut the
@@ -292,7 +292,7 @@ and the tag.
 The package-manager tap formula template lives in `packaging/homebrew/vex.rb`.
 After a tagged release publishes `checksums.txt`, run
 `scripts/update_homebrew_formula.py <tag>` to materialize the formula for the
-separate tap repository. Automatic repository-dispatch remains deferred until
+separate tap repository. Automatic repository trigger remains deferred until
 that tap repository exists.
 
 ---

@@ -420,11 +420,11 @@ async fn test_send_message_error_closes_failed_turn_before_retry() {
     );
 
     let task_doc = manager.task_doc().expect("task document after failure");
-    assert!(task_doc.active_turn.is_none());
+    assert!(task_doc.active_pulse.is_none());
     assert_eq!(task_doc.completed_turns.len(), 1);
     assert!(matches!(
         &task_doc.completed_turns[0].outcome,
-        crate::runtime::task_document::TurnOutcome::Failed { message }
+        crate::runtime::task_document::PulseOutcome::Failed { message }
             if message.contains("No more responses configured")
     ));
 
@@ -441,7 +441,7 @@ async fn test_send_message_error_closes_failed_turn_before_retry() {
     let task_doc = manager
         .task_doc()
         .expect("task document after retry failure");
-    assert!(task_doc.active_turn.is_none());
+    assert!(task_doc.active_pulse.is_none());
     assert_eq!(task_doc.completed_turns.len(), 2);
 }
 
@@ -498,7 +498,7 @@ data: {"type":"message_stop"}"#.to_string(),
             message.role == "user"
                 && matches!(
                     &message.content,
-                    Content::Text(text) if text.contains("did not execute any tool call")
+                    Content::Text(text) if text.contains("did not call any tool call")
                 )
         })
         .count();
@@ -572,7 +572,7 @@ data: {"type":"message_stop"}"#.to_string(),
             message.role == "user"
                 && matches!(
                     &message.content,
-                    Content::Text(text) if text.contains("did not execute any tool call")
+                    Content::Text(text) if text.contains("did not call any tool call")
                 )
         })
         .count();

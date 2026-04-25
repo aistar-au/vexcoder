@@ -1,6 +1,6 @@
 # Task PM-04: Auto-Memory
 
-**Target Files:** `src/app/commands/mod.rs`, `src/app/input.rs`, `src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`, `src/runtime/task_state/mod.rs`, `src/runtime/task_state/persist.rs`, `src/config.rs`, `src/config/load/mod.rs`, `src/app/tests/memory.rs`, `src/auto_memory.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/lib.rs`
+**Target Files:** `src/app/commands/mod.rs`, `src/app/input.rs`, `src/app/pulse.rs`, `src/app/pulse_start.rs`, `src/session_notes.rs`, `src/runtime/task_state/mod.rs`, `src/runtime/task_state/persist.rs`, `src/config.rs`, `src/config/load/mod.rs`, `src/app/tests/memory.rs`, `src/auto_memory.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/lib.rs`
 
 **Depends on:** None (green on current main)
 
@@ -14,7 +14,7 @@ the start of each conversation. The existing memory-notes system requires
 explicit `/memory` commands — the agent never writes memory on its own.
 
 Manual notes and note injection already exist; the missing piece is automatic
-extraction and persistence of memory-worthy facts after a turn completes.
+extraction and persistence of memory-worthy facts after a pulse completes.
 
 ---
 
@@ -22,7 +22,7 @@ extraction and persistence of memory-worthy facts after a turn completes.
 
 ### Automatic memory extraction
 
-At the end of each conversation turn (after the agent's response is
+At the end of each conversation pulse (after the agent's response is
 finalized), run a lightweight extraction pass that identifies
 memory-worthy facts from the conversation. Categories of extractable facts:
 
@@ -33,7 +33,7 @@ memory-worthy facts from the conversation. Categories of extractable facts:
 
 ### Extraction method
 
-Use a hardcoded post-turn extraction pass over the finalized assistant text.
+Use a hardcoded post-pulse extraction pass over the finalized assistant text.
 The extractor scans for short factual bullets or compact convention lines,
 skips fenced code blocks, and rejects obviously structured/code-like content.
 This keeps auto-memory local, deterministic, and bounded after the response is
@@ -54,7 +54,7 @@ session view stays consistent with the file-backed memory log.
 
 [auto_memory]
 enabled          = true     # default: false
-max_notes_per_turn = 3      # max notes extracted per turn
+max_notes_per_turn = 3      # max notes extracted per pulse
 ```
 
 ### `/memory auto` subcommand
@@ -82,7 +82,7 @@ max_notes_per_turn = 3      # max notes extracted per turn
 
 ## Definition of Done
 
-1. When `auto_memory.enabled = true`, notes are extracted after each turn.
+1. When `auto_memory.enabled = true`, notes are extracted after each pulse.
 2. Extracted notes are appended to the memory file with `[auto]` tag.
 3. `/memory auto on|off` toggles extraction for the current session.
 4. `/memory auto clear` removes `[auto]` entries from memory file.

@@ -1,7 +1,7 @@
 use crate::runtime::{EditLoop, UiUpdate};
-use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock, TurnToolPolicy};
+use crate::state::{ConversationManager, ConversationStreamUpdate, PulseToolPolicy, StreamBlock};
 use crate::types::{Content, ContentBlock};
-use crate::usage::{SessionTokens, TurnTokens, estimate_tokens};
+use crate::usage::{PulseTokens, SessionTokens, estimate_tokens};
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
@@ -42,7 +42,7 @@ impl RuntimeContext {
         }
     }
 
-    pub fn start_turn(&mut self, input: String) {
+    pub fn start_pulse(&mut self, input: String) {
         self.start_turn_with_system_prompt(input, None);
     }
 
@@ -51,22 +51,22 @@ impl RuntimeContext {
         input: String,
         supplementary_system_prompt: Option<String>,
     ) {
-        self.start_turn_with_system_prompt_and_policy(
+        self.start_pulse_with_system_prompt_and_policy(
             input,
             supplementary_system_prompt,
-            TurnToolPolicy::Default,
+            PulseToolPolicy::Default,
         );
     }
 
-    pub fn start_turn_with_system_prompt_and_policy(
+    pub fn start_pulse_with_system_prompt_and_policy(
         &mut self,
         input: String,
         supplementary_system_prompt: Option<String>,
-        turn_tool_policy: TurnToolPolicy,
+        turn_tool_policy: PulseToolPolicy,
     ) {
         if tokio::runtime::Handle::try_current().is_err() {
             let _ = self.update_tx.send(UiUpdate::Error(
-                "runtime error: start_turn requires active Tokio runtime".to_string(),
+                "runtime error: start_pulse requires active Tokio runtime".to_string(),
             ));
             return;
         }
@@ -127,25 +127,25 @@ impl RuntimeContext {
             set_runtime_prompt(&conversation, None).await;
 
             if cancelled {
-                let _ = tx.send(UiUpdate::TurnComplete);
+                let _ = tx.send(UiUpdate::PulseComplete);
                 return;
             }
 
-            match send_result.expect("non-cancelled turn must await send_handle") {
+            match send_result.expect("non-cancelled pulse must await send_handle") {
                 Ok((Ok(response_text), turn_tokens)) => {
                     let recorded =
                         normalize_turn_tokens(&input_for_estimate, &response_text, turn_tokens);
                     if let Ok(mut tokens) = session_tokens.lock() {
-                        tokens.record_turn(recorded);
+                        tokens.record_pulse(recorded);
                     }
-                    let _ = tx.send(UiUpdate::TurnComplete);
+                    let _ = tx.send(UiUpdate::PulseComplete);
                 }
                 Ok((Err(e), _)) => {
                     let _ = tx.send(UiUpdate::Error(e.to_string()));
                 }
                 Err(e) => {
                     if e.is_cancelled() {
-                        let _ = tx.send(UiUpdate::TurnComplete);
+                        let _ = tx.send(UiUpdate::PulseComplete);
                     } else {
                         let _ = tx.send(UiUpdate::Error(e.to_string()));
                     }
@@ -206,7 +206,7 @@ impl RuntimeContext {
         let send_handle = tokio::spawn(async move {
             let mut mgr = conversation.lock().await;
             let result = mgr
-                .send_message_with_policy(input, Some(&delta_tx), TurnToolPolicy::Default)
+                .send_message_with_policy(input, Some(&delta_tx), PulseToolPolicy::Default)
                 .await;
             let patch_applied = mgr.current_turn_has_successful_mutation();
             (result, patch_applied)
@@ -226,7 +226,7 @@ impl RuntimeContext {
         match send_handle.await {
             Ok((Ok(_response_text), patch_applied)) => Ok(EditTurnResult { patch_applied }),
             Ok((Err(e), _)) => Err(e),
-            Err(e) => Err(anyhow::anyhow!("edit turn task failed: {e}")),
+            Err(e) => Err(anyhow::anyhow!("edit pulse task failed: {e}")),
         }
     }
 
@@ -269,13 +269,13 @@ impl RuntimeContext {
     }
 
     #[cfg(test)]
-    pub fn test_record_session_turn(&self, turn: TurnTokens) {
+    pub fn test_record_session_pulse(&self, pulse: PulseTokens) {
         if let Ok(mut tokens) = self.session_tokens.lock() {
-            tokens.record_turn(turn);
+            tokens.record_pulse(pulse);
         }
     }
 
-    pub fn cancel_turn(&mut self) {
+    pub fn cancel_pulse(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
     }
@@ -292,7 +292,7 @@ impl RuntimeContext {
     }
 
     pub fn emit_turn_complete(&self) {
-        let _ = self.update_tx.send(UiUpdate::TurnComplete);
+        let _ = self.update_tx.send(UiUpdate::PulseComplete);
     }
 
     pub fn emit_command_session_attached(&self, session_id: u64, pid: Option<u32>) {
@@ -401,9 +401,9 @@ fn set_runtime_prompt_now(
     }
 }
 
-fn normalize_turn_tokens(input: &str, response: &str, turn_tokens: TurnTokens) -> TurnTokens {
+fn normalize_turn_tokens(input: &str, response: &str, turn_tokens: PulseTokens) -> PulseTokens {
     if turn_tokens.is_zero() {
-        TurnTokens {
+        PulseTokens {
             input: estimate_tokens(input),
             output: estimate_tokens(response),
             estimated: true,

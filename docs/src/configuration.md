@@ -115,7 +115,7 @@ used for live tool-call parsing.
 
 When `plan` is active, mutating tools (`write_file`, `apply_patch`, `edit_file`,
 `rename_file`, `git_add`, `git_commit`, `run_command`) are excluded from the
-model schema and rejected at the dispatch layer as a defense-in-depth guard.
+model schema and rejected at the work layer as a defense-in-depth guard.
 
 ## Feature config sections
 
@@ -123,13 +123,13 @@ model schema and rejected at the dispatch layer as a defense-in-depth guard.
 
 Controls proactive conversation compaction. When enabled, the runtime compacts
 the conversation history when the estimated token count approaches the context
-budget, keeping recent turns verbatim and folding older context into a summary.
+budget, keeping recent pulses verbatim and folding older context into a summary.
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
 | `enabled` | Enable proactive compaction | `false` |
 | `threshold_percent` | Compact when token usage exceeds this percentage of the context window (10--99) | `80` |
-| `keep_recent_turns` | Number of most-recent turns kept verbatim after compaction (1--32) | `4` |
+| `keep_recent_turns` | Number of most-recent pulses kept verbatim after compaction (1--32) | `4` |
 | `summary_max_tokens` | Maximum tokens for the compaction summary (64--4096) | `1024` |
 
 ```toml
@@ -186,14 +186,14 @@ max_file_size = 524288
 
 ### `[auto_memory]`
 
-Controls automatic memory extraction from assistant turns. When enabled, short
-factual notes are extracted after each turn and appended to the notes file with
+Controls automatic memory extraction from assistant pulses. When enabled, short
+factual notes are extracted after each pulse and appended to the notes file with
 timestamped `[auto]` tags.
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
 | `enabled` | Enable automatic extraction | `false` |
-| `max_notes_per_turn` | Maximum notes extracted per turn (1--10) | `3` |
+| `max_notes_per_turn` | Maximum notes extracted per pulse (1--10) | `3` |
 
 ```toml
 [auto_memory]
@@ -370,7 +370,7 @@ Opt in to automatic git status and diff injection during context assembly.
 - Accepts `true`, `false`, `1`, `0`, `yes`, `no`, `on`, or `off`.
 - Default: `false`.
 - Explicit git tools and review flows still call git directly; this option only
-  controls the automatic context path used before a normal model turn.
+  controls the automatic context path used before a normal model pulse.
 
 ### `VEX_CONTEXT_GIT_TIMEOUT_MS`
 
@@ -452,8 +452,8 @@ Controls startup fallback when the selected sandbox probe fails.
 
 ### `VEX_MAX_TOKENS`
 
-Upper bound override for the per-turn generation budget. When set, the value
-is treated as the maximum `max_tokens` for a single turn. The runtime also
+Upper bound override for the per-pulse generation budget. When set, the value
+is treated as the maximum `max_tokens` for a single pulse. The runtime also
 polls the local inference server's context size at startup and derives an
 effective ceiling of 75% of `n_ctx`; the actual `max_tokens` sent is
 `min(VEX_MAX_TOKENS, n_ctx × 0.75)`. When not set, the model profile's
@@ -532,7 +532,7 @@ Number of texts sent per embedding API call. Default: `32`.
 
 ### `VEX_HISTORY_KEEP_TURNS`
 
-Number of recent conversation turns kept at full fidelity. Older turns are
+Number of recent conversation pulses kept at full fidelity. Older pulses are
 condensed: tool results keep their first 5 lines plus a
 `(N more lines)` indicator, keeping the conversation within the context
 budget without losing the thread of earlier work. Default: `10`.

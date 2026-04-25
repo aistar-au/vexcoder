@@ -115,7 +115,7 @@ impl SandboxDriver for MacosSandboxExec {
                 .arg("(version 1) (allow default)")
                 .arg("/usr/bin/true")
                 .status()
-                .context("failed to execute sandbox-exec probe")?;
+                .context("failed to call sandbox-exec probe")?;
             if status.success() {
                 Ok(())
             } else {
@@ -186,7 +186,7 @@ impl SandboxDriver for ContainerSandbox {
         let status = self
             .probe_command()?
             .status()
-            .context("failed to execute container probe")?;
+            .context("failed to call container probe")?;
         if status.success() {
             Ok(())
         } else {
@@ -345,7 +345,7 @@ impl SandboxDriver for BubblewrapSandbox {
                     "true",
                 ])
                 .status()
-                .context("failed to execute bwrap probe")?;
+                .context("failed to call bwrap probe")?;
             if status.success() {
                 Ok(())
             } else {

@@ -88,11 +88,11 @@ pub(crate) fn mutating_tool_read_only_conflict_prompt(
 }
 
 pub(crate) fn tests_only_mutation_conflict_prompt(
-    policy: TurnToolPolicy,
+    policy: PulseToolPolicy,
     tool_name: &str,
     input: &serde_json::Value,
 ) -> Option<String> {
-    if policy != TurnToolPolicy::TestsOnlyMutations {
+    if policy != PulseToolPolicy::TestsOnlyMutations {
         return None;
     }
 

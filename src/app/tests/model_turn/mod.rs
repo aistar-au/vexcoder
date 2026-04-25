@@ -29,7 +29,7 @@ fn tool_call_only_marks_changed_files_after_successful_result() {
     );
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.changed_files.is_empty()),
         "tool calls should not record changed files until they succeed"
@@ -48,7 +48,7 @@ fn tool_call_only_marks_changed_files_after_successful_result() {
     );
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_some_and(|t| t.changed_files.contains("src/main.rs"))
     );
@@ -91,7 +91,7 @@ fn failed_tool_result_does_not_record_changed_files() {
     );
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.changed_files.is_empty()),
         "failed tool calls must not be exported as changed files"
@@ -149,7 +149,7 @@ fn test_idle_interrupt_shows_feedback() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    assert!(mode.task_doc.active_turn.is_none());
+    assert!(mode.task_doc.active_pulse.is_none());
     assert!(!mode.pending_quit);
     assert!(!mode.quit_requested);
 
@@ -183,8 +183,8 @@ fn test_input_drop_shows_feedback() {
     mode.on_user_input("analyze the test output".to_string(), &mut ctx);
 
     assert!(
-        mode.task_doc.active_turn.is_some(),
-        "busy input must not start a new turn"
+        mode.task_doc.active_pulse.is_some(),
+        "busy input must not start a new pulse"
     );
     assert!(
         mode.history_lines()
@@ -212,10 +212,10 @@ fn test_pending_quit_resets_on_new_turn_accept() {
     mode.on_user_input("resume".to_string(), &mut ctx);
     assert!(
         !mode.pending_quit,
-        "pending quit must reset when a new turn is accepted"
+        "pending quit must reset when a new pulse is accepted"
     );
     assert!(!mode.quit_requested);
-    assert!(mode.task_doc.active_turn.is_some());
+    assert!(mode.task_doc.active_pulse.is_some());
 }
 
 #[tokio::test]
@@ -225,18 +225,18 @@ async fn test_interrupt_is_typed_event_not_magic_string_collision() {
 
     mode.on_user_input("__VEX_INTERRUPT__".to_string(), &mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_some(),
+        mode.task_doc.active_pulse.is_some(),
         "plain text matching old sentinel must be treated as normal user input"
     );
 
     mode.on_interrupt(&mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_some(),
-        "typed interrupt should keep turn active until TurnComplete drains"
+        mode.task_doc.active_pulse.is_some(),
+        "typed interrupt should keep pulse active until PulseComplete drains"
     );
     assert!(
         mode.task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_some_and(|t| t.cancel_pending),
         "typed interrupt should arm cancel-pending state"
@@ -244,16 +244,16 @@ async fn test_interrupt_is_typed_event_not_magic_string_collision() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.contains("[turn cancellation requested]")),
+            .any(|line| line.contains("[pulse cancellation requested]")),
         "cancel path should provide visible feedback"
     );
 
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
-    assert!(mode.task_doc.active_turn.is_none());
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
+    assert!(mode.task_doc.active_pulse.is_none());
     assert!(
         !mode
             .task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_some_and(|t| t.cancel_pending)
     );

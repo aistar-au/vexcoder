@@ -214,8 +214,8 @@ async fn test_batch_mode_jsonl_output_includes_required_fields() {
                 .and_then(|entry| entry.as_bool())
                 .unwrap_or(false)
         })
-        .expect("expected a turn record before the final summary");
-    assert_eq!(first_turn["turn"], 1);
+        .expect("expected a pulse record before the final summary");
+    assert_eq!(first_turn["pulse"], 1);
     assert_eq!(first_turn["input"], "echo hello");
     assert!(first_turn.get("response").is_some());
     assert!(first_turn["changed_files"].is_array());
@@ -290,9 +290,9 @@ async fn test_batch_mode_jsonl_output_captures_streamed_tool_evidence() {
         &mut ctx,
     );
     mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
-    let turn_line = mode.output_lines.first().expect("expected turn line");
+    let turn_line = mode.output_lines.first().expect("expected pulse line");
     let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
     let changed_files = turn_json["changed_files"]
         .as_array()
@@ -348,9 +348,9 @@ async fn test_batch_mode_ignores_failed_tool_changed_file_evidence() {
         &mut ctx,
     );
     mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
-    let turn_line = mode.output_lines.first().expect("expected turn line");
+    let turn_line = mode.output_lines.first().expect("expected pulse line");
     let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
     let changed_files = turn_json["changed_files"]
         .as_array()
@@ -379,7 +379,7 @@ async fn test_batch_mode_marks_second_turn_attempt_as_max_turns_reached() {
     );
     mode.current_turn = 1;
 
-    mode.on_user_input("second turn".to_string(), &mut ctx);
+    mode.on_user_input("second pulse".to_string(), &mut ctx);
 
     assert_eq!(mode.status, TaskStatus::MaxTurnsReached);
     assert!(mode.is_done());
@@ -424,7 +424,7 @@ async fn test_batch_mode_text_format_captures_textual_block_delta_output() {
         &mut ctx,
     );
     mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
     assert_eq!(
         mode.output_lines,
@@ -462,7 +462,7 @@ async fn test_batch_mode_text_format_ignores_tool_argument_block_deltas() {
         &mut ctx,
     );
     mode.on_model_update(UiUpdate::StreamBlockComplete { index: 1 }, &mut ctx);
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
 
     assert_eq!(mode.output_lines, vec![String::new()]);
 }
@@ -670,7 +670,7 @@ fn test_batch_mode_jsonl_output_includes_instructions_path() {
     mode.status = TaskStatus::Running;
     mode.turn_in_progress = true;
     mode.current_response = "done".to_string();
-    mode.finish_turn(TurnTokens {
+    mode.finish_turn(PulseTokens {
         input: 8,
         output: 4,
         estimated: false,
@@ -680,7 +680,7 @@ fn test_batch_mode_jsonl_output_includes_instructions_path() {
     mode.append_summary();
 
     let turn_json: serde_json::Value =
-        serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
+        serde_json::from_str(mode.output_lines.first().expect("expected pulse line")).unwrap();
     assert_eq!(turn_json["instructions_path"], "AGENTS.md");
     assert_eq!(turn_json["tokens"]["input"], 8);
 
@@ -701,14 +701,14 @@ fn test_batch_mode_summary_keeps_changed_files_from_prior_turns() {
     mode.turn_in_progress = true;
     mode.current_turn_changed_files
         .insert("src/first.rs".to_string());
-    mode.finish_turn(TurnTokens::default());
+    mode.finish_turn(PulseTokens::default());
 
     mode.reset_current_turn_state();
     mode.status = TaskStatus::Running;
     mode.turn_in_progress = true;
     mode.current_turn_changed_files
         .insert("src/second.rs".to_string());
-    mode.finish_turn(TurnTokens::default());
+    mode.finish_turn(PulseTokens::default());
 
     mode.status = TaskStatus::Completed;
     mode.append_summary();
@@ -767,7 +767,7 @@ fn test_batch_mode_jsonl_output_includes_input_field() {
     mode.turn_in_progress = true;
     mode.current_turn_input = "what is the answer".to_string();
     mode.current_response = "forty-two".to_string();
-    mode.finish_turn(TurnTokens {
+    mode.finish_turn(PulseTokens {
         input: 5,
         output: 7,
         estimated: true,
@@ -775,13 +775,13 @@ fn test_batch_mode_jsonl_output_includes_input_field() {
     });
 
     let turn_json: serde_json::Value =
-        serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
+        serde_json::from_str(mode.output_lines.first().expect("expected pulse line")).unwrap();
     assert_eq!(
         turn_json
             .get("input")
             .expect("input field must be present in JSONL"),
         "what is the answer",
-        "input field must record the prompt text submitted for this turn"
+        "input field must record the prompt text submitted for this pulse"
     );
     assert_eq!(turn_json["tokens"]["output"], 7);
     assert_eq!(turn_json["tokens"]["estimated"], true);
@@ -800,12 +800,12 @@ async fn test_batch_mode_memory_clear_jsonl_records_input() {
     .unwrap();
 
     let turn_json: serde_json::Value =
-        serde_json::from_str(result.output_lines.first().expect("expected turn line")).unwrap();
+        serde_json::from_str(result.output_lines.first().expect("expected pulse line")).unwrap();
     assert_eq!(
         turn_json
             .get("input")
             .expect("input field must be present in JSONL"),
         "/memory clear",
-        "batch-mode local turns must preserve the submitted input text"
+        "batch-mode local pulses must preserve the submitted input text"
     );
 }

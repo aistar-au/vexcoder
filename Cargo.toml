@@ -230,7 +230,7 @@ tokio = [
   "src/pr_summary.rs",
   "src/batch_mode.rs",
   "src/state/conversation/streaming.rs",
-  "src/app/turn_start.rs",
+  "src/app/pulse_start.rs",
 ]
 serde = [
   "derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs",

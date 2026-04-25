@@ -63,7 +63,7 @@ HTTP or Unix sockets and applies a dedicated auth and transport boundary.
 
 ### What stays on the local surface
 
-- Active turn state, approval state, and streamed envelope buffers are held in
+- Active pulse state, approval state, and streamed envelope buffers are held in
   memory while a task is running.
 - Persistent task state still uses the same `.vex/state/` files as the CLI
   surface; the server does not create a second hosted history store.
@@ -73,7 +73,7 @@ HTTP or Unix sockets and applies a dedicated auth and transport boundary.
 ### What may cross a configured boundary
 
 - Authorized LocalApiServer clients receive prompts, transcript rows, tool
-  results, and turn metadata over `POST /v1/turns` and the related control
+  results, and pulse metadata over `POST /v1/pulses` and the related control
   routes.
 - If the server is bound beyond loopback, those payloads travel over the
   configured TLS surface.
@@ -106,10 +106,10 @@ config and argv surfaces.
 Runtime telemetry is part of the local operator surface; external telemetry
 paths are opt-in or provider-defined rather than repository-managed.
 
-- Interactive turn telemetry is displayed in the CLI transcript and status
+- Interactive pulse telemetry is displayed in the CLI transcript and status
   surface as local state rather than as a separate analytics export.
 - When the configured model endpoint returns usage metadata, VexCoder may
-  persist or render that metadata with the turn because it is part of the model
+  persist or render that metadata with the pulse because it is part of the model
   response.
 - Crash or debug logs are opt-in via `RUST_LOG`; without it, the runtime does
   not create rolling log files.
@@ -123,7 +123,7 @@ for any configured external endpoint.
   until the operator removes them or changes the configured storage path.
 - Notes remain at the configured `notes_path` until they are edited or deleted.
 - Active LocalApiServer task buffers are retained in memory for the life of the
-  active turn and then released.
+  active pulse and then released.
 - Remote retention for model endpoints, MCP servers, and other external
   services is controlled by those services rather than by VexCoder.
 

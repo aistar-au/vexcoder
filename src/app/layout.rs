@@ -72,11 +72,11 @@ impl TuiMode {
     }
 
     fn task_step_views(&self) -> Vec<TaskStepView> {
-        use crate::runtime::task_document::TurnEntry;
+        use crate::runtime::task_document::PulseEntry;
         let mut entries = Vec::new();
 
-        let (input, turn_entries): (&str, &[TurnEntry]) =
-            if let Some(active) = self.task_doc.active_turn.as_ref() {
+        let (input, turn_entries): (&str, &[PulseEntry]) =
+            if let Some(active) = self.task_doc.active_pulse.as_ref() {
                 (active.input.as_str(), &active.entries)
             } else if let Some(last) = self.task_doc.completed_turns.last() {
                 (last.input.as_str(), &last.entries)
@@ -101,7 +101,7 @@ impl TuiMode {
             .and_then(|pending| pending.step_id);
         for entry in turn_entries {
             match entry {
-                TurnEntry::ToolCall {
+                PulseEntry::ToolCall {
                     step_id,
                     name,
                     input,
@@ -140,7 +140,7 @@ impl TuiMode {
                         session_id: None,
                     });
                 }
-                TurnEntry::CommandSession { step_id, session } => {
+                PulseEntry::CommandSession { step_id, session } => {
                     let pid = session
                         .pid
                         .map(|p| p.to_string())
@@ -161,7 +161,7 @@ impl TuiMode {
             }
         }
 
-        if let Some(active) = self.task_doc.active_turn.as_ref() {
+        if let Some(active) = self.task_doc.active_pulse.as_ref() {
             for session in active.command_sessions.values() {
                 let display_status = display_status_text(&session.status);
                 let pid_text = session
@@ -253,10 +253,10 @@ impl TuiMode {
 
     fn visible_changed_files(&self) -> Vec<String> {
         let mut visible = std::collections::BTreeSet::new();
-        for turn in &self.task_doc.completed_turns {
-            visible.extend(turn.changed_files.iter().cloned());
+        for pulse in &self.task_doc.completed_turns {
+            visible.extend(pulse.changed_files.iter().cloned());
         }
-        if let Some(active) = self.task_doc.active_turn.as_ref() {
+        if let Some(active) = self.task_doc.active_pulse.as_ref() {
             visible.extend(active.changed_files.iter().cloned());
         }
         visible.into_iter().collect()
@@ -446,7 +446,7 @@ mod tests {
     fn scope_detail_falls_back_for_unknown_tools() {
         assert_eq!(
             tool_scope_detail("custom_tool"),
-            "Tool invocation recorded in the completed turn."
+            "Tool invocation recorded in the completed pulse."
         );
     }
 

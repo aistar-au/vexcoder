@@ -89,7 +89,7 @@ async fn test_hook_post_apply_patch_runs_command() -> Result<()> {
 }
 #[cfg(not(windows))]
 #[tokio::test]
-async fn test_hook_pre_tool_runs_before_dispatch() -> Result<()> {
+async fn test_hook_pre_tool_runs_before_routing() -> Result<()> {
     let _hook_guard = HOOK_TEST_LOCK.lock().await;
     let temp = TempDir::new()?;
     let target = temp.path().join("note.txt");
@@ -174,7 +174,7 @@ async fn test_http_hook_timeout_aborts_turn() -> Result<()> {
     approval_task.await??;
     accept_task.abort();
 
-    let err = result.expect_err("timed out HTTP hook must abort the tool turn");
+    let err = result.expect_err("timed out HTTP hook must abort the tool pulse");
     let message = format!("{err:#}");
     assert!(
         message.contains("timed out after 200ms"),
@@ -216,7 +216,7 @@ async fn test_hook_on_fail_abort_interrupts_turn() -> Result<()> {
     drop(tx);
     approval_task.await??;
 
-    let err = result.expect_err("aborting hook must stop the tool turn");
+    let err = result.expect_err("aborting hook must stop the tool pulse");
     let message = format!("{err:#}");
     assert!(
         message.contains("exit code 17"),

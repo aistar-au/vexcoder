@@ -32,7 +32,7 @@ fn test_conversation_module_structure() {
     );
     assert!(
         manifest_dir
-            .join("src/state/conversation/tools/dispatch.rs")
+            .join("src/state/conversation/tools/routing.rs")
             .exists()
     );
     assert!(

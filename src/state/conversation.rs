@@ -9,7 +9,7 @@ mod tools;
 mod tests;
 
 pub use state::{
-    ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy,
+    ConversationManager, ConversationStreamUpdate, PulseToolPolicy, ToolApprovalRequest,
     UndoCheckpoint,
 };
 #[cfg(test)]

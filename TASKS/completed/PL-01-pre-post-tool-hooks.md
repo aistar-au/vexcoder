@@ -35,7 +35,7 @@ operator-defined pre/post commands.
 
 [[hooks]]
 event   = "post_tool"     # "pre_tool" | "post_tool"
-tool    = "apply_patch"   # tool name as registered in dispatch table
+tool    = "apply_patch"   # tool name as registered in work table
 command = "cargo"
 args    = ["fmt"]
 on_fail = "warn"          # "warn" | "abort" | "ignore"
@@ -57,14 +57,14 @@ Template substitution in `args`:
 
 - All hook commands route through `SandboxDriver::wrap`.
 - Hooks require `Capability::RunCommand` approval. A hook skipped for missing
-  approval must emit a warning and allow the turn to continue. It must never
+  approval must emit a warning and allow the pulse to continue. It must never
   silently block the tool call.
 - `on_fail = "warn"`: log warning, continue.
 - `on_fail = "abort"`: abort the pending tool result and surface the error to
   the operator. Must not terminate the process — hook failure is a tool-level
   event, not a session-level event.
 - `on_fail = "ignore"`: swallow the exit code silently.
-- `pre_tool` fires before the tool call is dispatched.
+- `pre_tool` fires before the tool call is routed.
 - `post_tool` fires after the tool call returns its result.
 
 ---
@@ -77,7 +77,7 @@ Template substitution in `args`:
 - Hook commands must route through `SandboxDriver::wrap` and require
   `Capability::RunCommand` approval.
 - `on_fail = "abort"` must not terminate the process.
-- Do not implement hooks in `src/runtime/` boundary modules. Hook dispatch
+- Do not implement hooks in `src/runtime/` boundary modules. Hook routing
   belongs in the tool execution path, not in the runtime orchestration layer.
 - Do not implement `vex doctor` (PL-02), the session token counter (PL-03),
   or `vex export` (PL-04) in this task.
@@ -89,7 +89,7 @@ Template substitution in `args`:
 1. `[[hooks]]` in user config layer parses without error.
 2. `[[hooks]]` in repo-local config is a hard startup failure.
 3. `post_tool` hook fires after apply_patch returns its result.
-4. `pre_tool` hook fires before tool dispatch.
+4. `pre_tool` hook fires before tool routing.
 5. `on_fail = "abort"` surfaces error without terminating the process.
 6. `on_fail = "warn"` logs warning and continues.
 7. Hook without `Capability::RunCommand` approval emits warning and skips.
@@ -101,7 +101,7 @@ Template substitution in `args`:
 ## Anchor Tests
 
 `test_hook_post_apply_patch_runs_command`
-`test_hook_pre_tool_runs_before_dispatch`
+`test_hook_pre_tool_runs_before_routing`
 `test_hook_on_fail_abort_interrupts_turn`
 `test_hook_on_fail_warn_continues`
 `test_hook_requires_run_command_approval`
@@ -121,7 +121,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ---
 
-## Dispatch Verification (dispatch only — implementation not yet merged into current `main`)
+## Work Verification (work checklist only — implementation not yet merged into current `main`)
 
 ### [PL-01] - Pre/post-tool-call hooks
 
@@ -135,7 +135,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - This branch stages the PL-01 dispatch manifest only.
+  - This branch stages the PL-01 work checklist only.
   - Do not mark PL-01 green until the implementation branch lands and all
     anchor tests pass.
 
@@ -163,7 +163,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 - Validation:
   - `cargo test test_hook_repo_local_config_rejected_at_load --all-targets` : pass
   - `cargo test test_hook_post_apply_patch_runs_command --all-targets` : pass
-  - `cargo test test_hook_pre_tool_runs_before_dispatch --all-targets` : pass
+  - `cargo test test_hook_pre_tool_runs_before_routing --all-targets` : pass
   - `cargo test test_hook_on_fail_abort_interrupts_turn --all-targets` : pass
   - `cargo test test_hook_on_fail_warn_continues --all-targets` : pass
   - `cargo test test_hook_requires_run_command_approval --all-targets` : pass

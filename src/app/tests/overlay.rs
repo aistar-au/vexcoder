@@ -17,8 +17,8 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
 
     mode.on_user_input("blocked".to_string(), &mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_none(),
-        "overlay must block input dispatch"
+        mode.task_doc.active_pulse.is_none(),
+        "overlay must block input routing"
     );
 
     mode.on_user_input("1".to_string(), &mut ctx);
@@ -29,8 +29,8 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
 
     mode.on_user_input("resume".to_string(), &mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_some(),
-        "dispatch should resume after overlay clears"
+        mode.task_doc.active_pulse.is_some(),
+        "routing should resume after overlay clears"
     );
 }
 
@@ -189,8 +189,8 @@ fn multiline_submit_outside_overlay_only() {
 
     mode.on_user_input(submitted.clone(), &mut ctx);
     assert!(
-        mode.task_doc.active_turn.is_some(),
-        "outside overlay, enter must submit and start a turn"
+        mode.task_doc.active_pulse.is_some(),
+        "outside overlay, enter must submit and start a pulse"
     );
     assert!(
         mode.history_lines().iter().any(|line| line == "> a\nb\nc"),
@@ -457,7 +457,7 @@ async fn approval_sender_resolved_exactly_once() {
         "approved overlay should resolve true exactly once"
     );
 
-    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    mode.on_model_update(UiUpdate::PulseComplete, &mut ctx);
     mode.on_model_update(UiUpdate::Error("post-resolution".to_string()), &mut ctx);
     assert!(
         !mode.overlay_active(),

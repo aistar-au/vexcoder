@@ -7,15 +7,15 @@ use crate::runtime::task_state::{
     CommandEvidence, ContextCompactionRecord, SessionNote, TaskStatus,
 };
 use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
-use crate::state::{ToolStatus, TurnToolPolicy};
+use crate::state::{PulseToolPolicy, ToolStatus};
 use crate::types::{StreamPromptProgress, StreamTimings};
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskDocument {
     pub info: TaskInfo,
     pub completed_turns: Vec<TurnDocument>,
-    pub active_turn: Option<ActiveTurnDocument>,
+    pub active_pulse: Option<ActiveTurnDocument>,
     pub session_notes: Vec<SessionNote>,
     pub context_compaction: Vec<ContextCompactionRecord>,
     pub session_tasks: Vec<SessionTask>,
@@ -46,7 +46,7 @@ pub struct TaskInfo {
 pub struct ActiveTurnDocument {
     pub turn_index: usize,
     pub input: String,
-    pub entries: Vec<TurnEntry>,
+    pub entries: Vec<PulseEntry>,
     pub started_at_ms: u64,
     pub ttft_ms: Option<u64>,
     pub prompt_progress: Option<StreamPromptProgress>,
@@ -56,7 +56,7 @@ pub struct ActiveTurnDocument {
     pub changed_files: BTreeSet<String>,
     pub command_history: Vec<CommandEvidence>,
     #[serde(skip, default)]
-    pub tool_policy: TurnToolPolicy,
+    pub tool_policy: PulseToolPolicy,
     pub cancel_pending: bool,
 }
 
@@ -64,11 +64,11 @@ pub struct ActiveTurnDocument {
 pub struct TurnDocument {
     pub turn_index: usize,
     pub input: String,
-    pub entries: Vec<TurnEntry>,
-    pub outcome: TurnOutcome,
+    pub entries: Vec<PulseEntry>,
+    pub outcome: PulseOutcome,
     pub changed_files: Vec<String>,
     pub command_history: Vec<CommandEvidence>,
-    pub tokens: TurnTokens,
+    pub tokens: PulseTokens,
     pub started_at_ms: u64,
     pub completed_at_ms: u64,
     pub ttft_ms: Option<u64>,
@@ -77,7 +77,7 @@ pub struct TurnDocument {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum TurnEntry {
+pub enum PulseEntry {
     UserInput {
         step_id: u64,
         text: String,
@@ -157,7 +157,7 @@ pub struct CommandSessionDocument {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum TurnOutcome {
+pub enum PulseOutcome {
     Completed,
     Failed { message: String },
     Cancelled,

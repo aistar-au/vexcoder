@@ -210,7 +210,7 @@ fn observe_envelope(state: &mut EventStreamState, envelope: &RuntimeEnvelope) {
         RuntimeEvent::ToolCallCompleted { .. } => state.tool_call_completions += 1,
         RuntimeEvent::ToolCallFailed { .. } => state.tool_call_failures += 1,
         RuntimeEvent::UsageUpdated { usage } => state.last_usage = Some(usage.clone()),
-        RuntimeEvent::TurnEnd { status, usage, .. } => {
+        RuntimeEvent::PulseEnd { status, usage, .. } => {
             state.final_status = Some(status.clone());
             if let Some(usage) = usage {
                 state.last_usage = Some(usage.clone());

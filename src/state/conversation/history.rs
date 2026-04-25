@@ -1,7 +1,7 @@
 use super::ConversationManager;
 use crate::config::CompactionConfig;
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
-use crate::state::conversation::tools::dispatch::missing_read_only_location_prompt;
+use crate::state::conversation::tools::routing::missing_read_only_location_prompt;
 use crate::tool_preview::{
     ReadFileRollupSummary, ReadFileSummaryMessageStyle, ToolPreviewStyle,
     format_read_file_rollup_message, preview_tool_input, read_file_path,
@@ -12,7 +12,7 @@ use std::time::Duration;
 
 const COMPACTION_SUMMARY_PROMPT: &str = "\
 You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary \
-for the next turn. Include: current progress and key decisions made, important \
+for the next pulse. Include: current progress and key decisions made, important \
 constraints or user preferences, what remains to be done (clear next steps), \
 and any critical data or references needed to continue. Be concise and structured.";
 

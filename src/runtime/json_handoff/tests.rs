@@ -11,7 +11,7 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
     let envelope = RuntimeEnvelope {
         version: 1,
         task_id: "task-1741700000000".to_string(),
-        turn: 1,
+        pulse: 1,
         seq: 3,
         event_id: "evt:task-1741700000000:1:3".to_string(),
         emitted_at: "2026-04-16T00:00:00.000Z".to_string(),
@@ -32,7 +32,7 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
     let value = serde_json::to_value(&envelope).expect("runtime envelope must serialize");
     assert_eq!(value["version"], 1);
     assert_eq!(value["task_id"], "task-1741700000000");
-    assert_eq!(value["turn"], 1);
+    assert_eq!(value["pulse"], 1);
     assert_eq!(value["seq"], 3);
     assert_eq!(value["event_id"], "evt:task-1741700000000:1:3");
     assert_eq!(value["emitted_at"], "2026-04-16T00:00:00.000Z");
@@ -100,7 +100,7 @@ fn test_pi_11_tool_call_grammar_keeps_mcp_namespace_rule() {
 #[test]
 fn test_pi_10_normalization_discards_provider_ids_and_tracks_results() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-1");
-    let start = normalizer.start_turn(1, Some("ship it".to_string()));
+    let start = normalizer.start_pulse(1, Some("ship it".to_string()));
     assert_eq!(start.seq, 1);
 
     let tool_call = normalizer
@@ -168,7 +168,7 @@ fn test_pi_10_normalization_discards_provider_ids_and_tracks_results() {
 #[test]
 fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-2");
-    let _ = normalizer.start_turn(1, Some("review".to_string()));
+    let _ = normalizer.start_pulse(1, Some("review".to_string()));
 
     let delta = normalizer.normalize_ui_update(
         &UiUpdate::StreamDelta("partial model response".to_string()),
@@ -339,8 +339,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     ));
 
     let result = normalizer.normalize_ui_update(
-        &UiUpdate::TurnComplete,
-        Some(TurnEndContext {
+        &UiUpdate::PulseComplete,
+        Some(PulseEndContext {
             usage: Some(TokenUsageEnvelope {
                 input: 4,
                 output: 2,
@@ -354,7 +354,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     assert_eq!(result.len(), 1);
     assert!(matches!(
         result[0].event,
-        RuntimeEvent::TurnEnd {
+        RuntimeEvent::PulseEnd {
             ref status,
             usage: Some(TokenUsageEnvelope {
                 input: 4,
@@ -374,7 +374,7 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
         "task-delta",
         Arc::clone(&accumulator),
     );
-    let _ = normalizer.start_turn(1, Some("stream tool".to_string()));
+    let _ = normalizer.start_pulse(1, Some("stream tool".to_string()));
 
     let start = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
@@ -439,7 +439,7 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
 #[test]
 fn test_pi_10_runtime_origin_block_sources_are_preserved() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-source");
-    let _ = normalizer.start_turn(1, Some("runtime block".to_string()));
+    let _ = normalizer.start_pulse(1, Some("runtime block".to_string()));
 
     let start = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
@@ -488,7 +488,7 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("batch-1741700000000");
     let mut envelopes = Vec::new();
 
-    envelopes.push(normalizer.start_turn(1, Some("inspect src/main.rs".to_string())));
+    envelopes.push(normalizer.start_pulse(1, Some("inspect src/main.rs".to_string())));
     envelopes
         .extend(normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello ".to_string()), None));
     envelopes
@@ -505,8 +505,8 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         is_error: false,
     }));
     envelopes.extend(normalizer.normalize_ui_update(
-        &UiUpdate::TurnComplete,
-        Some(TurnEndContext {
+        &UiUpdate::PulseComplete,
+        Some(PulseEndContext {
             usage: Some(TokenUsageEnvelope {
                 input: 10,
                 output: 5,
@@ -518,7 +518,7 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         }),
     ));
 
-    envelopes.push(normalizer.start_turn(2, Some("second".to_string())));
+    envelopes.push(normalizer.start_pulse(2, Some("second".to_string())));
     envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockStart {
         index: 0,
         block: StreamBlock::FinalText {
@@ -530,7 +530,7 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         delta: "fallback".to_string(),
     }));
     envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockComplete { index: 0 }));
-    envelopes.push(normalizer.emit_event(RuntimeEvent::TurnEnd {
+    envelopes.push(normalizer.emit_event(RuntimeEvent::PulseEnd {
         status: "completed".to_string(),
         usage: None,
         changed_files: vec!["src/second.rs".to_string()],
@@ -573,7 +573,7 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     let turn_start_seqs = envelopes
         .iter()
         .filter_map(|envelope| match envelope.event {
-            RuntimeEvent::TurnStart { .. } => Some((envelope.turn, envelope.seq)),
+            RuntimeEvent::PulseStart { .. } => Some((envelope.pulse, envelope.seq)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -583,19 +583,19 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     assert_eq!(turn_start_seqs[1].0, 2);
     assert!(
         turn_start_seqs[1].1 > turn_start_seqs[0].1,
-        "turn 2 TurnStart seq must be greater than turn 1 TurnStart seq (global monotonic counter)"
+        "pulse 2 PulseStart seq must be greater than pulse 1 PulseStart seq (global monotonic counter)"
     );
 
     let derived = derive_batch_records(&envelopes, Some("AGENTS.md".to_string()));
-    assert_eq!(derived.turns.len(), 2);
-    assert_eq!(derived.turns[0].response, "hello world");
-    assert_eq!(derived.turns[0].changed_files, Vec::<String>::new());
-    assert_eq!(derived.turns[0].command_history.len(), 1);
-    assert_eq!(derived.turns[0].tokens.input, 10);
-    assert_eq!(derived.turns[0].tokens.output, 5);
-    assert_eq!(derived.turns[1].response, "fallback");
+    assert_eq!(derived.pulses.len(), 2);
+    assert_eq!(derived.pulses[0].response, "hello world");
+    assert_eq!(derived.pulses[0].changed_files, Vec::<String>::new());
+    assert_eq!(derived.pulses[0].command_history.len(), 1);
+    assert_eq!(derived.pulses[0].tokens.input, 10);
+    assert_eq!(derived.pulses[0].tokens.output, 5);
+    assert_eq!(derived.pulses[1].response, "fallback");
     assert_eq!(
-        derived.turns[1].changed_files,
+        derived.pulses[1].changed_files,
         vec!["src/second.rs".to_string()]
     );
     assert_eq!(
@@ -607,13 +607,13 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
 #[test]
 fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-errors");
-    let _ = normalizer.start_turn(1, Some("check".to_string()));
+    let _ = normalizer.start_pulse(1, Some("check".to_string()));
 
     let recoverable = normalizer.emit_error(
         "warning".to_string(),
         "retry".to_string(),
         true,
-        TurnEndContext::default(),
+        PulseEndContext::default(),
     );
     assert_eq!(recoverable.len(), 1);
     assert!(matches!(
@@ -629,7 +629,7 @@ fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
         "fatal".to_string(),
         "boom".to_string(),
         false,
-        TurnEndContext::default(),
+        PulseEndContext::default(),
     );
     assert_eq!(result.len(), 2);
     assert!(matches!(
@@ -641,17 +641,17 @@ fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
     ));
     assert!(matches!(
         result[1].event,
-        RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
+        RuntimeEvent::PulseEnd { ref status, .. } if status == "failed"
     ));
 
-    let max_turns = normalizer.emit_max_turns_reached(3, TurnEndContext::default());
+    let max_turns = normalizer.emit_max_turns_reached(3, PulseEndContext::default());
     assert!(matches!(
         max_turns[0].event,
         RuntimeEvent::MaxTurnsReached { max_turns: 3 }
     ));
     assert!(matches!(
         max_turns[1].event,
-        RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
+        RuntimeEvent::PulseEnd { ref status, .. } if status == "failed"
     ));
 }
 
@@ -694,7 +694,7 @@ fn test_pi_12_finish_protocol_ingress_turn_closes_blocks_in_index_order() {
     assert_eq!(closed_indices, vec![1, 3]);
     assert!(matches!(
         finish.last().map(|envelope| &envelope.event),
-        Some(RuntimeEvent::TurnEnd { status, .. }) if status == "completed"
+        Some(RuntimeEvent::PulseEnd { status, .. }) if status == "completed"
     ));
 }
 

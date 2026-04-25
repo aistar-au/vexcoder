@@ -101,8 +101,8 @@ fn test_tool_requires_confirmation_for_run_command_and_all_aliases() {
     assert!(tool_requires_confirmation("run_command"));
     assert!(tool_requires_confirmation("run_shell_command"));
     assert!(tool_requires_confirmation("bash"));
-    assert!(tool_requires_confirmation("execute_command"));
-    assert!(tool_requires_confirmation("execute_bash"));
+    assert!(tool_requires_confirmation("call_command"));
+    assert!(tool_requires_confirmation("call_bash"));
 }
 #[test]
 fn test_search_files_accepts_common_query_aliases() {
@@ -110,7 +110,7 @@ fn test_search_files_accepts_common_query_aliases() {
     std::fs::write(temp.path().join("notes.txt"), "hello alias world\n").unwrap();
     let operator = ToolOperator::new(temp.path().to_path_buf());
 
-    let result = execute_tool_dispatch(
+    let result = call_tool_routing(
         &operator,
         "search_files",
         &json!({
@@ -545,7 +545,7 @@ async fn test_execute_tool_run_command_uses_workspace_working_dir() -> Result<()
 
     assert!(
         result.contains(&temp.path().display().to_string()),
-        "run_command must execute from the workspace working directory: {result}"
+        "run_command must call from the workspace working directory: {result}"
     );
     Ok(())
 }

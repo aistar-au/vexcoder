@@ -115,7 +115,7 @@ fn test_at_path_injects_file_contents() {
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
     assert!(turn_input.contains("[file: note.txt]"));
     assert!(turn_input.contains("hello from file"));
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
 }
 #[test]
 fn test_at_path_directory_renders_listing() {
@@ -311,7 +311,7 @@ fn test_bang_prefix_requires_run_command_approval() {
     mode.on_user_input(successful_bang_input(), &mut ctx);
 
     assert!(mode.overlay_state.pending_approval.is_some());
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert!(
         mode.history_lines()
             .iter()
@@ -328,7 +328,7 @@ fn test_bare_at_submitted_passes_through_as_literal() {
 
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
     assert_eq!(turn_input, "@", "bare @ must pass through unchanged");
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
 }
 
 #[test]

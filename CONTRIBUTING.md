@@ -12,18 +12,18 @@
 
 ---
 
-## The Agentic Workflow (Test-Driven Manifest)
+## The Agentic Workflow (Test-Driven Checklist)
 
-`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
+`vexcoder` uses the **Test-Driven Checklist (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](adr/completed/ADR-001-tdm-agentic-checklist-strategy.md). The short version:
 
 1. **Identify task** — Check `adr/` for open architecture decisions.
-2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
-3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
+2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no work.
+3. **Module isolation** — Work is confined to the `Target File` named in the task checklist (± one helper file).
 4. **Verification** — Success is `cargo test <anchor_name>` passing, `cargo nextest run` staying green for the branch, plus `cargo test --all-targets` showing no regressions.
 
 Runtime mode additions and naming-policy changes require explicit confirmation before implementation or documentation. See ADR-007.
-Primary production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
-Alternate app-owned dispatch channels are forbidden in production paths.
+Primary production work path is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_pulse`.
+Alternate app-owned work channels are forbidden in production paths.
 Runtime-core ratatui TUI behavior must conform to ADR-009, ADR-010, and ADR-011 before merge.
 Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item is unmet.
 Architecture gates enforcing ADR-007 must remain green:
@@ -65,7 +65,7 @@ or small cleanup changes.
 
 Direct crate version requirements live in the root `Cargo.toml`
 `[workspace.dependencies]` table. Workspace members inherit those entries with
-`workspace = true` so most dependency upgrades stay confined to one manifest
+`workspace = true` so most dependency upgrades stay confined to one checklist
 section plus any version-sensitive seam file.
 
 Rust does not offer a runtime "crate version variable" for these upgrades.
@@ -74,7 +74,7 @@ the root `Cargo.toml` `[workspace.metadata.upgrade-seams]` and
 `[workspace.metadata.upgrade-notes]` tables as the reviewed map of which files
 should absorb API churn.
 
-Use the repository wrappers instead of ad hoc manifest edits:
+Use the repository wrappers instead of ad hoc checklist edits:
 
 ```bash
 # Install the maintenance tools once.
@@ -88,10 +88,10 @@ make deps-deny
 # 1. Audit stale direct dependencies across the workspace.
 make deps-audit
 
-# 2. Preview a manifest change without writing files.
+# 2. Preview a checklist change without writing files.
 make deps-plan ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
 
-# 3. Apply the manifest change, refresh Cargo.lock, and run cargo check.
+# 3. Apply the checklist change, refresh Cargo.lock, and run cargo check.
 make deps-upgrade ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
 
 # 4. Re-run the security gate after the upgrade.
@@ -153,7 +153,7 @@ when they are used only to split oversized test suites.
 ## Runtime-core Status
 
 REF-08 full cutover is complete and merged (2026-02-19).
-Accepted dispatch and layering rules are now governed by ADR-007 and ADR-008.
+Accepted work-path and layering rules are now governed by ADR-007 and ADR-008.
 
 ---
 
@@ -211,7 +211,7 @@ git push -u origin work/v<current-version>-packaging
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so review branches do not duplicate the main PR checks. After the branch gates are green and the workstation packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual trigger so review branches do not duplicate the main PR checks. After the branch gates are green and the workstation packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
@@ -240,7 +240,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 ### Automated version bump
 
-Use the `version-bump` workflow dispatch to bump the version from the
+Use the `version-bump` workflow trigger to bump the version from the
 browser: Actions > version-bump > Run workflow > enter new version. The
 workflow runs `scripts/bump-version.sh`, commits, and opens a PR. See
 `RELEASING.md` for the full automated flow.
@@ -271,7 +271,7 @@ instructions file under `.github/`.
   `.github/instructions/`, the repository-hosted agent instructions file under
   `.github/`, and the custom agent profiles.
 - The setup workflow only affects background sessions after it lands on the
-  default branch. Manual workflow dispatch is still useful for validating the
+  default branch. Manual workflow trigger is still useful for validating the
   hosted-session bootstrap contract on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
   review branch as the `--base` argument when you want the remote session
@@ -366,7 +366,7 @@ Recommended shard ownership for UI-overhaul work:
 - `vexcoder-ui-parity-orchestrator`
   `src/app.rs`, `src/app/queries.rs`, `src/app/commands/mod.rs`,
   `src/app/input.rs`, `src/app/inline.rs`, `src/app/model_update.rs`,
-  `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor/mod.rs`, and final
+  `src/app/pulse.rs`, `src/bin/vex.rs`, `src/ui/editor/mod.rs`, and final
   workflow/doc cleanup only when explicitly assigned.
 - `vexcoder-ui-paragraph-renderer`
   `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
@@ -386,7 +386,7 @@ git push -u origin work/vexcoder-ui-overhaul
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Shard: prompt interactivity. Own only src/app.rs, src/app/queries.rs, src/app/commands/mod.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor/mod.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: prompt interactivity. Own only src/app.rs, src/app/queries.rs, src/app/commands/mod.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/pulse.rs, src/bin/vex.rs, and src/ui/editor/mod.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
@@ -544,10 +544,10 @@ vexcoder/ (standalone view)
 | `src/app/scroll.rs` | Viewport and history scroll methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | `src/app/shell.rs` | Bang-command approval and command-session spawn methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
 | `src/app/tests/mod.rs` | App-level unit and integration tests module root extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/mod.rs> |
-| `src/app/turn.rs` | Turn-lifecycle and command-session tracking methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn.rs> |
-| `src/app/turn_start.rs` | Turn-dispatch and context-assembly helper methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
+| `src/app/pulse.rs` | Pulse-lifecycle and command-session tracking methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/pulse.rs> |
+| `src/app/pulse_start.rs` | Pulse-routing and context-assembly helper methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/pulse_start.rs> |
 | `src/app/util.rs` | Module-level helper functions extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
-| `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text turn output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
+| `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text pulse output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | `src/config.rs` | Layered config loading and validation across environment, repo-local, user, and system sources. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | `src/custom_commands.rs` | Custom user-defined commands loaded from `.vex/commands` directory. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
 | `src/doctor.rs` | Diagnostic checks for system configuration and health status. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
@@ -560,8 +560,8 @@ vexcoder/ (standalone view)
 | `src/runtime/approval.rs` | Capability-based approval policies for sandboxed operations. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/approval.rs> |
 | `src/runtime/backend.rs` | Model backend types and protocol abstractions for LLM integration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/backend.rs> |
 | `src/runtime/command.rs` | Command execution: one-shot, streaming, PTY, and process group management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/command.rs> |
-| `src/runtime/context.rs` | Async turn execution context, edit-turn driver, and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
-| `src/runtime/context_assembler/mod.rs` | Context assembly orchestration for model turns (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/mod.rs> |
+| `src/runtime/context.rs` | Async pulse execution context, edit-pulse driver, and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
+| `src/runtime/context_assembler/mod.rs` | Context assembly orchestration for model pulses (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/mod.rs> |
 | `src/runtime/context_assembler/reads.rs` | Candidate-path extraction, snapshot conversion, and related-path inference for context assembly. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/reads.rs> |
 | `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input event types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
 | `src/runtime/json_handoff.rs` | ADR-025 shared runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeEvent`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
@@ -578,12 +578,12 @@ vexcoder/ (standalone view)
 | `src/runtime/validation.rs` | Concurrent validation suite: command execution, retry formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |
 | `src/state.rs` | State module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state.rs> |
 | `src/state/conversation.rs` | Conversation module entrypoint and re-exports for split conversation submodules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation.rs> |
-| `src/state/conversation/core.rs` | Main conversation turn loop, streaming event processing, and model/tool round orchestration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/core.rs> |
+| `src/state/conversation/core.rs` | Main conversation pulse loop, streaming event processing, and model/tool round orchestration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/core.rs> |
 | `src/state/conversation/history.rs` | Message history pruning, truncation, and read-file result summarization helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/history.rs> |
 | `src/state/conversation/state.rs` | Conversation state types and `ConversationManager` constructors/accessors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/state.rs> |
 | `src/state/conversation/streaming.rs` | Stream block lifecycle helpers, block promotion, and delta emission utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/streaming.rs> |
 | `src/state/conversation/tests.rs` | Conversation module tests covering protocol flow, loop guards, and regression anchors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests.rs> |
-| `src/state/conversation/tools/mod.rs` | Tool execution dispatch module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
+| `src/state/conversation/tools/mod.rs` | Tool execution routing module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
 | `src/state/stream_block.rs` | Structured stream block models and tool status enum. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | `src/tui_handle.rs` | CLI raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_handle.rs> |
 | `src/test_support.rs` | Shared test synchronization helpers (e.g., env lock). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
@@ -592,7 +592,7 @@ vexcoder/ (standalone view)
 | `src/skills.rs` | Skills registry load/list/install/remove helpers for `.agents/skills`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/skills.rs> |
 | `src/session_notes.rs` | Session notes loading and resolution with memory token budget management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/session_notes.rs> |
 | `src/tools/operator/mod.rs` | Sandboxed file/git tool operator entrypoint with path safety and literal search submodules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator/mod.rs> |
-| `src/turn_evidence.rs` | Turn evidence recording: input, response, file changes, and command history. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
+| `src/pulse_evidence.rs` | Pulse evidence recording: input, response, file changes, and command history. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/pulse_evidence.rs> |
 | `src/types.rs` | Types module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
 | `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
 | `src/types/model_profile.rs` | ModelProfile configuration for LLM models with system prompt and parameters. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
@@ -602,7 +602,7 @@ vexcoder/ (standalone view)
 | `src/ui/layout.rs` | Ratatui pane layout splitting and geometry helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
 | `src/ui/render/mod.rs` | Ratatui render module root for status, history, input, and overlays; transcript rendering and tests now live under `src/ui/render/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/mod.rs> |
 | `src/util.rs` | Shared utility functions (bool/env parsing and endpoint helpers). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
-| `src/usage.rs` | Token usage tracking structures for turns and sessions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
+| `src/usage.rs` | Token usage tracking structures for pulses and sessions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
 | `src/workspace.rs` | Repo-root and workspace-relative path helpers for repo-scoped state. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | `tests/integration_test.rs` | Integration tests for config validation behavior. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
 | `tests/layout_underflow_tests.rs` | TUI layout constraint and underflow regression tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |

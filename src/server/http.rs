@@ -56,7 +56,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
         .route("/v1/schema", get(schema_handler))
         .route("/v1/agents", get(agents_handler))
         .route("/v1/delegate", post(delegate_handler))
-        .route("/v1/turns", post(turns_handler))
+        .route("/v1/pulses", post(turns_handler))
         .route("/v1/watch/{id}", get(watch_handler))
         .route(
             "/v1/session-tasks/{id}/release",

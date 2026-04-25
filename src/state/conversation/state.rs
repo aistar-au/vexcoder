@@ -4,13 +4,13 @@ use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
-use crate::runtime::task_document::{TaskDocument, TaskDocumentCondenser, TaskInfo, TurnOutcome};
+use crate::runtime::task_document::{PulseOutcome, TaskDocument, TaskDocumentCondenser, TaskInfo};
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ModelBackendKind, TaskMutationSummary};
 use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content, StreamChunkMetadata};
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -76,7 +76,7 @@ pub struct ToolApprovalRequest {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum TurnToolPolicy {
+pub enum PulseToolPolicy {
     #[default]
     Default,
     TestsOnlyMutations,
@@ -96,7 +96,7 @@ pub struct ConversationManager {
     pub(super) current_round_entry_start: usize,
     pub(super) current_round_stream_block_count: usize,
     pub(super) tool_call_started_at: HashMap<String, DateTime<Utc>>,
-    pub(super) last_turn_tokens: TurnTokens,
+    pub(super) last_turn_tokens: PulseTokens,
     pub(super) read_file_history_cache: ReadFileRollupCache,
     pub(super) undo_stack: Vec<UndoCheckpoint>,
     pub(super) max_undo_checkpoints: usize,
@@ -139,7 +139,7 @@ impl ConversationManager {
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
             tool_call_started_at: HashMap::new(),
-            last_turn_tokens: TurnTokens::default(),
+            last_turn_tokens: PulseTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
@@ -224,7 +224,7 @@ impl ConversationManager {
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
             tool_call_started_at: HashMap::new(),
-            last_turn_tokens: TurnTokens::default(),
+            last_turn_tokens: PulseTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
@@ -252,7 +252,7 @@ impl ConversationManager {
         self.current_round_entry_start = 0;
         self.current_round_stream_block_count = 0;
         self.tool_call_started_at.clear();
-        self.last_turn_tokens = TurnTokens::default();
+        self.last_turn_tokens = PulseTokens::default();
         self.read_file_history_cache = ReadFileRollupCache::default();
     }
 
@@ -268,7 +268,7 @@ impl ConversationManager {
         Arc::clone(&self.client)
     }
 
-    pub fn take_last_turn_tokens(&mut self) -> TurnTokens {
+    pub fn take_last_turn_tokens(&mut self) -> PulseTokens {
         std::mem::take(&mut self.last_turn_tokens)
     }
 
@@ -276,8 +276,8 @@ impl ConversationManager {
         let Some(doc) = &self.task_doc else {
             return false;
         };
-        use crate::runtime::task_document::TurnEntry;
-        let entries: &[TurnEntry] = if let Some(active) = &doc.active_turn {
+        use crate::runtime::task_document::PulseEntry;
+        let entries: &[PulseEntry] = if let Some(active) = &doc.active_pulse {
             &active.entries
         } else if let Some(last) = doc.completed_turns.last() {
             &last.entries
@@ -286,7 +286,7 @@ impl ConversationManager {
         };
         let mut mutating_tool_ids = std::collections::BTreeSet::new();
         for entry in entries {
-            if let TurnEntry::ToolCall { id, name, .. } = entry
+            if let PulseEntry::ToolCall { id, name, .. } = entry
                 && is_turn_mutation_tool(name)
             {
                 mutating_tool_ids.insert(id.as_str());
@@ -298,7 +298,7 @@ impl ConversationManager {
         entries.iter().any(|entry| {
             matches!(
                 entry,
-                TurnEntry::ToolResult { tool_call_id, is_error, .. }
+                PulseEntry::ToolResult { tool_call_id, is_error, .. }
                     if !is_error && mutating_tool_ids.contains(tool_call_id.as_str())
             )
         })
@@ -341,7 +341,7 @@ impl ConversationManager {
     pub(super) fn begin_turn_doc(
         &mut self,
         input: String,
-        tool_policy: crate::state::TurnToolPolicy,
+        tool_policy: crate::state::PulseToolPolicy,
     ) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
@@ -351,7 +351,7 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    pub(super) fn finish_turn_doc(&mut self, outcome: TurnOutcome, tokens: TurnTokens) {
+    pub(super) fn finish_turn_doc(&mut self, outcome: PulseOutcome, tokens: PulseTokens) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
             self.condenser.finish_turn(doc, outcome, tokens, now);
@@ -371,7 +371,7 @@ impl ConversationManager {
         self.current_round_entry_start = self
             .task_doc
             .as_ref()
-            .and_then(|d| d.active_turn.as_ref())
+            .and_then(|d| d.active_pulse.as_ref())
             .map(|t| t.entries.len())
             .unwrap_or(0);
         self.current_round_stream_block_count = 0;

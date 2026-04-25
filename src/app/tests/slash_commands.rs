@@ -23,8 +23,8 @@ fn test_slash_command_returns_none_for_non_slash_input() {
     let mut ctx = setup_ctx();
     mode.on_user_input("describe the open issues".to_string(), &mut ctx);
     assert!(
-        mode.is_turn_in_progress(),
-        "non-slash input must dispatch a model turn"
+        mode.is_pulse_in_progress(),
+        "non-slash input must route a model pulse"
     );
 }
 #[test]
@@ -35,7 +35,7 @@ fn test_slash_command_does_not_call_start_turn_directly() {
     assert_eq!(
         mode.last_turn_input.as_deref(),
         Some("refactor the parser"),
-        "/edit must pass bare instruction (not the full slash command) to start_turn"
+        "/edit must pass bare instruction (not the full slash command) to start_pulse"
     );
 }
 #[test]
@@ -46,8 +46,8 @@ fn test_tui_run_command_invokes_validation_suite_only() {
     mode.on_user_input(successful_run_input(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
-        "/run must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/run must not start a model pulse"
     );
     assert!(
         mode.active_edit_loop.is_none(),
@@ -77,7 +77,7 @@ fn test_reindex_command_refuses_when_search_is_disabled() {
         }),
         "expected a visible refusal when search is disabled"
     );
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
 }
 
 #[test]
@@ -108,13 +108,13 @@ async fn test_tui_context_renders_without_model_turn() {
     mode.on_user_input("/context".to_string(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
-        "/context must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/context must not start a model pulse"
     );
     assert_eq!(
         ctx.test_message_count().await,
         initial_messages,
-        "/context must not call ctx.start_turn"
+        "/context must not call ctx.start_pulse"
     );
     assert!(
         mode.history_lines().iter().any(|line| line == "[context]"),
@@ -367,13 +367,13 @@ async fn test_commands_output_does_not_call_start_turn() {
     mode.on_user_input("/commands".to_string(), &mut ctx);
 
     assert!(
-        !mode.is_turn_in_progress(),
-        "/commands must not start a model turn"
+        !mode.is_pulse_in_progress(),
+        "/commands must not start a model pulse"
     );
     assert_eq!(
         ctx.test_message_count().await,
         initial_messages,
-        "/commands must not call ctx.start_turn"
+        "/commands must not call ctx.start_pulse"
     );
 }
 #[test]
@@ -420,7 +420,7 @@ fn test_custom_command_invokes_single_turn() {
     mode.on_user_input("/standup src/lib.rs".to_string(), &mut ctx);
 
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
-    assert!(mode.is_turn_in_progress());
+    assert!(mode.is_pulse_in_progress());
     assert!(turn_input.contains("Prompt: src/lib.rs"));
 }
 #[test]
@@ -620,13 +620,13 @@ fn test_tui_tools_desc_includes_descriptions() {
 fn test_usage_command_uses_last_turn_estimate_flag() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    ctx.test_record_session_turn(crate::usage::TurnTokens {
+    ctx.test_record_session_pulse(crate::usage::PulseTokens {
         input: 10,
         output: 5,
         estimated: true,
         ..Default::default()
     });
-    ctx.test_record_session_turn(crate::usage::TurnTokens {
+    ctx.test_record_session_pulse(crate::usage::PulseTokens {
         input: 4,
         output: 3,
         estimated: false,
@@ -639,7 +639,7 @@ fn test_usage_command_uses_last_turn_estimate_flag() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line == "  this turn   : 4 in / 3 out")
+            .any(|line| line == "  this pulse   : 4 in / 3 out")
     );
     assert!(
         mode.history_lines()
@@ -656,7 +656,7 @@ async fn test_tui_tools_does_not_start_model_turn() {
 
     mode.on_user_input("/tools".to_string(), &mut ctx);
 
-    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.is_pulse_in_progress());
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
 #[test]

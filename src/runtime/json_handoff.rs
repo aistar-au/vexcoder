@@ -1,10 +1,10 @@
 use super::UiUpdate;
+use crate::pulse_evidence::{SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result};
 use crate::runtime::AssistantPhase;
 use crate::runtime::delta_accumulator::DeltaAccumulator;
 use crate::state::{StreamBlock, ToolStatus};
-use crate::turn_evidence::{SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result};
 use crate::types::{ContentBlock, StreamChunkMetadata};
-use crate::usage::TurnTokens;
+use crate::usage::PulseTokens;
 use chrono::{DateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ const SYNTHETIC_FINAL_TEXT_BLOCK_START: usize = 1_000_000;
 pub struct RuntimeEnvelope {
     pub version: u16,
     pub task_id: String,
-    pub turn: u32,
+    pub pulse: u32,
     pub seq: u64,
     pub event_id: String,
     pub emitted_at: String,
@@ -51,7 +51,7 @@ pub enum RuntimeEnvelopeSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuntimeEvent {
-    TurnStart {
+    PulseStart {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         input: Option<String>,
     },
@@ -143,7 +143,7 @@ pub enum RuntimeEvent {
     UsageUpdated {
         usage: TokenUsageEnvelope,
     },
-    TurnEnd {
+    PulseEnd {
         status: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         usage: Option<TokenUsageEnvelope>,
@@ -217,14 +217,14 @@ pub struct TokenUsageEnvelope {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct TurnEndContext {
+pub struct PulseEndContext {
     pub usage: Option<TokenUsageEnvelope>,
     pub changed_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DerivedBatchRecords {
-    pub turns: Vec<TurnEvidenceRecord>,
+    pub pulses: Vec<TurnEvidenceRecord>,
     pub summary: Option<SummaryRecord>,
     pub max_turns_reached: bool,
 }
@@ -238,7 +238,7 @@ pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
 
 pub struct RuntimeEnvelopeNormalizer {
     task_id: String,
-    turn: u32,
+    pulse: u32,
     next_seq: u64,
     pending_tool_calls: IndexMap<String, PendingToolCall>,
     pending_tool_call_contexts: HashMap<ToolCallId, PendingToolCallContext>,
@@ -271,7 +271,7 @@ impl RuntimeEnvelopeNormalizer {
     fn new_inner(task_id: String, delta_accumulator: Option<Arc<DeltaAccumulator>>) -> Self {
         Self {
             task_id,
-            turn: 0,
+            pulse: 0,
             next_seq: 1,
             pending_tool_calls: IndexMap::new(),
             pending_tool_call_contexts: HashMap::new(),
@@ -286,8 +286,8 @@ impl RuntimeEnvelopeNormalizer {
         }
     }
 
-    pub fn start_turn(&mut self, turn: u32, input: Option<String>) -> RuntimeEnvelope {
-        self.turn = turn;
+    pub fn start_pulse(&mut self, pulse: u32, input: Option<String>) -> RuntimeEnvelope {
+        self.pulse = pulse;
 
         self.pending_tool_calls.clear();
         self.pending_tool_call_contexts.clear();
@@ -298,7 +298,7 @@ impl RuntimeEnvelopeNormalizer {
         self.next_synthetic_block_index = SYNTHETIC_FINAL_TEXT_BLOCK_START;
         self.protocol_ingress = ProtocolIngressState::default();
 
-        self.next_envelope(RuntimeEvent::TurnStart { input })
+        self.next_envelope(RuntimeEvent::PulseStart { input })
     }
 
     pub fn normalize_content_block(&mut self, block: &ContentBlock) -> Vec<RuntimeEnvelope> {
@@ -356,7 +356,7 @@ impl RuntimeEnvelopeNormalizer {
     pub fn normalize_ui_update(
         &mut self,
         update: &UiUpdate,
-        turn_end: Option<TurnEndContext>,
+        turn_end: Option<PulseEndContext>,
     ) -> Vec<RuntimeEnvelope> {
         match update {
             UiUpdate::TranscriptLine(line) => {
@@ -430,7 +430,7 @@ impl RuntimeEnvelopeNormalizer {
                     source,
                 )]
             }
-            UiUpdate::TurnComplete => self.complete_turn(turn_end.unwrap_or_default()),
+            UiUpdate::PulseComplete => self.complete_turn(turn_end.unwrap_or_default()),
             UiUpdate::Error(message) => self.emit_error(
                 "runtime_error".to_string(),
                 message.clone(),
@@ -473,7 +473,7 @@ impl RuntimeEnvelopeNormalizer {
         code: String,
         message: String,
         recoverable: bool,
-        turn_end: TurnEndContext,
+        turn_end: PulseEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
         envelopes.push(self.next_envelope(RuntimeEvent::Error {
@@ -489,7 +489,7 @@ impl RuntimeEnvelopeNormalizer {
             self.pending_tool_call_contexts.clear();
             self.streaming_tool_call_blocks.clear();
             self.block_sources.clear();
-            envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
+            envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
                 status: "failed".to_string(),
                 usage: turn_end.usage,
                 changed_files,
@@ -502,7 +502,7 @@ impl RuntimeEnvelopeNormalizer {
     pub fn emit_max_turns_reached(
         &mut self,
         max_turns: u32,
-        turn_end: TurnEndContext,
+        turn_end: PulseEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
         let changed_files = self.resolve_changed_files(turn_end.changed_files);
@@ -512,7 +512,7 @@ impl RuntimeEnvelopeNormalizer {
         self.streaming_tool_call_blocks.clear();
         self.block_sources.clear();
         envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
-        envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
+        envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
             status: "failed".to_string(),
             usage: turn_end.usage,
             changed_files,
@@ -520,7 +520,7 @@ impl RuntimeEnvelopeNormalizer {
         envelopes
     }
 
-    pub fn emit_cancelled(&mut self, turn_end: TurnEndContext) -> Vec<RuntimeEnvelope> {
+    pub fn emit_cancelled(&mut self, turn_end: PulseEndContext) -> Vec<RuntimeEnvelope> {
         self.finish_turn_with_status("cancelled", turn_end)
     }
 
@@ -528,14 +528,14 @@ impl RuntimeEnvelopeNormalizer {
         self.next_envelope(event)
     }
 
-    fn complete_turn(&mut self, turn_end: TurnEndContext) -> Vec<RuntimeEnvelope> {
+    fn complete_turn(&mut self, turn_end: PulseEndContext) -> Vec<RuntimeEnvelope> {
         self.finish_turn_with_status("completed", turn_end)
     }
 
     fn finish_turn_with_status(
         &mut self,
         status: &str,
-        turn_end: TurnEndContext,
+        turn_end: PulseEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let changed_files = self.resolve_changed_files(turn_end.changed_files);
         self.finish_pending_tool_accumulations();
@@ -544,7 +544,7 @@ impl RuntimeEnvelopeNormalizer {
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
         self.block_sources.clear();
-        envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
+        envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
             status: status.to_string(),
             usage: turn_end.usage,
             changed_files,
@@ -618,9 +618,9 @@ impl RuntimeEnvelopeNormalizer {
         let envelope = RuntimeEnvelope {
             version: 1,
             task_id: self.task_id.clone(),
-            turn: self.turn,
+            pulse: self.pulse,
             seq,
-            event_id: format!("evt:{}:{}:{seq}", self.task_id, self.turn),
+            event_id: format!("evt:{}:{}:{seq}", self.task_id, self.pulse),
             emitted_at: timestamp_string(Utc::now()),
             source: source.unwrap_or_else(|| source_for_event(&event)),
             request_id,
@@ -654,7 +654,7 @@ pub fn derive_batch_records(
     envelopes: &[RuntimeEnvelope],
     instructions_path: Option<String>,
 ) -> DerivedBatchRecords {
-    let mut turns = Vec::new();
+    let mut pulses = Vec::new();
     let mut current_turn: Option<DerivedTurnState> = None;
     let mut task_id = None;
     let mut last_status = None;
@@ -664,12 +664,12 @@ pub fn derive_batch_records(
     for envelope in envelopes {
         task_id.get_or_insert_with(|| envelope.task_id.clone());
         match &envelope.event {
-            RuntimeEvent::TurnStart { input } => {
+            RuntimeEvent::PulseStart { input } => {
                 if let Some(state) = current_turn.take() {
-                    turns.push(state.into_record(instructions_path.clone()));
+                    pulses.push(state.into_record(instructions_path.clone()));
                 }
                 current_turn = Some(DerivedTurnState {
-                    turn: envelope.turn as usize,
+                    pulse: envelope.pulse as usize,
                     input: input.clone().unwrap_or_default(),
                     ..DerivedTurnState::default()
                 });
@@ -713,7 +713,7 @@ pub fn derive_batch_records(
                     state.command_history.push(evidence);
                 }
             }
-            RuntimeEvent::TurnEnd {
+            RuntimeEvent::PulseEnd {
                 status,
                 usage,
                 changed_files,
@@ -722,12 +722,12 @@ pub fn derive_batch_records(
                     state.changed_files = changed_files.clone();
                     state.tokens = usage
                         .as_ref()
-                        .map_or_else(TurnTokens::default, turn_tokens_from_usage);
+                        .map_or_else(PulseTokens::default, turn_tokens_from_usage);
                     for path in &state.changed_files {
                         all_changed_files.insert(path.clone());
                     }
                     last_status = Some(status.clone());
-                    turns.push(state.into_record(instructions_path.clone()));
+                    pulses.push(state.into_record(instructions_path.clone()));
                 }
             }
             RuntimeEvent::MaxTurnsReached { .. } => {
@@ -751,7 +751,7 @@ pub fn derive_batch_records(
         for path in &state.changed_files {
             all_changed_files.insert(path.clone());
         }
-        turns.push(state.into_record(instructions_path.clone()));
+        pulses.push(state.into_record(instructions_path.clone()));
     }
 
     let summary = task_id.and_then(|task_id| {
@@ -759,7 +759,7 @@ pub fn derive_batch_records(
             summary: true,
             status,
             task_id,
-            total_turns: turns.len(),
+            total_turns: pulses.len(),
             instructions_path,
             changed_files: all_changed_files.into_iter().collect(),
             session_tasks: Vec::new(),
@@ -767,7 +767,7 @@ pub fn derive_batch_records(
     });
 
     DerivedBatchRecords {
-        turns,
+        pulses,
         summary,
         max_turns_reached,
     }
@@ -784,7 +784,7 @@ fn source_for_stream_block(block: &StreamBlock) -> RuntimeEnvelopeSource {
 
 fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
     match event {
-        RuntimeEvent::TurnStart { .. } | RuntimeEvent::ApprovalResolved { .. } => {
+        RuntimeEvent::PulseStart { .. } | RuntimeEvent::ApprovalResolved { .. } => {
             RuntimeEnvelopeSource::UserRequest
         }
         RuntimeEvent::TranscriptLine { .. } => RuntimeEnvelopeSource::Runtime,
@@ -802,7 +802,7 @@ fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
         | RuntimeEvent::ToolCallFailed { .. }
         | RuntimeEvent::ApprovalRequest { .. }
         | RuntimeEvent::ValidationResult { .. }
-        | RuntimeEvent::TurnEnd { .. }
+        | RuntimeEvent::PulseEnd { .. }
         | RuntimeEvent::Error { .. }
         | RuntimeEvent::MaxTurnsReached { .. } => RuntimeEnvelopeSource::Runtime,
     }

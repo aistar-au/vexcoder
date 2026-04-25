@@ -159,19 +159,19 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             prefix: "/run ",
         },
         "/run [command]",
-        "run a command; no model turn",
+        "run a command; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Test,
         SlashCommandPattern::Exact("/test"),
         "/test",
-        "run full validation suite; no model turn",
+        "run full validation suite; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Context,
         SlashCommandPattern::Exact("/context"),
         "/context",
-        "show session context summary; no model turn",
+        "show session context summary; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Mcp,
@@ -180,7 +180,7 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             prefix: "/mcp ",
         },
         "/mcp [list|show <server>]",
-        "show loaded MCP servers and tools; no model turn",
+        "show loaded MCP servers and tools; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Tools,
@@ -189,13 +189,13 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             prefix: "/tools ",
         },
         "/tools [desc]",
-        "show active tool registry; no model turn",
+        "show active tool registry; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Usage,
         SlashCommandPattern::Exact("/usage"),
         "/usage",
-        "show session token usage; no model turn",
+        "show session token usage; no model pulse",
     ),
     SlashCommandSpec::new(
         SlashCommandId::GenerateTests,
@@ -387,7 +387,7 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             prefix: "/diff ",
         },
         "/diff [--staged]",
-        "show working-tree diff; no model turn",
+        "show working-tree diff; no model pulse",
     ),
 ];
 
@@ -404,9 +404,7 @@ pub(super) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Watch
         | SlashCommandId::Reindex => "retrieve + context",
         SlashCommandId::Edit | SlashCommandId::Fix | SlashCommandId::Diff => "edit + inspect",
-        SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => {
-            "validate + execute"
-        }
+        SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => "validate + call",
         SlashCommandId::Init
         | SlashCommandId::Model
         | SlashCommandId::Permissions
@@ -446,22 +444,22 @@ pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::Watch => "inspect persisted session-task status by id or agent",
         SlashCommandId::Reindex => "force a full structural rebuild of the codebase search index",
         SlashCommandId::Edit | SlashCommandId::Fix => "edit loop that may patch files",
-        SlashCommandId::Diff => "git diff preview without starting a model turn",
-        SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model turn",
+        SlashCommandId::Diff => "git diff preview without starting a model pulse",
+        SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model pulse",
         SlashCommandId::Delegate => "create a persisted session task for a configured agent",
         SlashCommandId::Init => "write starter .vex files in the current workspace",
         SlashCommandId::Model => "show or switch the active model name",
         SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
             "inspect or change capability grants"
         }
-        SlashCommandId::Usage => "show last-turn and session token counts",
+        SlashCommandId::Usage => "show last-pulse and session token counts",
         SlashCommandId::Commands | SlashCommandId::Help => "show grouped operator command menu",
         SlashCommandId::MemoryShow | SlashCommandId::MemoryAdd | SlashCommandId::MemoryClear => {
             "view or update persistent notes"
         }
         SlashCommandId::MemoryAutoOn
         | SlashCommandId::MemoryAutoOff
-        | SlashCommandId::MemoryAutoClear => "toggle automatic note extraction after each turn",
+        | SlashCommandId::MemoryAutoClear => "toggle automatic note extraction after each pulse",
         SlashCommandId::New
         | SlashCommandId::Resume
         | SlashCommandId::Compact

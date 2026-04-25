@@ -1,6 +1,6 @@
 # PM-05 -- Crate Boundaries and Structured Tool Calls
 
-This task manifest records the repo-facing documentation alignment for PR #342
+This task checklist records the repo-facing documentation alignment for PR #342
 after the Tier 4 ratatui-stack overhaul.
 
 The purpose is to keep vexcoder grounded in conventional Rust CLI patterns
@@ -77,6 +77,6 @@ the tree does not accumulate unused crates:
 
 ## Notes
 
-- This manifest tracks active repo-facing wording and boundary decisions.
+- This checklist tracks active repo-facing wording and boundary decisions.
 - Formal ADR text keeps stronger terms such as `deferred` where those words are
   part of a locked decision rather than a wording choice.

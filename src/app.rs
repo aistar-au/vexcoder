@@ -7,9 +7,12 @@ use crate::prompts::{
     render_explain_prompt, render_generate_tests_prompt, render_plan_prompt, render_review_prompt,
 };
 #[cfg(test)]
+use crate::pulse_evidence::ToolInvocationSummary;
+use crate::pulse_evidence::note_changed_files_from_tool_call;
+#[cfg(test)]
 use crate::runtime::CommandResult;
 #[cfg(test)]
-use crate::runtime::TurnEntry;
+use crate::runtime::PulseEntry;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
@@ -21,8 +24,8 @@ use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
-    DefaultCommandRunner, EditLoopOutcome, SandboxDriver, TaskDocument, TaskDocumentCondenser,
-    TaskState, TaskStatus, TurnOutcome, format_command_session_cancelled,
+    DefaultCommandRunner, EditLoopOutcome, PulseOutcome, SandboxDriver, TaskDocument,
+    TaskDocumentCondenser, TaskState, TaskStatus, format_command_session_cancelled,
     format_command_session_exit, format_command_session_output, format_command_session_started,
     truncate_head_bytes,
 };
@@ -37,11 +40,8 @@ use crate::session_notes::{
 };
 #[cfg(test)]
 use crate::state::StreamBlock;
-use crate::state::{ConversationManager, ToolApprovalRequest, TurnToolPolicy};
+use crate::state::{ConversationManager, PulseToolPolicy, ToolApprovalRequest};
 use crate::tools::ToolOperator;
-#[cfg(test)]
-use crate::turn_evidence::ToolInvocationSummary;
-use crate::turn_evidence::note_changed_files_from_tool_call;
 use crate::types::ModelProfile;
 #[cfg(test)]
 use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
@@ -73,8 +73,8 @@ mod tests;
 mod transcript_projection;
 pub mod transcript_row;
 pub use transcript_row::TranscriptRow;
-mod turn;
-mod turn_start;
+mod pulse;
+mod pulse_start;
 pub(crate) mod util;
 pub use self::errors::{AppError, AppResult};
 pub use self::facade::{
@@ -503,7 +503,7 @@ impl RuntimeMode for TuiMode {
         TuiMode::on_interrupt(self, ctx);
     }
 
-    fn is_turn_in_progress(&self) -> bool {
-        self.task_doc.active_turn.is_some()
+    fn is_pulse_in_progress(&self) -> bool {
+        self.task_doc.active_pulse.is_some()
     }
 }

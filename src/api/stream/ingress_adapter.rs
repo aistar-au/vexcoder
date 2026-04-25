@@ -72,7 +72,7 @@ impl StreamParser {
     ) -> RuntimeEnvelope {
         if self.output_mode == StreamOutputMode::RuntimeEnvelope {
             let mut normalizer = RuntimeEnvelopeNormalizer::new(next_stream_task_id());
-            let _ = normalizer.start_turn(1, None);
+            let _ = normalizer.start_pulse(1, None);
             return normalizer.emit_event(RuntimeEvent::Error {
                 code: code.to_string(),
                 message,

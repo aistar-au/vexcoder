@@ -1,4 +1,4 @@
-# ADR-040: Real-Time Local Turn Telemetry
+# ADR-040: Real-Time Local Pulse Telemetry
 
 **Status:** Proposed (operator-surface contract corrected 2026-04-09)  
 **Chain:** ADR-030, ADR-031, ADR-038, ADR-039
@@ -11,7 +11,7 @@ Local-server chat-compatible streams returned progress and timing metadata that 
 
 - Local chat-compatible requests include `return_progress: true` and `timings_per_token: true` where supported.
 - Messages/v1 requests receive prompt progress and token timing without additional opt-in.
-- Metadata-only stream chunks (null content) are valid turn-progress signals; not dropped.
+- Metadata-only stream chunks (null content) are valid pulse-progress signals; not dropped.
 - Shared types: `StreamPromptProgress`, `StreamTimings`, `ApiUsage` across both protocol paths.
 - Stream parser attempts messages/v1 first; falls back to chat-compatible on 404/415.
 - `Mapping adjacent sectors...` phrase appends telemetry as a suffix without replacement.

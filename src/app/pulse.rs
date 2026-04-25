@@ -5,7 +5,7 @@ impl TuiMode {
     pub(super) fn reset_conversation_window(&mut self, ctx: &RuntimeContext) {
         ctx.clear_conversation();
         self.pre_session_notices.clear();
-        if let Some(t) = self.task_doc.active_turn.as_mut() {
+        if let Some(t) = self.task_doc.active_pulse.as_mut() {
             t.command_sessions.clear();
         }
         self.transcript_scroll_offset = 0;
@@ -36,7 +36,7 @@ impl TuiMode {
     }
 
     pub(super) fn reset_turn_capture(&mut self) {
-        self.task_doc.active_turn = None;
+        self.task_doc.active_pulse = None;
         self.stream_uses_structured_final_output = false;
         self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
@@ -109,13 +109,13 @@ impl TuiMode {
     }
 
     pub(super) fn begin_turn_capture(&mut self, input: String) {
-        self.begin_turn_capture_with_policy(input, crate::state::TurnToolPolicy::Default);
+        self.begin_turn_capture_with_policy(input, crate::state::PulseToolPolicy::Default);
     }
 
     pub(super) fn begin_turn_capture_with_policy(
         &mut self,
         input: String,
-        tool_policy: crate::state::TurnToolPolicy,
+        tool_policy: crate::state::PulseToolPolicy,
     ) {
         self.reset_turn_capture();
         self.task_doc_condenser
@@ -134,7 +134,7 @@ impl TuiMode {
     }
 
     pub(super) fn begin_command_session_with_id(&mut self, session_id: u64, command: String) {
-        if let Some(t) = self.task_doc.active_turn.as_mut() {
+        if let Some(t) = self.task_doc.active_pulse.as_mut() {
             t.command_sessions.entry(session_id).or_insert_with(|| {
                 crate::runtime::task_document::CommandSessionDocument {
                     session_id,
@@ -151,7 +151,7 @@ impl TuiMode {
     pub(super) fn complete_turn_if_idle(&mut self, ctx: &RuntimeContext) -> bool {
         let sessions_empty = self
             .task_doc
-            .active_turn
+            .active_pulse
             .as_ref()
             .is_none_or(|t| t.command_sessions.is_empty());
         if !self.turn_completion_pending || !sessions_empty {
@@ -163,7 +163,7 @@ impl TuiMode {
         self.commit_completed_turn(ctx);
         self.append_turn_timing_line();
         self.maybe_extract_auto_memory();
-        if let Some(active) = self.task_doc.active_turn.as_mut() {
+        if let Some(active) = self.task_doc.active_pulse.as_mut() {
             active.cancel_pending = false;
         }
         self.read_only_turn_active = false;
@@ -174,19 +174,19 @@ impl TuiMode {
     }
 
     pub(super) fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
-        let has_content = self.task_doc.active_turn.as_ref().is_some_and(|active| {
+        let has_content = self.task_doc.active_pulse.as_ref().is_some_and(|active| {
             !active.input.trim().is_empty()
                 || active
                     .entries
                     .iter()
-                    .any(|e| !matches!(e, crate::runtime::TurnEntry::SystemNotice { .. }))
+                    .any(|e| !matches!(e, crate::runtime::PulseEntry::SystemNotice { .. }))
         });
 
         if self.plan_turn_active
-            && let Some(active) = self.task_doc.active_turn.as_ref()
+            && let Some(active) = self.task_doc.active_pulse.as_ref()
         {
             let plan_text = active.entries.iter().rev().find_map(|e| {
-                if let crate::runtime::TurnEntry::AssistantBlock { block, .. } = e
+                if let crate::runtime::PulseEntry::AssistantBlock { block, .. } = e
                     && block.phase == crate::runtime::AssistantPhase::Final
                     && !block.content.trim().is_empty()
                 {
@@ -204,7 +204,7 @@ impl TuiMode {
             }
         }
 
-        let turn_tokens = ctx.session_tokens_rollup().last_turn();
+        let turn_tokens = ctx.session_tokens_rollup().last_pulse();
 
         if !has_content {
             self.task_doc.info.status = TaskStatus::Completed;
@@ -219,7 +219,7 @@ impl TuiMode {
 
         self.task_doc_condenser.finish_turn(
             &mut self.task_doc,
-            TurnOutcome::Completed,
+            PulseOutcome::Completed,
             turn_tokens,
             now_millis(),
         );
@@ -238,13 +238,13 @@ impl TuiMode {
         if !self.auto_memory_enabled {
             return;
         }
-        let last_turn = match self.task_doc.completed_turns.last() {
+        let last_pulse = match self.task_doc.completed_turns.last() {
             Some(t) => t,
             None => return,
         };
-        let input = last_turn.input.clone();
+        let input = last_pulse.input.clone();
         let response =
-            crate::app::transcript_projection::extract_assistant_response(&last_turn.entries);
+            crate::app::transcript_projection::extract_assistant_response(&last_pulse.entries);
         if input.trim().is_empty() && response.trim().is_empty() {
             return;
         }

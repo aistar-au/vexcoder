@@ -1,6 +1,6 @@
 # ADR-024: Zero-Licensing-Cost Agent Parity Gaps
 
-**Status:** Proposed (pre-release items complete; PG-03 tap auto-dispatch pending external repo)  
+**Status:** Proposed (pre-release items complete; PG-03 tap auto-release pending external repo)  
 **Chain:** ADR-022, ADR-023, ADR-014, ADR-006
 
 ## Context
@@ -24,10 +24,10 @@ A structured gap analysis against available open-source reference implementation
 
 ### Runtime and sessions
 - Runtime model switching via `VEX_MODEL_NAME` / `VEX_MODEL_URL` or `/model` slash command.
-- `@<path>` inline file injection appends `read_file` result to the active turn.
-- `!<command>` inline shell passthrough executes one-shot and appends output.
+- `@<path>` inline file injection appends `read_file` result to the active pulse.
+- `!<command>` inline shell passthrough calls one-shot and appends output.
 - User-defined slash commands in `.vex/commands/` TOML files.
-- `/tools` enumerates active tool schemas; `/diff` renders working-tree diff zero-turn.
+- `/tools` enumerates active tool schemas; `/diff` renders working-tree diff zero-pulse.
 - Pre/post tool-call hooks in config `[[hooks]]` array; `on_fail` values: `warn`, `block`, `ignore`.
 
 ### Memory and state

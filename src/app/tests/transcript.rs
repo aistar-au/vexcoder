@@ -151,7 +151,7 @@ fn test_stream_delta_ignored_without_active_turn_slot() {
     mode.on_model_update(UiUpdate::StreamDelta("ghost delta".to_string()), &mut ctx);
     assert!(
         mode.history_lines().is_empty(),
-        "stale stream deltas must be ignored after turn completion/cancel"
+        "stale stream deltas must be ignored after pulse completion/cancel"
     );
 }
 #[test]
@@ -348,13 +348,13 @@ fn stream_block_start_reuses_existing_block_index_for_phase_change() {
 
     let assistant_blocks: Vec<_> = mode
         .task_doc
-        .active_turn
+        .active_pulse
         .as_ref()
         .unwrap()
         .entries
         .iter()
         .filter_map(|entry| {
-            if let TurnEntry::AssistantBlock { block, .. } = entry {
+            if let PulseEntry::AssistantBlock { block, .. } = entry {
                 Some(block)
             } else {
                 None
