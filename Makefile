@@ -221,13 +221,13 @@ lint:
 # Commit-debug gate
 #
 # For src/ and tests/ changes, multi-provider review (commit-debug.py) is owned
-# by the dispatcher in the internal devops repo at ../vexdraft relative to this
-# repo root. The dispatcher invokes it as part of the loop cycle before push.
+# by the agent runner in the internal devops repo at ../vexdraft relative to this
+# repo root. The agent runner invokes it as part of the loop cycle before push.
 # This target runs gate-fast only — the local Rust gate. It is intentionally
 # self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
 #
 # Adjacent local layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
-# exist side by side. The dispatcher calls commit-debug.py from vexdraft directly.
+# exist side by side. The agent runner calls commit-debug.py from vexdraft directly.
 # ------------------------------------------------------------------------------
 commit-debug-gate: gate-fast
 	@echo "commit-debug-gate: passed (self-contained local verification)"

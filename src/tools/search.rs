@@ -450,7 +450,7 @@ mod tests {
             make_chunk(
                 "ranked_handler",
                 ItemKind::Function,
-                "fn ranked_handler() { dispatch_request(); }",
+                "fn ranked_handler() { route_request(); }",
             ),
             make_chunk(
                 "unrelated_util",
@@ -458,9 +458,9 @@ mod tests {
                 "fn unrelated_util() {}",
             ),
             make_chunk(
-                "dispatch_request",
+                "route_request",
                 ItemKind::Function,
-                "fn dispatch_request() {}",
+                "fn route_request() {}",
             ),
         ];
         let results = codebase_search("ranked_handler", &index, Some(10));

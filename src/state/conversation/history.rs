@@ -1,7 +1,7 @@
 use super::ConversationManager;
 use crate::config::CompactionConfig;
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
-use crate::state::conversation::tools::dispatch::missing_read_only_location_prompt;
+use crate::state::conversation::tools::routing::missing_read_only_location_prompt;
 use crate::tool_preview::{
     ReadFileRollupSummary, ReadFileSummaryMessageStyle, ToolPreviewStyle,
     format_read_file_rollup_message, preview_tool_input, read_file_path,

@@ -115,7 +115,7 @@ used for live tool-call parsing.
 
 When `plan` is active, mutating tools (`write_file`, `apply_patch`, `edit_file`,
 `rename_file`, `git_add`, `git_commit`, `run_command`) are excluded from the
-model schema and rejected at the dispatch layer as a defense-in-depth guard.
+model schema and rejected at the work layer as a defense-in-depth guard.
 
 ## Feature config sections
 

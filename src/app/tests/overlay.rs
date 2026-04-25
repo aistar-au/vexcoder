@@ -18,7 +18,7 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
     mode.on_user_input("blocked".to_string(), &mut ctx);
     assert!(
         mode.task_doc.active_turn.is_none(),
-        "overlay must block input dispatch"
+        "overlay must block input routing"
     );
 
     mode.on_user_input("1".to_string(), &mut ctx);
@@ -30,7 +30,7 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
     mode.on_user_input("resume".to_string(), &mut ctx);
     assert!(
         mode.task_doc.active_turn.is_some(),
-        "dispatch should resume after overlay clears"
+        "routing should resume after overlay clears"
     );
 }
 

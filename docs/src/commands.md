@@ -35,7 +35,7 @@ is available through configuration.
 | Option | Short | Effect |
 |:---|:---:|:---|
 | `--force-unstable-alignment` | `-f` | Grants `AutoApproveScope::Task` at startup, bypassing per-tool confirmation for the lifetime of the process. |
-| `--project-map-only PROMPT` | `-p` | Executes a single batch turn with PROMPT text and terminates. When stdin is not a TTY, stdin content is prepended to PROMPT before dispatch. |
+| `--project-map-only PROMPT` | `-p` | Executes a single batch turn with PROMPT text and terminates. When stdin is not a TTY, stdin content is prepended to PROMPT before routing. |
 | `--expand-sector-view` | `-e` | Sets `expand_context = true` in the resolved `Config`, raising the file-scan cardinality bound during context assembly. |
 | `--recall-coordinates [TASK_ID]` | `-r` | Loads a persisted `TaskState` before starting the session. When TASK_ID is absent, the most-recently-modified state file in the search path is selected. |
 | `--bypass-integrity-locks` | `-b` | Sets `bypass_policy = true`, disabling durable-state disk-policy enforcement for the current process. |

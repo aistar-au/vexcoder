@@ -763,7 +763,7 @@ impl ApiClient {
             tool_policy = ?self.tool_policy,
             structured_tools = self.supports_structured_tool_protocol(),
             payload_bytes,
-            "dispatching model request"
+            "routing model request"
         );
 
         create_event_stream(

@@ -33,7 +33,7 @@ Read these before starting implementation:
 - `AGENTS.md`
 - `CONTRIBUTING.md`
 - `TASKS/ACTIVE-ROADMAP.md`
-- `TASKS/TASKS-DISPATCH-MAP.md`
+- `TASKS/TASKS-WORK-MAP.md`
 - `adr/ADR-022-free-open-coding-agent-roadmap.md`
 - `adr/ADR-025-runtime-json-handoff-contract.md`
 - `adr/ADR-026-localapiserver-transport-binding.md`
@@ -165,7 +165,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 ## PR motivation framing
 
 - The initial validation has already passed and is recorded in ADR-022.
-- With this branch, roadmap and dispatch map advance to ADR-026 Phase I
+- With this branch, roadmap and work map advance to ADR-026 Phase I
   transport binding (`PI-13` and `PI-14` in parallel) after ADR-024
   reconciliation.
 - This batch continues the post-gate Phase I track in documented dependency
@@ -186,7 +186,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 - Evidence blocks in `adr/ADR-025-runtime-json-handoff-contract.md` for PI-10
   and PI-12
 - Mark PI-10 and PI-12 complete in ADR-025 checklist
-- Update `TASKS/ACTIVE-ROADMAP.md` and `TASKS/TASKS-DISPATCH-MAP.md` to point
+- Update `TASKS/ACTIVE-ROADMAP.md` and `TASKS/TASKS-WORK-MAP.md` to point
   to the next dependency-correct batch (ADR-026 Phase I)
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` if tracked files change
 - Clean handoff for the next dependency-sequenced batch (ADR-026 PI-13 + PI-14)

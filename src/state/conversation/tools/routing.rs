@@ -35,7 +35,7 @@ pub(crate) fn execute_tool_blocking_with_operator(
         }
     }
 
-    execute_tool_dispatch_with_search_config(tool_operator, name, input, search_config)
+    execute_tool_routing_with_config(tool_operator, name, input, search_config)
 }
 
 #[cfg(not(test))]
@@ -45,19 +45,19 @@ pub(crate) fn execute_tool_blocking_with_operator(
     input: &serde_json::Value,
     search_config: &SearchConfig,
 ) -> Result<String> {
-    execute_tool_dispatch_with_search_config(tool_operator, name, input, search_config)
+    execute_tool_routing_with_config(tool_operator, name, input, search_config)
 }
 
 #[cfg(test)]
-pub(crate) fn execute_tool_dispatch(
+pub(crate) fn execute_tool_routing(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
 ) -> Result<String> {
-    execute_tool_dispatch_with_search_config(tool_operator, name, input, &SearchConfig::default())
+    execute_tool_routing_with_config(tool_operator, name, input, &SearchConfig::default())
 }
 
-pub(crate) fn execute_tool_dispatch_with_search_config(
+pub(crate) fn execute_tool_routing_with_config(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,

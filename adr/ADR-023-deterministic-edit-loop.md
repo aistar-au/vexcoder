@@ -17,7 +17,7 @@ No runtime construct drove a coding task from instruction to validated outcome. 
 - `ValidationSuite` infers test commands from repo structure (Cargo.toml → `cargo test`, package.json → `npm test`, etc.).
 - Eight slash commands: `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`.
 - `/review` and `/plan` are read-only, single-turn; silently drop pending patches on entry.
-- `/context` is zero-turn status display; `/commands` renders from the dispatch table.
+- `/context` is zero-turn status display; `/commands` renders from the work table.
 - Prompt templates must not contain provider names; CI check (`scripts/check_forbidden_names.sh`) covers `src/prompts/` content.
 
 ## References

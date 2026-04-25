@@ -1,7 +1,7 @@
 # Task PJ-03: User Persistent Notes (`/memory`)
 
 **Target files:**
-- Slash-command dispatch in `src/app.rs` — `/memory`, `/memory add`, `/memory clear`
+- Slash-command routing in `src/app.rs` — `/memory`, `/memory add`, `/memory clear`
 - Notes file storage: `~/.config/vex/memory.md` or `~/.vex/memory.md` fallback
 - Session prompt injection: `src/runtime/context.rs` (after project instructions, within token budget)
 

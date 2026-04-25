@@ -71,7 +71,7 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-004](completed/ADR-004-runtime-seam-headless-first.md) | Runtime seam headless-first | Deprecated by ADR-006/007 |
 | [ADR-005](completed/ADR-005-cfg-test-mock-injection.md) | `cfg(test)` mock injection | Accepted |
 | [ADR-006](completed/ADR-006-runtime-mode-contracts.md) | Runtime mode contracts | Accepted |
-| [ADR-007](completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md) | Accepted dispatch no-alt-routing | Accepted |
+| [ADR-007](completed/ADR-007-runtime-accepted-work-path-no-alt-routing.md) | Accepted work path no-alt-routing | Accepted |
 | [ADR-008](completed/ADR-008-runtime-cutover-parity-guardrails.md) | Runtime cutover parity guardrails | Accepted |
 | [ADR-009](completed/ADR-009-runtime-core-tui-interaction-contract.md) | TUI interaction contract | Accepted |
 | [ADR-010](completed/ADR-010-runtime-core-tui-viewport-and-transcript.md) | TUI viewport and transcript | Accepted |

@@ -117,7 +117,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ---
 
-## Dispatch Verification (dispatch only — implementation not yet merged into current `main`)
+## Work Verification (work manifest only — implementation not yet merged into current `main`)
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
@@ -131,7 +131,7 @@ fn test_tui_memory_does_not_call_start_turn() {
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - This branch stages the PJ-03 dispatch manifest only.
+  - This branch stages the PJ-03 work manifest only.
   - Do not mark PJ-03 green until the implementation branch lands and all
     anchor tests pass.
 

@@ -17,13 +17,13 @@
 `vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
 
 1. **Identify task** — Check `adr/` for open architecture decisions.
-2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
+2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no work.
 3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
 4. **Verification** — Success is `cargo test <anchor_name>` passing, `cargo nextest run` staying green for the branch, plus `cargo test --all-targets` showing no regressions.
 
 Runtime mode additions and naming-policy changes require explicit confirmation before implementation or documentation. See ADR-007.
-Primary production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
-Alternate app-owned dispatch channels are forbidden in production paths.
+Primary production work path is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
+Alternate app-owned work channels are forbidden in production paths.
 Runtime-core ratatui TUI behavior must conform to ADR-009, ADR-010, and ADR-011 before merge.
 Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item is unmet.
 Architecture gates enforcing ADR-007 must remain green:
@@ -153,7 +153,7 @@ when they are used only to split oversized test suites.
 ## Runtime-core Status
 
 REF-08 full cutover is complete and merged (2026-02-19).
-Accepted dispatch and layering rules are now governed by ADR-007 and ADR-008.
+Accepted work-path and layering rules are now governed by ADR-007 and ADR-008.
 
 ---
 
@@ -211,7 +211,7 @@ git push -u origin work/v<current-version>-packaging
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so review branches do not duplicate the main PR checks. After the branch gates are green and the workstation packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual trigger so review branches do not duplicate the main PR checks. After the branch gates are green and the workstation packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
@@ -240,7 +240,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 ### Automated version bump
 
-Use the `version-bump` workflow dispatch to bump the version from the
+Use the `version-bump` workflow trigger to bump the version from the
 browser: Actions > version-bump > Run workflow > enter new version. The
 workflow runs `scripts/bump-version.sh`, commits, and opens a PR. See
 `RELEASING.md` for the full automated flow.
@@ -271,7 +271,7 @@ instructions file under `.github/`.
   `.github/instructions/`, the repository-hosted agent instructions file under
   `.github/`, and the custom agent profiles.
 - The setup workflow only affects background sessions after it lands on the
-  default branch. Manual workflow dispatch is still useful for validating the
+  default branch. Manual workflow trigger is still useful for validating the
   hosted-session bootstrap contract on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
   review branch as the `--base` argument when you want the remote session
@@ -545,7 +545,7 @@ vexcoder/ (standalone view)
 | `src/app/shell.rs` | Bang-command approval and command-session spawn methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
 | `src/app/tests/mod.rs` | App-level unit and integration tests module root extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/mod.rs> |
 | `src/app/turn.rs` | Turn-lifecycle and command-session tracking methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn.rs> |
-| `src/app/turn_start.rs` | Turn-dispatch and context-assembly helper methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
+| `src/app/turn_start.rs` | Turn-routing and context-assembly helper methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
 | `src/app/util.rs` | Module-level helper functions extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text turn output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | `src/config.rs` | Layered config loading and validation across environment, repo-local, user, and system sources. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
@@ -583,7 +583,7 @@ vexcoder/ (standalone view)
 | `src/state/conversation/state.rs` | Conversation state types and `ConversationManager` constructors/accessors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/state.rs> |
 | `src/state/conversation/streaming.rs` | Stream block lifecycle helpers, block promotion, and delta emission utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/streaming.rs> |
 | `src/state/conversation/tests.rs` | Conversation module tests covering protocol flow, loop guards, and regression anchors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests.rs> |
-| `src/state/conversation/tools/mod.rs` | Tool execution dispatch module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
+| `src/state/conversation/tools/mod.rs` | Tool execution routing module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
 | `src/state/stream_block.rs` | Structured stream block models and tool status enum. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | `src/tui_handle.rs` | CLI raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_handle.rs> |
 | `src/test_support.rs` | Shared test synchronization helpers (e.g., env lock). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |

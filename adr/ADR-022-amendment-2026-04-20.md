@@ -5,6 +5,6 @@
 
 ## Amendment
 
-- Phase G (binary distribution pipeline) and Phase H (macOS app wrapper) are gated on ADR-024 PG-03 tap auto-dispatch.
+- Phase G (binary distribution pipeline) and Phase H (macOS app wrapper) are gated on ADR-024 PG-03 tap auto-release.
 - All phases prior to G/H are accepted and in effect.
 - The only remaining external prerequisite is the tap repository.

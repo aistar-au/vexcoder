@@ -1,6 +1,6 @@
 # ADR-024: Zero-Licensing-Cost Agent Parity Gaps
 
-**Status:** Proposed (pre-release items complete; PG-03 tap auto-dispatch pending external repo)  
+**Status:** Proposed (pre-release items complete; PG-03 tap auto-release pending external repo)  
 **Chain:** ADR-022, ADR-023, ADR-014, ADR-006
 
 ## Context

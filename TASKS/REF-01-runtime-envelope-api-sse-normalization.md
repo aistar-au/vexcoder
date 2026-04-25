@@ -154,7 +154,7 @@ Primary reference: `adr/ADR-047-amendment-2026-04-20.md`
   normalization recreated a second semantic repair path for the same runtime
   contract.
 - Distinguish removed internal duplication from residual ingress-only
-  compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
+  compatibility: `TurnsSseMode`, mapper routing, `PendingToolBlock`,
   `ActiveToolBlock`, `src/api/stream/mappers.rs`,
   `src/state/conversation/tool_call_parser.rs`, tagged/XML fallback parsing,
   and legacy thinking-tag rewrites are gone, while

@@ -51,7 +51,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 40 | `TASKS/PR-405-permissions-overlay-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-405-permissions-overlay-followup.md> |
 | 41 | `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-cli-tui-envelope-consumer-audit.md> |
 | 42 | `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-runtime-envelope-api-sse-normalization.md> |
-| 43 | `TASKS/TASKS-DISPATCH-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 43 | `TASKS/TASKS-WORK-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-WORK-MAP.md> |
 | 44 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
 | 45 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 46 | `TASKS/transcript-first-task-state.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/transcript-first-task-state.md> |
@@ -97,7 +97,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 86 | `adr/completed/ADR-004-runtime-seam-headless-first.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-004-runtime-seam-headless-first.md> |
 | 87 | `adr/completed/ADR-005-cfg-test-mock-injection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-005-cfg-test-mock-injection.md> |
 | 88 | `adr/completed/ADR-006-runtime-mode-contracts.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-006-runtime-mode-contracts.md> |
-| 89 | `adr/completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-007-runtime-accepted-dispatch-no-alt-routing.md> |
+| 89 | `adr/completed/ADR-007-runtime-accepted-work-path-no-alt-routing.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-007-runtime-accepted-work-path-no-alt-routing.md> |
 | 90 | `adr/completed/ADR-008-runtime-cutover-parity-guardrails.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-008-runtime-cutover-parity-guardrails.md> |
 | 91 | `adr/completed/ADR-009-runtime-core-tui-interaction-contract.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-009-runtime-core-tui-interaction-contract.md> |
 | 92 | `adr/completed/ADR-010-runtime-core-tui-viewport-and-transcript.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-010-runtime-core-tui-viewport-and-transcript.md> |
@@ -364,7 +364,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 353 | `src/state/conversation/tests/undo.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests/undo.rs> |
 | 354 | `src/state/conversation/tests/write_guards.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests/write_guards.rs> |
 | 355 | `src/state/conversation/tools/config.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/config.rs> |
-| 356 | `src/state/conversation/tools/dispatch.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/dispatch.rs> |
+| 356 | `src/state/conversation/tools/routing.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/routing.rs> |
 | 357 | `src/state/conversation/tools/formatting.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/formatting.rs> |
 | 358 | `src/state/conversation/tools/index.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/index.rs> |
 | 359 | `src/state/conversation/tools/mod.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |

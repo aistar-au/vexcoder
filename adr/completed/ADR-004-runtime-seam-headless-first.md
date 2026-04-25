@@ -4,4 +4,4 @@
 
 ## Decision
 
-Deprecated. Headless-first runtime seam replaced by the formal `RuntimeMode` contract (ADR-006) and accepted dispatch contract (ADR-007).
+Deprecated. Headless-first runtime seam replaced by the formal `RuntimeMode` contract (ADR-006) and accepted work path contract (ADR-007).

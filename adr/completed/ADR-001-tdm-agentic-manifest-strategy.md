@@ -5,4 +5,4 @@
 ## Decision
 
 - All agent capabilities declared in a machine-readable manifest (`AGENTS.md` + `.vex/agents.toml`).
-- Manifest drives both human documentation and automated dispatch; no separate capability registry.
+- Manifest drives both human documentation and automated work routing; no separate capability registry.

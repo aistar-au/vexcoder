@@ -89,7 +89,7 @@ async fn test_hook_post_apply_patch_runs_command() -> Result<()> {
 }
 #[cfg(not(windows))]
 #[tokio::test]
-async fn test_hook_pre_tool_runs_before_dispatch() -> Result<()> {
+async fn test_hook_pre_tool_runs_before_routing() -> Result<()> {
     let _hook_guard = HOOK_TEST_LOCK.lock().await;
     let temp = TempDir::new()?;
     let target = temp.path().join("note.txt");

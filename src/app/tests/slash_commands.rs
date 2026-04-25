@@ -24,7 +24,7 @@ fn test_slash_command_returns_none_for_non_slash_input() {
     mode.on_user_input("describe the open issues".to_string(), &mut ctx);
     assert!(
         mode.is_turn_in_progress(),
-        "non-slash input must dispatch a model turn"
+        "non-slash input must route a model turn"
     );
 }
 #[test]

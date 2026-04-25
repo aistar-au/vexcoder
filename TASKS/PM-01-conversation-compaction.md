@@ -72,7 +72,7 @@ summary_max_tokens   = 1024       # max tokens for the summary message
 ## Constraints
 
 - Do not modify the on-disk session transcript. Compaction is in-memory only.
-- Do not change the tool dispatch path. Compaction is purely a message-history
+- Do not change the tool work path. Compaction is purely a message-history
   concern.
 - Do not remove the existing `compact_for_context_overflow` fallback.
 - The summarization prompt must be hardcoded (not user-configurable) to avoid

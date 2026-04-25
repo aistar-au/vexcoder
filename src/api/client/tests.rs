@@ -1176,7 +1176,7 @@ fn test_resolve_max_tokens_keeps_env_override_as_upper_bound_for_small_n_ctx() {
 }
 
 #[test]
-fn test_tool_definitions_cover_execute_tool_dispatch_names() {
+fn test_tool_definitions_cover_execute_tool_routing_names() {
     let expected: BTreeSet<&str> = BTreeSet::from([
         "read_file",
         "write_file",

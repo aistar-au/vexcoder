@@ -1,7 +1,7 @@
 # Active Roadmap
 
 Single authoritative source for what is active. Both `onboarding.md` Section 2b
-and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate it.
+and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
@@ -17,7 +17,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
 | ADR-022 amendment | Amended | Amendment only | Tightens opening-stage command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (initial validation passed) | Second-stage G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed (pre-release complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
+| ADR-024 | Proposed (pre-release complete) | 1 item (PG-03 tap auto-release -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -66,7 +66,7 @@ ADR-048 now records the separate permissions-overlay lane: mode precedence,
 protected-path guarantees, untrusted-workspace demotion, and fail-closed
 non-interactive behavior at the operator-policy boundary before enforcement
 code lands.
-The only external item in the next batch is ADR-024 PG-03 tap auto-dispatch,
+The only external item in the next batch is ADR-024 PG-03 tap auto-release,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
 
 Fullscreen transcript-first parity hardening is active under ADR-031,
@@ -127,7 +127,7 @@ All 4 verification items confirmed in-tree:
 
 All 13 tracked items complete.
 
-- ~~Item 9: Tool error dispatch block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
+- ~~Item 9: Tool error routing block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
 - ~~Item 10: Scroll handling duplication~~ (done 2026-03-28; `apply_bounded_scroll` extracted; patch overlay and inspector scroll delegate to it)
 - ~~Item 11: Approval input parsing duplicated~~ (addressed; `parse_approval_selection` already centralized; per-handler response logic is not reducible further without a callback interface)
 - ~~Item 12: Diff row styling logic duplicated~~ (done 2026-03-28; `diff_line_color` helper centralized; both callers delegate to it)
@@ -149,13 +149,13 @@ All 13 tracked items complete.
 
 PG-01 and PG-02 are complete (2026-03-28). PG-03, PH-01, PH-02, PH-03 complete 2026-03-28.
 ADR-022 Decision 11 maps to PH-01/PH-02/PH-03 and is satisfied by the Phase H implementation.
-The tap auto-dispatch update (sending a repository-dispatch to homebrew-vex on tag push) is
+The tap auto-release update (sending a repository trigger to homebrew-vex on tag push) is
 next batch planned per ADR-024 §PG-03 — it requires the homebrew-vex tap repo to be created
 first and is not a blocker for the Phase H distribution gate.
 
 - ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
 - ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
-- ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-dispatch next batch planned)
+- ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-release next batch planned)
 - ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens the macOS CLI host app with bundled vex binary)
 - ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
 - ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
@@ -332,7 +332,7 @@ Each branch had a task manifest in `TASKS/` defining scope, constraints, and anc
 ```
 ADR-022 (Roadmap, initial validation passed)
   +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
-  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-dispatch next batch planned, pending tap repo creation)
+  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-release next batch planned, pending tap repo creation)
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE
   |     +-- ADR-026 (Transport Binding) -- COMPLETE
   +-- ADR-027 (Command Sessions) -- COMPLETE
@@ -365,7 +365,7 @@ ADR-039 (CLI voice) --> ADR-023, ADR-030, ADR-031, ADR-034
 After each ADR-scoped PR merges to main, the subsequent PR updates:
 
 1. This file -- current phase / remaining items for the relevant ADR
-2. Nothing else -- do not touch onboarding or dispatch map in the same edit
+2. Nothing else -- do not touch onboarding or work map in the same edit
 
 The PR body for a roadmap update uses the motivation template from
 vex-local-bash/SKILL.md with ADR reference pointing to this file.
