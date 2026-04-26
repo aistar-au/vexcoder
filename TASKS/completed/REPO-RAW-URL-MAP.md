@@ -128,7 +128,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 117 | `docs/src/linting.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/linting.md> |
 | 118 | `docs/src/linux.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/linux.md> |
 | 119 | `docs/src/macos.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/macos.md> |
-| 120 | `docs/src/migration.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
+| 120 | `docs/src/config-update.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/config-update.md> |
 | 121 | `docs/src/msrv.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/msrv.md> |
 | 122 | `docs/src/performance.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/performance.md> |
 | 123 | `docs/src/privacy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/privacy.md> |

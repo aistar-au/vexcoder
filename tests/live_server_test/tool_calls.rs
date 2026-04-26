@@ -1,87 +1,75 @@
 use super::*;
+use rstest::rstest;
 
+#[rstest]
+#[case::chat_compat(true)]
+#[case::messages_v1(false)]
 #[tokio::test]
-async fn test_stalled_stream_chat_compat_json_form_arguments_normalizes_correctly() {
-    let (base_url, server) = spawn_tool_calls_json_args_server().await;
-    let config = build_auto_detect_batch_config(&base_url, "json-args-model");
+async fn auto_detected_protocol_normalizes_tool_call_fallback_for_both_protocols(
+    #[case] is_chat: bool,
+) {
+    let (base_url, server) = if is_chat {
+        spawn_tool_calls_json_args_server().await
+    } else {
+        spawn_auto_detect_messages_v1_tool_calls_server().await
+    };
+    let model_name = if is_chat {
+        "json-args-model"
+    } else {
+        "tool-detect-model"
+    };
+    let prompt = if is_chat {
+        "Read main.rs."
+    } else {
+        "Read lib.rs."
+    };
+    let expected_path = if is_chat { "src/main.rs" } else { "src/lib.rs" };
+    let expected_protocol = if is_chat {
+        ModelProtocol::ChatCompat
+    } else {
+        ModelProtocol::MessagesV1
+    };
+
+    let config = build_auto_detect_batch_config(&base_url, model_name);
     let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
     client.populate_server_info().await;
 
     assert_eq!(
         client.server_info().and_then(|info| info.native_protocol),
-        Some(ModelProtocol::ChatCompat),
-        "auto-detect should select chat-compat before issuing the request"
+        Some(expected_protocol),
+        "auto-detect should select the correct protocol"
     );
 
     let mut stream = client
-        .create_stream(&single_user_message("Read main.rs."))
+        .create_stream(&single_user_message(prompt))
         .await
-        .expect("json-args fallback must not error");
+        .expect("must not error");
+    let envelopes: Vec<_> = {
+        let mut v = Vec::new();
+        while let Some(e) = stream.next().await {
+            v.push(e.expect("envelope"));
+        }
+        v
+    };
 
-    let mut envelopes = Vec::new();
-    while let Some(envelope) = stream.next().await {
-        envelopes.push(envelope.expect("envelope must not error"));
-    }
-
-    assert!(
-        envelopes.iter().any(|e| matches!(
+    let found_tool_call = envelopes.iter().any(|e| {
+        matches!(
             &e.event,
             RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
                 if tool_name == "read_file"
-                    && arguments.get("path").and_then(Value::as_str) == Some("src/main.rs")
-        )),
-        "json-form arguments must materialize as ToolCallStarted with correct input; got {:?}",
+                    && arguments.get("path").and_then(Value::as_str) == Some(expected_path)
+        )
+    });
+    assert!(
+        found_tool_call,
+        "must emit materialized ToolCallStarted; got {:?}",
         envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
     );
     assert!(
         !envelopes
             .iter()
             .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "json-form arguments must not emit argument deltas"
+        "materialized tool call must not emit argument deltas"
     );
-
-    server.abort();
-}
-
-#[tokio::test]
-async fn test_run_batch_auto_detects_messages_v1_and_normalizes_fallback_tool_calls() {
-    let (base_url, server) = spawn_auto_detect_messages_v1_tool_calls_server().await;
-    let config = build_auto_detect_batch_config(&base_url, "tool-detect-model");
-    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
-    client.populate_server_info().await;
-
-    assert_eq!(
-        client.server_info().and_then(|info| info.native_protocol),
-        Some(ModelProtocol::MessagesV1),
-        "auto-detect should select messages-v1 before issuing the request"
-    );
-
-    let mut stream = client
-        .create_stream(&single_user_message("Read lib.rs."))
-        .await
-        .expect("messages-v1 tool-call fallback must not error");
-
-    let mut envelopes = Vec::new();
-    while let Some(envelope) = stream.next().await {
-        envelopes.push(envelope.expect("envelope must not error"));
-    }
-
-    assert!(
-        envelopes.iter().any(|e| matches!(
-            &e.event,
-            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
-                if tool_name == "read_file"
-                    && arguments.get("path").and_then(Value::as_str) == Some("src/lib.rs")
-        )),
-        "auto-detected messages-v1 tool call must materialize; got {:?}",
-        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
-    );
-    assert!(
-        !envelopes
-            .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
-        "materialized messages-v1 tool calls must not emit argument deltas"
-    );
-
     server.abort();
 }

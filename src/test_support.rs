@@ -1,4 +1,5 @@
 use crate::runtime::tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+use std::sync::{Arc, Mutex};
 
 pub struct EnvLock {
     inner: AsyncMutex<()>,
@@ -36,14 +37,12 @@ impl EnvLockGuard<'_> {
     #[allow(unsafe_code)]
     pub fn set_var(&self, key: &str, value: impl AsRef<std::ffi::OsStr>) {
         let _ = &self.guard;
-        // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::set_var(key, value) }
     }
 
     #[allow(unsafe_code)]
     pub fn remove_var(&self, key: &str) {
         let _ = &self.guard;
-        // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::remove_var(key) }
     }
 }
@@ -70,9 +69,54 @@ impl Drop for EnvRestore<'_> {
     #[allow(unsafe_code)]
     fn drop(&mut self) {
         match &self.value {
-            // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
             Some(value) => unsafe { std::env::set_var(self.key, value) },
             None => unsafe { std::env::remove_var(self.key) },
+        }
+    }
+}
+
+/// RAII guard that acquires `ENV_LOCK`, sets one or more env vars, and restores
+/// their previous values on drop. Avoids the scattered lock + set + restore
+/// triple in tests that touch a single env region.
+///
+/// # Example
+/// ```ignore
+/// let _env = TempEnv::set("VEX_STATE_DIR", temp.path())
+///     .also_set("VEX_MODEL_URL", "http://localhost:8080/v1");
+/// ```
+pub struct TempEnv {
+    _guard: EnvLockGuard<'static>,
+    originals: Vec<(&'static str, Option<String>)>,
+}
+
+impl TempEnv {
+    /// Acquires `ENV_LOCK`, records the current value of `key`, and sets it.
+    pub fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let guard = ENV_LOCK.blocking_lock();
+        let original = std::env::var(key).ok();
+        guard.set_var(key, value);
+        Self {
+            _guard: guard,
+            originals: vec![(key, original)],
+        }
+    }
+
+    /// Sets an additional var under the same lock, returning `self` for chaining.
+    pub fn also_set(mut self, key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let original = std::env::var(key).ok();
+        self._guard.set_var(key, value);
+        self.originals.push((key, original));
+        self
+    }
+}
+
+impl Drop for TempEnv {
+    fn drop(&mut self) {
+        for (key, original) in &self.originals {
+            match original {
+                Some(v) => self._guard.set_var(key, v),
+                None => self._guard.remove_var(key),
+            }
         }
     }
 }
@@ -85,9 +129,51 @@ pub fn test_remove_var(lock: &EnvLockGuard<'_>, key: &str) {
     lock.remove_var(key)
 }
 
+/// Shared type for recording HTTP request bodies in test servers.
+/// A single `Arc<Mutex<Vec<serde_json::Value>>>` is cloned into the server's
+/// axum state, and the original handle is kept by the test for post-run assertions.
+pub type RequestLog = Arc<Mutex<Vec<serde_json::Value>>>;
+
+/// Spawn an ephemeral axum server bound to a random loopback port.
+/// Returns the join handle and the bound `SocketAddr` for URL construction.
+/// Call `.abort()` on the handle after the test's assertions are complete.
+///
+/// # Example
+/// ```ignore
+/// let log: RequestLog = Arc::new(Mutex::new(vec![]));
+/// let (server, addr) = spawn_axum_server(
+///     Router::new().route("/api", post(handler)).with_state(log.clone())
+/// ).await;
+/// // ... make requests to format!("http://{addr}/api") ...
+/// server.abort();
+/// ```
+pub async fn spawn_axum_server(
+    router: axum::Router,
+) -> (tokio::task::JoinHandle<()>, std::net::SocketAddr) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    (handle, addr)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temp_env_sets_and_restores_on_drop() {
+        {
+            let _t = TempEnv::set("VEX_TEMP_ENV_A", "alpha").also_set("VEX_TEMP_ENV_B", "beta");
+            assert_eq!(std::env::var("VEX_TEMP_ENV_A").as_deref(), Ok("alpha"));
+            assert_eq!(std::env::var("VEX_TEMP_ENV_B").as_deref(), Ok("beta"));
+        }
+        assert!(std::env::var("VEX_TEMP_ENV_A").is_err());
+        assert!(std::env::var("VEX_TEMP_ENV_B").is_err());
+    }
 
     #[test]
     fn test_env_helpers_allow_locked_mutation() {

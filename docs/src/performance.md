@@ -70,6 +70,6 @@ latency or scale profile:
 - A single-writer event log paired with periodic summary checkpoints can make
   discovery replay-oriented rather than document-oriented without replaying the
   full history on every cold start.
-- A database-backed index can support richer queries, but it also raises schema,
-  migration, and operator-portability costs that the current file-based design
-  avoids.
+- A database-backed index can support richer queries, but it also raises schema
+  versioning, upgrade-path sequencing, and operator-portability costs that the
+  current file-based design avoids.

@@ -33,8 +33,6 @@ use crate::runtime::{
     AssembledContext, ContextAssembler, block_on_context_task, resolve_git_timeout_ms,
     run_git_command_with_timeout,
 };
-#[cfg(test)]
-use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
     build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
 };
@@ -44,7 +42,7 @@ use crate::state::{ConversationManager, PulseToolPolicy, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::types::ModelProfile;
 #[cfg(test)]
-use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
+use crate::ui::tui::event::{KeyCode, KeyModifiers};
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::io::Write;
@@ -98,10 +96,6 @@ pub use crate::runtime::UiUpdate;
 pub use crate::runtime::tokio as runtime_tokio;
 
 use self::overlay::summarize_tool_approval_context;
-#[cfg(test)]
-use self::overlay::{
-    RenderPass, overlay_event_to_user_input, parse_approval_selection, render_pass_order,
-};
 #[cfg(test)]
 use self::scroll::{RenderGuard, input_rows_for_buffer};
 use self::util::{

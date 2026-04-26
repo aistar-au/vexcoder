@@ -1228,8 +1228,6 @@ pub mod protocol_discovery;
 
 mod tools;
 pub(crate) use tools::{builtin_tool_summaries, is_readonly_tool};
-#[cfg(test)]
-use tools::{tool_definitions, tool_definitions_chat_compat_with_extra};
 use tools::{tool_definitions_chat_compat_for_policy, tool_definitions_for_policy};
 
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {

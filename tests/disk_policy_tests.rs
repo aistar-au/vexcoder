@@ -1,5 +1,4 @@
 use std::path::Path;
-
 use vexcoder::disk_policy::{
     DiskPermission, DiskPolicyMode, check_path, enforce, enforce_runtime, resolve_policy_mode,
 };
@@ -22,12 +21,10 @@ mod test_support {
     impl EnvLockGuard<'_> {
         #[allow(unsafe_code)]
         pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
-            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
             unsafe { std::env::set_var(key, val) }
         }
         #[allow(unsafe_code)]
         pub fn remove_var(&self, key: &str) {
-            // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
             unsafe { std::env::remove_var(key) }
         }
     }
@@ -35,7 +32,7 @@ mod test_support {
 }
 
 #[test]
-fn classifies_allowed_disk_paths() {
+fn check_path_classifies_allowed_and_forbidden_patterns() {
     assert_eq!(
         check_path(Path::new(".vex/index/chunks.bin")),
         DiskPermission::SearchIndex
@@ -44,106 +41,67 @@ fn classifies_allowed_disk_paths() {
         check_path(Path::new("/repo/.vex/state/task-1.json")),
         DiskPermission::TaskStateMap
     );
-}
-
-#[test]
-fn classifies_workspace_source_as_forbidden() {
     assert_eq!(
         check_path(Path::new("src/lib.rs")),
         DiskPermission::Forbidden
     );
-}
-
-#[test]
-fn strict_mode_rejects_forbidden_paths() {
-    let error = enforce(Path::new("src/lib.rs"), DiskPolicyMode::Strict)
-        .expect_err("strict mode must reject workspace source access");
-    assert!(error.to_string().contains("forbidden disk access"));
-}
-
-#[test]
-fn strict_mode_allows_search_index_paths() {
-    let permission = enforce(Path::new(".vex/index/chunks.bin"), DiskPolicyMode::Strict)
-        .expect("strict mode must allow search index paths");
-    assert_eq!(permission, DiskPermission::SearchIndex);
-}
-
-#[test]
-fn warn_mode_keeps_running_for_forbidden_paths() {
-    let permission = enforce(Path::new("src/lib.rs"), DiskPolicyMode::Warn)
-        .expect("warn mode should not hard-fail");
-    assert_eq!(permission, DiskPermission::Forbidden);
-}
-
-#[test]
-fn runtime_mode_defaults_to_off_when_env_missing() {
-    let _lock = test_support::ENV_LOCK.blocking_lock();
-    _lock.remove_var("VEX_DISK_POLICY");
-
-    assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
-    let permission = enforce_runtime(Path::new("src/lib.rs"))
-        .expect("off mode should not hard-fail on forbidden paths");
-    assert_eq!(permission, DiskPermission::Forbidden);
-}
-
-#[test]
-fn runtime_mode_uses_strict_env() {
-    let _lock = test_support::ENV_LOCK.blocking_lock();
-    _lock.set_var("VEX_DISK_POLICY", "strict");
-
-    let error = enforce_runtime(Path::new("src/lib.rs"))
-        .expect_err("strict env mode must reject forbidden paths");
-    assert!(error.to_string().contains("forbidden disk access"));
-
-    _lock.remove_var("VEX_DISK_POLICY");
-}
-
-#[test]
-fn runtime_mode_uses_warn_env() {
-    let _lock = test_support::ENV_LOCK.blocking_lock();
-    _lock.set_var("VEX_DISK_POLICY", "warn");
-
-    let permission = enforce_runtime(Path::new("src/lib.rs"))
-        .expect("warn env mode should not hard-fail on forbidden paths");
-    assert_eq!(permission, DiskPermission::Forbidden);
-
-    _lock.remove_var("VEX_DISK_POLICY");
-}
-
-#[test]
-fn windows_backslash_index_path_is_search_index() {
-    let p = std::path::PathBuf::from(".vex\\index\\chunks.bin");
-    assert_eq!(check_path(&p), DiskPermission::SearchIndex);
-}
-
-#[test]
-fn windows_backslash_state_path_is_task_state_map() {
-    let p = std::path::PathBuf::from(".vex\\state\\task-001.json");
-    assert_eq!(check_path(&p), DiskPermission::TaskStateMap);
-}
-
-#[test]
-fn windows_mixed_separator_path_is_search_index() {
-    let p = std::path::PathBuf::from(".vex\\index/data.bin");
-    assert_eq!(check_path(&p), DiskPermission::SearchIndex);
-}
-
-#[test]
-fn index_prefix_without_path_separator_is_forbidden() {
     assert_eq!(
         check_path(Path::new(".vex/indexing.txt")),
         DiskPermission::Forbidden,
+        "index prefix without separator must be forbidden"
     );
     assert_eq!(
-        check_path(Path::new("/repo/.vex/indexed-data")),
+        check_path(Path::new(".vex/stateful.bin")),
         DiskPermission::Forbidden,
+        "state prefix without separator must be forbidden"
+    );
+    assert_eq!(
+        check_path(&std::path::PathBuf::from(".vex\\index\\chunks.bin")),
+        DiskPermission::SearchIndex,
+        "windows backslash index"
+    );
+    assert_eq!(
+        check_path(&std::path::PathBuf::from(".vex\\state\\task-001.json")),
+        DiskPermission::TaskStateMap,
+        "windows backslash state"
     );
 }
 
 #[test]
-fn state_prefix_without_path_separator_is_forbidden() {
+fn enforce_respects_strict_and_warn_modes() {
+    let err = enforce(Path::new("src/lib.rs"), DiskPolicyMode::Strict).unwrap_err();
+    assert!(err.to_string().contains("forbidden disk access"));
+
+    let perm = enforce(Path::new(".vex/index/chunks.bin"), DiskPolicyMode::Strict).unwrap();
+    assert_eq!(perm, DiskPermission::SearchIndex);
+
+    let perm2 = enforce(Path::new("src/lib.rs"), DiskPolicyMode::Warn).unwrap();
+    assert_eq!(perm2, DiskPermission::Forbidden);
+}
+
+#[test]
+fn enforce_runtime_reads_env_var_and_defaults_to_off() {
+    let _lock = test_support::ENV_LOCK.blocking_lock();
+    _lock.remove_var("VEX_DISK_POLICY");
+    assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
     assert_eq!(
-        check_path(Path::new(".vex/stateful.bin")),
+        enforce_runtime(Path::new("src/lib.rs")).unwrap(),
         DiskPermission::Forbidden,
+        "off mode must not hard-fail"
     );
+
+    _lock.set_var("VEX_DISK_POLICY", "strict");
+    assert!(
+        enforce_runtime(Path::new("src/lib.rs")).is_err(),
+        "strict env must reject forbidden paths"
+    );
+    _lock.remove_var("VEX_DISK_POLICY");
+
+    _lock.set_var("VEX_DISK_POLICY", "warn");
+    assert_eq!(
+        enforce_runtime(Path::new("src/lib.rs")).unwrap(),
+        DiskPermission::Forbidden,
+        "warn env must not hard-fail"
+    );
+    _lock.remove_var("VEX_DISK_POLICY");
 }

@@ -93,26 +93,6 @@ fn run_delegate_race_hook() {
 #[cfg(not(test))]
 fn run_delegate_race_hook() {}
 
-#[cfg(test)]
-struct DelegateRaceHookGuard;
-
-#[cfg(test)]
-impl Drop for DelegateRaceHookGuard {
-    fn drop(&mut self) {
-        *delegate_race_hook_slot()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
-    }
-}
-
-#[cfg(test)]
-fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
-    *delegate_race_hook_slot()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(hook);
-    DelegateRaceHookGuard
-}
-
 #[derive(Debug, Error)]
 pub enum DelegateError {
     #[error("agent_not_found")]

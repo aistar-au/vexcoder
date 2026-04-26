@@ -19,6 +19,4 @@ pub(crate) use tools::{force_full_reindex_with_config, warm_codebase_index_with_
 #[cfg(test)]
 use history::*;
 #[cfg(test)]
-use streaming::*;
-#[cfg(test)]
 use tools::*;

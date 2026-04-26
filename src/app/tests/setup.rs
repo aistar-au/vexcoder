@@ -15,17 +15,6 @@ pub(super) fn setup_ctx_with_updates() -> (RuntimeContext, mpsc::UnboundedReceiv
         rx,
     )
 }
-pub(super) fn setup_ctx_with_responses_and_updates(
-    responses: Vec<Vec<String>>,
-) -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
-    let (tx, rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
-    let conversation = ConversationManager::new_mock(client, HashMap::new());
-    (
-        RuntimeContext::new(conversation, tx, CancellationToken::new()),
-        rx,
-    )
-}
 #[test]
 fn test_selected_system_prompt_falls_back_to_bundled_prompt() {
     let mut mode = TuiMode::new();
@@ -33,30 +22,10 @@ fn test_selected_system_prompt_falls_back_to_bundled_prompt() {
 
     assert_eq!(mode.selected_system_prompt(), CODER_SYSTEM_PROMPT);
 }
-pub(super) fn setup_ctx_with_responses(responses: Vec<Vec<String>>) -> RuntimeContext {
-    let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
-    let conversation = ConversationManager::new_mock(client, HashMap::new());
-    RuntimeContext::new(conversation, tx, CancellationToken::new())
-}
 pub(super) fn config_with_workdir(path: &std::path::Path) -> Config {
     let mut config = Config::default_for_tui();
     config.working_dir = path.to_path_buf();
     config
-}
-pub(super) fn write_custom_command(
-    dir: &std::path::Path,
-    file_name: &str,
-    name: &str,
-    description: &str,
-    template: &str,
-) {
-    std::fs::create_dir_all(dir).unwrap();
-    std::fs::write(
-        dir.join(file_name),
-        format!("name = {name:?}\ndescription = {description:?}\ntemplate = {template:?}\n"),
-    )
-    .unwrap();
 }
 pub(super) fn successful_run_input() -> String {
     if cfg!(windows) {
@@ -113,16 +82,4 @@ pub(super) fn git_success(path: &std::path::Path, args: &[&str]) {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-}
-pub(super) async fn wait_for_model_turn(ctx: &RuntimeContext, label: &str) {
-    tokio::time::timeout(Duration::from_millis(500), async {
-        loop {
-            if ctx.test_message_count().await > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("{label} must start a single model pulse"));
 }

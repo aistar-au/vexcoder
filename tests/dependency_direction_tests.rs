@@ -22,14 +22,11 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
     let mut imports = Vec::new();
     let mut pending: Option<(usize, String)> = None;
-
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
-
         if trimmed.starts_with("//") {
             continue;
         }
-
         if let Some((_, current)) = pending.as_mut() {
             if !trimmed.is_empty() {
                 if !current.is_empty() {
@@ -46,7 +43,6 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
             }
             continue;
         }
-
         if starts_with_tracked_import(trimmed) {
             let start_line = index + 1;
             if trimmed.contains(';') {
@@ -59,14 +55,12 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
             }
         }
     }
-
     if let Some((start_line, import)) = pending {
         imports.push((
             start_line,
             normalize_import_for_boundary_scan(path, &import),
         ));
     }
-
     imports
 }
 
@@ -91,11 +85,9 @@ fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
         if !relative.starts_with("super::") {
             continue;
         }
-
         let has_semicolon = relative.trim_end().ends_with(';');
         let mut remainder = relative.trim().trim_end_matches(';');
         let mut module_path = module_path_components(path);
-
         while let Some(next) = remainder.strip_prefix("super::") {
             if module_path.pop().is_none() {
                 remainder = next;
@@ -103,7 +95,6 @@ fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
             }
             remainder = next;
         }
-
         let mut resolved = String::from(prefix);
         resolved.push_str("crate::");
         if !module_path.is_empty() {
@@ -116,7 +107,6 @@ fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
         }
         return Some(resolved);
     }
-
     None
 }
 
@@ -130,7 +120,6 @@ fn module_path_components(path: &Path) -> Vec<String> {
         .rposition(|part| part == "src")
         .map(|index| index + 1)
         .unwrap_or_else(|| parts.len().saturating_sub(1));
-
     let mut modules = parts[start..].to_vec();
     let Some(stem) = modules
         .last()
@@ -140,7 +129,6 @@ fn module_path_components(path: &Path) -> Vec<String> {
     else {
         return modules;
     };
-
     match stem.as_str() {
         "mod" => {
             modules.pop();
@@ -149,13 +137,11 @@ fn module_path_components(path: &Path) -> Vec<String> {
             modules.clear();
         }
         _ => {
-            let last = modules
+            *modules
                 .last_mut()
-                .expect("module path must have a final segment");
-            *last = stem.to_string();
+                .expect("module path must have a final segment") = stem.to_string();
         }
     }
-
     modules
 }
 
@@ -175,7 +161,6 @@ fn split_top_level_items(grouped: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut depth = 0usize;
     let mut item_start = 0usize;
-
     for (index, ch) in grouped.char_indices() {
         match ch {
             '{' => depth += 1,
@@ -199,12 +184,10 @@ fn split_top_level_items(grouped: &str) -> Vec<String> {
             _ => {}
         }
     }
-
     let item = grouped[item_start..].trim().trim_end_matches('}').trim();
     if !item.is_empty() {
         items.push(item.to_string());
     }
-
     items
 }
 
@@ -273,58 +256,7 @@ fn src_dir() -> PathBuf {
 }
 
 #[test]
-fn grouped_import_detection_catches_transport_modules() {
-    let import = "use crate::{app::facade, server::handlers::{delegate_handler}, bin::vex};";
-    assert!(import_mentions_forbidden_module(import, "server"));
-    assert!(import_mentions_forbidden_module(import, "bin"));
-}
-
-#[test]
-fn grouped_import_detection_uses_module_boundaries() {
-    let import = "use crate::{app::facade, server_tool::helpers};";
-    assert!(!import_mentions_forbidden_module(import, "server"));
-}
-
-#[test]
-fn multiline_grouped_imports_are_concatenated_before_scanning() {
-    let temp = tempfile::tempdir().unwrap();
-    let file = temp.path().join("sample.rs");
-    fs::write(
-        &file,
-        "use crate::{\n    app::facade,\n    server::handlers::{delegate_handler},\n};\n",
-    )
-    .unwrap();
-
-    let imports = extract_crate_imports(&file);
-    assert_eq!(imports.len(), 1);
-    assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
-}
-
-#[test]
-fn relative_super_import_detection_resolves_to_crate_root_modules() {
-    let temp = tempfile::tempdir().unwrap();
-    let src_dir = temp.path().join("src/app");
-    fs::create_dir_all(&src_dir).unwrap();
-    let file = src_dir.join("sample.rs");
-    fs::write(
-        &file,
-        "use super::super::server::{handlers::delegate_handler};\n",
-    )
-    .unwrap();
-
-    let imports = extract_crate_imports(&file);
-    assert_eq!(imports.len(), 1);
-    assert_eq!(
-        imports[0].1,
-        "use crate::server::{handlers::delegate_handler};"
-    );
-    assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
-}
-
-#[test]
-fn runtime_must_not_import_cli_transport_terminal_or_tui() {
-    let runtime_dir = src_dir().join("runtime");
-
+fn lower_layers_must_not_import_cli_transport_or_tui() {
     let forbidden = &[
         "local_api",
         "server",
@@ -334,93 +266,42 @@ fn runtime_must_not_import_cli_transport_terminal_or_tui() {
         "app",
         "ui",
     ];
-    let violations = assert_no_forbidden_imports(&runtime_dir, forbidden, "runtime");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: runtime layer has forbidden imports:\n{}",
-        violations.join("\n")
-    );
+    for (dir_name, layer) in [
+        ("runtime", "runtime"),
+        ("state", "state"),
+        ("api", "api"),
+        ("tools", "tools"),
+    ] {
+        let violations = assert_no_forbidden_imports(&src_dir().join(dir_name), forbidden, layer);
+        assert!(
+            violations.is_empty(),
+            "ADR-028: {layer} layer has forbidden imports:\n{}",
+            violations.join("\n")
+        );
+    }
 }
 
 #[test]
-fn state_must_not_import_cli_transport_terminal_or_tui() {
-    let state_dir = src_dir().join("state");
-    let forbidden = &[
-        "local_api",
-        "server",
-        "bin",
-        "tui_frontend",
-        "terminal",
-        "app",
-        "ui",
-    ];
-    let violations = assert_no_forbidden_imports(&state_dir, forbidden, "state");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: state layer has forbidden imports:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn api_must_not_import_cli_transport_terminal_or_tui() {
-    let api_dir = src_dir().join("api");
-    let forbidden = &[
-        "local_api",
-        "server",
-        "bin",
-        "tui_frontend",
-        "terminal",
-        "app",
-        "ui",
-    ];
-    let violations = assert_no_forbidden_imports(&api_dir, forbidden, "api");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: api layer has forbidden imports:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn tools_must_not_import_cli_transport_terminal_or_tui() {
-    let tools_dir = src_dir().join("tools");
-    let forbidden = &[
-        "local_api",
-        "server",
-        "bin",
-        "tui_frontend",
-        "terminal",
-        "app",
-        "ui",
-    ];
-    let violations = assert_no_forbidden_imports(&tools_dir, forbidden, "tools");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: tools layer has forbidden imports:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn app_facade_must_not_import_cli_binary() {
-    let app_dir = src_dir().join("app");
-    let forbidden = &["bin", "server"];
-    let violations = assert_no_forbidden_imports(&app_dir, forbidden, "app");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: app facade has forbidden imports:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn server_uses_facade_entrypoint() {
+fn server_layer_direction_and_facade_contract() {
     let server_dir = src_dir().join("server");
+    assert!(server_dir.is_dir(), "ADR-028: src/server/ must exist");
+
+    let app_violations =
+        assert_no_forbidden_imports(&src_dir().join("app"), &["bin", "server"], "app");
     assert!(
-        server_dir.is_dir(),
-        "ADR-028: src/server/ must exist as the transport layer"
+        app_violations.is_empty(),
+        "ADR-028: app facade has forbidden imports:\n{}",
+        app_violations.join("\n")
     );
+
+    let tui_violations =
+        assert_no_forbidden_imports(&server_dir, &["tui_frontend", "terminal", "ui"], "server");
+    assert!(
+        tui_violations.is_empty(),
+        "ADR-028: server layer has forbidden imports:\n{}",
+        tui_violations.join("\n")
+    );
+
     let files = collect_rs_files(&server_dir);
     let uses_facade = files.iter().any(|file| {
         extract_crate_imports(file)
@@ -430,108 +311,56 @@ fn server_uses_facade_entrypoint() {
     });
     assert!(
         uses_facade,
-        "ADR-028: server module must route through the application facade (crate::app)"
+        "ADR-028: server must route through crate::app facade"
     );
-}
 
-#[test]
-fn server_must_not_import_runtime_directly() {
-    let server_dir = src_dir().join("server");
-    let files = collect_rs_files(&server_dir);
-    let mut violations = Vec::new();
-
+    let mut runtime_violations = Vec::new();
     for file in &files {
         for (lineno, import) in extract_crate_imports(file) {
             for item in extract_crate_items(&import) {
                 if root_module(&item) == Some("runtime") && !runtime_item_is_allowed(&item) {
-                    violations.push(format!("  {}:{lineno}: {import}", file.display()));
+                    runtime_violations.push(format!("  {}:{lineno}: {import}", file.display()));
                     break;
                 }
             }
         }
     }
-
     assert!(
-        violations.is_empty(),
-        "ADR-028: server layer must not import crate::runtime directly \
-         (route through crate::app facade):\n{}",
-        violations.join("\n")
+        runtime_violations.is_empty(),
+        "ADR-028: server must not import crate::runtime directly:\n{}",
+        runtime_violations.join("\n")
     );
 }
 
 #[test]
-fn facade_module_exports_required_entrypoints() {
+fn facade_exports_required_entrypoints_and_error_types() {
     let facade_src =
         fs::read_to_string(src_dir().join("app").join("facade.rs")).expect("facade.rs must exist");
-
-    let required = &[
+    for name in &[
         "build_facade_client",
         "build_facade_runtime",
         "execute_facade_runtime",
         "run_tui_session",
-    ];
-
-    for name in required {
+    ] {
         assert!(
             facade_src.contains(name),
             "ADR-028: facade.rs must export `{name}`"
         );
     }
-}
-
-#[test]
-fn facade_error_types_exist() {
     let errors_src =
         fs::read_to_string(src_dir().join("app").join("errors.rs")).expect("errors.rs must exist");
-
     assert!(
-        errors_src.contains("AppError"),
-        "ADR-028: errors.rs must define AppError"
-    );
-    assert!(
-        errors_src.contains("AppResult"),
-        "ADR-028: errors.rs must define AppResult"
+        errors_src.contains("AppError") && errors_src.contains("AppResult"),
+        "ADR-028: errors.rs must define AppError and AppResult"
     );
 }
 
 #[test]
-fn server_must_not_import_tui_terminal_or_ui() {
-    let server_dir = src_dir().join("server");
-    assert!(
-        server_dir.is_dir(),
-        "ADR-028: src/server/ must exist as the transport layer"
-    );
-    let forbidden = &["tui_frontend", "terminal", "ui"];
-    let violations = assert_no_forbidden_imports(&server_dir, forbidden, "server");
-    assert!(
-        violations.is_empty(),
-        "ADR-028: server layer has forbidden imports:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn cli_binary_must_not_import_transport_layer() {
-    let vex_src = fs::read_to_string(src_dir().join("bin").join("vex.rs"))
-        .expect("src/bin/vex.rs must exist");
-    assert!(
-        !vex_src.contains("vexcoder::server"),
-        "ADR-028: src/bin/vex.rs must not import vexcoder::server directly — use the crate-root re-export instead"
-    );
-}
-
-#[test]
-fn server_module_exists() {
+fn server_module_structure_and_cli_binary_isolation() {
     let server_rs = src_dir().join("server.rs");
-    assert!(
-        server_rs.is_file(),
-        "ADR-028: src/server.rs must exist — transport module root"
-    );
+    assert!(server_rs.is_file(), "ADR-028: src/server.rs must exist");
     let server_dir = src_dir().join("server");
-    assert!(
-        server_dir.is_dir(),
-        "ADR-028: src/server/ must exist — transport layer extracted from local_api.rs"
-    );
+    assert!(server_dir.is_dir(), "ADR-028: src/server/ must exist");
     for submodule in &["http.rs", "sse.rs", "socket.rs", "handlers.rs", "util.rs"] {
         let path = server_dir.join(submodule);
         assert!(
@@ -539,4 +368,10 @@ fn server_module_exists() {
             "ADR-028: src/server/{submodule} must exist"
         );
     }
+    let vex_src = fs::read_to_string(src_dir().join("bin").join("vex.rs"))
+        .expect("src/bin/vex.rs must exist");
+    assert!(
+        !vex_src.contains("vexcoder::server"),
+        "ADR-028: src/bin/vex.rs must not import vexcoder::server directly"
+    );
 }

@@ -66,17 +66,6 @@ impl ConversationManager {
         response_rx.await.unwrap_or(false)
     }
 
-    #[cfg(test)]
-    pub(super) async fn execute_tool_with_timeout(
-        &self,
-        name: &str,
-        input: &serde_json::Value,
-        tool_timeout: Duration,
-    ) -> Result<String> {
-        self.execute_tool_with_timeout_with_updates(name, input, tool_timeout, None)
-            .await
-    }
-
     pub(super) async fn execute_tool_with_timeout_with_updates(
         &self,
         name: &str,

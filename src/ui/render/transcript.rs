@@ -401,16 +401,6 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
     out
 }
 
-#[cfg(test)]
-pub(crate) fn task_output_window(
-    state: &TaskViewProjection,
-    viewport_width: u16,
-    viewport_height: usize,
-) -> (usize, usize) {
-    let total = expand_rows_for_display(&state.output_rows, viewport_width).len();
-    task_output_window_with_total(state, total, viewport_height)
-}
-
 pub(crate) fn task_output_window_with_total(
     state: &TaskViewProjection,
     total: usize,

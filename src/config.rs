@@ -18,13 +18,6 @@ pub use startup::StartupBudget;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-use self::load::{
-    default_model_backend, default_tool_call_mode, infer_model_protocol,
-    model_token_from_env_or_keyring_with, parse_model_headers_json, read_env_layer,
-    user_config_path,
-};
-
 const DEFAULT_LOCAL_API_HOST: &str = "127.0.0.1";
 const DEFAULT_LOCAL_API_PORT: u16 = 6274;
 

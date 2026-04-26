@@ -189,6 +189,7 @@ strip-ansi-escapes = "0.2"
 tower = "0.5"
 pretty_assertions = "1"
 assert_cmd = "2"
+rstest = "0.26"
 
 [workspace.metadata.upgrade-seams]
 # Rust crate versions are resolved at compile time, not through runtime
@@ -504,6 +505,7 @@ tree-sitter-javascript.workspace = true
 [dev-dependencies]
 filetime.workspace = true
 insta.workspace = true
+rstest.workspace = true
 strip-ansi-escapes.workspace = true
 tower.workspace = true
 pretty_assertions.workspace = true
