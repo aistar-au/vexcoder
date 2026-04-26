@@ -15,7 +15,7 @@ use crate::runtime::CommandResult;
 use crate::runtime::PulseEntry;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::edit_loop::EditLoop;
-use crate::runtime::frontend::{ScrollAction, ScrollTarget, InputOccurrence};
+use crate::runtime::frontend::{InputOccurrence, ScrollAction, ScrollTarget};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::project_instructions::{LoadResult, load_project_instructions};

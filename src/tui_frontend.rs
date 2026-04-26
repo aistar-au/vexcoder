@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crate::app::{
     FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TuiMode,
 };
-use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, InputOccurrence};
+use crate::runtime::frontend::{FrontendAdapter, InputOccurrence, ScrollAction, ScrollTarget};
 use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
     STARTUP_NOISE_GUARD, looks_like_session_output, should_ignore_startup_paste_text,
@@ -16,7 +16,7 @@ use crate::ui::render::{
     OverlayModal, history_content_width_for_area, input_visual_rows, render_input, render_messages,
     render_overlay_modal_in_area, render_status_line, render_task_layout,
 };
-use crate::ui::tui::input::{self, Event, KeyCode, KeyStroke, KeyStrokeKind, KeyModifiers};
+use crate::ui::tui::input::{self, Event, KeyCode, KeyModifiers, KeyStroke, KeyStrokeKind};
 use crate::ui::tui::widgets::Clear;
 
 pub struct ManagedTuiFrontend {

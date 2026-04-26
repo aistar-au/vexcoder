@@ -1,10 +1,10 @@
 use self::protocol_discovery::discover_protocol;
-use super::stream_ingress::open_signal_stream;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
+use super::stream_ingress::open_signal_stream;
 use crate::config::Config;
 use crate::observability::REQUEST_ID_HEADER;
 use crate::runtime::backend::{
-    SignalStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
+    ModelBackend, ModelBackendKind, ModelProtocol, SignalStream, ToolCallMode, ToolPolicy,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};

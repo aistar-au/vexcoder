@@ -9,8 +9,13 @@ fn messages_v1_parses_full_message_lifecycle_and_usage() {
 data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","content":[],"model":"local-model","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":25,"output_tokens":1}}}
 
 "#).unwrap();
-    assert!(matches!(&events[0].signal, RuntimeSignal::PulseStart { .. }));
-    assert!(matches!(&events[1].signal, RuntimeSignal::UsageUpdated { usage } if usage.input == 25));
+    assert!(matches!(
+        &events[0].signal,
+        RuntimeSignal::PulseStart { .. }
+    ));
+    assert!(
+        matches!(&events[1].signal, RuntimeSignal::UsageUpdated { usage } if usage.input == 25)
+    );
 
     let events2 = parser.process(br#"event: message_delta
 data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":15}}

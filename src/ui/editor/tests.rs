@@ -1,5 +1,5 @@
 use super::{InputEditor, MAX_INPUT_BYTES, file_mention_range, prev_char_boundary_in};
-use crate::ui::tui::input::{KeyCode, KeyStroke, KeyModifiers};
+use crate::ui::tui::input::{KeyCode, KeyModifiers, KeyStroke};
 use rstest::rstest;
 
 #[test]

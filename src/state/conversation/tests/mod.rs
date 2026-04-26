@@ -1,7 +1,7 @@
 pub(super) use super::*;
 pub(super) use crate::api::{ApiClient, mock_client::MockApiClient};
 #[cfg(not(windows))]
-pub(super) use crate::config::{HookConfig, HookTrigger, HookOnFail};
+pub(super) use crate::config::{HookConfig, HookOnFail, HookTrigger};
 pub(super) use crate::tools::ToolOperator;
 pub(super) use crate::types::{ApiMessage, Content, ContentBlock};
 pub(super) use anyhow::Result;

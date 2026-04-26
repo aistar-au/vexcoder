@@ -35,7 +35,11 @@ pub struct RuntimeEnvelope {
     pub source: RuntimeEnvelopeSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    #[serde(rename = "parent_event_id", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "parent_event_id",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub parent_frame_id: Option<String>,
     #[serde(rename = "event")]
     pub signal: RuntimeSignal,
@@ -643,11 +647,13 @@ pub fn approval_resolution_signal(request: &RuntimeRequest) -> Option<RuntimeSig
             scope: scope.clone(),
             approved: true,
         }),
-        RuntimeRequest::DenyCapability { capability, .. } => Some(RuntimeSignal::ApprovalResolved {
-            capability: capability.clone(),
-            scope: "once".to_string(),
-            approved: false,
-        }),
+        RuntimeRequest::DenyCapability { capability, .. } => {
+            Some(RuntimeSignal::ApprovalResolved {
+                capability: capability.clone(),
+                scope: "once".to_string(),
+                approved: false,
+            })
+        }
         RuntimeRequest::SubmitInput { .. } | RuntimeRequest::Interrupt { .. } => None,
     }
 }
