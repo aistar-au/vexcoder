@@ -37,14 +37,12 @@ impl EnvLockGuard<'_> {
     #[allow(unsafe_code)]
     pub fn set_var(&self, key: &str, value: impl AsRef<std::ffi::OsStr>) {
         let _ = &self.guard;
-        // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::set_var(key, value) }
     }
 
     #[allow(unsafe_code)]
     pub fn remove_var(&self, key: &str) {
         let _ = &self.guard;
-        // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::remove_var(key) }
     }
 }
@@ -71,7 +69,6 @@ impl Drop for EnvRestore<'_> {
     #[allow(unsafe_code)]
     fn drop(&mut self) {
         match &self.value {
-            // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
             Some(value) => unsafe { std::env::set_var(self.key, value) },
             None => unsafe { std::env::remove_var(self.key) },
         }

@@ -51,7 +51,6 @@ fn tool_result_records_changed_files_only_on_success() {
             .is_some_and(|t| t.changed_files.contains("src/main.rs"))
     );
 
-    // failed tool must not record
     let mut mode2 = TuiMode::new();
     let mut ctx2 = setup_ctx();
     mode2.on_user_input("task".to_string(), &mut ctx2);

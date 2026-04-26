@@ -24,7 +24,6 @@ fn edit_command_grants_task_permissions_and_preserves_session_scope() {
         Some(&ApprovalScope::Task)
     );
 
-    // session scope must not be downgraded to task scope
     let mut mode2 = TuiMode::new();
     mode2
         .task_doc

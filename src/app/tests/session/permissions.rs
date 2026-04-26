@@ -38,7 +38,6 @@ fn allow_command_inserts_grant_and_validates_scope_and_capability() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    // valid session grant
     mode.on_user_input("/allow run-command session".to_string(), &mut ctx);
     assert_eq!(
         mode.task_doc
@@ -53,14 +52,12 @@ fn allow_command_inserts_grant_and_validates_scope_and_capability() {
             .any(|l| l.contains("run-command granted for session"))
     );
 
-    // default to once
     mode.on_user_input("/allow write-file".to_string(), &mut ctx);
     assert_eq!(
         mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Once)
     );
 
-    // unknown capability
     mode.on_user_input("/allow bogus-cap".to_string(), &mut ctx);
     assert!(
         mode.history_lines()
@@ -68,7 +65,6 @@ fn allow_command_inserts_grant_and_validates_scope_and_capability() {
             .any(|l| l.contains("unknown capability 'bogus-cap'"))
     );
 
-    // invalid scope
     mode.on_user_input("/allow network task".to_string(), &mut ctx);
     assert!(
         mode.history_lines()

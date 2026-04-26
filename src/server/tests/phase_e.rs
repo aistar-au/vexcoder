@@ -130,7 +130,6 @@ async fn session_task_crud_get_and_status_update() {
         Some(&Value::String("reviewer".into()))
     );
 
-    // not found for unknown id
     let nf = setup_phase_e_router(temp.path())
         .oneshot(
             Request::builder()
@@ -142,7 +141,6 @@ async fn session_task_crud_get_and_status_update() {
         .unwrap();
     assert_eq!(nf.status(), StatusCode::NOT_FOUND);
 
-    // status update
     let patch_body = to_bytes(
         setup_phase_e_router(temp.path())
             .oneshot(
@@ -166,7 +164,6 @@ async fn session_task_crud_get_and_status_update() {
         Some(&Value::String("running".into()))
     );
 
-    // invalid status rejected
     let bad = setup_phase_e_router(temp.path())
         .oneshot(
             Request::builder()

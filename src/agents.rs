@@ -157,8 +157,6 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
 }
 
 fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
-    // Safety: `agent_names` borrows from `config` which is held by shared
-
     let agent_names: HashSet<&str> = config
         .agent_profiles
         .iter()

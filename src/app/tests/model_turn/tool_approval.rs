@@ -2,7 +2,6 @@ use super::*;
 
 #[tokio::test]
 async fn tool_approval_accept_deny_and_session_grant_auto_approve() {
-    // accept
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new();
     let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
@@ -20,7 +19,6 @@ async fn tool_approval_accept_deny_and_session_grant_auto_approve() {
         "input '1' must approve"
     );
 
-    // deny
     let mut ctx2 = setup_ctx();
     let mut mode2 = TuiMode::new();
     let (tx2, rx2) = tokio::sync::oneshot::channel::<bool>();
@@ -38,7 +36,6 @@ async fn tool_approval_accept_deny_and_session_grant_auto_approve() {
         "input 'n' must deny"
     );
 
-    // session grant auto-approve
     let mut ctx3 = setup_ctx();
     let mut mode3 = TuiMode::new();
     mode3

@@ -2,7 +2,6 @@ use super::*;
 
 #[tokio::test]
 async fn retry_retries_on_initial_local_timeout_and_does_not_retry_remote_errors() {
-    // retries a local endpoint that stalls on first attempt
     let client_attempts = Arc::new(AtomicUsize::new(0));
     let server_attempts = Arc::new(AtomicUsize::new(0));
     let request_timeout = LOCAL_CONNECT_RETRY_MAX_ELAPSED + Duration::from_millis(50);
@@ -56,7 +55,6 @@ async fn retry_retries_on_initial_local_timeout_and_does_not_retry_remote_errors
     assert_eq!(client_attempts.load(Ordering::SeqCst), 2);
     server.abort();
 
-    // non-local URL must not retry
     let attempts = Arc::new(AtomicUsize::new(0));
     let nc = reqwest::Client::builder()
         .timeout(Duration::from_millis(20))

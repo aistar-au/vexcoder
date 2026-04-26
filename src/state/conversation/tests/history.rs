@@ -155,7 +155,6 @@ fn compact_for_context_overflow_keeps_recent_messages_and_is_noop_when_small() {
     assert_eq!(manager.api_messages[0].role, "user");
     assert!(format!("{:?}", manager.api_messages.last().unwrap().content).contains("current-u3"));
 
-    // noop when few messages
     manager.api_messages = vec![
         ApiMessage {
             role: "user".to_string(),

@@ -285,8 +285,6 @@ pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
 #[allow(unsafe_code)]
 pub fn mmap_read_file(path: &Path) -> Option<Mmap> {
     let file = File::open(path).ok()?;
-    // SAFETY: the file is opened read-only; no mutable alias to these pages
-
     unsafe { Mmap::map(&file).ok() }
 }
 
