@@ -209,17 +209,64 @@ fn prepare_forbidden_names_fixture() -> tempfile::TempDir {
 }
 
 fn forbidden_names_shell() -> std::path::PathBuf {
+    if cfg!(windows) {
+        for var in ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(root) = std::env::var_os(var) {
+                let root = std::path::PathBuf::from(root);
+                for candidate in [
+                    root.join("Git").join("bin").join("bash.exe"),
+                    root.join("Git").join("usr").join("bin").join("bash.exe"),
+                ] {
+                    if candidate.is_file() {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+
     std::path::PathBuf::from("bash")
+}
+
+fn windows_ripgrep_binary() -> Option<std::path::PathBuf> {
+    if !cfg!(windows) {
+        return None;
+    }
+
+    if let Ok(output) = std::process::Command::new("where").arg("rg.exe").output()
+        && output.status.success()
+        && let Some(path) = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+    {
+        return Some(std::path::PathBuf::from(path));
+    }
+
+    [
+        std::env::var_os("CARGO_HOME")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join("bin").join("rg.exe")),
+        std::env::var_os("USERPROFILE")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join(".cargo").join("bin").join("rg.exe")),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|path| path.is_file())
 }
 
 fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Output {
     let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("scripts/check_forbidden_names.sh");
-    std::process::Command::new(forbidden_names_shell())
-        .arg(script)
-        .current_dir(repo_root)
-        .output()
-        .unwrap()
+    let mut command = std::process::Command::new(forbidden_names_shell());
+    command.arg(script).current_dir(repo_root);
+
+    if let Some(rg_binary) = windows_ripgrep_binary() {
+        command.env("VEX_RG_BIN", rg_binary.to_string_lossy().replace('\\', "/"));
+    }
+
+    command.output().unwrap()
 }
 
 fn forbidden_prompt_content() -> String {
