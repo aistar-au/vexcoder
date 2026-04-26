@@ -249,4 +249,3 @@ pub(super) fn parse_approval_selection(input: &str) -> Option<ApprovalSelection>
         _ => None,
     }
 }
-

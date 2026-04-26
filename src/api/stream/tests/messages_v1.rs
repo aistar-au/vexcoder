@@ -12,7 +12,12 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
     let mut parser = StreamParser::new();
     let events = parser.process(frame).unwrap();
     assert!(events.iter().any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockStart { index: 1, block: crate::state::StreamBlock::ToolCall { id, name: n, input: i, .. } } if id == "call_1" && n == name && i == &input)), "must emit materialized tool-call block");
-    assert!(!events.iter().any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })), "must not emit ToolCallArgumentsDelta for materialized input");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+        "must not emit ToolCallArgumentsDelta for materialized input"
+    );
 }
 
 #[test]

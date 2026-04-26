@@ -380,4 +380,3 @@ pub(super) fn emit_text_update(
 ) {
     emit_stream_update(stream_delta_tx, ConversationStreamUpdate::Delta(text));
 }
-
