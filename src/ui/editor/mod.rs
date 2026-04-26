@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
-use crate::ui::tui::input::{Event, KeyCode, KeyStroke, KeyModifiers};
+use crate::ui::tui::input::{Event, KeyCode, KeyModifiers, KeyStroke};
 
 pub const MAX_INPUT_BYTES: usize = 1_048_576;
 

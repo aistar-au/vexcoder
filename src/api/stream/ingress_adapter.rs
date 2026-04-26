@@ -22,9 +22,7 @@ impl IngressProtocolAdapter {
 
     fn adapt_payload(&mut self, payload: IngressPayload) -> Vec<RuntimeEnvelope> {
         match payload {
-            IngressPayload::Provider(item) => {
-                self.normalizer.normalize_provider_stream_item(*item)
-            }
+            IngressPayload::Provider(item) => self.normalizer.normalize_provider_stream_item(*item),
             IngressPayload::ChatCompat(payload) => {
                 self.normalizer.normalize_chat_compat_payload(payload)
             }

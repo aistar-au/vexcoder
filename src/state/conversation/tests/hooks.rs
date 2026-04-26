@@ -2,7 +2,12 @@
 use super::*;
 
 #[cfg(not(windows))]
-fn shell_hook(trigger: HookTrigger, tool: &str, command: String, on_fail: HookOnFail) -> HookConfig {
+fn shell_hook(
+    trigger: HookTrigger,
+    tool: &str,
+    command: String,
+    on_fail: HookOnFail,
+) -> HookConfig {
     HookConfig {
         trigger,
         tool: tool.to_string(),
