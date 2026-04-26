@@ -63,6 +63,10 @@ fn mutating_tool_prompts_approval_when_env_is_off() {
     crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off");
     assert!(!tool_approval_enabled(false));
     assert!(tool_requires_confirmation("write_file"));
-    let requires_approval = tool_approval_enabled(false) || tool_requires_confirmation("write_file");
-    assert!(requires_approval, "write_file must request approval when VEX_TOOL_CONFIRM=off");
+    let requires_approval =
+        tool_approval_enabled(false) || tool_requires_confirmation("write_file");
+    assert!(
+        requires_approval,
+        "write_file must request approval when VEX_TOOL_CONFIRM=off"
+    );
 }
