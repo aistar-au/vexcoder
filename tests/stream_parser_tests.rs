@@ -17,7 +17,7 @@ data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":
 
 "#).unwrap();
     assert!(
-        matches!(&events2[1].event, RuntimeEvent::UsageUpdated { usage } if usage.output == 15)
+        matches!(&events2[0].event, RuntimeEvent::UsageUpdated { usage } if usage.output == 15)
     );
 }
 
