@@ -11,6 +11,7 @@ pub(super) use std::path::Path;
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Duration;
 pub(super) use tempfile::TempDir;
+#[cfg(not(windows))]
 pub(super) use tokio::sync::mpsc;
 
 mod approval;

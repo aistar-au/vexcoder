@@ -154,7 +154,7 @@ fn config_rejects_security_sensitive_and_unknown_keys_in_any_layer() {
         (
             "unknown.toml",
             "model_name = \"ok\"\nunknown_key = \"bad\"\n",
-            "user.toml",
+            "unknown_key",
         ),
     ];
     for (filename, content, expected_in_err) in &cases {
