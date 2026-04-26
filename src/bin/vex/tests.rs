@@ -1,28 +1,14 @@
-use super::{
-    Cli, Commands, CredentialsCommands, SkillsCommands, apply_process_policy_overrides,
-    default_auto_approve_scope, format_task_entries_table, map_encoding_to_output_format,
-    read_secret_from_env_var, read_secret_from_reader, render_task_entries,
-    resolve_credentials_secret, resolve_resume_state, tool_policy_from_cli,
-};
-use clap::{CommandFactory, Parser};
-use clap_complete::Shell;
-use std::io::Cursor;
+use super::{Cli, default_auto_approve_scope, resolve_resume_state};
+use clap::Parser;
 use std::process::Command;
 use vexcoder::app::TuiMode;
-use vexcoder::batch_mode::{AutoApproveScope, BatchResult, OutputFormat};
+use vexcoder::batch_mode::AutoApproveScope;
 use vexcoder::config::Config;
-use vexcoder::disk_policy::DiskPolicyMode;
-use vexcoder::init::{
-    INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE, extract_init_template_keys, run_init,
-};
-use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
-use vexcoder::runtime::{TaskState, TaskStatus, ToolPolicy};
+use vexcoder::runtime::TaskState;
 use vexcoder::startup::{looks_like_session_output, should_ignore_startup_paste_text};
 use vexcoder::tui_frontend::{
-    active_file_picker, active_slash_picker, apply_file_picker_selection,
-    apply_slash_picker_selection, build_file_overlay, build_slash_overlay,
-    file_picker_is_dismissed, render_file_picker_hint, render_slash_picker_hint,
-    slash_prefix_token,
+    active_file_picker, apply_file_picker_selection, file_picker_is_dismissed,
+    render_file_picker_hint,
 };
 use vexcoder::ui::editor::InputEditor;
 use vexcoder::ui::editor::file_mention_range;
@@ -109,7 +95,7 @@ fn cli_key_flags_parse_correctly() {
         default_auto_approve_scope(
             &Config {
                 force: true,
-                ..Config::default()
+                ..Config::default_for_tui()
             },
             None
         ),
