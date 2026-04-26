@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::runtime::task_state::TaskStatus;
 use crate::runtime::ModelBackendKind;
+use crate::runtime::task_state::TaskStatus;
 use crate::state::PulseToolPolicy;
 use crate::usage::PulseTokens;
 

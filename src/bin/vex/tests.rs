@@ -1,6 +1,5 @@
 use super::{Cli, default_auto_approve_scope, resolve_resume_state};
 use clap::Parser;
-use std::process::Command;
 use vexcoder::app::TuiMode;
 use vexcoder::batch_mode::AutoApproveScope;
 use vexcoder::config::Config;
@@ -43,36 +42,6 @@ mod test_support {
 
 #[path = "tests/picker.rs"]
 mod picker;
-
-fn run_git(repo: &std::path::Path, args: &[&str]) {
-    let out = Command::new("git")
-        .current_dir(repo)
-        .args(args)
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "git {} failed: {}",
-        args.join(" "),
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
-fn init_git_repo() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().unwrap();
-    for args in [
-        vec!["init"],
-        vec!["checkout", "-b", "main"],
-        vec!["config", "user.name", "Test"],
-        vec!["config", "user.email", "t@t.com"],
-    ] {
-        run_git(temp.path(), &args);
-    }
-    std::fs::write(temp.path().join("README.md"), "hello\n").unwrap();
-    run_git(temp.path(), &["add", "README.md"]);
-    run_git(temp.path(), &["commit", "-m", "initial"]);
-    temp
-}
 
 #[test]
 fn cli_key_flags_parse_correctly() {

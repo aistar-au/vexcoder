@@ -2,9 +2,6 @@ use super::*;
 use crate::app::scroll::apply_bounded_scroll;
 use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 
-#[cfg(test)]
-use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
-
 impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
         let entries = &self.task_doc.active_pulse.as_ref()?.entries;
@@ -253,48 +250,3 @@ pub(super) fn parse_approval_selection(input: &str) -> Option<ApprovalSelection>
     }
 }
 
-#[cfg(test)]
-pub(super) fn overlay_event_to_user_input(event: Event) -> Option<UserInputEvent> {
-    match event {
-        Event::Key(key) => match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Interrupt)
-            }
-            KeyCode::Esc => Some(UserInputEvent::Text("esc".to_string())),
-            KeyCode::Char(ch)
-                if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::ALT) =>
-            {
-                Some(UserInputEvent::Text(ch.to_string()))
-            }
-            _ => None,
-        },
-        Event::Paste(text) => {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(UserInputEvent::Text(trimmed.to_string()))
-            }
-        }
-        _ => None,
-    }
-}
-
-#[cfg(test)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum RenderPass {
-    Header,
-    History,
-    Input,
-    Overlay,
-}
-
-#[cfg(test)]
-pub(super) fn render_pass_order(mode: &TuiMode) -> Vec<RenderPass> {
-    let mut order = vec![RenderPass::Header, RenderPass::History, RenderPass::Input];
-    if mode.overlay_active() {
-        order.push(RenderPass::Overlay);
-    }
-    order
-}

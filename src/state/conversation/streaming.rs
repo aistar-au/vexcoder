@@ -381,9 +381,3 @@ pub(super) fn emit_text_update(
     emit_stream_update(stream_delta_tx, ConversationStreamUpdate::Delta(text));
 }
 
-#[cfg(test)]
-pub(super) fn append_incremental_suffix(existing: &mut String, incoming: &str) -> String {
-    let suffix = crate::state::transcript_delta::bounded_incremental_suffix(existing, incoming);
-    existing.push_str(&suffix);
-    suffix
-}

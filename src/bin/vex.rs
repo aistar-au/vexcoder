@@ -90,12 +90,6 @@ fn read_secret_from_stdin() -> Result<String> {
     read_secret_from_reader(stdin.lock())
 }
 
-#[cfg(test)]
-fn read_secret_from_env_var(name: &str) -> Result<String> {
-    std::env::var(name)
-        .with_context(|| format!("environment variable '{name}' is not set or is not valid UTF-8"))
-}
-
 fn can_prompt_for_secret() -> bool {
     std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
 }
@@ -109,28 +103,6 @@ fn read_secret_from_tty_prompt(account: &str) -> Result<String> {
         )
         .interact()
         .context("failed to read credential secret interactively")
-}
-
-#[cfg(test)]
-fn resolve_credentials_secret(
-    account: &str,
-    stdin: bool,
-    from_env: Option<String>,
-    can_prompt: bool,
-    prompt_secret: impl FnOnce(&str) -> Result<String>,
-) -> Result<String> {
-    if stdin {
-        read_secret_from_stdin()
-    } else if let Some(var_name) = from_env {
-        read_secret_from_env_var(&var_name)
-    } else if can_prompt {
-        prompt_secret(account)
-    } else {
-        bail!(
-            "cannot acquire credential secret: stdin is attached to a TTY and \
-             interactive prompting is unavailable; redirect the secret via stdin"
-        )
-    }
 }
 
 fn resolve_credentials_secret_auto(account: &str) -> Result<String> {

@@ -289,12 +289,6 @@ pub(super) fn tool_definitions_with_extra(extra: &[Value]) -> serde_json::Value 
     Value::Array(definitions)
 }
 
-#[cfg(test)]
-pub(super) fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
-    let base = tool_definitions_with_extra(extra);
-    wrap_as_chat_compat_functions(&base)
-}
-
 const READONLY_TOOL_NAMES: &[&str] = &[
     "read_file",
     "list_files",

@@ -62,39 +62,6 @@ fn test_conversation_module_structure() {
     );
 }
 
-pub(super) fn read_file_tool_round(message_id: &str, path: &str) -> Vec<String> {
-    let path = serde_json::to_string(path).expect("path must serialize");
-
-    vec![
-        format!(
-            r#"event: message_start
-data: {{"type":"message_start","message":{{"id":"{message_id}","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":10,"output_tokens":1}}}}}}"#
-        ),
-        r#"event: content_block_start
-data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#
-            .to_string(),
-        r#"event: content_block_delta
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I will read it."}}"#
-            .to_string(),
-        r#"event: content_block_stop
-data: {"type":"content_block_stop","index":0}"#
-            .to_string(),
-        format!(
-            r#"event: content_block_start
-data: {{"type":"content_block_start","index":1,"content_block":{{"type":"tool_use","id":"toolu_{message_id}","name":"read_file","input":{{"path":{path}}}}}}}"#
-        ),
-        r#"event: content_block_stop
-data: {"type":"content_block_stop","index":1}"#
-            .to_string(),
-        r#"event: message_delta
-data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":9}}"#
-            .to_string(),
-        r#"event: message_stop
-data: {"type":"message_stop"}"#
-            .to_string(),
-    ]
-}
-
 pub(super) fn plain_text_round(message_id: &str, text: &str) -> Vec<String> {
     vec![
         format!(

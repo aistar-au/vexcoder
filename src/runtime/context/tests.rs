@@ -8,19 +8,6 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-fn make_ctx() -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
-    let (tx, rx) = mpsc::unbounded_channel();
-    let ctx = RuntimeContext::new(
-        ConversationManager::new_mock(
-            ApiClient::new_mock(Arc::new(MockApiClient::new(vec![]))),
-            HashMap::new(),
-        ),
-        tx,
-        CancellationToken::new(),
-    );
-    (ctx, rx)
-}
-
 #[tokio::test]
 async fn start_pulse_dispatches_stream_delta_and_completion() {
     let (tx, mut rx) = mpsc::unbounded_channel();

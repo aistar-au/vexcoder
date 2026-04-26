@@ -3,17 +3,16 @@ use serde_json::json;
 
 #[test]
 fn materialized_tool_use_emits_block_start_not_delta() {
-    for (label, frame, name, input) in [
-        ("object", br#"event: content_block_start
+    let frame = br#"event: content_block_start
 data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"read_file","input":{"path":"main.rs"}}}
 
-"# as &[u8], "read_file", json!({"path": "main.rs"})),
-    ] {
-        let mut parser = StreamParser::new();
-        let events = parser.process(frame).unwrap();
-        assert!(events.iter().any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockStart { index: 1, block: crate::state::StreamBlock::ToolCall { id, name: n, input: i, .. } } if id == "call_1" && n == name && i == &input)), "{label}: must emit materialized tool-call block");
-        assert!(!events.iter().any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })), "{label}: must not emit ToolCallArgumentsDelta for materialized input");
-    }
+"# as &[u8];
+    let name = "read_file";
+    let input = json!({"path": "main.rs"});
+    let mut parser = StreamParser::new();
+    let events = parser.process(frame).unwrap();
+    assert!(events.iter().any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockStart { index: 1, block: crate::state::StreamBlock::ToolCall { id, name: n, input: i, .. } } if id == "call_1" && n == name && i == &input)), "must emit materialized tool-call block");
+    assert!(!events.iter().any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })), "must not emit ToolCallArgumentsDelta for materialized input");
 }
 
 #[test]

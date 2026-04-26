@@ -35,7 +35,7 @@ fn undo_checkpoint_captures_and_restores_file_content() {
     let file_path = temp.path().join("file.txt");
     std::fs::write(&file_path, "original content").unwrap();
 
-    let mut mgr = make_mgr(temp.path().to_path_buf());
+    let mgr = make_mgr(temp.path().to_path_buf());
     let snapshot =
         mgr.capture_undo_snapshot("write_file", &json!({"path": file_path.to_str().unwrap()}));
     assert!(snapshot.is_some());
