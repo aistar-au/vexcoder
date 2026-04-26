@@ -2,10 +2,10 @@ pub mod backend {
     pub use ratatui::backend::{CrosstermBackend, TestBackend};
 }
 
-pub mod event {
+pub mod input {
     pub use crossterm::event::{
-        DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
-        KeyModifiers, poll, read,
+        DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent as KeyStroke,
+        KeyEventKind as KeyStrokeKind, KeyModifiers, poll, read,
     };
 }
 

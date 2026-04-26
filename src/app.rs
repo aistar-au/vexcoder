@@ -15,7 +15,7 @@ use crate::runtime::CommandResult;
 use crate::runtime::PulseEntry;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::edit_loop::EditLoop;
-use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
+use crate::runtime::frontend::{ScrollAction, ScrollTarget, InputOccurrence};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::project_instructions::{LoadResult, load_project_instructions};
@@ -42,7 +42,7 @@ use crate::state::{ConversationManager, PulseToolPolicy, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::types::ModelProfile;
 #[cfg(test)]
-use crate::ui::tui::event::{KeyCode, KeyModifiers};
+use crate::ui::tui::input::{KeyCode, KeyModifiers};
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::io::Write;
@@ -466,11 +466,11 @@ impl Default for TuiMode {
 }
 
 impl RuntimeMode for TuiMode {
-    fn on_frontend_event(&mut self, event: UserInputEvent, ctx: &mut RuntimeContext) {
-        match event {
-            UserInputEvent::Text(input) => self.on_user_input(input, ctx),
-            UserInputEvent::Interrupt => self.on_interrupt(ctx),
-            UserInputEvent::Scroll { target, action } => {
+    fn on_frontend_signal(&mut self, occurrence: InputOccurrence, ctx: &mut RuntimeContext) {
+        match occurrence {
+            InputOccurrence::Text(input) => self.on_user_input(input, ctx),
+            InputOccurrence::Interrupt => self.on_interrupt(ctx),
+            InputOccurrence::Scroll { target, action } => {
                 if self.overlay_active() {
                     if target == ScrollTarget::Overlay {
                         self.apply_patch_overlay_scroll_action(action);

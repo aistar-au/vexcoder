@@ -2,8 +2,8 @@ mod non_stream;
 
 use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::stream::StreamParser;
-use crate::runtime::backend::EventStream;
-use crate::runtime::{ModelProtocol, RuntimeEnvelope, RuntimeEvent, TokenUsageEnvelope};
+use crate::runtime::backend::SignalStream;
+use crate::runtime::{ModelProtocol, RuntimeEnvelope, RuntimeSignal, TokenUsageEnvelope};
 use anyhow::Result;
 use backoff::ExponentialBackoffBuilder;
 use backoff::backoff::Backoff;
@@ -31,7 +31,7 @@ const LOCAL_CONNECT_RETRY_MAX_INTERVAL: Duration = Duration::from_millis(400);
 type UpstreamByteStream =
     futures::stream::BoxStream<'static, std::result::Result<Bytes, anyhow::Error>>;
 
-pub(crate) async fn create_event_stream(
+pub(crate) async fn open_signal_stream(
     http: reqwest::Client,
     request_url: &str,
     payload: &serde_json::Value,
@@ -39,10 +39,10 @@ pub(crate) async fn create_event_stream(
     headers: &reqwest::header::HeaderMap,
     protocol: ModelProtocol,
     request_id: &str,
-) -> Result<EventStream> {
+) -> Result<SignalStream> {
     let request_start = Instant::now();
     let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
-    let (state, first_event) = if is_local_endpoint {
+    let (state, first_frame) = if is_local_endpoint {
         match tokio::time::timeout(LOCAL_STREAM_START_TIMEOUT, async {
             let response = send_streaming_request(
                 http.clone(),
@@ -52,15 +52,15 @@ pub(crate) async fn create_event_stream(
                 request_id,
             )
             .await?;
-            let mut state = build_event_stream_state(
+            let mut state = build_signal_stream_state(
                 response,
                 request_url,
                 request_id,
                 protocol,
                 request_start,
             );
-            let first_event = next_stream_event(&mut state).await?;
-            Ok::<_, anyhow::Error>((state, first_event))
+            let first_frame = next_stream_event(&mut state).await?;
+            Ok::<_, anyhow::Error>((state, first_frame))
         })
         .await
         {
@@ -81,7 +81,7 @@ pub(crate) async fn create_event_stream(
                     headers,
                     protocol,
                     request_id,
-                    "no_initial_sse_event",
+                    "no_initial_sse_frame",
                 )
                 .await;
             }
@@ -96,12 +96,12 @@ pub(crate) async fn create_event_stream(
         )
         .await?;
         let mut state =
-            build_event_stream_state(response, request_url, request_id, protocol, request_start);
-        let first_event = next_stream_event(&mut state).await?;
-        (state, first_event)
+            build_signal_stream_state(response, request_url, request_id, protocol, request_start);
+        let first_frame = next_stream_event(&mut state).await?;
+        (state, first_frame)
     };
 
-    if is_local_endpoint && first_event.is_none() {
+    if is_local_endpoint && first_frame.is_none() {
         tracing::warn!(
             target: "vex::http",
             request_id = %request_id,
@@ -116,20 +116,20 @@ pub(crate) async fn create_event_stream(
             headers,
             protocol,
             request_id,
-            "no_initial_sse_event",
+            "no_initial_sse_frame",
         )
         .await;
     }
 
     let tail = stream::try_unfold(state, |mut state| async move {
         match next_stream_event(&mut state).await {
-            Ok(Some(event)) => Ok(Some((event, state))),
+            Ok(Some(envelope)) => Ok(Some((envelope, state))),
             Ok(None) => Ok(None),
             Err(error) => Err(error),
         }
     });
 
-    if let Some(first_event) = first_event {
+    if let Some(first_frame) = first_frame {
         tracing::debug!(
             target: "vex::http",
             request_id = %request_id,
@@ -138,13 +138,13 @@ pub(crate) async fn create_event_stream(
             elapsed_ms = request_start.elapsed().as_millis() as u64,
             "streaming response established"
         );
-        Ok(Box::pin(stream::iter(vec![Ok(first_event)]).chain(tail)))
+        Ok(Box::pin(stream::iter(vec![Ok(first_frame)]).chain(tail)))
     } else {
         Ok(Box::pin(tail))
     }
 }
 
-struct EventStreamState {
+struct SignalStreamState {
     upstream: UpstreamByteStream,
     parser: StreamParser,
     pending: VecDeque<RuntimeEnvelope>,
@@ -162,14 +162,14 @@ struct EventStreamState {
     summary_emitted: bool,
 }
 
-fn build_event_stream_state(
+fn build_signal_stream_state(
     response: reqwest::Response,
     request_url: &str,
     request_id: &str,
     protocol: ModelProtocol,
     request_start: Instant,
-) -> EventStreamState {
-    EventStreamState {
+) -> SignalStreamState {
+    SignalStreamState {
         upstream: response_to_upstream_bytes(response, request_url),
         parser: StreamParser::new(),
         pending: VecDeque::new(),
@@ -187,43 +187,43 @@ fn build_event_stream_state(
         summary_emitted: false,
     }
 }
-fn finish_pending_events(state: &mut EventStreamState) -> Option<RuntimeEnvelope> {
+fn finalize_pending_signals(state: &mut SignalStreamState) -> Option<RuntimeEnvelope> {
     state.pending.extend(state.parser.finish());
     state.pending.pop_front()
 }
 
-fn finish_stream(state: &mut EventStreamState, outcome: &'static str) -> Option<RuntimeEnvelope> {
+fn finish_stream(state: &mut SignalStreamState, outcome: &'static str) -> Option<RuntimeEnvelope> {
     state.terminal_outcome = Some(outcome);
-    if let Some(event) = finish_pending_events(state) {
-        observe_envelope(state, &event);
-        return Some(event);
+    if let Some(envelope) = finalize_pending_signals(state) {
+        observe_envelope(state, &envelope);
+        return Some(envelope);
     }
 
     emit_stream_summary(state, outcome);
     None
 }
 
-fn observe_envelope(state: &mut EventStreamState, envelope: &RuntimeEnvelope) {
+fn observe_envelope(state: &mut SignalStreamState, envelope: &RuntimeEnvelope) {
     state.envelope_count += 1;
-    match &envelope.event {
-        RuntimeEvent::ToolCallStarted { .. } => state.tool_call_starts += 1,
-        RuntimeEvent::ToolCallCompleted { .. } => state.tool_call_completions += 1,
-        RuntimeEvent::ToolCallFailed { .. } => state.tool_call_failures += 1,
-        RuntimeEvent::UsageUpdated { usage } => state.last_usage = Some(usage.clone()),
-        RuntimeEvent::PulseEnd { status, usage, .. } => {
+    match &envelope.signal {
+        RuntimeSignal::ToolCallStarted { .. } => state.tool_call_starts += 1,
+        RuntimeSignal::ToolCallCompleted { .. } => state.tool_call_completions += 1,
+        RuntimeSignal::ToolCallFailed { .. } => state.tool_call_failures += 1,
+        RuntimeSignal::UsageUpdated { usage } => state.last_usage = Some(usage.clone()),
+        RuntimeSignal::PulseEnd { status, usage, .. } => {
             state.final_status = Some(status.clone());
             if let Some(usage) = usage {
                 state.last_usage = Some(usage.clone());
             }
         }
-        RuntimeEvent::Error { code, .. } => {
+        RuntimeSignal::Error { code, .. } => {
             state.final_status = Some(format!("error:{code}"));
         }
         _ => {}
     }
 }
 
-fn emit_stream_summary(state: &mut EventStreamState, outcome: &'static str) {
+fn emit_stream_summary(state: &mut SignalStreamState, outcome: &'static str) {
     if state.summary_emitted {
         return;
     }
@@ -256,11 +256,11 @@ fn protocol_name(protocol: ModelProtocol) -> &'static str {
     }
 }
 
-async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<RuntimeEnvelope>> {
+async fn next_stream_event(state: &mut SignalStreamState) -> Result<Option<RuntimeEnvelope>> {
     loop {
-        if let Some(event) = state.pending.pop_front() {
-            observe_envelope(state, &event);
-            return Ok(Some(event));
+        if let Some(envelope) = state.pending.pop_front() {
+            observe_envelope(state, &envelope);
+            return Ok(Some(envelope));
         }
 
         if let Some(outcome) = state.terminal_outcome {

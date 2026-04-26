@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
-use crate::ui::tui::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crate::ui::tui::input::{Event, KeyCode, KeyStroke, KeyModifiers};
 
 pub const MAX_INPUT_BYTES: usize = 1_048_576;
 
@@ -342,8 +342,8 @@ impl InputEditor {
         true
     }
 
-    pub fn apply_event(&mut self, event: Event) -> InputAction {
-        match event {
+    pub fn apply_input(&mut self, occurrence: Event) -> InputAction {
+        match occurrence {
             Event::Paste(text) => {
                 self.insert_str(&text);
                 InputAction::None
@@ -353,7 +353,7 @@ impl InputEditor {
         }
     }
 
-    pub fn apply_key(&mut self, key: KeyEvent) -> InputAction {
+    pub fn apply_key(&mut self, key: KeyStroke) -> InputAction {
         match key.code {
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if self.input_state.buffer.is_empty() {

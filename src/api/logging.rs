@@ -22,13 +22,13 @@ pub fn emit_debug_payload(request_url: &str, payload: &Value) {
 }
 
 pub fn emit_sse_parse_error(
-    event_type: Option<&str>,
+    frame_kind: Option<&str>,
     json_data: &str,
     parse_error: &serde_json::Error,
 ) {
     emit_log_value(&json!({
         "event": "api.sse_parse_failed",
-        "event_type": event_type.unwrap_or("<none>"),
+        "frame_kind": frame_kind.unwrap_or("<none>"),
         "error": parse_error.to_string(),
         "data_summary": summarize_sse_payload(json_data),
     }));

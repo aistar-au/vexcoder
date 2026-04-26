@@ -1,5 +1,5 @@
 use super::{InputEditor, MAX_INPUT_BYTES, file_mention_range, prev_char_boundary_in};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::ui::tui::input::{KeyCode, KeyStroke, KeyModifiers};
 use rstest::rstest;
 
 #[test]
@@ -68,13 +68,13 @@ fn visual_up_stops_at_first_row() {
 fn ctrl_d_quits_on_empty_buffer_and_deletes_char_otherwise() {
     let mut editor = InputEditor::new();
     assert!(matches!(
-        editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+        editor.apply_key(KeyStroke::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
         super::InputAction::Quit
     ));
 
     editor.insert_str("abcd");
     editor.input_state.cursor = 1;
-    let action = editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL));
+    let action = editor.apply_key(KeyStroke::new(KeyCode::Char('d'), KeyModifiers::CONTROL));
     assert!(matches!(action, super::InputAction::None));
     assert_eq!(editor.buffer(), "acd");
 }

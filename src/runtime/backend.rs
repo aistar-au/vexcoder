@@ -6,7 +6,7 @@ use std::pin::Pin;
 use crate::runtime::RuntimeEnvelope;
 use crate::types::ApiMessage;
 
-pub type EventStream = Pin<Box<dyn Stream<Item = Result<RuntimeEnvelope>> + Send>>;
+pub type SignalStream = Pin<Box<dyn Stream<Item = Result<RuntimeEnvelope>> + Send>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelBackendKind {
@@ -41,5 +41,5 @@ pub trait ModelBackend: Send + Sync {
     fn create_stream(
         &self,
         messages: &[ApiMessage],
-    ) -> impl std::future::Future<Output = Result<EventStream>> + Send;
+    ) -> impl std::future::Future<Output = Result<SignalStream>> + Send;
 }

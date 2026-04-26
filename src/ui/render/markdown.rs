@@ -55,8 +55,8 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
     let mut code_lang = String::new();
     let mut code_buffer = String::new();
 
-    for event in parser {
-        match event {
+    for node in parser {
+        match node {
             Event::Start(Tag::Heading { level, .. }) => {
                 flush_line(&mut current_spans, &mut lines);
                 let color = palette.heading_color(level);

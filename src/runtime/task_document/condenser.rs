@@ -1,4 +1,4 @@
-use crate::runtime::json_handoff::RuntimeEvent;
+use crate::runtime::json_handoff::RuntimeSignal;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability};
@@ -76,16 +76,16 @@ impl TaskDocumentCondenser {
         });
     }
 
-    pub fn apply_runtime_event(
+    pub fn apply_runtime_signal(
         &self,
         doc: &mut TaskDocument,
-        event: RuntimeEvent,
+        signal: RuntimeSignal,
     ) -> TaskMutationSummary {
         let mut summary = TaskMutationSummary::default();
 
-        match event {
-            RuntimeEvent::PulseStart { .. } => {}
-            RuntimeEvent::TranscriptLine { line } => {
+        match signal {
+            RuntimeSignal::PulseStart { .. } => {}
+            RuntimeSignal::TranscriptLine { line } => {
                 if let Some(active) = doc.active_pulse.as_mut() {
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(PulseEntry::SystemNotice {
@@ -97,7 +97,7 @@ impl TaskDocumentCondenser {
                     summary.appended_rows += 1;
                 }
             }
-            RuntimeEvent::TranscriptBlockStart { index, block } => {
+            RuntimeSignal::TranscriptBlockStart { index, block } => {
                 if let Some(active) = doc.active_pulse.as_mut() {
                     let (phase, content, collapsed) = match block {
                         StreamBlock::Thinking { content, collapsed } => {
@@ -123,7 +123,7 @@ impl TaskDocumentCondenser {
                     summary.appended_rows += 1;
                 }
             }
-            RuntimeEvent::TranscriptBlockDelta { index, delta } => {
+            RuntimeSignal::TranscriptBlockDelta { index, delta } => {
                 if let Some(active) = doc.active_pulse.as_mut() {
                     Self::update_block_content(active, index, |entry| {
                         entry.content.push_str(&delta);
@@ -134,7 +134,7 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = true;
                 }
             }
-            RuntimeEvent::TranscriptBlockComplete { index } => {
+            RuntimeSignal::TranscriptBlockComplete { index } => {
                 if let Some(active) = doc.active_pulse.as_mut() {
                     Self::update_block_content(active, index, |entry| {
                         entry.streaming = false;
@@ -142,7 +142,7 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = true;
                 }
             }
-            RuntimeEvent::ToolCallStatusUpdated {
+            RuntimeSignal::ToolCallStatusUpdated {
                 tool_call_id,
                 status,
             } => {
@@ -162,7 +162,7 @@ impl TaskDocumentCondenser {
                     }
                 }
             }
-            RuntimeEvent::TranscriptBlockPhaseUpdated {
+            RuntimeSignal::TranscriptBlockPhaseUpdated {
                 index,
                 phase,
                 streaming,
@@ -175,7 +175,7 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = true;
                 }
             }
-            RuntimeEvent::ToolCallStarted {
+            RuntimeSignal::ToolCallStarted {
                 tool_call_id,
                 tool_name,
                 arguments,
@@ -196,8 +196,8 @@ impl TaskDocumentCondenser {
                     summary.selected_step_id = Some(step_id);
                 }
             }
-            RuntimeEvent::ToolCallArgumentsDelta { .. } => {}
-            RuntimeEvent::ToolCallCompleted {
+            RuntimeSignal::ToolCallArgumentsDelta { .. } => {}
+            RuntimeSignal::ToolCallCompleted {
                 tool_call_id,
                 tool_name,
                 output,
@@ -230,7 +230,7 @@ impl TaskDocumentCondenser {
                     summary.appended_rows += 1;
                 }
             }
-            RuntimeEvent::ToolCallFailed {
+            RuntimeSignal::ToolCallFailed {
                 tool_call_id,
                 tool_name,
                 output,
@@ -263,7 +263,7 @@ impl TaskDocumentCondenser {
                     summary.appended_rows += 1;
                 }
             }
-            RuntimeEvent::ApprovalRequest {
+            RuntimeSignal::ApprovalRequest {
                 capability,
                 scope,
                 tool_name,
@@ -292,7 +292,7 @@ impl TaskDocumentCondenser {
                     summary.task_status_changed = true;
                 }
             }
-            RuntimeEvent::ApprovalResolved {
+            RuntimeSignal::ApprovalResolved {
                 capability,
                 scope,
                 approved,
@@ -329,8 +329,8 @@ impl TaskDocumentCondenser {
                     summary.task_status_changed = true;
                 }
             }
-            RuntimeEvent::ValidationResult { .. } => {}
-            RuntimeEvent::ServerMetadata { metadata } => {
+            RuntimeSignal::ValidationResult { .. } => {}
+            RuntimeSignal::ServerMetadata { metadata } => {
                 if let Some(active) = doc.active_pulse.as_mut() {
                     if let Some(prompt_progress) = metadata.prompt_progress {
                         active.prompt_progress = Some(prompt_progress);
@@ -341,8 +341,8 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = true;
                 }
             }
-            RuntimeEvent::UsageUpdated { .. } => {}
-            RuntimeEvent::PulseEnd {
+            RuntimeSignal::UsageUpdated { .. } => {}
+            RuntimeSignal::PulseEnd {
                 status: _,
                 changed_files,
                 ..
@@ -355,7 +355,7 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = active.changed_files.len() != before;
                 }
             }
-            RuntimeEvent::Error {
+            RuntimeSignal::Error {
                 message,
                 recoverable,
                 ..
@@ -369,7 +369,7 @@ impl TaskDocumentCondenser {
                     summary.task_status_changed = true;
                 }
             }
-            RuntimeEvent::MaxTurnsReached { .. } => {
+            RuntimeSignal::MaxTurnsReached { .. } => {
                 doc.info.status = TaskStatus::MaxTurnsReached;
                 summary.task_status_changed = true;
             }

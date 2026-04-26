@@ -12,7 +12,7 @@ use crate::pulse_evidence::{
 use crate::runtime::{
     TaskState, UiUpdate,
     context::RuntimeContext,
-    frontend::{FrontendAdapter, UserInputEvent},
+    frontend::{FrontendAdapter, InputOccurrence},
     r#loop::Runtime,
     mode::RuntimeMode,
     project_instructions::{LoadResult, load_project_instructions},
@@ -398,19 +398,19 @@ impl RuntimeMode for BatchMode {
 }
 
 pub struct BatchFrontend {
-    pending: VecDeque<UserInputEvent>,
+    pending: VecDeque<InputOccurrence>,
 }
 
 impl BatchFrontend {
     pub fn new(task: String) -> Self {
         let mut pending = VecDeque::new();
-        pending.push_back(UserInputEvent::Text(task));
+        pending.push_back(InputOccurrence::Text(task));
         Self { pending }
     }
 }
 
 impl FrontendAdapter<BatchMode> for BatchFrontend {
-    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<UserInputEvent> {
+    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<InputOccurrence> {
         if mode.is_done() {
             return None;
         }
@@ -446,7 +446,7 @@ impl BatchFrontendQuit {
 }
 
 impl FrontendAdapter<BatchMode> for BatchFrontendQuit {
-    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<UserInputEvent> {
+    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<InputOccurrence> {
         if mode.is_done() {
             self.done = true;
         }

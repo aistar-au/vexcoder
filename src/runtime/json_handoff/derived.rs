@@ -1,4 +1,4 @@
-use super::{RuntimeEvent, TokenUsageEnvelope};
+use super::{RuntimeSignal, TokenUsageEnvelope};
 use crate::pulse_evidence::TurnEvidenceRecord;
 use crate::runtime::task_state::CommandEvidence;
 use crate::state::ToolApprovalRequest;
@@ -29,9 +29,9 @@ pub(super) fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> PulseTokens 
     }
 }
 
-pub fn runtime_approval_request_event(request: &ToolApprovalRequest) -> RuntimeEvent {
+pub fn approval_request_signal(request: &ToolApprovalRequest) -> RuntimeSignal {
     let capability = capability_name_for_tool(&request.tool_name).unwrap_or("unknown");
-    RuntimeEvent::ApprovalRequest {
+    RuntimeSignal::ApprovalRequest {
         capability: capability.to_string(),
         scope: "once".to_string(),
         tool_name: Some(request.tool_name.clone()),

@@ -10,12 +10,12 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
     let name = "read_file";
     let input = json!({"path": "main.rs"});
     let mut parser = StreamParser::new();
-    let events = parser.process(frame).unwrap();
-    assert!(events.iter().any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockStart { index: 1, block: crate::state::StreamBlock::ToolCall { id, name: n, input: i, .. } } if id == "call_1" && n == name && i == &input)), "must emit materialized tool-call block");
+    let frames = parser.process(frame).unwrap();
+    assert!(frames.iter().any(|e| matches!(&e.signal, RuntimeSignal::TranscriptBlockStart { index: 1, block: crate::state::StreamBlock::ToolCall { id, name: n, input: i, .. } } if id == "call_1" && n == name && i == &input)), "must emit materialized tool-call block");
     assert!(
-        !events
+        !frames
             .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+            .any(|e| matches!(&e.signal, RuntimeSignal::ToolCallArgumentsDelta { .. })),
         "must not emit ToolCallArgumentsDelta for materialized input"
     );
 }
@@ -31,15 +31,15 @@ data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use"
 data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"main.rs\"}"}}
 
 "#).unwrap();
-    assert!(delta.iter().any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { tool_name, delta, .. } if tool_name.as_deref() == Some("read_file") && delta == "{\"path\":\"main.rs\"}")));
+    assert!(delta.iter().any(|e| matches!(&e.signal, RuntimeSignal::ToolCallArgumentsDelta { tool_name, delta, .. } if tool_name.as_deref() == Some("read_file") && delta == "{\"path\":\"main.rs\"}")));
 }
 
 #[test]
 fn null_tool_use_id_emits_recoverable_error() {
     let mut parser = StreamParser::new();
-    let events = parser.process(br#"event: content_block_start
+    let frames = parser.process(br#"event: content_block_start
 data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":null,"name":"read_file","input":{}}}
 
 "#).unwrap();
-    assert!(events.iter().any(|e| matches!(&e.event, RuntimeEvent::Error { code, recoverable, .. } if code == "provider_content_block_start_decode" && *recoverable)));
+    assert!(frames.iter().any(|e| matches!(&e.signal, RuntimeSignal::Error { code, recoverable, .. } if code == "provider_content_block_start_decode" && *recoverable)));
 }

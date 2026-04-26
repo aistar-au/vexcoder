@@ -2,7 +2,7 @@ use crate::api::ApiClient;
 use crate::config::{CompactionConfig, HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
-use crate::runtime::json_handoff::RuntimeEvent;
+use crate::runtime::json_handoff::RuntimeSignal;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_document::{PulseOutcome, TaskDocument, TaskDocumentCondenser, TaskInfo};
 use crate::runtime::task_state::TaskStatus;
@@ -359,9 +359,9 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
     }
 
-    pub(super) fn apply_doc_event(&mut self, event: RuntimeEvent) -> TaskMutationSummary {
+    pub(super) fn apply_doc_delta(&mut self, signal: RuntimeSignal) -> TaskMutationSummary {
         if let Some(doc) = self.task_doc.as_mut() {
-            self.condenser.apply_runtime_event(doc, event)
+            self.condenser.apply_runtime_signal(doc, signal)
         } else {
             TaskMutationSummary::default()
         }

@@ -1,6 +1,6 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::{ConversationManager, ConversationStreamUpdate};
-use crate::runtime::json_handoff::RuntimeEvent;
+use crate::runtime::json_handoff::RuntimeSignal;
 use crate::runtime::task_document::{AssistantPhase, PulseEntry};
 use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -18,7 +18,7 @@ impl ConversationManager {
                 content: String::new(),
                 collapsed: true,
             };
-            self.apply_doc_event(RuntimeEvent::TranscriptBlockStart {
+            self.apply_doc_delta(RuntimeSignal::TranscriptBlockStart {
                 index: pad_index,
                 block: placeholder.clone(),
             });
@@ -68,19 +68,19 @@ impl ConversationManager {
         )
     }
 
-    pub(super) fn tool_result_event(
+    pub(super) fn tool_result_signal(
         &mut self,
         tool_call_id: &str,
         tool_name: Option<String>,
         output: String,
         is_error: bool,
         completed_at: DateTime<Utc>,
-    ) -> RuntimeEvent {
+    ) -> RuntimeSignal {
         let completed_at_value = completed_at.to_rfc3339_opts(SecondsFormat::Millis, true);
         let (started_at, duration_ms) = self.take_tool_call_timing(tool_call_id, completed_at);
 
         if is_error {
-            RuntimeEvent::ToolCallFailed {
+            RuntimeSignal::ToolCallFailed {
                 tool_call_id: tool_call_id.to_string(),
                 tool_name,
                 status: ToolStatus::Error,
@@ -90,7 +90,7 @@ impl ConversationManager {
                 output,
             }
         } else {
-            RuntimeEvent::ToolCallCompleted {
+            RuntimeSignal::ToolCallCompleted {
                 tool_call_id: tool_call_id.to_string(),
                 tool_name,
                 status: ToolStatus::Complete,
@@ -108,9 +108,9 @@ impl ConversationManager {
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        let event = match &block {
+        let signal = match &block {
             StreamBlock::Thinking { content, collapsed } => {
-                Some(RuntimeEvent::TranscriptBlockStart {
+                Some(RuntimeSignal::TranscriptBlockStart {
                     index,
                     block: StreamBlock::Thinking {
                         content: content.clone(),
@@ -118,7 +118,7 @@ impl ConversationManager {
                     },
                 })
             }
-            StreamBlock::FinalText { content } => Some(RuntimeEvent::TranscriptBlockStart {
+            StreamBlock::FinalText { content } => Some(RuntimeSignal::TranscriptBlockStart {
                 index,
                 block: StreamBlock::FinalText {
                     content: content.clone(),
@@ -133,7 +133,7 @@ impl ConversationManager {
             } => {
                 let started_at = Utc::now();
                 self.record_tool_call_started_at(id, started_at);
-                Some(RuntimeEvent::ToolCallStarted {
+                Some(RuntimeSignal::ToolCallStarted {
                     tool_call_id: id.clone(),
                     tool_name: name.clone(),
                     arguments: input.clone(),
@@ -143,8 +143,8 @@ impl ConversationManager {
             }
             _ => None,
         };
-        if let Some(ev) = event {
-            self.apply_doc_event(ev);
+        if let Some(sig) = signal {
+            self.apply_doc_delta(sig);
         }
 
         self.emit_stream_block_start_update(index, block, stream_delta_tx);
@@ -199,7 +199,7 @@ impl ConversationManager {
             return String::new();
         }
 
-        self.apply_doc_event(RuntimeEvent::TranscriptBlockDelta {
+        self.apply_doc_delta(RuntimeSignal::TranscriptBlockDelta {
             index,
             delta: delta.clone(),
         });
@@ -252,7 +252,7 @@ impl ConversationManager {
         };
 
         if let Some((index, block)) = emit_info {
-            self.apply_doc_event(RuntimeEvent::ToolCallStatusUpdated {
+            self.apply_doc_delta(RuntimeSignal::ToolCallStatusUpdated {
                 tool_call_id: tool_call_id.to_string(),
                 status,
             });
@@ -289,14 +289,14 @@ impl ConversationManager {
                     })
                 });
 
-            let event = self.tool_result_event(
+            let signal = self.tool_result_signal(
                 tool_call_id,
                 tool_name,
                 output.clone(),
                 is_error,
                 Utc::now(),
             );
-            self.apply_doc_event(event);
+            self.apply_doc_delta(signal);
         }
 
         let index = self
@@ -346,7 +346,7 @@ impl ConversationManager {
         };
 
         for block_index in promotions {
-            self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
+            self.apply_doc_delta(RuntimeSignal::TranscriptBlockPhaseUpdated {
                 index: block_index,
                 phase: AssistantPhase::Final,
                 streaming: false,

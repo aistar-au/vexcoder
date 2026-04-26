@@ -1,5 +1,5 @@
 pub mod client;
-mod eventsource;
+mod stream_ingress;
 mod logging;
 #[cfg(test)]
 pub mod mock_client;

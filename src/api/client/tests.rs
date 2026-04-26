@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtime::RuntimeEvent;
+use crate::runtime::RuntimeSignal;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::test_support::{RequestLog, spawn_axum_server};
 use crate::types::{ApiMessage, Content};
@@ -76,8 +76,8 @@ async fn client_falls_back_to_non_streaming_chat_compat_when_stream_is_slow() {
     assert_eq!(reqs.len(), 2, "expected streaming request + fallback retry");
     assert_eq!(reqs[0].get("stream"), Some(&Value::Bool(true)));
     assert_eq!(reqs[1].get("stream"), Some(&Value::Bool(false)));
-    assert!(envelopes.iter().any(|e| matches!(&e.event,
-        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "OK"
+    assert!(envelopes.iter().any(|e| matches!(&e.signal,
+        RuntimeSignal::TranscriptBlockDelta { delta, .. } if delta == "OK"
     )));
 }
 
@@ -121,8 +121,8 @@ async fn client_falls_back_to_non_streaming_messages_v1_when_stream_is_slow() {
     server.abort();
     let reqs = requests.lock().unwrap();
     assert_eq!(reqs.len(), 2, "expected streaming request + fallback retry");
-    assert!(envelopes.iter().any(|e| matches!(&e.event,
-        RuntimeEvent::ToolCallStarted { tool_name, .. } if tool_name == "read_file"
+    assert!(envelopes.iter().any(|e| matches!(&e.signal,
+        RuntimeSignal::ToolCallStarted { tool_name, .. } if tool_name == "read_file"
     )));
 }
 

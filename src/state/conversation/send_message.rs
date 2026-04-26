@@ -6,7 +6,7 @@ use super::{
 };
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
 use crate::runtime::task_document::PulseOutcome;
-use crate::runtime::{RuntimeEvent, TokenUsageEnvelope};
+use crate::runtime::{RuntimeSignal, TokenUsageEnvelope};
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::usage::PulseTokens;
 use anyhow::Result;
@@ -146,9 +146,9 @@ impl ConversationManager {
             let mut block_tool_call_ids: HashMap<usize, String> = HashMap::new();
             let mut completed_tool_call_ids = HashSet::new();
             let mut saw_usage_update = false;
-            while let Some(event_result) = stream.next().await {
-                let event = match event_result {
-                    Ok(envelope) => envelope.event,
+            while let Some(signal_outcome) = stream.next().await {
+                let signal = match signal_outcome {
+                    Ok(envelope) => envelope.signal,
                     Err(error) => {
                         self.finish_turn_doc(
                             PulseOutcome::Failed {
@@ -160,16 +160,16 @@ impl ConversationManager {
                     }
                 };
 
-                match event.clone() {
-                    RuntimeEvent::PulseStart { .. } => {}
-                    RuntimeEvent::TranscriptLine { line } => {
-                        self.apply_doc_event(event);
+                match signal.clone() {
+                    RuntimeSignal::PulseStart { .. } => {}
+                    RuntimeSignal::TranscriptLine { line } => {
+                        self.apply_doc_delta(signal);
                         emit_stream_update(
                             stream_delta_tx,
                             ConversationStreamUpdate::TranscriptLine(line),
                         );
                     }
-                    RuntimeEvent::TranscriptBlockStart { index, block } => match &block {
+                    RuntimeSignal::TranscriptBlockStart { index, block } => match &block {
                         StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {
                             self.upsert_turn_block(index, block, stream_delta_tx);
                         }
@@ -181,36 +181,36 @@ impl ConversationManager {
                             self.emit_stream_block_start_update(index, block, stream_delta_tx);
                         }
                     },
-                    RuntimeEvent::TranscriptBlockDelta { index, delta } => {
+                    RuntimeSignal::TranscriptBlockDelta { index, delta } => {
                         if block_tool_call_ids.contains_key(&index) {
                             continue;
                         }
                         let appended = self.append_text_delta(index, &delta, stream_delta_tx);
                         assistant_text.push_str(&appended);
                     }
-                    RuntimeEvent::TranscriptBlockComplete { index } => {
+                    RuntimeSignal::TranscriptBlockComplete { index } => {
                         if block_tool_call_ids.contains_key(&index) {
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::BlockComplete { index },
                             );
                         } else {
-                            self.apply_doc_event(event);
+                            self.apply_doc_delta(signal);
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::BlockComplete { index },
                             );
                         }
                     }
-                    RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
-                    | RuntimeEvent::ToolCallStatusUpdated { .. }
-                    | RuntimeEvent::ApprovalRequest { .. }
-                    | RuntimeEvent::ApprovalResolved { .. }
-                    | RuntimeEvent::ValidationResult { .. }
-                    | RuntimeEvent::MaxTurnsReached { .. } => {
-                        self.apply_doc_event(event);
+                    RuntimeSignal::TranscriptBlockPhaseUpdated { .. }
+                    | RuntimeSignal::ToolCallStatusUpdated { .. }
+                    | RuntimeSignal::ApprovalRequest { .. }
+                    | RuntimeSignal::ApprovalResolved { .. }
+                    | RuntimeSignal::ValidationResult { .. }
+                    | RuntimeSignal::MaxTurnsReached { .. } => {
+                        self.apply_doc_delta(signal);
                     }
-                    RuntimeEvent::ToolCallStarted {
+                    RuntimeSignal::ToolCallStarted {
                         tool_call_id,
                         tool_name,
                         arguments,
@@ -243,9 +243,9 @@ impl ConversationManager {
                             input: arguments,
                             metadata: None,
                         };
-                        self.apply_doc_event(event);
+                        self.apply_doc_delta(signal);
                     }
-                    RuntimeEvent::ToolCallArgumentsDelta {
+                    RuntimeSignal::ToolCallArgumentsDelta {
                         tool_call_id,
                         tool_name,
                         delta,
@@ -286,15 +286,15 @@ impl ConversationManager {
                                 },
                             );
                         }
-                        self.apply_doc_event(event);
+                        self.apply_doc_delta(signal);
                     }
-                    RuntimeEvent::ToolCallCompleted {
+                    RuntimeSignal::ToolCallCompleted {
                         tool_call_id,
                         output,
                         ..
                     } => {
                         completed_tool_call_ids.insert(tool_call_id.clone());
-                        self.apply_doc_event(event);
+                        self.apply_doc_delta(signal);
                         self.push_tool_result_block(
                             StreamBlock::ToolResult {
                                 tool_call_id,
@@ -304,13 +304,13 @@ impl ConversationManager {
                             stream_delta_tx,
                         );
                     }
-                    RuntimeEvent::ToolCallFailed {
+                    RuntimeSignal::ToolCallFailed {
                         tool_call_id,
                         output,
                         ..
                     } => {
                         completed_tool_call_ids.insert(tool_call_id.clone());
-                        self.apply_doc_event(event);
+                        self.apply_doc_delta(signal);
                         self.push_tool_result_block(
                             StreamBlock::ToolResult {
                                 tool_call_id,
@@ -320,20 +320,20 @@ impl ConversationManager {
                             stream_delta_tx,
                         );
                     }
-                    RuntimeEvent::ServerMetadata { metadata } => {
+                    RuntimeSignal::ServerMetadata { metadata } => {
                         emit_server_metadata_update(Some(metadata.as_ref()), stream_delta_tx);
-                        self.apply_doc_event(event);
+                        self.apply_doc_delta(signal);
                     }
-                    RuntimeEvent::UsageUpdated { usage } => {
+                    RuntimeSignal::UsageUpdated { usage } => {
                         saw_usage_update = true;
                         accumulate_usage_envelope(&mut turn_tokens, Some(&usage));
                     }
-                    RuntimeEvent::PulseEnd { usage, .. } => {
+                    RuntimeSignal::PulseEnd { usage, .. } => {
                         if !saw_usage_update {
                             accumulate_usage_envelope(&mut turn_tokens, usage.as_ref());
                         }
                     }
-                    RuntimeEvent::Error { code, message, .. } => {
+                    RuntimeSignal::Error { code, message, .. } => {
                         emit_stream_update(
                             stream_delta_tx,
                             ConversationStreamUpdate::StreamError(format!(

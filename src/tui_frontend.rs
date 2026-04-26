@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crate::app::{
     FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TuiMode,
 };
-use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
+use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, InputOccurrence};
 use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
     STARTUP_NOISE_GUARD, looks_like_session_output, should_ignore_startup_paste_text,
@@ -16,7 +16,7 @@ use crate::ui::render::{
     OverlayModal, history_content_width_for_area, input_visual_rows, render_input, render_messages,
     render_overlay_modal_in_area, render_status_line, render_task_layout,
 };
-use crate::ui::tui::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crate::ui::tui::input::{self, Event, KeyCode, KeyStroke, KeyStrokeKind, KeyModifiers};
 use crate::ui::tui::widgets::Clear;
 
 pub struct ManagedTuiFrontend {
@@ -37,7 +37,7 @@ pub struct ManagedTuiFrontend {
 impl ManagedTuiFrontend {
     pub fn new() -> Result<Self> {
         let tui = crate::tui_handle::setup()?;
-        Self::drain_startup_events();
+        Self::flush_startup_signals();
         Ok(Self {
             tui,
             quit: false,
@@ -104,11 +104,11 @@ impl ManagedTuiFrontend {
         self.selected_slash_hint = 0;
     }
 
-    fn drain_startup_events() {
+    fn flush_startup_signals() {
         for _ in 0..1024 {
-            match event::poll(Duration::from_millis(0)) {
+            match input::poll(Duration::from_millis(0)) {
                 Ok(true) => {
-                    if event::read().is_err() {
+                    if input::read().is_err() {
                         break;
                     }
                 }
@@ -135,10 +135,10 @@ impl ManagedTuiFrontend {
             && looks_like_session_output(text)
     }
 
-    fn map_editor_action(&mut self, action: InputAction) -> Option<UserInputEvent> {
+    fn map_editor_action(&mut self, action: InputAction) -> Option<InputOccurrence> {
         match action {
             InputAction::None => None,
-            InputAction::Interrupt => Some(UserInputEvent::Interrupt),
+            InputAction::Interrupt => Some(InputOccurrence::Interrupt),
             InputAction::Quit => {
                 self.quit = true;
                 None
@@ -147,47 +147,47 @@ impl ManagedTuiFrontend {
                 if self.should_ignore_startup_submission(&value) {
                     None
                 } else {
-                    Some(UserInputEvent::Text(value))
+                    Some(InputOccurrence::Text(value))
                 }
             }
         }
     }
 
-    fn map_overlay_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
+    fn map_overlay_key(&mut self, key: KeyStroke) -> Option<InputOccurrence> {
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Interrupt)
+                Some(InputOccurrence::Interrupt)
             }
-            KeyCode::Up => Some(UserInputEvent::Scroll {
+            KeyCode::Up => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::LineUp,
             }),
-            KeyCode::Down => Some(UserInputEvent::Scroll {
+            KeyCode::Down => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::LineDown,
             }),
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
+            KeyCode::PageUp => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::PageUp(10),
             }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
+            KeyCode::PageDown => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::PageDown(10),
             }),
-            KeyCode::Home => Some(UserInputEvent::Scroll {
+            KeyCode::Home => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::Home,
             }),
-            KeyCode::End => Some(UserInputEvent::Scroll {
+            KeyCode::End => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Overlay,
                 action: ScrollAction::End,
             }),
-            KeyCode::Esc => Some(UserInputEvent::Text("esc".to_string())),
+            KeyCode::Esc => Some(InputOccurrence::Text("esc".to_string())),
             KeyCode::Char(ch)
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && !key.modifiers.contains(KeyModifiers::ALT) =>
             {
-                Some(UserInputEvent::Text(ch.to_string()))
+                Some(InputOccurrence::Text(ch.to_string()))
             }
             _ => None,
         }
@@ -200,7 +200,7 @@ impl ManagedTuiFrontend {
             .unwrap_or(1)
     }
 
-    fn map_regular_key(&mut self, key: KeyEvent, mode: &TuiMode) -> Option<UserInputEvent> {
+    fn map_regular_key(&mut self, key: KeyStroke, mode: &TuiMode) -> Option<InputOccurrence> {
         if key.modifiers.is_empty() {
             if let Some(picker) = self.current_slash_picker(mode) {
                 let last_index = picker.matches.len().saturating_sub(1);
@@ -267,68 +267,68 @@ impl ManagedTuiFrontend {
 
         match key.code {
             KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::LineUp,
                 })
             }
             KeyCode::Down if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::LineDown,
                 })
             }
             KeyCode::Home if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::Home,
                 })
             }
             KeyCode::End if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::End,
                 })
             }
 
             KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::LineUp,
                 })
             }
-            KeyCode::Tab => Some(UserInputEvent::Scroll {
+            KeyCode::Tab => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Timeline,
                 action: ScrollAction::LineDown,
             }),
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
+            KeyCode::PageUp => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Output,
                 action: ScrollAction::PageUp(10),
             }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
+            KeyCode::PageDown => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Output,
                 action: ScrollAction::PageDown(10),
             }),
             KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::LineUp,
                 })
             }
             KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::LineDown,
                 })
             }
             KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::Home,
                 })
             }
             KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::End,
                 })
@@ -374,39 +374,39 @@ impl ManagedTuiFrontend {
         }
     }
 
-    fn map_command_session_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
+    fn map_command_session_key(&mut self, key: KeyStroke) -> Option<InputOccurrence> {
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Interrupt)
+                Some(InputOccurrence::Interrupt)
             }
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
+            KeyCode::PageUp => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Output,
                 action: ScrollAction::PageUp(10),
             }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
+            KeyCode::PageDown => Some(InputOccurrence::Scroll {
                 target: ScrollTarget::Output,
                 action: ScrollAction::PageDown(10),
             }),
             KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::Home,
                 })
             }
             KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::End,
                 })
             }
             KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::LineUp,
                 })
             }
             KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
+                Some(InputOccurrence::Scroll {
                     target: ScrollTarget::Output,
                     action: ScrollAction::LineDown,
                 })
@@ -445,29 +445,29 @@ impl Drop for ManagedTuiFrontend {
 }
 
 impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
-    fn poll_user_input(&mut self, mode: &TuiMode) -> Option<UserInputEvent> {
+    fn poll_user_input(&mut self, mode: &TuiMode) -> Option<InputOccurrence> {
         if mode.quit_requested() {
             self.quit = true;
             return None;
         }
 
         let poll_ms = if mode.is_pulse_in_progress() { 1 } else { 16 };
-        let Ok(has_event) = event::poll(Duration::from_millis(poll_ms)) else {
+        let Ok(has_input) = input::poll(Duration::from_millis(poll_ms)) else {
             self.quit = true;
             return None;
         };
-        if !has_event {
+        if !has_input {
             return None;
         }
 
-        let Ok(ev) = event::read() else {
+        let Ok(ev) = input::read() else {
             self.quit = true;
             return None;
         };
 
         match ev {
             Event::Key(key) => {
-                if key.kind == KeyEventKind::Release {
+                if key.kind == KeyStrokeKind::Release {
                     return None;
                 }
                 if mode.overlay_active() {
@@ -484,7 +484,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                     if trimmed.is_empty() {
                         None
                     } else {
-                        Some(UserInputEvent::Text(trimmed.to_string()))
+                        Some(InputOccurrence::Text(trimmed.to_string()))
                     }
                 } else if mode.command_session_active() {
                     None

@@ -1,6 +1,6 @@
 use super::derived::empty_json_object;
 use super::{
-    RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, ToolCallId, timestamp_string,
+    RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeSignal, ToolCallId, timestamp_string,
 };
 use crate::pulse_evidence::note_changed_files_from_tool_call;
 use crate::runtime::delta_accumulator::AccumulationError;
@@ -21,14 +21,14 @@ pub(super) struct PendingToolCall {
     pub(super) name: String,
     pub(super) arguments: serde_json::Value,
     pub(super) raw_arguments: String,
-    pub(super) start_event_id: String,
+    pub(super) start_frame_id: String,
     pub(super) started_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]
 pub(super) struct PendingToolCallContext {
     pub(super) name: String,
-    pub(super) start_event_id: String,
+    pub(super) start_frame_id: String,
 }
 
 impl RuntimeEnvelopeNormalizer {
@@ -44,7 +44,7 @@ impl RuntimeEnvelopeNormalizer {
 
         let runtime_id = self.generate_tool_call_id();
         let started_at = Utc::now();
-        let envelope = self.next_envelope(RuntimeEvent::ToolCallStarted {
+        let envelope = self.next_envelope(RuntimeSignal::ToolCallStarted {
             tool_call_id: runtime_id.clone(),
             tool_name: name.clone(),
             arguments: arguments.clone(),
@@ -58,7 +58,7 @@ impl RuntimeEnvelopeNormalizer {
                 name: name.clone(),
                 arguments: arguments.clone(),
                 raw_arguments: serialize_tool_arguments(&arguments),
-                start_event_id: envelope.event_id.clone(),
+                start_frame_id: envelope.frame_id.clone(),
                 started_at,
             },
         );
@@ -66,7 +66,7 @@ impl RuntimeEnvelopeNormalizer {
             runtime_id.clone(),
             PendingToolCallContext {
                 name: name.clone(),
-                start_event_id: envelope.event_id.clone(),
+                start_frame_id: envelope.frame_id.clone(),
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
@@ -83,7 +83,7 @@ impl RuntimeEnvelopeNormalizer {
     ) -> RuntimeEnvelope {
         let runtime_id = self.generate_tool_call_id();
         let started_at = Utc::now();
-        let envelope = self.next_envelope(RuntimeEvent::ToolCallStarted {
+        let envelope = self.next_envelope(RuntimeSignal::ToolCallStarted {
             tool_call_id: runtime_id.clone(),
             tool_name: name.clone(),
             arguments: arguments.clone(),
@@ -97,7 +97,7 @@ impl RuntimeEnvelopeNormalizer {
                 name: name.clone(),
                 arguments: arguments.clone(),
                 raw_arguments: serialize_tool_arguments(&arguments),
-                start_event_id: envelope.event_id.clone(),
+                start_frame_id: envelope.frame_id.clone(),
                 started_at,
             },
         );
@@ -105,7 +105,7 @@ impl RuntimeEnvelopeNormalizer {
             runtime_id.clone(),
             PendingToolCallContext {
                 name: name.clone(),
-                start_event_id: envelope.event_id.clone(),
+                start_frame_id: envelope.frame_id.clone(),
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
@@ -136,8 +136,8 @@ impl RuntimeEnvelopeNormalizer {
                 .signed_duration_since(pending.started_at)
                 .num_milliseconds()
                 .max(0) as u64;
-            let event = if is_error {
-                RuntimeEvent::ToolCallFailed {
+            let signal = if is_error {
+                RuntimeSignal::ToolCallFailed {
                     tool_call_id: pending.runtime_id,
                     tool_name: Some(pending.name),
                     status: ToolStatus::Error,
@@ -147,7 +147,7 @@ impl RuntimeEnvelopeNormalizer {
                     output,
                 }
             } else {
-                RuntimeEvent::ToolCallCompleted {
+                RuntimeSignal::ToolCallCompleted {
                     tool_call_id: pending.runtime_id,
                     tool_name: Some(pending.name),
                     status: ToolStatus::Complete,
@@ -157,11 +157,11 @@ impl RuntimeEnvelopeNormalizer {
                     output,
                 }
             };
-            return self.next_envelope_with_context(event, None, Some(pending.start_event_id));
+            return self.next_envelope_with_context(signal, None, Some(pending.start_frame_id));
         }
 
         self.next_envelope(if is_error {
-            RuntimeEvent::ToolCallFailed {
+            RuntimeSignal::ToolCallFailed {
                 tool_call_id: source_id.to_string(),
                 tool_name: None,
                 status: ToolStatus::Error,
@@ -171,7 +171,7 @@ impl RuntimeEnvelopeNormalizer {
                 output,
             }
         } else {
-            RuntimeEvent::ToolCallCompleted {
+            RuntimeSignal::ToolCallCompleted {
                 tool_call_id: source_id.to_string(),
                 tool_name: None,
                 status: ToolStatus::Complete,
@@ -188,13 +188,13 @@ impl RuntimeEnvelopeNormalizer {
         tool_call_id: &ToolCallId,
         delta: &str,
     ) -> RuntimeEnvelope {
-        let (tool_name, parent_event_id) = self
+        let (tool_name, parent_frame_id) = self
             .pending_tool_call_contexts
             .get(tool_call_id)
             .map(|pending| {
                 (
                     Some(pending.name.clone()),
-                    Some(pending.start_event_id.clone()),
+                    Some(pending.start_frame_id.clone()),
                 )
             })
             .unwrap_or((None, None));
@@ -205,7 +205,7 @@ impl RuntimeEnvelopeNormalizer {
         let arguments = self.append_pending_tool_delta(tool_call_id, delta);
 
         self.next_envelope_with_context(
-            RuntimeEvent::ToolCallArgumentsDelta {
+            RuntimeSignal::ToolCallArgumentsDelta {
                 tool_call_id: tool_call_id.clone(),
                 tool_name,
                 delta: delta.to_string(),
@@ -214,7 +214,7 @@ impl RuntimeEnvelopeNormalizer {
                 invalid_json,
             },
             None,
-            parent_event_id,
+            parent_frame_id,
         )
     }
 

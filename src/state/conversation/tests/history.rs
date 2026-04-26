@@ -12,15 +12,15 @@ fn tool_result_event_uses_recorded_start_time() {
         .unwrap()
         .with_timezone(&chrono::Utc);
     manager.record_tool_call_started_at("toolu_01", started_at);
-    let event = manager.tool_result_event(
+    let signal = manager.tool_result_signal(
         "toolu_01",
         Some("read_file".to_string()),
         "ok".to_string(),
         false,
         started_at + chrono::Duration::milliseconds(250),
     );
-    match event {
-        crate::runtime::json_handoff::RuntimeEvent::ToolCallCompleted {
+    match signal {
+        crate::runtime::json_handoff::RuntimeSignal::ToolCallCompleted {
             started_at,
             duration_ms,
             ..

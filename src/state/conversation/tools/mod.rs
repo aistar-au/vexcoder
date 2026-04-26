@@ -1,6 +1,6 @@
 use super::{ConversationManager, ConversationStreamUpdate, PulseToolPolicy, ToolApprovalRequest};
 use crate::api::client::is_readonly_tool;
-use crate::config::{HookEvent, HookOnFail, SearchConfig};
+use crate::config::{HookTrigger, HookOnFail, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::{
     CommandRequest, CommandRunner, ConfiguredSandbox, DefaultCommandRunner, SandboxDriver,
@@ -87,9 +87,9 @@ impl ConversationManager {
         }
 
         let tool_name = name.to_string();
-        self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
+        self.run_hooks(HookTrigger::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
-        self.run_http_hooks(HookEvent::PreTool, &tool_name, input, tool_timeout)
+        self.run_http_hooks(HookTrigger::PreTool, &tool_name, input, tool_timeout)
             .await?;
 
         let tool_result = if name == "run_command" {
@@ -153,9 +153,9 @@ impl ConversationManager {
         };
 
         if tool_result.is_ok() {
-            self.run_hooks(HookEvent::PostTool, &tool_name, input, stream_delta_tx)
+            self.run_hooks(HookTrigger::PostTool, &tool_name, input, stream_delta_tx)
                 .await?;
-            self.run_http_hooks(HookEvent::PostTool, &tool_name, input, tool_timeout)
+            self.run_http_hooks(HookTrigger::PostTool, &tool_name, input, tool_timeout)
                 .await?;
         }
 
@@ -164,7 +164,7 @@ impl ConversationManager {
 
     async fn run_hooks(
         &self,
-        event: HookEvent,
+        trigger: HookTrigger,
         tool_name: &str,
         input: &serde_json::Value,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
@@ -186,7 +186,7 @@ impl ConversationManager {
         let sandbox = self.sandbox.clone();
 
         for hook in &self.hooks {
-            if hook.event != event || hook.tool != tool_name {
+            if hook.trigger != trigger || hook.tool != tool_name {
                 continue;
             }
 
@@ -254,7 +254,7 @@ impl ConversationManager {
 
     async fn run_http_hooks(
         &self,
-        event: HookEvent,
+        trigger: HookTrigger,
         tool_name: &str,
         input: &serde_json::Value,
         tool_timeout: Duration,
@@ -278,12 +278,12 @@ impl ConversationManager {
         let client = reqwest::Client::builder().timeout(hook_timeout).build()?;
 
         for hook in &self.http_hooks {
-            if hook.event != event || hook.tool != tool_name {
+            if hook.trigger != trigger || hook.tool != tool_name {
                 continue;
             }
 
             let payload = serde_json::json!({
-                "event": hook.event,
+                "event": hook.trigger,
                 "tool": tool_name,
                 "path": primary_path,
                 "timestamp_ms": timestamp_ms,

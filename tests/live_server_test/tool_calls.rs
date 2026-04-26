@@ -54,8 +54,8 @@ async fn auto_detected_protocol_normalizes_tool_call_fallback_for_both_protocols
 
     let found_tool_call = envelopes.iter().any(|e| {
         matches!(
-            &e.event,
-            RuntimeEvent::ToolCallStarted { tool_name, arguments, .. }
+            &e.signal,
+            RuntimeSignal::ToolCallStarted { tool_name, arguments, .. }
                 if tool_name == "read_file"
                     && arguments.get("path").and_then(Value::as_str) == Some(expected_path)
         )
@@ -63,12 +63,12 @@ async fn auto_detected_protocol_normalizes_tool_call_fallback_for_both_protocols
     assert!(
         found_tool_call,
         "must emit materialized ToolCallStarted; got {:?}",
-        envelopes.iter().map(|e| &e.event).collect::<Vec<_>>()
+        envelopes.iter().map(|e| &e.signal).collect::<Vec<_>>()
     );
     assert!(
         !envelopes
             .iter()
-            .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+            .any(|e| matches!(&e.signal, RuntimeSignal::ToolCallArgumentsDelta { .. })),
         "materialized tool call must not emit argument deltas"
     );
     server.abort();

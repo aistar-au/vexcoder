@@ -295,8 +295,8 @@ where
 
     let mut watcher = notify::RecommendedWatcher::new(
         move |res: notify::Result<Event>| {
-            if let Ok(event) = res {
-                let paths = event.paths;
+            if let Ok(fs_change) = res {
+                let paths = fs_change.paths;
                 if !paths.is_empty() {
                     on_change(paths);
                 }

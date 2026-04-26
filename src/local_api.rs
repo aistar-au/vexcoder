@@ -4,11 +4,11 @@ use crate::app::FacadeSessionTaskRollup;
 use crate::config::Config;
 use crate::runtime::UiUpdate;
 use crate::runtime::context::RuntimeContext;
-use crate::runtime::delta_accumulator::{DeltaAccumulator, PeerDeltaEvent};
-use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
+use crate::runtime::delta_accumulator::{DeltaAccumulator, PeerDelta};
+use crate::runtime::frontend::{FrontendAdapter, InputOccurrence};
 use crate::runtime::json_handoff::{
-    PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent,
-    runtime_approval_request_event,
+    PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeSignal,
+    approval_request_signal,
 };
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::tokio::sync::{Mutex as AsyncMutex, broadcast, mpsc, oneshot};
@@ -29,7 +29,7 @@ const RECENT_PEER_EVENT_LIMIT: usize = 128;
 pub(crate) struct LocalApiState {
     pub config: Config,
     pub tasks: Arc<AsyncMutex<HashMap<String, ActiveTask>>>,
-    session_task_events: broadcast::Sender<FacadeSessionTaskRollup>,
+    session_task_signals: broadcast::Sender<FacadeSessionTaskRollup>,
 }
 
 pub(crate) struct ActiveTask {
@@ -40,8 +40,8 @@ pub(crate) struct ActiveTask {
 pub(crate) struct LocalApiTaskShared {
     pub normalizer: RuntimeEnvelopeNormalizer,
     pub envelope_tx: mpsc::UnboundedSender<String>,
-    pub peer_event_rx: mpsc::Receiver<PeerDeltaEvent>,
-    pub recent_peer_events: VecDeque<PeerDeltaEvent>,
+    pub peer_update_rx: mpsc::Receiver<PeerDelta>,
+    pub recent_peer_updates: VecDeque<PeerDelta>,
     pub pending_approval: Option<PendingApproval>,
     pub quit: Arc<AtomicBool>,
     pub turn_in_progress: bool,
@@ -57,10 +57,10 @@ impl LocalApiTaskShared {
         quit: Arc<AtomicBool>,
         memory_watermark_bytes: usize,
     ) -> Self {
-        let (peer_event_tx, peer_event_rx) = mpsc::channel(PEER_EVENT_BUFFER);
-        let delta_accumulator = Arc::new(DeltaAccumulator::new_with_peer_events(
+        let (peer_update_tx, peer_update_rx) = mpsc::channel(PEER_EVENT_BUFFER);
+        let delta_accumulator = Arc::new(DeltaAccumulator::new_with_peer_updates(
             memory_watermark_bytes,
-            Some(peer_event_tx),
+            Some(peer_update_tx),
         ));
 
         Self {
@@ -69,8 +69,8 @@ impl LocalApiTaskShared {
                 delta_accumulator,
             ),
             envelope_tx,
-            peer_event_rx,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -80,12 +80,12 @@ impl LocalApiTaskShared {
         }
     }
 
-    fn drain_peer_events(&mut self) {
-        while let Ok(event) = self.peer_event_rx.try_recv() {
-            if self.recent_peer_events.len() == RECENT_PEER_EVENT_LIMIT {
-                self.recent_peer_events.pop_front();
+    fn drain_peer_updates(&mut self) {
+        while let Ok(update) = self.peer_update_rx.try_recv() {
+            if self.recent_peer_updates.len() == RECENT_PEER_EVENT_LIMIT {
+                self.recent_peer_updates.pop_front();
             }
-            self.recent_peer_events.push_back(event);
+            self.recent_peer_updates.push_back(update);
         }
     }
 }
@@ -125,15 +125,15 @@ impl LocalApiFrontend {
 }
 
 impl FrontendAdapter<LocalApiMode> for LocalApiFrontend {
-    fn poll_user_input(&mut self, mode: &LocalApiMode) -> Option<UserInputEvent> {
+    fn poll_user_input(&mut self, mode: &LocalApiMode) -> Option<InputOccurrence> {
         if let Ok(command) = self.command_rx.try_recv() {
             return match command {
-                FrontendCommand::Interrupt => Some(UserInputEvent::Interrupt),
+                FrontendCommand::Interrupt => Some(InputOccurrence::Interrupt),
             };
         }
 
         if !mode.is_pulse_in_progress() {
-            return self.initial_input.take().map(UserInputEvent::Text);
+            return self.initial_input.take().map(InputOccurrence::Text);
         }
 
         None
@@ -156,13 +156,13 @@ impl LocalApiMode {
     }
 
     pub fn emit_envelopes(shared: &mut LocalApiTaskShared, envelopes: Vec<RuntimeEnvelope>) {
-        shared.drain_peer_events();
+        shared.drain_peer_updates();
         for envelope in envelopes {
             if let Ok(json) = serde_json::to_string(&envelope) {
                 let _ = shared.envelope_tx.send(json);
             }
         }
-        shared.drain_peer_events();
+        shared.drain_peer_updates();
     }
 
     fn complete_turn_if_idle(shared: &mut LocalApiTaskShared) {
@@ -243,9 +243,9 @@ impl RuntimeMode for LocalApiMode {
                 Self::emit_envelopes(&mut shared, envelopes);
             }
             UiUpdate::ToolApprovalRequest(request) => {
-                let event = runtime_approval_request_event(&request);
-                let (capability, scope) = match &event {
-                    RuntimeEvent::ApprovalRequest {
+                let signal = approval_request_signal(&request);
+                let (capability, scope) = match &signal {
+                    RuntimeSignal::ApprovalRequest {
                         capability, scope, ..
                     } => (capability.clone(), scope.clone()),
                     _ => ("unknown".to_string(), "once".to_string()),
@@ -255,7 +255,7 @@ impl RuntimeMode for LocalApiMode {
                     scope,
                     response_tx: request.response_tx,
                 });
-                let envelope = shared.normalizer.emit_event(event);
+                let envelope = shared.normalizer.emit_signal(signal);
                 Self::emit_envelopes(&mut shared, vec![envelope]);
             }
             UiUpdate::ServerMetadata(_) => {}
@@ -300,20 +300,20 @@ impl RuntimeMode for LocalApiMode {
 
 impl LocalApiState {
     pub fn new(config: Config) -> Self {
-        let (session_task_events, _) = broadcast::channel(SESSION_TASK_EVENT_BUFFER);
+        let (session_task_signals, _) = broadcast::channel(SESSION_TASK_EVENT_BUFFER);
         Self {
             config,
             tasks: Arc::new(AsyncMutex::new(HashMap::new())),
-            session_task_events,
+            session_task_signals,
         }
     }
 
     pub fn publish_session_task_rollup(&self, snapshot: FacadeSessionTaskRollup) {
-        let _ = self.session_task_events.send(snapshot);
+        let _ = self.session_task_signals.send(snapshot);
     }
 
-    pub fn subscribe_session_task_events(&self) -> broadcast::Receiver<FacadeSessionTaskRollup> {
-        self.session_task_events.subscribe()
+    pub fn subscribe_session_task_signals(&self) -> broadcast::Receiver<FacadeSessionTaskRollup> {
+        self.session_task_signals.subscribe()
     }
 }
 
@@ -333,8 +333,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-1"),
             envelope_tx,
-            peer_event_rx: mpsc::channel(1).1,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx: mpsc::channel(1).1,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -357,8 +357,8 @@ mod tests {
         let final_envelope: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
-            final_envelope.event,
-            RuntimeEvent::PulseEnd { ref status, .. } if status == "cancelled"
+            final_envelope.signal,
+            RuntimeSignal::PulseEnd { ref status, .. } if status == "cancelled"
         ));
     }
 
@@ -369,8 +369,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-2"),
             envelope_tx,
-            peer_event_rx: mpsc::channel(1).1,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx: mpsc::channel(1).1,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -400,8 +400,8 @@ mod tests {
         let request: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
-            request.event,
-            RuntimeEvent::ApprovalRequest { .. }
+            request.signal,
+            RuntimeSignal::ApprovalRequest { .. }
         ));
 
         {
@@ -423,8 +423,8 @@ mod tests {
         let resolved: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
-            resolved.event,
-            RuntimeEvent::ApprovalResolved { approved: true, .. }
+            resolved.signal,
+            RuntimeSignal::ApprovalResolved { approved: true, .. }
         ));
     }
 
@@ -435,8 +435,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-seq"),
             envelope_tx,
-            peer_event_rx: mpsc::channel(1).1,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx: mpsc::channel(1).1,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -466,11 +466,11 @@ mod tests {
         let seqs: Vec<u64> = envelopes.iter().map(|envelope| envelope.seq).collect();
         assert_eq!(seqs, vec![1, 2, 3, 4, 5]);
         assert!(matches!(
-            envelopes[0].event,
-            RuntimeEvent::PulseStart { .. }
+            envelopes[0].signal,
+            RuntimeSignal::PulseStart { .. }
         ));
-        let final_text_index = match &envelopes[1].event {
-            RuntimeEvent::TranscriptBlockStart {
+        let final_text_index = match &envelopes[1].signal {
+            RuntimeSignal::TranscriptBlockStart {
                 index,
                 block: StreamBlock::FinalText { content },
             } => {
@@ -480,19 +480,19 @@ mod tests {
             other => panic!("expected transcript final-text block start, got {other:?}"),
         };
         assert!(matches!(
-            envelopes[2].event,
-            RuntimeEvent::TranscriptBlockDelta {
+            envelopes[2].signal,
+            RuntimeSignal::TranscriptBlockDelta {
                 index,
                 ref delta,
             } if index == final_text_index && delta == "working"
         ));
         assert!(matches!(
-            envelopes[3].event,
-            RuntimeEvent::TranscriptBlockComplete { index } if index == final_text_index
+            envelopes[3].signal,
+            RuntimeSignal::TranscriptBlockComplete { index } if index == final_text_index
         ));
         assert!(matches!(
-            envelopes[4].event,
-            RuntimeEvent::PulseEnd { ref status, .. } if status == "completed"
+            envelopes[4].signal,
+            RuntimeSignal::PulseEnd { ref status, .. } if status == "completed"
         ));
     }
 
@@ -556,13 +556,13 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
 
         assert!(matches!(
-            transcript_line.event,
-            RuntimeEvent::TranscriptLine { ref line }
+            transcript_line.signal,
+            RuntimeSignal::TranscriptLine { ref line }
                 if line == "[edit loop: running validation]"
         ));
         assert!(matches!(
-            transcript_block_start.event,
-            RuntimeEvent::TranscriptBlockStart {
+            transcript_block_start.signal,
+            RuntimeSignal::TranscriptBlockStart {
                 index: 0,
                 block: StreamBlock::ToolCall {
                     ref name,
@@ -573,16 +573,16 @@ mod tests {
             } if name == "read_file" && input == &json!({})
         ));
         assert!(matches!(
-            tool_call.event,
-            RuntimeEvent::ToolCallStarted {
+            tool_call.signal,
+            RuntimeSignal::ToolCallStarted {
                 ref tool_name,
                 ref arguments,
                 ..
             } if tool_name == "read_file" && arguments == &json!({})
         ));
         assert!(matches!(
-            tool_call_arguments_delta.event,
-            RuntimeEvent::ToolCallArgumentsDelta {
+            tool_call_arguments_delta.signal,
+            RuntimeSignal::ToolCallArgumentsDelta {
                 ref tool_name,
                 ref delta,
                 arguments: Some(ref arguments),
@@ -592,42 +592,42 @@ mod tests {
                 && arguments["path"] == "src/local_api.rs"
         ));
         assert!(matches!(
-            transcript_block_delta.event,
-            RuntimeEvent::TranscriptBlockDelta {
+            transcript_block_delta.signal,
+            RuntimeSignal::TranscriptBlockDelta {
                 index: 0,
                 ref delta,
             } if delta == "{\"path\":\"src/local_api.rs\"}"
         ));
         assert!(matches!(
-            transcript_block_complete.event,
-            RuntimeEvent::TranscriptBlockComplete { index: 0 }
+            transcript_block_complete.signal,
+            RuntimeSignal::TranscriptBlockComplete { index: 0 }
         ));
 
         {
             let shared = shared.lock().unwrap();
             assert!(matches!(
-                shared.recent_peer_events.front(),
-                Some(PeerDeltaEvent::ToolStart { .. })
+                shared.recent_peer_updates.front(),
+                Some(PeerDelta::ToolStart { .. })
             ));
             assert!(
                 shared
-                    .recent_peer_events
+                    .recent_peer_updates
                     .iter()
-                    .any(|event| matches!(event, PeerDeltaEvent::ToolDelta { .. }))
+                    .any(|delta| matches!(delta, PeerDelta::ToolDelta { .. }))
             );
             assert!(matches!(
-                shared.recent_peer_events.back(),
-                Some(PeerDeltaEvent::ToolFinish { .. })
+                shared.recent_peer_updates.back(),
+                Some(PeerDelta::ToolFinish { .. })
             ));
         }
     }
 
     #[tokio::test]
-    async fn test_local_api_mode_materialized_tool_calls_seed_peer_events() {
+    async fn test_local_api_mode_materialized_tool_calls_seed_peer_updates() {
         let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
         let quit = Arc::new(AtomicBool::new(false));
         let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
-            "task-materialized-peer-events".to_string(),
+            "task-materialized-peer-updates".to_string(),
             envelope_tx,
             quit,
             crate::runtime::delta_accumulator::DEFAULT_DELTA_ACCUMULATOR_MEMORY_WATERMARK_BYTES,
@@ -664,8 +664,8 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
 
         assert!(matches!(
-            transcript_block_start.event,
-            RuntimeEvent::TranscriptBlockStart {
+            transcript_block_start.signal,
+            RuntimeSignal::TranscriptBlockStart {
                 index: 0,
                 block: StreamBlock::ToolCall {
                     ref name,
@@ -676,34 +676,34 @@ mod tests {
             } if name == "read_file" && input == &json!({"path":"src/local_api.rs"})
         ));
         assert!(matches!(
-            tool_call.event,
-            RuntimeEvent::ToolCallStarted {
+            tool_call.signal,
+            RuntimeSignal::ToolCallStarted {
                 ref tool_name,
                 ref arguments,
                 ..
             } if tool_name == "read_file" && arguments == &json!({"path":"src/local_api.rs"})
         ));
         assert!(matches!(
-            transcript_block_complete.event,
-            RuntimeEvent::TranscriptBlockComplete { index: 0 }
+            transcript_block_complete.signal,
+            RuntimeSignal::TranscriptBlockComplete { index: 0 }
         ));
 
         {
             let shared = shared.lock().unwrap();
-            let peer_events: Vec<_> = shared.recent_peer_events.iter().cloned().collect();
-            assert_eq!(peer_events.len(), 3);
+            let peer_updates: Vec<_> = shared.recent_peer_updates.iter().cloned().collect();
+            assert_eq!(peer_updates.len(), 3);
             assert!(matches!(
-                peer_events.first(),
-                Some(PeerDeltaEvent::ToolStart { name, .. }) if name == "read_file"
+                peer_updates.first(),
+                Some(PeerDelta::ToolStart { name, .. }) if name == "read_file"
             ));
             assert!(matches!(
-                peer_events.get(1),
-                Some(PeerDeltaEvent::ToolDelta { partial_json, .. })
+                peer_updates.get(1),
+                Some(PeerDelta::ToolDelta { partial_json, .. })
                     if partial_json == "{\"path\":\"src/local_api.rs\"}"
             ));
             assert!(matches!(
-                peer_events.last(),
-                Some(PeerDeltaEvent::ToolFinish { .. })
+                peer_updates.last(),
+                Some(PeerDelta::ToolFinish { .. })
             ));
         }
     }
@@ -715,8 +715,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-command-session"),
             envelope_tx,
-            peer_event_rx: mpsc::channel(1).1,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx: mpsc::channel(1).1,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit: Arc::clone(&quit),
             turn_in_progress: false,
@@ -734,7 +734,7 @@ mod tests {
         mode.on_user_input("run delayed command".to_string(), &mut ctx);
         let start: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        assert!(matches!(start.event, RuntimeEvent::PulseStart { .. }));
+        assert!(matches!(start.signal, RuntimeSignal::PulseStart { .. }));
 
         mode.on_model_update(
             UiUpdate::CommandSessionStarted {
@@ -762,8 +762,8 @@ mod tests {
         let final_envelope: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
-            final_envelope.event,
-            RuntimeEvent::PulseEnd { ref status, .. } if status == "completed"
+            final_envelope.signal,
+            RuntimeSignal::PulseEnd { ref status, .. } if status == "completed"
         ));
 
         {
@@ -782,8 +782,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-error"),
             envelope_tx,
-            peer_event_rx: mpsc::channel(1).1,
-            recent_peer_events: VecDeque::new(),
+            peer_update_rx: mpsc::channel(1).1,
+            recent_peer_updates: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -801,7 +801,7 @@ mod tests {
         mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
         let start: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        assert!(matches!(start.event, RuntimeEvent::PulseStart { .. }));
+        assert!(matches!(start.signal, RuntimeSignal::PulseStart { .. }));
         mode.on_model_update(UiUpdate::Error("stream failed".to_string()), &mut ctx);
 
         let error: RuntimeEnvelope =
@@ -810,16 +810,16 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
 
         assert!(matches!(
-            error.event,
-            RuntimeEvent::Error {
+            error.signal,
+            RuntimeSignal::Error {
                 ref code,
                 ref message,
                 recoverable: false,
             } if code == "runtime_error" && message == "stream failed"
         ));
         assert!(matches!(
-            final_envelope.event,
-            RuntimeEvent::PulseEnd { ref status, .. } if status == "failed"
+            final_envelope.signal,
+            RuntimeSignal::PulseEnd { ref status, .. } if status == "failed"
         ));
     }
 }

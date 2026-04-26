@@ -1,4 +1,4 @@
-use self::provider::ProviderStreamEvent;
+use self::provider::ProviderStreamItem;
 
 use self::ingress_adapter::IngressProtocolAdapter;
 
@@ -16,7 +16,7 @@ const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 pub(crate) const MAX_TOOL_CALL_INDEX: usize = 1_024;
 
 pub(crate) enum IngressPayload {
-    Provider(Box<ProviderStreamEvent>),
+    Provider(Box<ProviderStreamItem>),
     ChatCompat(ChatCompatPayload),
 }
 
@@ -34,7 +34,7 @@ pub struct StreamParser {
     bom_checked: bool,
     overflowed: bool,
 
-    last_event_id: Option<String>,
+    last_frame_id: Option<String>,
     reconnect_delay_ms: Option<u64>,
     output_mode: StreamOutputMode,
     protocol_adapter: Option<IngressProtocolAdapter>,

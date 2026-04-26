@@ -3,40 +3,40 @@ use super::*;
 #[test]
 fn editor_cursor_navigation_and_history_cycle() {
     let mut editor = InputEditor::new();
-    editor.apply_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('b'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('c'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Left, KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Left, KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('X'), KeyModifiers::NONE));
     assert_eq!(editor.input_state.buffer, "aXbc");
 
     editor.input_state.buffer = "first".to_string();
     let _ = editor.submit();
     editor.input_state.buffer = "second".to_string();
     let _ = editor.submit();
-    editor.apply_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Up, KeyModifiers::NONE));
     assert_eq!(editor.input_state.buffer, "second");
-    editor.apply_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Up, KeyModifiers::NONE));
     assert_eq!(editor.input_state.buffer, "first");
-    editor.apply_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Down, KeyModifiers::NONE));
     assert_eq!(editor.input_state.buffer, "second");
 }
 
 #[test]
 fn editor_undo_redo_and_multiline_newline_shortcut() {
     let mut editor = InputEditor::new();
-    editor.apply_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
-    editor.apply_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('b'), KeyModifiers::NONE));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
     assert_eq!(editor.input_state.buffer, "a");
-    editor.apply_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL));
+    editor.apply_key(KeyStroke::new(KeyCode::Char('y'), KeyModifiers::CONTROL));
     assert_eq!(editor.input_state.buffer, "ab");
 
     let mut editor2 = InputEditor::new();
-    editor2.apply_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
-    editor2.apply_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
-    editor2.apply_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+    editor2.apply_key(KeyStroke::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    editor2.apply_key(KeyStroke::new(KeyCode::Enter, KeyModifiers::SHIFT));
+    editor2.apply_key(KeyStroke::new(KeyCode::Char('b'), KeyModifiers::NONE));
     assert_eq!(editor2.input_state.buffer, "a\nb");
 }
 

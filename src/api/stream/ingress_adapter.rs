@@ -1,6 +1,6 @@
 use super::{IngressPayload, StreamOutputMode, StreamParser};
 use crate::runtime::json_handoff::RuntimeEnvelopeNormalizer;
-use crate::runtime::{RuntimeEnvelope, RuntimeEvent};
+use crate::runtime::{RuntimeEnvelope, RuntimeSignal};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_STREAM_TASK_ID: AtomicU64 = AtomicU64::new(1);
@@ -22,8 +22,8 @@ impl IngressProtocolAdapter {
 
     fn adapt_payload(&mut self, payload: IngressPayload) -> Vec<RuntimeEnvelope> {
         match payload {
-            IngressPayload::Provider(event) => {
-                self.normalizer.normalize_provider_stream_event(*event)
+            IngressPayload::Provider(item) => {
+                self.normalizer.normalize_provider_stream_item(*item)
             }
             IngressPayload::ChatCompat(payload) => {
                 self.normalizer.normalize_chat_compat_payload(payload)
@@ -73,7 +73,7 @@ impl StreamParser {
         if self.output_mode == StreamOutputMode::RuntimeEnvelope {
             let mut normalizer = RuntimeEnvelopeNormalizer::new(next_stream_task_id());
             let _ = normalizer.start_pulse(1, None);
-            return normalizer.emit_event(RuntimeEvent::Error {
+            return normalizer.emit_signal(RuntimeSignal::Error {
                 code: code.to_string(),
                 message,
                 recoverable: true,

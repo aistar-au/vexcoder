@@ -51,7 +51,7 @@ pub(crate) use git_rollup::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,
 };
 pub use json_handoff::{
-    RuntimeEnvelope, RuntimeEnvelopeSource, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope,
+    RuntimeEnvelope, RuntimeEnvelopeSource, RuntimeSignal, RuntimeRequest, TokenUsageEnvelope,
     ValidationOutputEnvelope,
 };
 pub use rate_limit::{
@@ -84,7 +84,7 @@ mod tests {
     fn test_ref_02_runtime_types_compile() {
         use crate::runtime::{
             context::RuntimeContext,
-            frontend::{FrontendAdapter, UserInputEvent},
+            frontend::{FrontendAdapter, InputOccurrence},
             mode::RuntimeMode,
         };
 
@@ -107,7 +107,7 @@ mod tests {
 
         struct DummyFrontend;
         impl FrontendAdapter<DummyMode> for DummyFrontend {
-            fn poll_user_input(&mut self, _mode: &DummyMode) -> Option<UserInputEvent> {
+            fn poll_user_input(&mut self, _mode: &DummyMode) -> Option<InputOccurrence> {
                 None
             }
             fn render(&mut self, _mode: &DummyMode) {}

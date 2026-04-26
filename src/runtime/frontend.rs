@@ -18,7 +18,7 @@ pub enum ScrollAction {
     End,
 }
 
-pub enum UserInputEvent {
+pub enum InputOccurrence {
     Text(String),
     Interrupt,
     Scroll {
@@ -28,7 +28,7 @@ pub enum UserInputEvent {
 }
 
 pub trait FrontendAdapter<M: RuntimeMode> {
-    fn poll_user_input(&mut self, mode: &M) -> Option<UserInputEvent>;
+    fn poll_user_input(&mut self, mode: &M) -> Option<InputOccurrence>;
     fn render(&mut self, mode: &M);
     fn should_quit(&self) -> bool;
 }

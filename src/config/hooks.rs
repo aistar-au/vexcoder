@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum HookEvent {
+pub enum HookTrigger {
     PreTool,
     PostTool,
 }
@@ -22,7 +22,8 @@ pub fn default_hook_on_fail() -> HookOnFail {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HookConfig {
-    pub event: HookEvent,
+    #[serde(rename = "event")]
+    pub trigger: HookTrigger,
     pub tool: String,
     pub command: String,
     #[serde(default)]
@@ -33,7 +34,8 @@ pub struct HookConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpHookConfig {
-    pub event: HookEvent,
+    #[serde(rename = "event")]
+    pub trigger: HookTrigger,
     pub tool: String,
     pub url: String,
     #[serde(default = "default_hook_on_fail")]
