@@ -63,7 +63,7 @@ async fn mutating_tool_prompts_approval_when_env_is_off() -> Result<()> {
     crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off");
     let dir = tempfile::tempdir()?;
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let mut manager = ConversationManager::new(
+    let manager = ConversationManager::new(
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
             vec![],
         ))),

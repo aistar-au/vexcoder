@@ -17,8 +17,6 @@ use parse::*;
 use paths::*;
 
 pub(super) use parse::infer_model_protocol;
-#[cfg(test)]
-pub(super) use parse::parse_model_headers_json;
 pub(super) use paths::user_config_path;
 
 pub(super) fn load() -> Result<Config> {
