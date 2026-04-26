@@ -62,7 +62,7 @@ fn at_path_injects_file_contents_into_prompt() {
     let mut mode = TuiMode::new_with_config(None, config.clone());
     let mut ctx = setup_ctx();
 
-    mode.on_user_input(format!("@{}", src.join("lib.rs").display()), &mut ctx);
+    mode.on_user_input("@src/lib.rs".to_string(), &mut ctx);
     let lines = mode.history_lines();
     assert!(
         lines.iter().any(|l| l.contains("hello")),

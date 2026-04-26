@@ -36,7 +36,7 @@ fn memory_add_appends_to_file_and_rejects_clear_without_confirmation() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|l| l.contains("[memory] confirm")),
+            .any(|l| l.contains("[memory] clear all notes")),
         "clear without confirmation must prompt"
     );
 }

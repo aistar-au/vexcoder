@@ -81,7 +81,7 @@ async fn multi_read_only_tool_round_reads_correct_content_per_file() -> Result<(
     let result_a = manager
         .execute_tool_with_timeout_with_updates(
             "read_file",
-            &json!({"path": file_a}),
+            &json!({"path": "a.txt"}),
             Duration::from_secs(5),
             None,
         )
@@ -89,7 +89,7 @@ async fn multi_read_only_tool_round_reads_correct_content_per_file() -> Result<(
     let result_b = manager
         .execute_tool_with_timeout_with_updates(
             "read_file",
-            &json!({"path": file_b}),
+            &json!({"path": "b.txt"}),
             Duration::from_secs(5),
             None,
         )

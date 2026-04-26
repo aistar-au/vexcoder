@@ -72,7 +72,7 @@ async fn mutating_tool_prompts_approval_when_env_is_off() -> Result<()> {
     manager
         .execute_tool_with_timeout_with_updates(
             "write_file",
-            &json!({"path": dir.path().join("out.txt").display().to_string(), "content": "x"}),
+            &json!({"path": "out.txt", "content": "x"}),
             Duration::from_secs(2),
             Some(&tx),
         )
