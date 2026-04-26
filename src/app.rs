@@ -36,6 +36,8 @@ use crate::runtime::{
 use crate::session_notes::{
     build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
 };
+#[cfg(test)]
+use crate::state::StreamBlock;
 use crate::state::{ConversationManager, PulseToolPolicy, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::types::ModelProfile;
