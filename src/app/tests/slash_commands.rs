@@ -21,7 +21,12 @@ fn edit_command_passes_bare_instruction_to_pulse_and_blocks_reentry() {
     mode2.active_edit_loop = Some(EditLoop::new("task-existing".to_string()));
     mode2.begin_turn_capture("placeholder".to_string());
     mode2.on_user_input("/edit add more tests".to_string(), &mut ctx2);
-    assert!(mode2.history_lines().iter().any(|l| l.contains("[edit loop already active")));
+    assert!(
+        mode2
+            .history_lines()
+            .iter()
+            .any(|l| l.contains("[edit loop already active"))
+    );
 }
 
 #[test]
@@ -41,7 +46,10 @@ fn tui_commands_renders_all_registered_commands() {
     mode.on_user_input("/commands".to_string(), &mut ctx);
     let lines = mode.history_lines();
     for cmd in ["/edit", "/run", "/memory", "/init", "/context"] {
-        assert!(lines.iter().any(|l| l.contains(cmd)), "missing {cmd} from /commands output");
+        assert!(
+            lines.iter().any(|l| l.contains(cmd)),
+            "missing {cmd} from /commands output"
+        );
     }
 }
 
@@ -52,6 +60,10 @@ async fn context_command_renders_without_model_turn() {
     mode.on_user_input("/context".to_string(), &mut ctx);
     assert!(!mode.is_pulse_in_progress());
     let lines = mode.history_lines();
-    assert!(lines.iter().any(|l| l.contains("~") || l.contains("tokens") || l.contains("context")),
-        "context output must include token info; lines: {lines:?}");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("~") || l.contains("tokens") || l.contains("context")),
+        "context output must include token info; lines: {lines:?}"
+    );
 }

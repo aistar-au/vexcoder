@@ -13,7 +13,9 @@ fn make_config(temp: &std::path::Path) -> Config {
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::Structured,
         tool_policy: crate::runtime::ToolPolicy::Full,
-        model_profile: ModelProfile::default_for_backend(crate::runtime::ModelBackendKind::LocalRuntime),
+        model_profile: ModelProfile::default_for_backend(
+            crate::runtime::ModelBackendKind::LocalRuntime,
+        ),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
         sandbox: crate::runtime::SandboxConfig::default(),
@@ -22,7 +24,10 @@ fn make_config(temp: &std::path::Path) -> Config {
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
         undo: UndoConfig::default(),
-        search: crate::config::SearchConfig { auto_index: false, ..Default::default() },
+        search: crate::config::SearchConfig {
+            auto_index: false,
+            ..Default::default()
+        },
         notes_path: None,
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
@@ -38,12 +43,22 @@ fn make_config(temp: &std::path::Path) -> Config {
 fn build_runtime_with_resume_restores_task_and_grants() {
     let temp = tempfile::tempdir().unwrap();
     let mut state = TaskState::new("task-startup-resume".to_string());
-    state.active_grants.insert(Capability::Network, ApprovalScope::Session);
+    state
+        .active_grants
+        .insert(Capability::Network, ApprovalScope::Session);
     state.status = crate::runtime::TaskStatus::Running;
 
     let (runtime, _ctx) = build_runtime_with_resume(make_config(temp.path()), state).unwrap();
     assert_eq!(runtime.mode.task_doc.info.id, "task-startup-resume");
-    assert_eq!(runtime.mode.task_doc.info.active_grants.get(&Capability::Network), Some(&ApprovalScope::Session));
+    assert_eq!(
+        runtime
+            .mode
+            .task_doc
+            .info
+            .active_grants
+            .get(&Capability::Network),
+        Some(&ApprovalScope::Session)
+    );
 }
 
 #[test]
@@ -54,6 +69,13 @@ fn compact_resets_turn_evidence_and_preserves_task_id() {
     let mut ctx = setup_ctx();
     mode.push_history_line("turn1".to_string());
     mode.on_user_input("/compact".to_string(), &mut ctx);
-    assert_eq!(mode.current_task_id(), original_id, "compact must not change task-id");
-    assert!(mode.active_edit_loop.is_none(), "compact must clear edit loop");
+    assert_eq!(
+        mode.current_task_id(),
+        original_id,
+        "compact must not change task-id"
+    );
+    assert!(
+        mode.active_edit_loop.is_none(),
+        "compact must clear edit loop"
+    );
 }

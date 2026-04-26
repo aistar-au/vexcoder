@@ -1,5 +1,4 @@
 use super::*;
-use crate::config::UndoConfig;
 use std::path::PathBuf;
 
 fn make_mgr(working_dir: PathBuf) -> ConversationManager {
@@ -47,7 +46,7 @@ fn undo_checkpoint_captures_and_restores_file_content() {
 #[test]
 fn zero_max_checkpoints_disables_undo() {
     let mut mgr = make_mgr(std::env::temp_dir());
-    mgr.undo_config = UndoConfig { max_checkpoints: 0, ..Default::default() };
+    mgr.max_undo_checkpoints = 0;
     mgr.push_undo_checkpoint(UndoCheckpoint {
         tool_name: "write_file".to_string(),
         path: PathBuf::from("/tmp/x.txt"),

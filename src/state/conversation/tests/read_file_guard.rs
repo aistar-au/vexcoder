@@ -2,10 +2,14 @@ use super::*;
 
 #[test]
 fn missing_read_only_location_prompt_requires_explicit_paths() {
-    let prompt = missing_read_only_location_prompt("read_file", &json!({})).expect("must prompt for missing path");
+    let prompt = missing_read_only_location_prompt("read_file", &json!({}))
+        .expect("must prompt for missing path");
     assert!(prompt.contains("explicit file path") && prompt.contains("[file: ...]"));
     assert!(missing_read_only_location_prompt("read_file", &json!({"path":"   "})).is_some());
-    assert!(missing_read_only_location_prompt("read_file", &json!({"path":"src/calculator.rs"})).is_none());
+    assert!(
+        missing_read_only_location_prompt("read_file", &json!({"path":"src/calculator.rs"}))
+            .is_none()
+    );
     assert!(missing_read_only_location_prompt("edit_file", &json!({})).is_none());
 }
 
@@ -13,14 +17,19 @@ fn missing_read_only_location_prompt_requires_explicit_paths() {
 fn read_only_user_request_detection_and_mutating_guard() {
     assert!(is_read_only_user_request("show me calculator.rs"));
     assert!(is_read_only_user_request("what is in src/runtime/loop.rs"));
-    assert!(!is_read_only_user_request("add a new function and commit it"));
+    assert!(!is_read_only_user_request(
+        "add a new function and commit it"
+    ));
 
     let guard = mutating_tool_read_only_conflict_prompt("show the git diff", "write_file");
     assert!(guard.is_some());
     assert!(guard.unwrap().contains("No file changes were made"));
 
     assert!(mutating_tool_read_only_conflict_prompt("add calculator.rs", "write_file").is_none());
-    assert!(mutating_tool_read_only_conflict_prompt("read-only inspect src/app.rs", "edit_file").is_some());
+    assert!(
+        mutating_tool_read_only_conflict_prompt("read-only inspect src/app.rs", "edit_file")
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -37,12 +46,22 @@ data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":
         r#"event: message_stop
 data: {"type":"message_stop"}"#.to_string(),
     ];
-    let second_sse = plain_text_round("msg_rp_02", "Please specify the file path you want to read.");
+    let second_sse = plain_text_round(
+        "msg_rp_02",
+        "Please specify the file path you want to read.",
+    );
     let mut manager = ConversationManager::new_mock(
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![first_sse, second_sse]))),
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_sse, second_sse,
+        ]))),
         HashMap::new(),
     );
-    let final_text = manager.send_message("read a file".to_string(), None).await?;
-    assert!(final_text.contains("file path"), "guard response must ask for path; got: {final_text}");
+    let final_text = manager
+        .send_message("read a file".to_string(), None)
+        .await?;
+    assert!(
+        final_text.contains("file path"),
+        "guard response must ask for path; got: {final_text}"
+    );
     Ok(())
 }

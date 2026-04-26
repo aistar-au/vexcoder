@@ -2,10 +2,27 @@ use super::*;
 
 #[test]
 fn missing_mutating_location_prompt_requires_explicit_paths() {
-    assert!(missing_mutating_location_prompt("edit_file", &json!({"old_str":"a","new_str":"b"})).is_some());
-    assert!(missing_mutating_location_prompt("edit_file", &json!({"file_path":"src/x.rs","old_str":"a","new_str":"b"})).is_none());
-    assert!(missing_mutating_location_prompt("rename_file", &json!({"old_path":"src/a.rs"})).is_some());
-    assert!(missing_mutating_location_prompt("rename_file", &json!({"from":"src/a.rs","to":"src/b.rs"})).is_none());
+    assert!(
+        missing_mutating_location_prompt("edit_file", &json!({"old_str":"a","new_str":"b"}))
+            .is_some()
+    );
+    assert!(
+        missing_mutating_location_prompt(
+            "edit_file",
+            &json!({"file_path":"src/x.rs","old_str":"a","new_str":"b"})
+        )
+        .is_none()
+    );
+    assert!(
+        missing_mutating_location_prompt("rename_file", &json!({"old_path":"src/a.rs"})).is_some()
+    );
+    assert!(
+        missing_mutating_location_prompt(
+            "rename_file",
+            &json!({"from":"src/a.rs","to":"src/b.rs"})
+        )
+        .is_none()
+    );
     assert!(missing_mutating_location_prompt("read_file", &json!({"path":"x"})).is_none());
 }
 
@@ -13,12 +30,13 @@ fn missing_mutating_location_prompt_requires_explicit_paths() {
 fn write_file_rejects_content_above_max_lines() {
     let content: String = (0..1001).map(|i| format!("line {i}\n")).collect();
     let dir = tempfile::tempdir().unwrap();
-    let mut manager = ConversationManager::new(
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![]))),
-        ToolOperator::new(dir.path().to_path_buf()),
+    let operator = ToolOperator::new(dir.path().to_path_buf());
+    let result = crate::state::conversation::tools::routing::call_tool_routing(
+        &operator,
+        "write_file",
+        &json!({"path": "big.rs", "content": content}),
     );
-    let result = manager.check_write_file_guard("write_file", &json!({"path": "big.rs", "content": content}));
-    assert!(result.is_some(), "very large write must be blocked by guard");
+    assert!(result.is_err(), "very large write must be blocked by guard");
 }
 
 #[tokio::test]
@@ -37,13 +55,20 @@ data: {"type":"message_stop"}"#.to_string(),
     ];
     let second_sse = plain_text_round("msg_ep_02", "Please provide a target file path.");
     let mut manager = ConversationManager::new_mock(
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![first_sse, second_sse]))),
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_sse, second_sse,
+        ]))),
         HashMap::new(),
     );
-    let final_text = manager.send_message("please edit".to_string(), None).await?;
+    let final_text = manager
+        .send_message("please edit".to_string(), None)
+        .await?;
     assert!(final_text.contains("target file path"));
     let tool_result = manager.api_messages.iter().find(|m| m.role == "user"
         && matches!(&m.content, Content::Blocks(b) if b.iter().any(|blk| matches!(blk, ContentBlock::ToolResult { .. }))));
-    assert!(tool_result.is_some(), "clarification must be sent as tool result, not user message");
+    assert!(
+        tool_result.is_some(),
+        "clarification must be sent as tool result, not user message"
+    );
     Ok(())
 }

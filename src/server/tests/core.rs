@@ -9,14 +9,27 @@ use serde_json::json;
 async fn core_endpoints_health_privacy_schema_return_ok() {
     let router = build_router(Config::default_for_tui());
     for uri in ["/v1/health", "/v1/privacy", "/v1/schema"] {
-        let response = router.clone().oneshot(
-            Request::builder().uri(uri).body(Body::empty()).unwrap()
-        ).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "endpoint {uri} must return 200");
+        let response = router
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "endpoint {uri} must return 200"
+        );
     }
-    let response = router.clone().oneshot(
-        Request::builder().uri("/v1/privacy").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/privacy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(payload.get("version"), Some(&json!(1)));
@@ -36,14 +49,33 @@ async fn delegate_and_watch_routes_create_session_task_rollup() {
             .header(CONTENT_TYPE, "application/json")
             .body(Body::from(r#"{"parent_task_id":"test-parent","agent_id":"reviewer","prompt":"inspect docs"}"#))
             .unwrap()).await.unwrap().into_body(), usize::MAX).await.unwrap();
-    let session_task_id = serde_json::from_slice::<Value>(&body).unwrap()
-        .get("session_task_id").and_then(Value::as_str).unwrap().to_string();
+    let session_task_id = serde_json::from_slice::<Value>(&body)
+        .unwrap()
+        .get("session_task_id")
+        .and_then(Value::as_str)
+        .unwrap()
+        .to_string();
 
-    let watch_body = to_bytes(router.oneshot(
-        Request::builder().uri(format!("/v1/watch/{session_task_id}")).body(Body::empty()).unwrap()
-    ).await.unwrap().into_body(), usize::MAX).await.unwrap();
+    let watch_body = to_bytes(
+        router
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/watch/{session_task_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
+        usize::MAX,
+    )
+    .await
+    .unwrap();
     let watch: Value = serde_json::from_slice(&watch_body).unwrap();
-    assert_eq!(watch.get("kind"), Some(&Value::String("session-task".into())));
+    assert_eq!(
+        watch.get("kind"),
+        Some(&Value::String("session-task".into()))
+    );
     assert_eq!(watch.get("id"), Some(&Value::String(session_task_id)));
 }
 
@@ -53,34 +85,59 @@ async fn bearer_token_enforcement_blocks_unauthenticated_requests() {
     config.api.key = Some("token-123".to_string());
     let router = build_http_router(
         LocalApiState::new(config),
-        HttpSurfaceSettings { bearer_token: Arc::<str>::from("token-123"), hsts_enabled: false },
+        HttpSurfaceSettings {
+            bearer_token: Arc::<str>::from("token-123"),
+            hsts_enabled: false,
+        },
     );
-    let unauth = router.clone().oneshot(
-        Request::builder().uri("/v1/health").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let unauth = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(unauth.status(), StatusCode::UNAUTHORIZED);
     assert!(unauth.headers().contains_key("x-request-id"));
 
-    let authed = router.oneshot(
-        Request::builder().uri("/v1/health")
-            .header("Authorization", "Bearer token-123")
-            .body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let authed = router
+        .oneshot(
+            Request::builder()
+                .uri("/v1/health")
+                .header("Authorization", "Bearer token-123")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(authed.status(), StatusCode::OK);
 }
 
 #[tokio::test]
 async fn invalid_request_uses_problem_details_content_type() {
     let router = build_router(Config::default_for_tui());
-    let response = router.oneshot(
-        Request::builder().method("POST").uri("/v1/pulses")
-            .header(CONTENT_TYPE, "application/json")
-            .body(Body::from(r#"{"type":"interrupt","request_id":"req-1","task_id":"task-1"}"#))
-            .unwrap()
-    ).await.unwrap();
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pulses")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"type":"interrupt","request_id":"req-1","task_id":"task-1"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(
-        response.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()),
+        response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok()),
         Some("application/problem+json")
     );
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();

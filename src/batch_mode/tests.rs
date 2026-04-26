@@ -14,13 +14,10 @@ fn batch_mode_ignores_non_task_ui_updates() {
     use std::sync::Arc;
 
     let mut mode = BatchMode::new("task".to_string(), BatchRunOpts::default(), None, None);
-    let client =
-        crate::api::ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
-    let conversation =
-        crate::state::ConversationManager::new_mock(client, HashMap::new());
+    let client = crate::api::ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let conversation = crate::state::ConversationManager::new_mock(client, HashMap::new());
     let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let mut ctx =
-        RuntimeContext::new(conversation, tx, CancellationToken::new());
+    let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
     mode.on_model_update(UiUpdate::TranscriptLine("noise".to_string()), &mut ctx);
     mode.on_model_update(
@@ -59,8 +56,10 @@ async fn batch_mode_memory_clear_requires_auto_approve() {
 #[tokio::test]
 async fn batch_mode_jsonl_output_has_required_fields() {
     let output = capture_batch_jsonl("echo hello", 3).await.unwrap();
-    let records: Vec<serde_json::Value> =
-        output.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    let records: Vec<serde_json::Value> = output
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
 
     let pulse = records
         .iter()

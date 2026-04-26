@@ -34,12 +34,22 @@ fn task_document_lifecycle_begin_turn_finish_and_tool_tracking() {
     let mut doc = condenser.begin_task(test_meta());
     assert!(doc.completed_turns.is_empty() && doc.active_pulse.is_none());
 
-    condenser.begin_turn(&mut doc, "analyze the output".to_string(), 2000, PulseToolPolicy::Default);
+    condenser.begin_turn(
+        &mut doc,
+        "analyze the output".to_string(),
+        2000,
+        PulseToolPolicy::Default,
+    );
     let active = doc.active_pulse.as_ref().expect("active pulse");
     assert_eq!(active.input, "analyze the output");
     assert!(matches!(active.entries[0], PulseEntry::UserInput { .. }));
 
-    let summary = condenser.finish_turn(&mut doc, PulseOutcome::Completed, PulseTokens::default(), 3000);
+    let summary = condenser.finish_turn(
+        &mut doc,
+        PulseOutcome::Completed,
+        PulseTokens::default(),
+        3000,
+    );
     assert!(doc.active_pulse.is_none());
     assert_eq!(doc.completed_turns.len(), 1);
     assert!(summary.active_turn_changed && summary.task_status_changed);

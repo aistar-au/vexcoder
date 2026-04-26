@@ -18,16 +18,31 @@ fn assert_local_runtime_client(
 fn protocol_inference_and_url_adaptation_for_local_shapes() {
     for (url, expected) in [
         ("http://localhost:8000/v1/messages", ApiProtocol::MessagesV1),
-        ("http://localhost:8000/v1/chat/completions", ApiProtocol::ChatCompat),
+        (
+            "http://localhost:8000/v1/chat/completions",
+            ApiProtocol::ChatCompat,
+        ),
         ("http://127.0.0.1:8000/messages/v1", ApiProtocol::MessagesV1),
         ("http://localhost:8000/v1", ApiProtocol::MessagesV1),
     ] {
-        assert_eq!(infer_api_protocol(url), expected, "inference mismatch for {url}");
+        assert_eq!(
+            infer_api_protocol(url),
+            expected,
+            "inference mismatch for {url}"
+        );
     }
 
     for (input, messages_url, chat_url) in [
-        ("http://localhost:8000/v1", "http://localhost:8000/v1/messages", "http://localhost:8000/v1/chat/completions"),
-        ("http://localhost:8000/v1/messages", "http://localhost:8000/v1/messages", "http://localhost:8000/v1/chat/completions"),
+        (
+            "http://localhost:8000/v1",
+            "http://localhost:8000/v1/messages",
+            "http://localhost:8000/v1/chat/completions",
+        ),
+        (
+            "http://localhost:8000/v1/messages",
+            "http://localhost:8000/v1/messages",
+            "http://localhost:8000/v1/chat/completions",
+        ),
     ] {
         assert_eq!(adapt_to_messages_v1_url(input), messages_url);
         assert_eq!(adapt_to_chat_compat_url(input), chat_url);
@@ -37,9 +52,24 @@ fn protocol_inference_and_url_adaptation_for_local_shapes() {
 #[test]
 fn local_runtime_request_url_respects_configured_protocol() {
     for (url, proto, api_proto, req_url) in [
-        ("http://localhost:8000/v1/messages", ModelProtocol::MessagesV1, ApiProtocol::MessagesV1, "http://localhost:8000/v1/messages"),
-        ("http://localhost:8000/v1", ModelProtocol::MessagesV1, ApiProtocol::MessagesV1, "http://localhost:8000/v1/messages"),
-        ("http://localhost:8000/v1", ModelProtocol::ChatCompat, ApiProtocol::ChatCompat, "http://localhost:8000/v1/chat/completions"),
+        (
+            "http://localhost:8000/v1/messages",
+            ModelProtocol::MessagesV1,
+            ApiProtocol::MessagesV1,
+            "http://localhost:8000/v1/messages",
+        ),
+        (
+            "http://localhost:8000/v1",
+            ModelProtocol::MessagesV1,
+            ApiProtocol::MessagesV1,
+            "http://localhost:8000/v1/messages",
+        ),
+        (
+            "http://localhost:8000/v1",
+            ModelProtocol::ChatCompat,
+            ApiProtocol::ChatCompat,
+            "http://localhost:8000/v1/chat/completions",
+        ),
     ] {
         assert_local_runtime_client(url, proto, api_proto, req_url);
     }
@@ -78,6 +108,13 @@ fn native_protocol_overrides_configured_for_bare_base_url() {
         #[cfg(test)]
         mock_stream_producer: None,
     };
-    assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat, "native protocol must override configured");
-    assert_eq!(client.request_url(), "http://localhost:8000/v1/chat/completions");
+    assert_eq!(
+        client.api_protocol(),
+        ApiProtocol::ChatCompat,
+        "native protocol must override configured"
+    );
+    assert_eq!(
+        client.request_url(),
+        "http://localhost:8000/v1/chat/completions"
+    );
 }

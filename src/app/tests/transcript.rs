@@ -23,7 +23,10 @@ fn scrollback_retains_position_during_streaming() {
     mode.on_user_input("fix the import error".to_string(), &mut ctx);
     mode.transcript_scroll_offset = 5;
     mode.on_model_update(UiUpdate::StreamDelta(" assistant".to_string()), &mut ctx);
-    assert!(mode.transcript_scroll_offset > 0, "scrollback must not force bottom while user has scrolled up");
+    assert!(
+        mode.transcript_scroll_offset > 0,
+        "scrollback must not force bottom while user has scrolled up"
+    );
 }
 
 #[test]
@@ -31,7 +34,9 @@ fn output_scroll_end_restores_auto_follow() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("list the test failures".to_string(), &mut ctx);
-    for i in 0..50 { mode.push_history_line(format!("line-{i}")); }
+    for i in 0..50 {
+        mode.push_history_line(format!("line-{i}"));
+    }
     assert!(mode.auto_follow());
     mode.apply_output_scroll_action(ScrollAction::LineUp);
     assert!(!mode.auto_follow());

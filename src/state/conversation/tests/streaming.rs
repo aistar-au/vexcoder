@@ -32,13 +32,17 @@ data: {"type": "message_delta", "delta":{"stop_reason":"end_turn","stop_sequence
         r#"event: message_stop
 data: {"type": "message_stop"}"#.to_string(),
     ];
-    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![first_sse, second_sse])))
-        .with_structured_tool_protocol();
+    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+        first_sse, second_sse,
+    ])))
+    .with_structured_tool_protocol();
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
     let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
 
-    let final_text = manager.send_message("What is in file.txt?".into(), None).await?;
+    let final_text = manager
+        .send_message("What is in file.txt?".into(), None)
+        .await?;
     assert!(final_text.contains("The content of file.txt is 'Hello from file.txt'"));
     assert_eq!(manager.api_messages.len(), 4);
     assert_eq!(manager.api_messages[0].role, "user");
@@ -51,7 +55,8 @@ data: {"type": "message_stop"}"#.to_string(),
 #[tokio::test]
 async fn local_endpoint_retries_once_when_tool_evidence_required() -> Result<()> {
     let tool_less = vec![
-        r#"data: {"choices":[{"delta":{"content":"no tool used"},"finish_reason":"stop"}]}"#.to_string(),
+        r#"data: {"choices":[{"delta":{"content":"no tool used"},"finish_reason":"stop"}]}"#
+            .to_string(),
     ];
     let with_tool = vec![
         r#"data: {"choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"call_01","type":"function","function":{"name":"read_file","arguments":""}}]},"finish_reason":null}]}"#.to_string(),
@@ -61,7 +66,11 @@ async fn local_endpoint_retries_once_when_tool_evidence_required() -> Result<()>
     let final_response = vec![
         r#"data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}"#.to_string(),
     ];
-    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![tool_less, with_tool, final_response])));
+    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+        tool_less,
+        with_tool,
+        final_response,
+    ])));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
     let result = manager.send_message("go".into(), None).await?;
     assert!(!result.is_empty());

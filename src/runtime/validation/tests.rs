@@ -1,4 +1,7 @@
-use super::{ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml, makefile_has_test_target};
+use super::{
+    ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml,
+    makefile_has_test_target,
+};
 use std::fs;
 
 #[tokio::test]
@@ -22,10 +25,18 @@ async fn validation_suite_formats_failure_output_for_retry() {
 #[test]
 fn validation_suite_infers_rust_and_node_when_both_present() {
     let workspace = tempfile::tempdir().unwrap();
-    fs::write(workspace.path().join("Cargo.toml"), "[package]\nname=\"x\"\n").unwrap();
+    fs::write(
+        workspace.path().join("Cargo.toml"),
+        "[package]\nname=\"x\"\n",
+    )
+    .unwrap();
     fs::write(workspace.path().join("package.json"), "{\"name\":\"x\"}").unwrap();
     let suite = ValidationSuite::infer_from_repo(workspace.path());
-    let labels: Vec<_> = suite.commands.iter().map(|c| c.label.to_ascii_lowercase()).collect();
+    let labels: Vec<_> = suite
+        .commands
+        .iter()
+        .map(|c| c.label.to_ascii_lowercase())
+        .collect();
     assert!(labels.iter().any(|l| l.contains("cargo")));
     assert!(labels.iter().any(|l| l.contains("npm")));
 }
@@ -43,7 +54,11 @@ fn load_validate_toml_parses_valid_and_rejects_invalid() {
 #[test]
 fn makefile_test_target_detection_requires_column_zero() {
     let workspace = tempfile::tempdir().unwrap();
-    fs::write(workspace.path().join("Makefile"), "all:\n\t@echo test: indented\n").unwrap();
+    fs::write(
+        workspace.path().join("Makefile"),
+        "all:\n\t@echo test: indented\n",
+    )
+    .unwrap();
     assert!(!makefile_has_test_target(workspace.path()));
 
     fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n").unwrap();

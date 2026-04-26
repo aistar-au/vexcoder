@@ -10,8 +10,15 @@ async fn model_command_echoes_current_name_and_switches_on_valid_arg() {
     let old = mode.model_name.clone();
     mode.on_user_input("/model local/coder-8b".to_string(), &mut ctx);
     assert_eq!(mode.model_name, "local/coder-8b");
-    assert!(mode.history_lines().iter().any(|l| l.contains(&old) && l.contains("local/coder-8b")));
-    assert!(!mode.is_pulse_in_progress(), "/model must not start a pulse");
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|l| l.contains(&old) && l.contains("local/coder-8b"))
+    );
+    assert!(
+        !mode.is_pulse_in_progress(),
+        "/model must not start a pulse"
+    );
 }
 
 #[tokio::test]
@@ -39,6 +46,10 @@ async fn diff_command_renders_git_working_tree_diff() {
     let mut mode = TuiMode::new_with_config(None, config);
     mode.on_user_input("/diff".to_string(), &mut ctx);
     let lines = mode.history_lines();
-    assert!(lines.iter().any(|l| l.contains("src.rs") || l.contains("diff") || l.contains("b()")),
-        "diff output must mention changed file; lines: {lines:?}");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("src.rs") || l.contains("diff") || l.contains("b()")),
+        "diff output must mention changed file; lines: {lines:?}"
+    );
 }

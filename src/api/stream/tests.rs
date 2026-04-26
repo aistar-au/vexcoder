@@ -44,9 +44,7 @@ fn stream_parser_returns_error_on_buffer_overflow() {
 
 #[test]
 fn stream_parser_returns_error_on_unparseable_frame() {
-    let events = StreamParser::new()
-        .process(b"data: not-json\n\n")
-        .unwrap();
+    let events = StreamParser::new().process(b"data: not-json\n\n").unwrap();
     assert!(matches!(
         &events[0].event,
         RuntimeEvent::Error { code, .. } if code == "sse_parse_error"

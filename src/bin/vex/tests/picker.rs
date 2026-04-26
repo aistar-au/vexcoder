@@ -47,8 +47,16 @@ fn dismissed_file_picker_stays_suppressed_until_input_changes() {
     let input = "inspect @inp";
     let range = file_mention_range(input, input.len()).expect("range");
     let dismissed = Some((input.to_string(), range));
-    assert!(file_picker_is_dismissed(dismissed.as_ref(), "inspect @inp", "inspect @inp".len()));
-    assert!(!file_picker_is_dismissed(dismissed.as_ref(), "inspect @input", "inspect @input".len()));
+    assert!(file_picker_is_dismissed(
+        dismissed.as_ref(),
+        "inspect @inp",
+        "inspect @inp".len()
+    ));
+    assert!(!file_picker_is_dismissed(
+        dismissed.as_ref(),
+        "inspect @input",
+        "inspect @input".len()
+    ));
     assert!(!file_picker_is_dismissed(None, "@test", 5));
 }
 

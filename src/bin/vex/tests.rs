@@ -30,19 +30,27 @@ use vexcoder::ui::editor::file_mention_range;
 mod test_support {
     pub struct EnvLock(tokio::sync::Mutex<()>);
     impl EnvLock {
-        pub const fn new() -> Self { Self(tokio::sync::Mutex::const_new(())) }
+        pub const fn new() -> Self {
+            Self(tokio::sync::Mutex::const_new(()))
+        }
         pub fn blocking_lock(&self) -> EnvLockGuard<'_> {
-            EnvLockGuard { _guard: self.0.blocking_lock() }
+            EnvLockGuard {
+                _guard: self.0.blocking_lock(),
+            }
         }
     }
-    pub struct EnvLockGuard<'a> { _guard: tokio::sync::MutexGuard<'a, ()> }
+    pub struct EnvLockGuard<'a> {
+        _guard: tokio::sync::MutexGuard<'a, ()>,
+    }
     impl EnvLockGuard<'_> {
         #[allow(unsafe_code)]
         pub fn set_var(&self, key: &str, val: impl AsRef<std::ffi::OsStr>) {
             unsafe { std::env::set_var(key, val) }
         }
         #[allow(unsafe_code)]
-        pub fn remove_var(&self, key: &str) { unsafe { std::env::remove_var(key) } }
+        pub fn remove_var(&self, key: &str) {
+            unsafe { std::env::remove_var(key) }
+        }
     }
     pub static ENV_LOCK: EnvLock = EnvLock::new();
 }
@@ -51,16 +59,29 @@ mod test_support {
 mod picker;
 
 fn run_git(repo: &std::path::Path, args: &[&str]) {
-    let out = Command::new("git").current_dir(repo).args(args).output().unwrap();
-    assert!(out.status.success(), "git {} failed: {}", args.join(" "), String::from_utf8_lossy(&out.stderr));
+    let out = Command::new("git")
+        .current_dir(repo)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {} failed: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 fn init_git_repo() -> tempfile::TempDir {
     let temp = tempfile::tempdir().unwrap();
     for args in [
-        vec!["init"], vec!["checkout", "-b", "main"],
-        vec!["config", "user.name", "Test"], vec!["config", "user.email", "t@t.com"],
-    ] { run_git(temp.path(), &args); }
+        vec!["init"],
+        vec!["checkout", "-b", "main"],
+        vec!["config", "user.name", "Test"],
+        vec!["config", "user.email", "t@t.com"],
+    ] {
+        run_git(temp.path(), &args);
+    }
     std::fs::write(temp.path().join("README.md"), "hello\n").unwrap();
     run_git(temp.path(), &["add", "README.md"]);
     run_git(temp.path(), &["commit", "-m", "initial"]);
@@ -69,7 +90,13 @@ fn init_git_repo() -> tempfile::TempDir {
 
 #[test]
 fn cli_key_flags_parse_correctly() {
-    let cli = Cli::parse_from(["vex", "--display-internal-telemetry", "--telemetry-json", "-p", "task"]);
+    let cli = Cli::parse_from([
+        "vex",
+        "--display-internal-telemetry",
+        "--telemetry-json",
+        "-p",
+        "task",
+    ]);
     assert!(cli.display_internal_telemetry && cli.telemetry_json);
     assert_eq!(cli.project_map_only.as_deref(), Some("task"));
 
@@ -78,8 +105,16 @@ fn cli_key_flags_parse_correctly() {
     assert!(cli2.restrict_payload_tools);
     assert_eq!(cli2.set_map_encoding, "jsonl");
 
-    let cli3 = Cli::parse_from(["vex", "--force"]);
-    assert!(matches!(default_auto_approve_scope(&cli3), Some(AutoApproveScope::Task)));
+    assert!(matches!(
+        default_auto_approve_scope(
+            &Config {
+                force: true,
+                ..Config::default()
+            },
+            None
+        ),
+        Some(AutoApproveScope::Task)
+    ));
 }
 
 #[test]
@@ -92,10 +127,14 @@ fn transcript_detection_distinguishes_session_output_from_plain_prompts() {
 
 #[test]
 fn startup_paste_filter_ignores_transcript_noise_but_keeps_normal_prompts() {
-    let normal = (0..20).map(|i| format!("line {i}: plan the next edit")).collect::<Vec<_>>().join("\n");
+    let normal = (0..20)
+        .map(|i| format!("line {i}: plan the next edit"))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(!should_ignore_startup_paste_text(&normal, true));
     assert!(should_ignore_startup_paste_text(
-        "mode:ready approval:none history:9\n1 | > list files\ntest result: ok.", true
+        "mode:ready approval:none history:9\n1 | > list files\ntest result: ok.",
+        true
     ));
 }
 
@@ -105,11 +144,29 @@ fn resolve_resume_state_returns_most_recent_task_and_errors_on_unknown_id() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     _env_lock.set_var("VEX_STATE_DIR", temp.path().as_os_str());
-    TaskState::new("task-older".to_string()).save(temp.path()).unwrap();
-    TaskState::new("task-newer".to_string()).save(temp.path()).unwrap();
-    set_file_mtime(temp.path().join("task-older.json"), FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
-    set_file_mtime(temp.path().join("task-newer.json"), FileTime::from_unix_time(1_700_000_001, 0)).unwrap();
-    assert_eq!(resolve_resume_state("").unwrap().expect("must find a task").id, "task-newer");
+    TaskState::new("task-older".to_string())
+        .save(temp.path())
+        .unwrap();
+    TaskState::new("task-newer".to_string())
+        .save(temp.path())
+        .unwrap();
+    set_file_mtime(
+        temp.path().join("task-older.json"),
+        FileTime::from_unix_time(1_700_000_000, 0),
+    )
+    .unwrap();
+    set_file_mtime(
+        temp.path().join("task-newer.json"),
+        FileTime::from_unix_time(1_700_000_001, 0),
+    )
+    .unwrap();
+    assert_eq!(
+        resolve_resume_state("")
+            .unwrap()
+            .expect("must find a task")
+            .id,
+        "task-newer"
+    );
     assert!(resolve_resume_state("does-not-exist").is_err());
     _env_lock.remove_var("VEX_STATE_DIR");
 }

@@ -64,7 +64,10 @@ fn at_path_injects_file_contents_into_prompt() {
 
     mode.on_user_input(format!("@{}", src.join("lib.rs").display()), &mut ctx);
     let lines = mode.history_lines();
-    assert!(lines.iter().any(|l| l.contains("hello")), "file contents must appear in history; lines: {lines:?}");
+    assert!(
+        lines.iter().any(|l| l.contains("hello")),
+        "file contents must appear in history; lines: {lines:?}"
+    );
 }
 
 #[test]
@@ -75,6 +78,11 @@ fn at_path_rejects_path_outside_workspace() {
     let mut ctx = setup_ctx();
     mode.on_user_input("@/etc/passwd".to_string(), &mut ctx);
     let lines = mode.history_lines();
-    assert!(lines.iter().any(|l| l.contains("outside") || l.contains("workspace") || l.contains("rejected") || l.contains("not allowed")),
-        "out-of-workspace path must be rejected; lines: {lines:?}");
+    assert!(
+        lines.iter().any(|l| l.contains("outside")
+            || l.contains("workspace")
+            || l.contains("rejected")
+            || l.contains("not allowed")),
+        "out-of-workspace path must be rejected; lines: {lines:?}"
+    );
 }

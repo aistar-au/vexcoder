@@ -39,8 +39,14 @@ fn schema_assets_parse_as_json_with_correct_ids() {
         serde_json::from_str(include_str!("../../../schemas/runtime_envelope_v1.json")).unwrap();
     let request_schema: serde_json::Value =
         serde_json::from_str(include_str!("../../../schemas/runtime_request_v1.json")).unwrap();
-    assert_eq!(envelope_schema["$id"], "https://vexcoder.com/schemas/runtime_envelope_v1.json");
-    assert_eq!(request_schema["$id"], "https://vexcoder.com/schemas/runtime_request_v1.json");
+    assert_eq!(
+        envelope_schema["$id"],
+        "https://vexcoder.com/schemas/runtime_envelope_v1.json"
+    );
+    assert_eq!(
+        request_schema["$id"],
+        "https://vexcoder.com/schemas/runtime_request_v1.json"
+    );
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
 }
 
@@ -68,8 +74,16 @@ fn normalizer_discards_provider_ids_and_tracks_tool_results() {
         .expect("tool call envelope");
 
     let runtime_call_id = match &tool_call.event {
-        RuntimeEvent::ToolCallStarted { tool_call_id, tool_name, arguments, .. } => {
-            assert_ne!(tool_call_id, "provider-call-1", "provider ID must be replaced");
+        RuntimeEvent::ToolCallStarted {
+            tool_call_id,
+            tool_name,
+            arguments,
+            ..
+        } => {
+            assert_ne!(
+                tool_call_id, "provider-call-1",
+                "provider ID must be replaced"
+            );
             assert_eq!(tool_name, "write_file");
             assert_eq!(arguments["path"], "src/main.rs");
             tool_call_id.clone()
@@ -87,8 +101,16 @@ fn normalizer_discards_provider_ids_and_tracks_tool_results() {
         .expect("tool result envelope");
 
     match tool_result.event {
-        RuntimeEvent::ToolCallCompleted { tool_call_id, status, output, .. } => {
-            assert_eq!(tool_call_id, runtime_call_id, "result must reference runtime ID");
+        RuntimeEvent::ToolCallCompleted {
+            tool_call_id,
+            status,
+            output,
+            ..
+        } => {
+            assert_eq!(
+                tool_call_id, runtime_call_id,
+                "result must reference runtime ID"
+            );
             assert_eq!(status, crate::state::ToolStatus::Complete);
             assert_eq!(output, "ok");
         }

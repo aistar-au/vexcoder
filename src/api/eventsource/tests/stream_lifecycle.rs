@@ -9,8 +9,11 @@ async fn eof_flushes_pulse_end_and_does_not_repoll_upstream() {
     let polls = Arc::new(AtomicUsize::new(0));
     let polls_for_stream = Arc::clone(&polls);
     let upstream = stream::poll_fn(move |_| {
-        if polls_for_stream.fetch_add(1, Ordering::SeqCst) == 0 { std::task::Poll::Ready(None) }
-        else { panic!("upstream polled again after EOF") }
+        if polls_for_stream.fetch_add(1, Ordering::SeqCst) == 0 {
+            std::task::Poll::Ready(None)
+        } else {
+            panic!("upstream polled again after EOF")
+        }
     });
 
     let mut state = EventStreamState {
@@ -49,7 +52,9 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
     let upstream = stream::poll_fn(move |_| {
         if polls_for_stream.fetch_add(1, Ordering::SeqCst) == 0 {
             std::task::Poll::Ready(Some(Ok(Bytes::from_static(b"data: [DONE]\n\n"))))
-        } else { panic!("upstream polled again after chat-compatible [DONE]") }
+        } else {
+            panic!("upstream polled again after chat-compatible [DONE]")
+        }
     });
 
     let mut state = EventStreamState {
@@ -71,8 +76,16 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
     };
 
     let mut emitted = Vec::new();
-    while let Some(event) = next_stream_event(&mut state).await.unwrap() { emitted.push(event); }
+    while let Some(event) = next_stream_event(&mut state).await.unwrap() {
+        emitted.push(event);
+    }
 
-    assert!(emitted.iter().any(|e| matches!(e.event, RuntimeEvent::PulseEnd { .. })), "chat-compatible [DONE] must flush PulseEnd; got {:?}", emitted.iter().map(|e| &e.event).collect::<Vec<_>>());
+    assert!(
+        emitted
+            .iter()
+            .any(|e| matches!(e.event, RuntimeEvent::PulseEnd { .. })),
+        "chat-compatible [DONE] must flush PulseEnd; got {:?}",
+        emitted.iter().map(|e| &e.event).collect::<Vec<_>>()
+    );
     assert_eq!(polls.load(Ordering::SeqCst), 1);
 }

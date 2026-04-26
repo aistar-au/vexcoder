@@ -78,6 +78,52 @@ impl Drop for EnvRestore<'_> {
     }
 }
 
+/// RAII guard that acquires `ENV_LOCK`, sets one or more env vars, and restores
+/// their previous values on drop. Avoids the scattered lock + set + restore
+/// triple in tests that touch a single env region.
+///
+/// # Example
+/// ```ignore
+/// let _env = TempEnv::set("VEX_STATE_DIR", temp.path())
+///     .also_set("VEX_MODEL_URL", "http://localhost:8080/v1");
+/// ```
+pub struct TempEnv {
+    _guard: EnvLockGuard<'static>,
+    originals: Vec<(&'static str, Option<String>)>,
+}
+
+impl TempEnv {
+    /// Acquires `ENV_LOCK`, records the current value of `key`, and sets it.
+    pub fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let guard = ENV_LOCK.blocking_lock();
+        let original = std::env::var(key).ok();
+        guard.set_var(key, value);
+        Self {
+            _guard: guard,
+            originals: vec![(key, original)],
+        }
+    }
+
+    /// Sets an additional var under the same lock, returning `self` for chaining.
+    pub fn also_set(mut self, key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let original = std::env::var(key).ok();
+        self._guard.set_var(key, value);
+        self.originals.push((key, original));
+        self
+    }
+}
+
+impl Drop for TempEnv {
+    fn drop(&mut self) {
+        for (key, original) in &self.originals {
+            match original {
+                Some(v) => self._guard.set_var(key, v),
+                None => self._guard.remove_var(key),
+            }
+        }
+    }
+}
+
 pub fn test_set_var(lock: &EnvLockGuard<'_>, key: &str, value: impl AsRef<std::ffi::OsStr>) {
     lock.set_var(key, value)
 }
@@ -120,6 +166,17 @@ pub async fn spawn_axum_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temp_env_sets_and_restores_on_drop() {
+        {
+            let _t = TempEnv::set("VEX_TEMP_ENV_A", "alpha").also_set("VEX_TEMP_ENV_B", "beta");
+            assert_eq!(std::env::var("VEX_TEMP_ENV_A").as_deref(), Ok("alpha"));
+            assert_eq!(std::env::var("VEX_TEMP_ENV_B").as_deref(), Ok("beta"));
+        }
+        assert!(std::env::var("VEX_TEMP_ENV_A").is_err());
+        assert!(std::env::var("VEX_TEMP_ENV_B").is_err());
+    }
 
     #[test]
     fn test_env_helpers_allow_locked_mutation() {

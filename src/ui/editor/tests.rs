@@ -22,10 +22,18 @@ fn prev_char_boundary_handles_multibyte() {
 #[case("@one @two @three", 2, Some("@one"))]
 #[case("@one @two @three", 16, Some("@three"))]
 #[case("hello @ world", 6, Some("@"))]
-fn file_mention_range_cases(#[case] input: &str, #[case] cursor: usize, #[case] expected: Option<&str>) {
+fn file_mention_range_cases(
+    #[case] input: &str,
+    #[case] cursor: usize,
+    #[case] expected: Option<&str>,
+) {
     let result = file_mention_range(input, cursor);
     match expected {
-        None => assert!(result.is_none(), "expected None for {:?} at {cursor}", input),
+        None => assert!(
+            result.is_none(),
+            "expected None for {:?} at {cursor}",
+            input
+        ),
         Some(s) => assert_eq!(&input[result.expect("expected Some")], s),
     }
 }
@@ -36,9 +44,15 @@ fn visual_up_down_moves_cursor_across_logical_lines() {
     editor.input_state.buffer = "alpha\nbeta\ngamma".to_string();
     editor.input_state.cursor = "alpha\nbeta\ngam".len();
     assert!(editor.move_cursor_visual_up(80));
-    assert_eq!(&editor.input_state.buffer[..editor.input_state.cursor], "alpha\nbet");
+    assert_eq!(
+        &editor.input_state.buffer[..editor.input_state.cursor],
+        "alpha\nbet"
+    );
     assert!(editor.move_cursor_visual_down(80));
-    assert_eq!(&editor.input_state.buffer[..editor.input_state.cursor], "alpha\nbeta\ngam");
+    assert_eq!(
+        &editor.input_state.buffer[..editor.input_state.cursor],
+        "alpha\nbeta\ngam"
+    );
 }
 
 #[test]
@@ -53,7 +67,10 @@ fn visual_up_stops_at_first_row() {
 #[test]
 fn ctrl_d_quits_on_empty_buffer_and_deletes_char_otherwise() {
     let mut editor = InputEditor::new();
-    assert!(matches!(editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)), super::InputAction::Quit));
+    assert!(matches!(
+        editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+        super::InputAction::Quit
+    ));
 
     editor.insert_str("abcd");
     editor.input_state.cursor = 1;
