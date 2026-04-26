@@ -12,7 +12,7 @@
 - Adopt replay-first, single-writer architecture: `TaskDocument` is always a deterministic projection of an append-only `RuntimeEventLog`.
 - `TaskDocumentCondenser` is the sole writer to replay-relevant `TaskDocument` fields.
 - Provider-native events are never appended to the event log directly; all events pass through normalization first (ADR-030).
-- Every `TaskDocument` field must have a corresponding `RuntimeEvent` variant and a condenser handler.
+- Every `TaskDocument` field must have a corresponding `RuntimeSignal` variant and a condenser handler.
 - `TaskDocumentCheckpoint` captures all replay-relevant fields for full-fidelity session resume.
 - Rollback is represented as an appended marker event, not log truncation.
 - Seven component boundaries: `EventLog`, `Condenser`, `TaskDocument`, `ConversationManager`, `CondensationSummary`, `Projections`, `Checkpoint`.
