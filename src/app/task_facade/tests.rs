@@ -1,9 +1,6 @@
 use super::*;
 use crate::runtime::SessionTask;
 use std::path::PathBuf;
-use std::sync::{Arc, Barrier};
-use std::thread;
-use std::time::Duration;
 
 fn write_agents_toml(dir: &std::path::Path, content: &str) {
     let vex_dir = dir.join(".vex");

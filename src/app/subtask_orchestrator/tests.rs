@@ -1,6 +1,5 @@
 use super::*;
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
-use crate::runtime::SessionTaskStatus;
 
 fn make_agent(name: &str) -> AgentProfile {
     AgentProfile {

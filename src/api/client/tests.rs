@@ -1,15 +1,14 @@
 use super::*;
 use crate::runtime::RuntimeEvent;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
-use crate::test_support::{ENV_LOCK, RequestLog, spawn_axum_server};
+use crate::test_support::{RequestLog, spawn_axum_server};
 use crate::types::{ApiMessage, Content};
 use axum::Json;
 use axum::Router;
 use axum::extract::State;
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
-use futures::StreamExt;
+use axum::routing::post;
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

@@ -1,5 +1,4 @@
 use super::*;
-use crate::mcp::{McpRegistryRollup, McpServerRollup, McpToolSummary};
 
 #[test]
 fn non_slash_input_routes_model_pulse() {

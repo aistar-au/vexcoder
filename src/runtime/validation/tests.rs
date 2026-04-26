@@ -1,5 +1,5 @@
 use super::{
-    ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml,
+    ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml,
     makefile_has_test_target,
 };
 use std::fs;

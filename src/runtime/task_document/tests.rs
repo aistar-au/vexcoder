@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_state::TaskStatus;
-use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
-use crate::state::{PulseToolPolicy, ToolStatus};
+use crate::runtime::ModelBackendKind;
+use crate::state::PulseToolPolicy;
 use crate::usage::PulseTokens;
 
 use super::{PulseEntry, PulseOutcome, TaskDocumentCondenser, TaskInfo};

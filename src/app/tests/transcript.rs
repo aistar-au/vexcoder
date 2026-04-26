@@ -1,5 +1,4 @@
 use super::*;
-use crate::runtime::AssistantPhase;
 
 #[test]
 fn stream_delta_appends_to_assistant_line_not_user_line() {

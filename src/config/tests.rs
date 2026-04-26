@@ -1,4 +1,4 @@
-use super::{Config, ModelBackendKind};
+use super::Config;
 use crate::test_support::EnvRestore;
 use rstest::rstest;
 

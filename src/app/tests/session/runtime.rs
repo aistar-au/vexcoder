@@ -63,7 +63,7 @@ fn build_runtime_with_resume_restores_task_and_grants() {
 
 #[test]
 fn compact_resets_turn_evidence_and_preserves_task_id() {
-    let temp = tempfile::tempdir().unwrap();
+    let _temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new();
     let original_id = mode.current_task_id();
     let mut ctx = setup_ctx();

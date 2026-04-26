@@ -1,6 +1,4 @@
 use super::*;
-use crate::config::CompactionConfig;
-use crate::config::UndoConfig;
 
 #[test]
 fn memory_command_renders_empty_notes_without_pulse() {

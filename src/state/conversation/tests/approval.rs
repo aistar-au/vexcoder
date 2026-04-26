@@ -60,7 +60,7 @@ async fn codebase_search_works_without_embeddings() -> Result<()> {
 #[tokio::test]
 async fn mutating_tool_prompts_approval_when_env_is_off() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off".as_ref());
+    crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off");
     let dir = tempfile::tempdir()?;
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut manager = ConversationManager::new(

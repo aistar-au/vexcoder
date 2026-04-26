@@ -58,7 +58,7 @@ fn at_path_injects_file_contents_into_prompt() {
     std::fs::create_dir_all(&src).unwrap();
     std::fs::write(src.join("lib.rs"), "pub fn hello() {}").unwrap();
 
-    let mut config = config_with_workdir(temp.path());
+    let config = config_with_workdir(temp.path());
     let mut mode = TuiMode::new_with_config(None, config.clone());
     let mut ctx = setup_ctx();
 
