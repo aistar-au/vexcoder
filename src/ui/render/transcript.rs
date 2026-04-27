@@ -734,7 +734,10 @@ mod tests {
 
         let expanded = expand_rows_for_display(&rows, 24);
 
-        assert!(expanded.len() > 1, "tool detail should wrap for inline scrollback");
+        assert!(
+            expanded.len() > 1,
+            "tool detail should wrap for inline scrollback"
+        );
         assert!(expanded.iter().all(|row| rendered_width(row) <= 24));
     }
 
@@ -746,7 +749,10 @@ mod tests {
 
         let expanded = expand_rows_for_display(&rows, 28);
 
-        assert!(expanded.len() > 1, "tool header should wrap for inline scrollback");
+        assert!(
+            expanded.len() > 1,
+            "tool header should wrap for inline scrollback"
+        );
         assert!(expanded.iter().all(|row| rendered_width(row) <= 28));
     }
 }

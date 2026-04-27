@@ -76,3 +76,37 @@ async fn local_endpoint_retries_once_when_tool_evidence_required() -> Result<()>
     assert!(!result.is_empty());
     Ok(())
 }
+
+#[tokio::test]
+async fn local_endpoint_executes_tagged_text_tool_calls() -> Result<()> {
+        let tagged_tool_call = vec![
+                r#"data: {"choices":[{"delta":{"content":"<function=read_file>\n<parameter=path>file.txt</parameter>\n</function>"},"finish_reason":"stop"}]}"#
+                        .to_string(),
+        ];
+        let final_response = vec![
+                r#"data: {"choices":[{"delta":{"content":"The file says hello."},"finish_reason":"stop"}]}"#
+                        .to_string(),
+        ];
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+                tagged_tool_call,
+                final_response,
+        ])));
+        let mut mock_tool_responses = HashMap::new();
+        mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
+        let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+
+        let final_text = manager
+                .send_message("What is in file.txt?".into(), None)
+                .await?;
+
+        assert!(final_text.contains("The file says hello."));
+        assert!(matches!(
+                &manager.api_messages[1].content,
+                Content::Text(text) if text.contains("<function=read_file>")
+        ));
+        assert!(matches!(
+                &manager.api_messages[2].content,
+                Content::Text(text) if text.contains("tool_result read_file")
+        ));
+        Ok(())
+}

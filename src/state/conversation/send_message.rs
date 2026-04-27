@@ -353,8 +353,47 @@ impl ConversationManager {
                 }
             });
 
-            let assistant_text_for_history = assistant_text.clone();
-            let use_structured_round = use_structured_tool_protocol;
+            let mut assistant_text_for_history = assistant_text.clone();
+            let mut used_tagged_fallback = false;
+            if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
+                let tagged_calls = dedupe_tagged_tool_calls(parse_tagged_tool_calls(&assistant_text));
+                if !tagged_calls.is_empty() {
+                    used_tagged_fallback = true;
+                    assistant_text_for_history = core_policy.sanitize_assistant_text(&assistant_text);
+                    let fallback_start_index = self.current_round_stream_block_count;
+                    tool_use_blocks = tagged_calls
+                        .into_iter()
+                        .enumerate()
+                        .map(|(offset, call)| {
+                            let block = ContentBlock::ToolUse {
+                                id: format!("toolu_tagged_{rounds}_{offset}"),
+                                name: call.name,
+                                input: call.input,
+                                metadata: None,
+                            };
+
+                            if let ContentBlock::ToolUse {
+                                id, name, input, ..
+                            } = &block
+                            {
+                                self.upsert_turn_block(
+                                    fallback_start_index + offset,
+                                    StreamBlock::ToolCall {
+                                        id: id.clone(),
+                                        name: name.clone(),
+                                        input: input.clone(),
+                                        status: ToolStatus::Pending,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            }
+
+                            block
+                        })
+                        .collect();
+                }
+            }
+            let use_structured_round = use_structured_tool_protocol && !used_tagged_fallback;
 
             let mut inject_repeated_round_nudge = false;
             if !tool_use_blocks.is_empty() {
@@ -430,9 +469,20 @@ impl ConversationManager {
                 repeated_mutating_rounds = 0;
             }
 
-            let assistant_history_text = assistant_text_for_history.clone();
+            let assistant_history_source = if !tool_use_blocks.is_empty() && !use_structured_round {
+                let rendered_tool_calls = render_tool_calls_for_text_protocol(&tool_use_blocks);
+                if assistant_text_for_history.is_empty() {
+                    rendered_tool_calls
+                } else {
+                    format!("{assistant_text_for_history}\n{rendered_tool_calls}")
+                }
+            } else if assistant_text_for_history.is_empty() && !tool_use_blocks.is_empty() {
+                render_tool_calls_for_text_protocol(&tool_use_blocks)
+            } else {
+                assistant_text_for_history.clone()
+            };
             let assistant_history_text =
-                truncate_for_history(&assistant_history_text, limits.max_assistant_history_chars);
+                truncate_for_history(&assistant_history_source, limits.max_assistant_history_chars);
 
             if use_structured_round {
                 let mut assistant_content_blocks = Vec::new();

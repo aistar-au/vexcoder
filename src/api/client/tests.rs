@@ -311,6 +311,17 @@ async fn map_api_request_error_local_connect_failure_mentions_retry() {
 }
 
 #[test]
+fn new_rewrites_wildcard_local_model_url_to_loopback() {
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url = "http://0.0.0.0:8000/v1/messages".to_string();
+
+    let client = ApiClient::new(&config).expect("client should build");
+
+    assert_eq!(client.api_url, "http://127.0.0.1:8000/v1/messages");
+}
+
+#[test]
 fn system_prompt_lists_required_tools_and_approval_notice() {
     let prompt = BASE_SYSTEM_PROMPT;
     assert!(prompt.contains("run_command"), "missing run_command");

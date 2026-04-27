@@ -8,7 +8,10 @@ use crate::runtime::backend::{
 };
 use crate::runtime::multiplex_prefix::{SharedPrefix, ToolDescriptor};
 use crate::types::{ApiMessage, Content, ContentBlock};
-use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
+use crate::util::{
+    is_local_endpoint_url, preferred_loopback_url_for_local_endpoint,
+    preferred_plain_http_url_for_local_endpoint,
+};
 use anyhow::Result;
 use anyhow::anyhow;
 use opentelemetry::KeyValue;
@@ -315,6 +318,7 @@ impl ApiClient {
         let api_url = api_client_base_url
             .clone()
             .unwrap_or_else(|| config.model_url.clone());
+        let api_url = preferred_loopback_url_for_local_endpoint(&api_url).unwrap_or(api_url);
         let http =
             crate::net::http_client::model_client(&api_url, config.model_url_skip_tls_check)?;
         Ok(Self {

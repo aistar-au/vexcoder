@@ -33,6 +33,46 @@ fn batch_mode_ignores_non_task_ui_updates() {
     assert_eq!(mode.status, TaskStatus::Ready);
 }
 
+#[test]
+fn batch_mode_strips_tagged_tool_markup_when_tool_call_starts() {
+    use crate::api::mock_client::MockApiClient;
+    use crate::state::ToolStatus;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let mut mode = BatchMode::new(
+        "task".to_string(),
+        BatchRunOpts {
+            format: OutputFormat::Text,
+            ..Default::default()
+        },
+        None,
+        None,
+    );
+    let client = crate::api::ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let conversation = crate::state::ConversationManager::new_mock(client, HashMap::new());
+    let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
+
+    mode.current_response = "Checking.\n<function=read_file>\n<parameter=path>\nfoo\n</parameter>\n</function>\n</tool_call>".to_string();
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tool-1".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path": "foo"}),
+                status: ToolStatus::Pending,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert_eq!(mode.current_response, "Checking.\n\n");
+    assert!(mode.pending_tool_calls.contains_key("tool-1"));
+}
+
 #[tokio::test]
 async fn batch_mode_memory_clear_requires_auto_approve() {
     let result = run_batch_mode_with_opts(
