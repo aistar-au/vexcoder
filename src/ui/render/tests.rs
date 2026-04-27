@@ -1,5 +1,6 @@
 use super::*;
 use crate::ui::tui::{Terminal, backend::TestBackend};
+use ratatui::buffer::Buffer;
 
 #[test]
 fn all_modals_render_without_panic() {
@@ -47,4 +48,33 @@ fn visual_window_start_scrolls_after_cursor_exceeds_rows() {
     assert_eq!(visual_window_start(0, 4), 0);
     assert_eq!(visual_window_start(3, 4), 0);
     assert_eq!(visual_window_start(4, 4), 1);
+}
+
+#[test]
+fn task_layout_renders_fork_action_chip() {
+    let backend = TestBackend::new(80, 12);
+    let mut tui = Terminal::new(backend).expect("test backend");
+    let state = crate::app::TaskViewProjection {
+        status_line: "ready".to_string(),
+        composer_focused: true,
+        ..crate::app::TaskViewProjection::default()
+    };
+
+    tui.draw(|frame| render_task_layout(frame, &state))
+        .expect("render");
+
+    let rendered = buffer_text(tui.backend().buffer());
+    assert!(rendered.contains("Fork"));
+    assert!(rendered.contains("Alt+F"));
+    assert!(rendered.contains("new task-id"));
+}
+
+fn buffer_text(buffer: &Buffer) -> String {
+    let width = buffer.area.width as usize;
+    buffer
+        .content()
+        .chunks(width.max(1))
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
 }

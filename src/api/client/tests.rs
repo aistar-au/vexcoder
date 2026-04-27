@@ -239,3 +239,34 @@ fn chat_compat_tool_definitions_keep_parameters_structured() {
         "chat-compat tool definitions must keep function.parameters as a JSON object"
     );
 }
+
+#[test]
+fn shared_prefix_fingerprint_changes_with_workspace_context() {
+    let client = ApiClient::new(&crate::config::Config::default_for_tui()).expect("client");
+
+    let left = client
+        .shared_prefix_fingerprint("## Shared context prefix\n- src/lib.rs\n")
+        .expect("left fingerprint");
+    let right = client
+        .shared_prefix_fingerprint("## Shared context prefix\n- src/main.rs\n")
+        .expect("right fingerprint");
+
+    assert_ne!(left, right);
+}
+
+#[test]
+fn shared_prefix_fingerprint_tracks_supplementary_prompt() {
+    let client = ApiClient::new(&crate::config::Config::default_for_tui()).expect("client");
+    let workspace_context = "## Shared context prefix\n- src/lib.rs\n";
+    let baseline = client
+        .shared_prefix_fingerprint(workspace_context)
+        .expect("baseline fingerprint");
+
+    client.set_supplementary_system_prompt(Some("Use a precise reviewer tone.".to_string()));
+
+    let updated = client
+        .shared_prefix_fingerprint(workspace_context)
+        .expect("updated fingerprint");
+
+    assert_ne!(baseline, updated);
+}

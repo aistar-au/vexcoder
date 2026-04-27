@@ -36,10 +36,50 @@ pub fn render_input(
     cursor_byte: usize,
     show_cursor: bool,
 ) {
+    render_input_with_actions(frame, area, input, cursor_byte, show_cursor, &[]);
+}
+
+fn render_input_with_actions(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    input: &str,
+    cursor_byte: usize,
+    show_cursor: bool,
+    actions: &[Line<'static>],
+) {
     if area.height == 0 || area.width <= 2 {
         return;
     }
-    let inner = area;
+
+    let action_rows = (actions.len() as u16).min(area.height.saturating_sub(1));
+    let (action_area, inner) = if action_rows == 0 {
+        (Rect::new(area.x, area.y, area.width, 0), area)
+    } else {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(action_rows), Constraint::Min(1)])
+            .split(area);
+        (chunks[0], chunks[1])
+    };
+
+    if action_area.height > 0 {
+        frame.render_widget(
+            Paragraph::new(
+                actions
+                    .iter()
+                    .take(action_area.height as usize)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+            .style(Style::default().bg(Color::Rgb(24, 24, 24)))
+            .alignment(Alignment::Left),
+            action_area,
+        );
+    }
+
+    if inner.height == 0 {
+        return;
+    }
 
     let input_width = inner.width.saturating_sub(2).max(1) as usize;
     let lines = wrap_input_lines(input, input_width);
@@ -256,12 +296,29 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
+fn task_fork_action_line() -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            " Fork ",
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            " Alt+F",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM),
+        ),
+        Span::styled(" new task-id", Style::default().fg(Color::DarkGray)),
+    ])
+}
+
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
     let frame_area = frame.area();
     let input_width = frame_area.width.saturating_sub(2).max(1) as usize;
     let input_rows = preferred_four_region_input_rows_for_content(
         frame_area.height,
-        input_visual_rows(&state.composer_text, input_width) as u16,
+        input_visual_rows(&state.composer_text, input_width).saturating_add(1) as u16,
     );
 
     let expanded_output_rows = expand_rows_for_display(&state.output_rows, frame_area.width);
@@ -286,12 +343,13 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
         frame.render_widget(Paragraph::new(Text::from(output_lines)), output_area);
     }
 
-    render_input(
+    render_input_with_actions(
         frame,
         layout.input,
         &state.composer_text,
         state.composer_cursor,
         state.composer_focused,
+        &[task_fork_action_line()],
     );
 
     render_picker_overlay(frame, layout.input, &state.picker_overlay);

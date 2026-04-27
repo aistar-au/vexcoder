@@ -8,6 +8,7 @@ impl TuiMode {
         ctx: &mut RuntimeContext,
         read_only: bool,
         supplementary_system_prompt: Option<&str>,
+        shared_prefix_context: Option<String>,
     ) {
         self.start_single_turn_with_policy(
             rendered,
@@ -15,6 +16,7 @@ impl TuiMode {
             read_only,
             supplementary_system_prompt,
             PulseToolPolicy::Default,
+            shared_prefix_context,
         );
     }
 
@@ -25,6 +27,7 @@ impl TuiMode {
         read_only: bool,
         supplementary_system_prompt: Option<&str>,
         turn_tool_policy: PulseToolPolicy,
+        shared_prefix_context: Option<String>,
     ) {
         self.read_only_turn_active = read_only;
         self.begin_turn_capture_with_policy(rendered.clone(), turn_tool_policy);
@@ -36,6 +39,7 @@ impl TuiMode {
             rendered,
             supplementary_system_prompt.map(ToString::to_string),
             turn_tool_policy,
+            shared_prefix_context,
         );
     }
 
@@ -61,11 +65,19 @@ impl TuiMode {
         Ok(assembled)
     }
 
-    pub(super) fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
+    pub(super) fn assemble_rendered_context(
+        &mut self,
+        scope_instruction: &str,
+    ) -> (String, Option<String>) {
         let render_assembler = self.context_assembler.clone();
         self.try_assemble_context(scope_instruction)
-            .map(|context| render_assembler.render(&context))
-            .unwrap_or_else(|_| "## Context\n[context: unavailable]\n".to_string())
+            .map(|context| {
+                (
+                    render_assembler.render(&context),
+                    Some(render_assembler.render_shared_prefix(&context)),
+                )
+            })
+            .unwrap_or_else(|_| ("## Context\n[context: unavailable]\n".to_string(), None))
     }
 
     pub(super) fn resolved_notes_path(&self) -> Option<PathBuf> {

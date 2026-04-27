@@ -234,12 +234,22 @@ impl ConversationManager {
         }
     }
 
-    pub fn push_user_message(&mut self, input: String) {
+    pub fn push_user_message(&mut self, input: String, cache_hint: Option<String>) {
         self.api_messages.push(ApiMessage {
             role: "user".to_string(),
             content: Content::Text(input),
-            cache_hint: None,
+            cache_hint,
         });
+    }
+
+    pub(super) fn shared_prefix_cache_hint(
+        &self,
+        shared_prefix_context: Option<&str>,
+    ) -> Option<String> {
+        shared_prefix_context
+            .map(str::trim)
+            .filter(|context| !context.is_empty())
+            .and_then(|context| self.client.shared_prefix_fingerprint(context))
     }
 
     pub fn messages_for_api(&self) -> Vec<ApiMessage> {
