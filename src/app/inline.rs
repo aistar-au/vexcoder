@@ -1,5 +1,7 @@
 use super::*;
 
+const INLINE_FILE_EMBED_MAX_BYTES: usize = 2_048;
+
 impl TuiMode {
     pub(super) fn expand_inline_file_tokens(&self, input: &str) -> String {
         let assembler = self.context_assembler.clone();
@@ -105,15 +107,31 @@ impl TuiMode {
             }
             Ok(Some(_)) => match operator.read_file(path) {
                 Ok(content) => {
-                    let (content, content_limited) =
-                        truncate_head_bytes(&content, assembler.max_file_bytes);
-                    format_inline_block(
-                        "file",
-                        path,
-                        &content,
-                        content_limited,
-                        Some(assembler.max_file_bytes),
-                    )
+                    let total_bytes = content.len();
+                    let total_lines = content
+                        .lines()
+                        .count()
+                        .max(usize::from(!content.is_empty()));
+                    let embed_limit = assembler.max_file_bytes.min(INLINE_FILE_EMBED_MAX_BYTES);
+
+                    if total_bytes > embed_limit {
+                        format_inline_reference(
+                            "file",
+                            path,
+                            &format!(
+                                "[inline file content omitted — file is {total_bytes} bytes across {total_lines} lines; use read_file or search_files with this explicit path for targeted inspection]"
+                            ),
+                        )
+                    } else {
+                        let (content, content_limited) = truncate_head_bytes(&content, embed_limit);
+                        format_inline_block(
+                            "file",
+                            path,
+                            &content,
+                            content_limited,
+                            Some(embed_limit),
+                        )
+                    }
                 }
                 Err(error) => format!("[file: {path} \u{2014} {error}]"),
             },

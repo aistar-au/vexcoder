@@ -71,6 +71,31 @@ fn at_path_injects_file_contents_into_prompt() {
 }
 
 #[test]
+fn large_at_path_uses_reference_block_instead_of_full_file_dump() {
+    let temp = tempfile::tempdir().unwrap();
+    let workflows = temp.path().join(".github").join("workflows");
+    std::fs::create_dir_all(&workflows).unwrap();
+    let large_body = (0..400)
+        .map(|i| {
+            format!("step-{i}: gh release view \"${{TAG}}\" --json assets --jq '.assets[].name'")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(workflows.join("release.yml"), &large_body).unwrap();
+
+    let config = config_with_workdir(temp.path());
+    let mut mode = TuiMode::new_with_config(None, config);
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("@.github/workflows/release.yml".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.clone().expect("last turn input");
+    assert!(turn_input.contains("[file: .github/workflows/release.yml]"));
+    assert!(turn_input.contains("[inline file content omitted"));
+    assert!(!turn_input.contains("step-399:"));
+}
+
+#[test]
 fn at_path_rejects_path_outside_workspace() {
     let temp = tempfile::tempdir().unwrap();
     let config = config_with_workdir(temp.path());

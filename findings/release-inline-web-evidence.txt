@@ -1,0 +1,25 @@
+Web evidence supporting bounded inline file references
+
+Source 1
+- URL: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/long-context-tips
+- Relevant points captured during research:
+  - "The triggering behavior for adaptive thinking is steerable. If you find the model thinking more often than you'd like — which can happen with large or complex system prompts — add guidance to steer it."
+  - "Claude Opus 4.7's token usage and behavior can differ between autonomous, asynchronous coding agents with a single user turn and interactive, synchronous coding agents with multiple user turns. Specifically, it tends to use more tokens in interactive settings..."
+  - "When working with large documents or data-rich inputs (20k+ tokens), structure your prompt carefully to get the best results."
+- Why it matters here:
+  - The failing release.yml scenario happened in an interactive coding session with a large single-turn payload.
+  - Replacing a full 17 KB workflow dump with a compact reference block directly reduces that initial token burden.
+
+Source 2
+- URL: https://platform.claude.com/docs/en/build-with-claude/context-windows
+- Relevant points captured during research:
+  - "A larger context window allows the model to handle more complex and lengthy prompts, but more context isn't automatically better. As token count grows, accuracy and recall degrade..."
+  - "Newer Claude models ... return a validation error when prompt and output tokens exceed the context window, rather than silently truncating."
+  - "If your conversations regularly approach context window limits, server-side compaction is the recommended approach."
+- Why it matters here:
+  - The original failure mode was a hard context-limit error after a large inline-file expansion.
+  - Keeping large referenced files out of the initial prompt and forcing targeted read_file/search_files follow-up is aligned with the documented guidance to curate context rather than blindly maximizing it.
+
+Conclusion
+- The web guidance supports the code change: for interactive agent sessions, large raw file dumps are the wrong default when context is tight.
+- A small [file: ...] reference plus targeted follow-up tool calls is the context-safer design.

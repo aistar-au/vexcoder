@@ -184,6 +184,10 @@ pub(super) fn format_inline_block(
     rendered
 }
 
+pub(super) fn format_inline_reference(kind: &str, path: &str, detail: &str) -> String {
+    format!("[{kind}: {path}]\n```text\n{detail}\n```")
+}
+
 pub(super) async fn run_validation_suite_capture(
     suite: ValidationSuite,
     working_dir: PathBuf,

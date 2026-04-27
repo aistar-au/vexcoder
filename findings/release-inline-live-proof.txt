@@ -1,0 +1,51 @@
+Release inline-bounding live proof
+
+Context
+- Binary: ./target/debug/vex
+- Endpoint: VEX_MODEL_URL=http://127.0.0.1:8000/v1/messages
+- Validation style: interactive TTY sessions recorded through script | tee
+- Raw capture files retained locally for this patch cycle:
+  - findings/live-inline-release-search-split-input.txt
+  - findings/live-inline-release-success-limited.txt
+
+Observed bounded @file expansion
+- Prompt excerpt from the live TTY after submitting @.github/workflows/release.yml:
+  > read-only do not modify. first use search_files to find release.yml references
+  > then inspect [file: .github/workflows/release.yml]
+  > ```text
+  > [inline file content omitted — file is 17041 bytes across 509 lines; use read_file or search_files for targeted inspection]
+- This replaced the previous behavior where the entire workflow body was injected into the user turn and could exceed the local 8192-token context window.
+
+Search-oriented proof run
+- Raw source: findings/live-inline-release-search-split-input.txt
+- The session remained alive long enough to emit real tool activity instead of failing with HTTP 400.
+- Visible tool calls from the captured run:
+  - <function=search_files>
+    <parameter=query>
+    release.yml
+  - <function=read_file>
+    <parameter=path>
+    .github/workflows/release.yml
+- Outcome: this particular prompt hit the model loop guard after repeated tool use, but it did not reproduce the original prompt-overflow failure.
+
+Successful bounded prompt run
+- Raw source: findings/live-inline-release-success-limited.txt
+- Prompt shape:
+  > read-only do not modify. inspect only lines 1-10 of [file: .github/workflows/release.yml]
+  > ```text
+  > [inline file content omitted — file is 17041 bytes across 509 lines; use read_file or search_files for targeted inspection]
+  > ``` using at most one read_file call
+- Tool execution completed successfully:
+  - read_file returned "(showing lines 1-10 of 509)"
+  - visible excerpt included:
+    - 1 name: release
+    - 2
+    - +8 more lines
+- The assistant then returned a normal answer instead of an HTTP 400 error. Visible final-response excerpt:
+  - "I've inspected the first 10 lines of the .github/workflows/release.yml file."
+  - "This is a GitHub Actions workflow file named \"release\" that triggers on pushes to tags matching \"v*\", \"nightly\", or a 7-character hexadecimal pattern for short-SHA snapshot tags."
+  - "The file appears to be a large workflow definition with 509 lines total, but I've only shown the first 10 lines as requested."
+
+Notes
+- The TUI tool preview still rendered "Input: path: <missing>" for the read_file preview in this run, but the tool result itself succeeded and returned the requested lines. That is a display-path issue, not a prompt-overflow regression.
+- The relevant behavior change validated here is that large @file mentions now stay compact enough for the local model to continue into tool use and produce a response.

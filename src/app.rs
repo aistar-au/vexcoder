@@ -99,10 +99,10 @@ use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
 use self::scroll::{RenderGuard, input_rows_for_buffer};
 use self::util::{
-    builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
-    list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
-    resolve_repo_label, run_validation_suite_capture, sanitize_task_label, scope_to_label,
-    shell_command_request,
+    builtin_slash_command_names, capability_for_tool_name, format_inline_block,
+    format_inline_reference, kebab_to_scope, list_recent_task_entries, new_task_id,
+    parse_generate_tests_args, parse_review_args, resolve_repo_label, run_validation_suite_capture,
+    sanitize_task_label, scope_to_label, shell_command_request,
 };
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
