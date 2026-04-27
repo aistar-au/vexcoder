@@ -1,3 +1,4 @@
+use super::tools::{tool_definitions_chat_compat_for_policy, tool_definitions_for_policy};
 use super::*;
 use crate::runtime::RuntimeSignal;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
@@ -10,6 +11,7 @@ use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::post;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -178,4 +180,62 @@ fn system_prompt_lists_required_tools_and_approval_notice() {
     let prompt = BASE_SYSTEM_PROMPT;
     assert!(prompt.contains("run_command"), "missing run_command");
     assert!(prompt.contains("approval"), "missing approval notice");
+}
+
+#[test]
+fn tool_definitions_keep_protocol_names_in_sync() {
+    let base_names: BTreeSet<String> = tool_definitions_for_policy(ToolPolicy::Full, &[])
+        .as_array()
+        .expect("tool definitions must be an array")
+        .iter()
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+        .map(ToOwned::to_owned)
+        .collect();
+
+    let chat_compat_names: BTreeSet<String> =
+        tool_definitions_chat_compat_for_policy(ToolPolicy::Full, &[])
+            .as_array()
+            .expect("chat-compat tool definitions must be an array")
+            .iter()
+            .filter_map(|tool| {
+                tool.get("function")
+                    .and_then(|function| function.get("name"))
+                    .and_then(Value::as_str)
+            })
+            .map(ToOwned::to_owned)
+            .collect();
+
+    assert_eq!(chat_compat_names, base_names);
+}
+
+#[test]
+fn messages_v1_tool_definitions_keep_input_schemas_structured() {
+    let definitions = tool_definitions_for_policy(ToolPolicy::Full, &[]);
+    let tools = definitions
+        .as_array()
+        .expect("tool definitions must be an array");
+
+    assert!(
+        tools
+            .iter()
+            .all(|tool| matches!(tool.get("input_schema"), Some(Value::Object(_)))),
+        "messages-v1 tool definitions must keep input_schema as a JSON object"
+    );
+}
+
+#[test]
+fn chat_compat_tool_definitions_keep_parameters_structured() {
+    let definitions = tool_definitions_chat_compat_for_policy(ToolPolicy::Full, &[]);
+    let tools = definitions
+        .as_array()
+        .expect("chat-compat tool definitions must be an array");
+
+    assert!(
+        tools.iter().all(|tool| matches!(
+            tool.get("function")
+                .and_then(|function| function.get("parameters")),
+            Some(Value::Object(_))
+        )),
+        "chat-compat tool definitions must keep function.parameters as a JSON object"
+    );
 }
