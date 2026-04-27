@@ -29,6 +29,10 @@ pub fn input_visual_rows(input: &str, width: usize) -> usize {
     visual_row_count(input, width)
 }
 
+fn saturating_row_count_u16(rows: usize) -> u16 {
+    rows.min(u16::MAX as usize) as u16
+}
+
 pub fn render_input(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -63,18 +67,14 @@ fn render_input_with_actions(
     };
 
     if action_area.height > 0 {
-        frame.render_widget(
-            Paragraph::new(
-                actions
-                    .iter()
-                    .take(action_area.height as usize)
-                    .cloned()
-                    .collect::<Vec<_>>(),
-            )
-            .style(Style::default().bg(Color::Rgb(24, 24, 24)))
-            .alignment(Alignment::Left),
-            action_area,
-        );
+        let visible_actions = &actions[..action_area.height as usize];
+        let paragraph = match visible_actions {
+            [line] => Paragraph::new(line.clone()),
+            _ => Paragraph::new(visible_actions.to_vec()),
+        }
+        .style(Style::default().bg(Color::Rgb(24, 24, 24)))
+        .alignment(Alignment::Left);
+        frame.render_widget(paragraph, action_area);
     }
 
     if inner.height == 0 {
@@ -318,7 +318,9 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
     let input_width = frame_area.width.saturating_sub(2).max(1) as usize;
     let input_rows = preferred_four_region_input_rows_for_content(
         frame_area.height,
-        input_visual_rows(&state.composer_text, input_width).saturating_add(1) as u16,
+        saturating_row_count_u16(
+            input_visual_rows(&state.composer_text, input_width).saturating_add(1),
+        ),
     );
 
     let expanded_output_rows = expand_rows_for_display(&state.output_rows, frame_area.width);

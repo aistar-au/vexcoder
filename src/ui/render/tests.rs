@@ -51,6 +51,11 @@ fn visual_window_start_scrolls_after_cursor_exceeds_rows() {
 }
 
 #[test]
+fn saturating_row_count_caps_at_u16_max() {
+    assert_eq!(saturating_row_count_u16(usize::MAX), u16::MAX);
+}
+
+#[test]
 fn task_layout_renders_fork_action_chip() {
     let backend = TestBackend::new(80, 12);
     let mut tui = Terminal::new(backend).expect("test backend");
