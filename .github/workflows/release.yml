@@ -19,12 +19,64 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  release-gate:
+    name: release gate
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Restore cargo cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: linux-release-gate-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-release-gate-
+
+      - name: Restore tool cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/taplo
+            ~/.cargo/bin/cargo-nextest
+          key: linux-release-tools-taplo-0.8.1-nextest-0.9.132
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Install Taplo
+        shell: bash
+        run: |
+          command -v taplo >/dev/null 2>&1 || cargo install taplo-cli --version 0.8.1 --locked
+
+      - name: Install cargo-nextest
+        shell: bash
+        run: |
+          command -v cargo-nextest >/dev/null 2>&1 || cargo install cargo-nextest --version 0.9.132 --locked
+
+      - name: Run release gate
+        shell: bash
+        run: make gate-fast
+
   # Signing phases:
   #   Phase 1 (now): Sigstore cosign keyless signatures with OIDC-backed bundles.
   #   Phase 2 (future): SignPath.io OSS Authenticode signing for Windows artifacts.
   #   Phase 3 (future): EV Authenticode signing for end-user Windows distribution.
   build:
     name: package (${{ matrix.target }})
+    needs: release-gate
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -56,7 +108,6 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
       - name: Install cross
@@ -64,38 +115,11 @@ jobs:
         shell: bash
         run: cargo install cross --locked
 
-      - name: Install ripgrep and zip (Linux)
-        if: runner.os == 'Linux'
+      - name: Install zip (Linux Windows targets)
+        if: runner.os == 'Linux' && contains(matrix.target, 'windows')
         run: |
           sudo apt-get update
-          sudo apt-get install -y ripgrep zip
-
-      - name: Install ripgrep (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ripgrep
-
-      - name: Install Taplo (non-Windows)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: cargo install taplo-cli --version 0.8.1 --locked
-
-      - name: Install cargo-nextest (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: cargo install cargo-nextest --version 0.9.132 --locked
-
-      - name: Install cargo-nextest (macOS prebuilt)
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          NEXTEST_VERSION: 0.9.132
-        run: |
-          set -euo pipefail
-          bin_dir="${CARGO_HOME:-$HOME/.cargo}/bin"
-          mkdir -p "${bin_dir}"
-          curl -LsSf "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-universal-apple-darwin.tar.gz" \
-            | tar -xzf - -C "${bin_dir}" cargo-nextest
-          chmod +x "${bin_dir}/cargo-nextest"
+          sudo apt-get install -y zip
 
       - name: Verify release tag
         if: github.ref_type == 'tag'
@@ -137,11 +161,6 @@ jobs:
             release_version="$(git rev-parse --short=7 HEAD)"
           fi
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
-
-      - name: Run gate (non-Windows)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: make gate-fast
 
       - name: Package release archive (non-Windows)
         if: runner.os != 'Windows'
