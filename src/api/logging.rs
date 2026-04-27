@@ -230,7 +230,7 @@ mod tests {
                 "model": "local/test",
                 "messages": [{
                     "role": "user",
-                    "content": "super secret prompt text"
+                    "content": "sentinel-elided-prompt-text"
                 }],
                 "tools": [{"function": {"name": "read_file"}}],
                 "stream": true,
@@ -239,7 +239,7 @@ mod tests {
 
         let content = std::fs::read_to_string(temp.path()).unwrap();
         assert!(
-            !content.contains("super secret prompt text"),
+            !content.contains("sentinel-elided-prompt-text"),
             "got: {content}"
         );
         assert!(content.contains("\"message_count\":1"), "got: {content}");
@@ -263,13 +263,13 @@ mod tests {
 
         emit_sse_parse_error(
             Some("content_block_delta"),
-            "{\"tool_calls\":[{\"function\":{\"arguments\":\"super secret arguments\"}}]",
+            "{\"tool_calls\":[{\"function\":{\"arguments\":\"sentinel-elided-tool-arguments\"}}]",
             &parse_error,
         );
 
         let content = std::fs::read_to_string(temp.path()).unwrap();
         assert!(
-            !content.contains("super secret arguments"),
+            !content.contains("sentinel-elided-tool-arguments"),
             "got: {content}"
         );
         assert!(

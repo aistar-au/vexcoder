@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn tool_result_event_uses_recorded_start_time() {
+fn tool_result_signal_uses_recorded_start_time() {
     let mut manager = ConversationManager::new_mock(
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
             vec![],

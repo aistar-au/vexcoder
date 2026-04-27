@@ -59,7 +59,7 @@ pub(crate) async fn open_signal_stream(
                 protocol,
                 request_start,
             );
-            let first_frame = next_stream_event(&mut state).await?;
+            let first_frame = next_stream_item(&mut state).await?;
             Ok::<_, anyhow::Error>((state, first_frame))
         })
         .await
@@ -97,7 +97,7 @@ pub(crate) async fn open_signal_stream(
         .await?;
         let mut state =
             build_signal_stream_state(response, request_url, request_id, protocol, request_start);
-        let first_frame = next_stream_event(&mut state).await?;
+        let first_frame = next_stream_item(&mut state).await?;
         (state, first_frame)
     };
 
@@ -122,7 +122,7 @@ pub(crate) async fn open_signal_stream(
     }
 
     let tail = stream::try_unfold(state, |mut state| async move {
-        match next_stream_event(&mut state).await {
+        match next_stream_item(&mut state).await {
             Ok(Some(envelope)) => Ok(Some((envelope, state))),
             Ok(None) => Ok(None),
             Err(error) => Err(error),
@@ -256,7 +256,7 @@ fn protocol_name(protocol: ModelProtocol) -> &'static str {
     }
 }
 
-async fn next_stream_event(state: &mut SignalStreamState) -> Result<Option<RuntimeEnvelope>> {
+async fn next_stream_item(state: &mut SignalStreamState) -> Result<Option<RuntimeEnvelope>> {
     loop {
         if let Some(envelope) = state.pending.pop_front() {
             observe_envelope(state, &envelope);

@@ -35,7 +35,7 @@ A fully flat prompt string gives the runtime no stable identity for the reusable
 
 A transport-only design that emits provider cache markers without first naming the reusable runtime prefix would duplicate prompt-boundary logic per backend. The reviewed cache APIs differ in surface syntax, but they reward the same structural property: identical, reused prefix content placed before the request-specific suffix. The runtime should therefore own the shared-prefix boundary once and let transports map it to provider-specific controls later.
 
-The same reasoning applies to the fork affordance. Slash commands remain necessary, but slash-only discovery is recall-based rather than recognition-based. A pointer-driven native control would require a broader event-handling lane than the current keyboard-first frontend uses. A visible action chip with a direct shortcut provides the recognisable action surface of a button while preserving the existing interaction model.
+The same reasoning applies to the fork affordance. Slash commands remain necessary, but slash-only discovery is recall-based rather than recognition-based. A pointer-driven native control would require a broader key-dispatch channel than the current keyboard-first frontend provides. A visible action chip with a direct shortcut provides the recognisable action surface of a button while preserving the existing interaction model.
 
 ## Consequences
 
@@ -61,3 +61,4 @@ The same reasoning applies to the fork affordance. Slash commands remain necessa
 ## References
 
 - [Crossterm Event Module](https://docs.rs/crossterm/latest/crossterm/event/index.html)
+

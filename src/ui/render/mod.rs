@@ -55,7 +55,7 @@ fn render_input_with_actions(
         return;
     }
 
-    let action_rows = (actions.len() as u16).min(area.height.saturating_sub(1));
+    let action_rows = saturating_row_count_u16(actions.len()).min(area.height.saturating_sub(1));
     let (action_area, inner) = if action_rows == 0 {
         (Rect::new(area.x, area.y, area.width, 0), area)
     } else {

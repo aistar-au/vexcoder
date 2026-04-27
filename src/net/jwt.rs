@@ -133,7 +133,7 @@ fn peek_raw_header(token: &str) -> Result<RawJoseHeader> {
 mod tests {
     use super::*;
 
-    const SECRET: &[u8] = b"super-secret-key-for-test-only";
+    const SECRET: &[u8] = b"sentinel-test-key-for-test-only";
 
     #[derive(Debug, PartialEq, Serialize, Deserialize)]
     struct TestClaims {
