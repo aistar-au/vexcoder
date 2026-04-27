@@ -8,9 +8,13 @@ use crate::ui::tui::{
     execute,
     input::{DisableBracketedPaste, EnableBracketedPaste},
     layout::Size,
+    style::Style,
     terminal::{Clear, ClearType, MoveToColumn, Show, host_display_size},
+    text::{Line, Text},
     try_init_with_options, try_restore,
+    widgets::Paragraph,
 };
+use ratatui::widgets::Widget;
 
 pub struct TuiHandle {
     inner: DefaultTerminal,
@@ -30,6 +34,19 @@ impl TuiHandle {
 
     pub fn clear(&mut self) -> io::Result<()> {
         self.inner.clear()
+    }
+
+    pub fn insert_before_lines(&mut self, lines: Vec<Line<'static>>) -> io::Result<()> {
+        let height = lines.len().min(u16::MAX as usize) as u16;
+        if height == 0 {
+            return Ok(());
+        }
+
+        self.inner.insert_before(height, move |buf| {
+            Paragraph::new(Text::from(lines))
+                .style(Style::default())
+                .render(buf.area, buf);
+        })
     }
 }
 

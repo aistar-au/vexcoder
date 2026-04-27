@@ -8,9 +8,12 @@ use axum::Json;
 use axum::Router;
 use axum::extract::State;
 use axum::http::{StatusCode, header};
+use axum::response::sse::{Event, Sse};
 use axum::response::IntoResponse;
 use axum::routing::post;
+use futures::{StreamExt, stream};
 use serde_json::{Value, json};
+use std::convert::Infallible;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -42,9 +45,11 @@ async fn client_falls_back_to_non_streaming_chat_compat_when_stream_is_slow() {
         log.lock().unwrap().push(p.clone());
         if p.get("stream").and_then(Value::as_bool) == Some(true) {
             tokio::time::sleep(Duration::from_millis(75)).await;
-            return ([(header::CONTENT_TYPE, "text/event-stream")],
-                "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"late\"},\"finish_reason\":\"stop\"}]}\n\n",
-            ).into_response();
+            return Json(json!({
+                "id":"chatcmpl-stream-json","object":"chat.completion","created":1,"model":"local/test-model",
+                "choices":[{"index":0,"message":{"role":"assistant","content":"late"},"finish_reason":"stop"}],
+                "usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}
+            })).into_response();
         }
         Json(json!({
             "id":"chatcmpl-fallback","object":"chat.completion","created":1,"model":"local/test-model",
@@ -89,9 +94,12 @@ async fn client_falls_back_to_non_streaming_messages_v1_when_stream_is_slow() {
         log.lock().unwrap().push(p.clone());
         if p.get("stream").and_then(Value::as_bool) == Some(true) {
             tokio::time::sleep(Duration::from_millis(75)).await;
-            return ([(header::CONTENT_TYPE, "text/event-stream")],
-                "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-late\",\"role\":\"assistant\",\"model\":\"local/test-model\"}}\n\n",
-            ).into_response();
+            return Json(json!({
+                "id":"msg-stream-json","type":"message","role":"assistant","model":"local/test-model",
+                "content":[{"type":"text","text":"late"}],
+                "stop_reason":"end_turn","stop_sequence":null,
+                "usage":{"input_tokens":11,"output_tokens":1}
+            })).into_response();
         }
         Json(json!({
             "id":"msg-fallback","type":"message","role":"assistant","model":"local/test-model",
@@ -125,6 +133,129 @@ async fn client_falls_back_to_non_streaming_messages_v1_when_stream_is_slow() {
     assert_eq!(reqs.len(), 2, "expected streaming request + fallback retry");
     assert!(envelopes.iter().any(|e| matches!(&e.signal,
         RuntimeSignal::ToolCallStarted { tool_name, .. } if tool_name == "read_file"
+    )));
+}
+
+#[tokio::test]
+async fn client_waits_for_delayed_local_non_stream_messages_v1_fallback() {
+    async fn handler(State(log): State<RequestLog>, Json(p): Json<Value>) -> impl IntoResponse {
+        log.lock().unwrap().push(p.clone());
+        if p.get("stream").and_then(Value::as_bool) == Some(true) {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            return ([ (header::CONTENT_TYPE, "text/event-stream") ],
+                "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-late\",\"role\":\"assistant\",\"model\":\"local/test-model\"}}\n\n",
+            ).into_response();
+        }
+
+        tokio::time::sleep(Duration::from_millis(125)).await;
+        Json(json!({
+            "id":"msg-fallback","type":"message","role":"assistant","model":"local/test-model",
+            "content":[{"type":"text","text":"Delayed OK"}],
+            "stop_reason":"end_turn","stop_sequence":null,
+            "usage":{"input_tokens":11,"output_tokens":2}
+        }))
+        .into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", post(handler))
+            .with_state(requests.clone()),
+    )
+    .await;
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/messages"),
+        ModelProtocol::MessagesV1,
+    );
+    let client = ApiClient::new(&config).expect("client");
+    let mut stream = client
+        .create_stream(&single_user_message("Reply with Delayed OK."))
+        .await
+        .expect("stream");
+    let envelopes: Vec<_> = futures::StreamExt::collect::<Vec<_>>(&mut stream)
+        .await
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    server.abort();
+
+    let reqs = requests.lock().unwrap();
+    assert_eq!(reqs.len(), 2, "expected streaming request + fallback retry");
+    assert_eq!(reqs[0].get("stream"), Some(&Value::Bool(true)));
+    assert_eq!(reqs[1].get("stream"), Some(&Value::Bool(false)));
+    assert!(envelopes.iter().any(|e| matches!(&e.signal,
+        RuntimeSignal::TranscriptBlockDelta { delta, .. } if delta == "Delayed OK"
+    )));
+}
+
+#[tokio::test]
+async fn client_keeps_local_sse_stream_when_first_event_is_delayed() {
+    async fn handler(State(log): State<RequestLog>, Json(p): Json<Value>) -> impl IntoResponse {
+        log.lock().unwrap().push(p.clone());
+
+        let delayed_start = stream::once(async {
+            tokio::time::sleep(Duration::from_millis(75)).await;
+            Ok::<Event, Infallible>(
+                Event::default().event("message_start").data(
+                    r#"{"type":"message_start","message":{"id":"msg-stream","type":"message","role":"assistant","model":"local/test-model","content":[],"stop_reason":null,"stop_sequence":null}}"#,
+                ),
+            )
+        });
+        let tail = stream::iter(vec![
+            Ok::<Event, Infallible>(
+                Event::default().event("content_block_start").data(
+                    r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+                ),
+            ),
+            Ok::<Event, Infallible>(
+                Event::default().event("content_block_delta").data(
+                    r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"streamed OK"}}"#,
+                ),
+            ),
+            Ok::<Event, Infallible>(
+                Event::default().event("content_block_stop").data(
+                    r#"{"type":"content_block_stop","index":0}"#,
+                ),
+            ),
+            Ok::<Event, Infallible>(
+                Event::default().event("message_delta").data(
+                    r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":11,"output_tokens":2}}"#,
+                ),
+            ),
+        ]);
+
+        Sse::new(delayed_start.chain(tail)).into_response()
+    }
+
+    let requests: RequestLog = Arc::new(Mutex::new(Vec::new()));
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", post(handler))
+            .with_state(requests.clone()),
+    )
+    .await;
+    let config = local_stream_test_config(
+        format!("http://{addr}/v1/messages"),
+        ModelProtocol::MessagesV1,
+    );
+    let client = ApiClient::new(&config).expect("client");
+    let mut stream = client
+        .create_stream(&single_user_message("Reply with streamed OK."))
+        .await
+        .expect("stream");
+    let envelopes: Vec<_> = futures::StreamExt::collect::<Vec<_>>(&mut stream)
+        .await
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    server.abort();
+
+    let reqs = requests.lock().unwrap();
+    assert_eq!(reqs.len(), 1, "delayed SSE should not trigger non-stream fallback");
+    assert_eq!(reqs[0].get("stream"), Some(&Value::Bool(true)));
+    assert!(envelopes.iter().any(|e| matches!(&e.signal,
+        RuntimeSignal::TranscriptBlockDelta { delta, .. } if delta == "streamed OK"
     )));
 }
 

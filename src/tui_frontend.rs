@@ -11,10 +11,11 @@ use crate::startup::{
     STARTUP_NOISE_GUARD, looks_like_session_output, should_ignore_startup_paste_text,
 };
 use crate::ui::editor::{InputAction, InputEditor, file_mention_range};
-use crate::ui::layout::split_three_pane_layout;
+use crate::ui::layout::{Rect, preferred_four_region_input_rows_for_content, split_three_pane_layout};
 use crate::ui::render::{
-    OverlayModal, history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal_in_area, render_status_line, render_task_layout,
+    OverlayModal, expand_rows_for_display, history_content_width_for_area, input_visual_rows,
+    render_input, render_messages, render_overlay_modal_in_area, render_status_line,
+    render_task_layout, transcript_output_line,
 };
 use crate::ui::tui::input::{self, Event, KeyCode, KeyModifiers, KeyStroke, KeyStrokeKind};
 use crate::ui::tui::widgets::Clear;
@@ -32,6 +33,15 @@ pub struct ManagedTuiFrontend {
     last_slash_picker_prefix: String,
     dismissed_slash_picker: bool,
     cached_slash_picker: Option<(String, usize, Option<SlashPickerState>)>,
+    inline_scrollback: Option<InlineScrollbackSnapshot>,
+}
+
+#[derive(Clone, Debug)]
+struct InlineScrollbackSnapshot {
+    task_id: String,
+    area: Rect,
+    visible_start: usize,
+    expanded_output_rows: Vec<crate::app::TranscriptRow>,
 }
 
 impl ManagedTuiFrontend {
@@ -51,7 +61,26 @@ impl ManagedTuiFrontend {
             last_slash_picker_prefix: String::new(),
             dismissed_slash_picker: false,
             cached_slash_picker: None,
+            inline_scrollback: None,
         })
+    }
+
+    fn maybe_insert_task_scrollback(&mut self, state: &crate::app::TaskLayoutState, area: Rect) {
+        let current = state
+            .follow_mode
+            .then(|| build_inline_scrollback_snapshot(state, area));
+
+        if let (Some(previous), Some(current)) = (self.inline_scrollback.as_ref(), current.as_ref())
+            && let Some((start, end)) = inline_rows_to_insert(previous, current)
+        {
+            let lines = previous.expanded_output_rows[start..end]
+                .iter()
+                .map(transcript_output_line)
+                .collect::<Vec<_>>();
+            let _ = self.tui.insert_before_lines(lines);
+        }
+
+        self.inline_scrollback = current;
     }
 
     fn current_file_picker(&mut self, mode: &TuiMode) -> Option<FileMentionPickerState> {
@@ -507,9 +536,11 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn render(&mut self, mode: &TuiMode) {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
+        let mut display_area = Rect::new(0, 0, 0, 0);
         if let Ok(size) = self.tui.size() {
             let width = size.width.max(1);
             mode.set_display_column_width(width as usize);
+            display_area = Rect::new(0, 0, size.width, size.height);
         }
 
         let task_state = mode.task_layout_state();
@@ -519,6 +550,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
+            self.maybe_insert_task_scrollback(&task_state, display_area);
             let view = task_state.into_view_projection();
             let _ = self.tui.draw(|frame| {
                 render_task_layout(frame, &view);
@@ -549,6 +581,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 }
             });
         } else {
+            self.inline_scrollback = None;
             let _ = self.tui.draw(|frame| {
                 let area = frame.area();
                 let input_width = area.width.saturating_sub(2).max(1) as usize;
@@ -600,6 +633,51 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     }
 }
 
+fn build_inline_scrollback_snapshot(
+    state: &crate::app::TaskLayoutState,
+    area: Rect,
+) -> InlineScrollbackSnapshot {
+    let input_width = area.width.saturating_sub(2).max(1) as usize;
+    let desired_input_rows = input_visual_rows(&state.composer_text, input_width).saturating_add(1);
+    let input_rows = preferred_four_region_input_rows_for_content(
+        area.height,
+        desired_input_rows.min(u16::MAX as usize) as u16,
+    );
+    let expanded_output_rows = expand_rows_for_display(&state.output_rows, area.width);
+    let available_output = area.height.saturating_sub(1).saturating_sub(input_rows) as usize;
+    let total = expanded_output_rows.len();
+    let max_offset = total.saturating_sub(available_output);
+    let offset = state.output_scroll_offset.min(max_offset);
+    let visible_start = if available_output == 0 || total == 0 {
+        0
+    } else {
+        total.saturating_sub(available_output.saturating_add(offset))
+    };
+
+    InlineScrollbackSnapshot {
+        task_id: state.task_id.clone(),
+        area,
+        visible_start,
+        expanded_output_rows,
+    }
+}
+
+fn inline_rows_to_insert(
+    previous: &InlineScrollbackSnapshot,
+    current: &InlineScrollbackSnapshot,
+) -> Option<(usize, usize)> {
+    if previous.task_id != current.task_id || previous.area != current.area {
+        return None;
+    }
+
+    if current.visible_start <= previous.visible_start {
+        return None;
+    }
+
+    let end = current.visible_start.min(previous.expanded_output_rows.len());
+    (end > previous.visible_start).then_some((previous.visible_start, end))
+}
+
 pub(crate) mod picker;
 pub use self::picker::*;
 
@@ -639,5 +717,54 @@ mod tests {
         ));
 
         assert!(occurrence.is_none());
+    }
+
+    #[test]
+    fn inline_scrollback_inserts_rows_that_just_left_the_viewport() {
+        let previous = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 2,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+                crate::app::TranscriptRow::Plain("d".to_string()),
+                crate::app::TranscriptRow::Plain("e".to_string()),
+            ],
+        };
+        let current = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 4,
+            expanded_output_rows: vec![],
+        };
+
+        assert_eq!(inline_rows_to_insert(&previous, &current), Some((2, 4)));
+    }
+
+    #[test]
+    fn inline_scrollback_skips_resize_and_non_advancing_windows() {
+        let previous = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 3,
+            expanded_output_rows: vec![crate::app::TranscriptRow::Plain("a".to_string())],
+        };
+        let resized = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 100, 20),
+            visible_start: 4,
+            expanded_output_rows: vec![],
+        };
+        let same_window = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 3,
+            expanded_output_rows: vec![],
+        };
+
+        assert_eq!(inline_rows_to_insert(&previous, &resized), None);
+        assert_eq!(inline_rows_to_insert(&previous, &same_window), None);
     }
 }

@@ -312,15 +312,19 @@ enum ApiProtocol {
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
         let api_client_base_url = configured_api_client_base_url(config);
-        let http = crate::net::http_client::default_client(config.model_url_skip_tls_check)?;
+        let api_url = api_client_base_url
+            .clone()
+            .unwrap_or_else(|| config.model_url.clone());
+        let http = crate::net::http_client::model_client(
+            &api_url,
+            config.model_url_skip_tls_check,
+        )?;
         Ok(Self {
             http,
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            api_url: api_client_base_url
-                .clone()
-                .unwrap_or_else(|| config.model_url.clone()),
+            api_url,
             api_client_explicit_protocol: config.api_client.explicit_protocol,
             model_backend: config.model_backend,
             model_protocol: config

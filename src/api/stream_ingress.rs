@@ -14,14 +14,6 @@ use std::future::Future;
 use std::time::{Duration, Instant};
 
 #[cfg(test)]
-const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_millis(50);
-#[cfg(not(test))]
-const LOCAL_STREAM_START_TIMEOUT: Duration = Duration::from_secs(5);
-#[cfg(test)]
-const LOCAL_NON_STREAM_FALLBACK_TIMEOUT: Duration = Duration::from_millis(100);
-#[cfg(not(test))]
-const LOCAL_NON_STREAM_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
-#[cfg(test)]
 const LOCAL_CONNECT_RETRY_MAX_ELAPSED: Duration = Duration::from_millis(250);
 #[cfg(not(test))]
 const LOCAL_CONNECT_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(2);
@@ -43,49 +35,43 @@ pub(crate) async fn open_signal_stream(
     let request_start = Instant::now();
     let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
     let (state, first_frame) = if is_local_endpoint {
-        match tokio::time::timeout(LOCAL_STREAM_START_TIMEOUT, async {
-            let response = send_streaming_request(
-                http.clone(),
-                request_url,
-                serialized_payload.clone(),
-                headers,
-                request_id,
-            )
-            .await?;
-            let mut state = build_signal_stream_state(
-                response,
-                request_url,
-                request_id,
-                protocol,
-                request_start,
+        let response = send_streaming_request(
+            http.clone(),
+            request_url,
+            serialized_payload.clone(),
+            headers,
+            request_id,
+        )
+        .await?;
+
+        if !response_is_sse(&response) {
+            tracing::warn!(
+                target: "vex::http",
+                request_id = %request_id,
+                url = %crate::runtime::rewrite_url_for_logs(request_url),
+                content_type = response
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("missing"),
+                "local streaming request returned a non-SSE response; retrying as non-streaming JSON"
             );
-            let first_frame = next_stream_item(&mut state).await?;
-            Ok::<_, anyhow::Error>((state, first_frame))
-        })
-        .await
-        {
-            Ok(result) => result?,
-            Err(_) => {
-                tracing::warn!(
-                    target: "vex::http",
-                    request_id = %request_id,
-                    url = %crate::runtime::rewrite_url_for_logs(request_url),
-                    timeout_ms = LOCAL_STREAM_START_TIMEOUT.as_millis(),
-                    elapsed_ms = request_start.elapsed().as_millis() as u64,
-                    "local streaming request emitted no initial SSE event; retrying as non-streaming JSON"
-                );
-                return non_stream::create_non_stream_fallback_stream(
-                    http,
-                    request_url,
-                    payload,
-                    headers,
-                    protocol,
-                    request_id,
-                    "no_initial_sse_frame",
-                )
-                .await;
-            }
+            return non_stream::create_non_stream_fallback_stream(
+                http,
+                request_url,
+                payload,
+                headers,
+                protocol,
+                request_id,
+                "non_sse_streaming_response",
+            )
+            .await;
         }
+
+        let mut state =
+            build_signal_stream_state(response, request_url, request_id, protocol, request_start);
+        let first_frame = next_stream_item(&mut state).await?;
+        (state, first_frame)
     } else {
         let response = send_streaming_request(
             http.clone(),
@@ -406,6 +392,15 @@ fn response_to_upstream_bytes(
             .bytes_stream()
             .map(move |item| item.map_err(|error| map_api_request_error(error, &request_url))),
     )
+}
+
+fn response_is_sse(response: &reqwest::Response) -> bool {
+    response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|content_type| content_type.contains("text/event-stream"))
+        .unwrap_or(false)
 }
 
 fn local_connect_retry_backoff() -> backoff::ExponentialBackoff {

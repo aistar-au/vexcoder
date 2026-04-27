@@ -421,6 +421,42 @@ async fn test_live_server_model_listing() {
 }
 
 #[tokio::test]
+async fn test_live_server_messages_v1_stream_emits_text_and_completes() {
+    let base_url = live_server_url();
+    let model = require_live_server!(&base_url);
+    let mut config = build_messages_v1_config(&base_url, &model);
+    config.model_url = format!("{}/messages/v1", base_url.trim_end_matches('/'));
+
+    let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
+    let mut stream = client
+        .create_stream(&single_user_message("Reply with a short plain-text acknowledgement."))
+        .await
+        .expect("live stream should start");
+
+    let mut transcript = String::new();
+    let mut completed = false;
+
+    while let Some(envelope) = stream.next().await {
+        let envelope = envelope.expect("live envelope");
+        match envelope.signal {
+            RuntimeSignal::TranscriptBlockDelta { delta, .. } => transcript.push_str(&delta),
+            RuntimeSignal::TranscriptBlockStart {
+                block: vexcoder::state::StreamBlock::FinalText { content },
+                ..
+            } => transcript.push_str(&content),
+            RuntimeSignal::PulseEnd { status, .. } if status == "completed" => completed = true,
+            _ => {}
+        }
+    }
+
+    assert!(completed, "live stream must complete successfully");
+    assert!(
+        !transcript.trim().is_empty(),
+        "live stream must emit assistant text"
+    );
+}
+
+#[tokio::test]
 async fn stalled_stream_falls_back_to_non_stream_json_for_both_protocols() {
     for protocol in ["chat-compat", "messages-v1"] {
         let (base_url, server) = spawn_stalled_server().await;
