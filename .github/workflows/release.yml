@@ -48,8 +48,7 @@ jobs:
         with:
           path: |
             ~/.cargo/bin/taplo
-            ~/.cargo/bin/cargo-nextest
-          key: linux-release-tools-taplo-0.8.1-nextest-0.9.132
+          key: linux-release-tools-taplo-0.8.1
 
       - name: Install ripgrep
         run: |
@@ -62,9 +61,9 @@ jobs:
           command -v taplo >/dev/null 2>&1 || cargo install taplo-cli --version 0.8.1 --locked
 
       - name: Install cargo-nextest
-        shell: bash
-        run: |
-          command -v cargo-nextest >/dev/null 2>&1 || cargo install cargo-nextest --version 0.9.132 --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.132
 
       - name: Run release gate
         shell: bash
