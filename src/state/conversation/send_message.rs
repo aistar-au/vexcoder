@@ -59,13 +59,12 @@ impl ConversationManager {
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
-        let mut compacted_this_turn = false;
+        let mut overflow_retry_used = false;
         self.condense_old_tool_results(history_keep_turns);
 
         let ctx_window = self.client.context_window_tokens();
         if let Some((before, after, _heuristic_content)) = self.run_proactive_compaction(ctx_window)
         {
-            compacted_this_turn = true;
             let display_summary = format!("{before} → {after} messages (proactive)");
             emit_text_update(
                 stream_delta_tx,
@@ -104,13 +103,13 @@ impl ConversationManager {
             let mut stream = match self.client.create_stream(&self.api_messages).await {
                 Ok(s) => s,
                 Err(e)
-                    if !compacted_this_turn
+                    if !overflow_retry_used
                         && crate::api::client::is_context_overflow(&e.to_string()) =>
                 {
                     let before = self.api_messages.len();
                     self.compact_for_context_overflow();
                     let after = self.api_messages.len();
-                    compacted_this_turn = true;
+                    overflow_retry_used = true;
                     let summary = format!(
                         "compacted {} → {} messages to fit server window",
                         before, after

@@ -625,6 +625,8 @@ impl TuiMode {
                     crate::runtime::session_task::now_millis(),
                 );
                 self.set_task_status(TaskStatus::Failed);
+                self.turn_completion_pending = false;
+                self.reset_turn_capture();
             }
         }
     }

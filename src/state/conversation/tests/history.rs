@@ -1,4 +1,27 @@
 use super::*;
+use crate::api::client::MockStreamProducer;
+use crate::api::mock_client::MockApiClient;
+use crate::runtime::backend::SignalStream;
+use crate::types::ApiMessage;
+
+#[derive(Clone)]
+struct OverflowThenSuccessProducer {
+    calls: Arc<std::sync::Mutex<usize>>,
+    success: MockApiClient,
+}
+
+impl MockStreamProducer for OverflowThenSuccessProducer {
+    fn create_mock_stream(&self, messages: &[ApiMessage]) -> anyhow::Result<SignalStream> {
+        let mut calls = self.calls.lock().unwrap();
+        *calls += 1;
+        if *calls == 1 {
+            return Err(anyhow::anyhow!(
+                "request exceeds the available context size (8192 tokens)"
+            ));
+        }
+        self.success.create_mock_stream(messages)
+    }
+}
 
 #[test]
 fn tool_result_signal_uses_recorded_start_time() {
@@ -170,6 +193,49 @@ fn compact_for_context_overflow_keeps_recent_messages_and_is_noop_when_small() {
     let before = manager.api_messages.len();
     manager.compact_for_context_overflow();
     assert_eq!(manager.api_messages.len(), before);
+}
+
+#[tokio::test]
+async fn context_overflow_retries_even_after_proactive_compaction() -> Result<()> {
+    let calls = Arc::new(std::sync::Mutex::new(0));
+    let success = MockApiClient::new(vec![vec![
+        r#"data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}"#.to_string(),
+    ]]);
+    let client = ApiClient::new_mock(Arc::new(OverflowThenSuccessProducer {
+        calls: Arc::clone(&calls),
+        success,
+    }));
+    let mut manager = ConversationManager::new_mock(client, HashMap::new()).with_compaction_config(
+        crate::config::CompactionConfig {
+            enabled: true,
+            threshold_percent: 1,
+            keep_recent_turns: 1,
+            summary_max_tokens: 32,
+        },
+    );
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("old user context".repeat(200)),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("old assistant context".repeat(200)),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("recent user context".repeat(200)),
+            cache_hint: None,
+        },
+    ];
+
+    let result = manager.send_message("say done".to_string(), None).await?;
+
+    assert_eq!(result, "done");
+    assert_eq!(*calls.lock().unwrap(), 2, "must retry once after overflow");
+    Ok(())
 }
 
 #[test]

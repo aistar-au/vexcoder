@@ -91,10 +91,7 @@ pub fn content_stats(content: &str) -> (usize, usize) {
 }
 
 pub fn read_file_path(input: &Value) -> Option<String> {
-    input
-        .get("path")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+    first_input_str(input, &["path", "file_path", "file"]).map(|s| s.to_string())
 }
 
 pub fn format_read_file_rollup_message(
@@ -245,6 +242,11 @@ fn first_input_str<'a>(input: &'a Value, keys: &[&str]) -> Option<&'a str> {
         .find_map(|key| input.get(*key).and_then(|value| value.as_str()))
 }
 
+fn first_input_u64(input: &Value, keys: &[&str]) -> Option<u64> {
+    keys.iter()
+        .find_map(|key| input.get(*key).and_then(|value| value.as_u64()))
+}
+
 pub fn preview_tool_input(
     tool_name: &str,
     input: &Value,
@@ -265,55 +267,47 @@ pub fn preview_tool_input(
             preview_write_file_input(input, "    ", Some('+'), usize::MAX)
         }
         (ToolPreviewStyle::Structured, "read_file") => {
-            let path = input
-                .get("path")
-                .and_then(|v| v.as_str())
+            let path = first_input_str(input, &["path", "file_path", "file"])
                 .unwrap_or("<missing>");
-            format!("path: {path}")
+            let mut out = format!("path: {path}");
+            if let Some(offset) = input.get("offset").and_then(|v| v.as_u64()) {
+                out.push_str(&format!("\noffset: {offset}"));
+            }
+            if let Some(limit) = input.get("limit").and_then(|v| v.as_u64()) {
+                out.push_str(&format!("\nlimit: {limit}"));
+            }
+            out
         }
         (ToolPreviewStyle::Structured, "rename_file") => {
-            let old_path = input
-                .get("old_path")
-                .and_then(|v| v.as_str())
+            let old_path = first_input_str(input, &["old_path", "from", "source_path"])
                 .unwrap_or("<missing>");
-            let new_path = input
-                .get("new_path")
-                .and_then(|v| v.as_str())
+            let new_path = first_input_str(input, &["new_path", "to", "target_path"])
                 .unwrap_or("<missing>");
             format!("old_path: {old_path}\nnew_path: {new_path}")
         }
         (ToolPreviewStyle::Structured, "list_files" | "list_directory" | "list_dir") => {
-            let path = input.get("path").and_then(|v| v.as_str()).unwrap_or(".");
-            let max_entries = input
-                .get("max_entries")
-                .and_then(|v| v.as_u64())
+            let path = first_input_str(input, &["path", "dir", "directory", "root"])
+                .unwrap_or(".");
+            let max_entries = first_input_u64(input, &["max_entries", "max_results", "limit"])
                 .unwrap_or(100);
             format!("path: {path}\nmax_entries: {max_entries}")
         }
         (ToolPreviewStyle::Structured, "glob_files") => {
-            let pattern = input
-                .get("pattern")
-                .and_then(|v| v.as_str())
+            let pattern = first_input_str(input, &["pattern", "glob", "query"])
                 .unwrap_or("<missing>");
-            let max_results = input
-                .get("max_results")
-                .and_then(|v| v.as_u64())
+            let max_results = first_input_u64(input, &["max_results", "limit", "max_entries"])
                 .unwrap_or(50);
             format!("pattern: {pattern}\nmax_results: {max_results}")
         }
         (ToolPreviewStyle::Structured, "search_files" | "search") => {
-            let query = input
-                .get("query")
-                .and_then(|v| v.as_str())
+            let query = first_input_str(input, &["query", "pattern", "text", "search", "needle"])
                 .unwrap_or("<missing>");
-            let max_results = input
-                .get("max_results")
-                .and_then(|v| v.as_u64())
+            let max_results = first_input_u64(input, &["max_results", "limit", "max_entries"])
                 .unwrap_or(30);
 
             let mut out = String::new();
             out.push_str(&format!("query: {query}\n"));
-            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
+            if let Some(path) = first_input_str(input, &["path", "dir", "directory", "root"]) {
                 out.push_str(&format!("path: {path}\n"));
             }
             out.push_str(&format!("max_results: {max_results}"));
@@ -407,6 +401,9 @@ mod tests {
             Some("src/app/mod.rs".to_string())
         );
 
+        let with_alias = serde_json::json!({ "file_path": "src/lib.rs" });
+        assert_eq!(read_file_path(&with_alias), Some("src/lib.rs".to_string()));
+
         let missing_path = serde_json::json!({ "query": "needle" });
         assert_eq!(read_file_path(&missing_path), None);
 
@@ -479,5 +476,28 @@ mod tests {
         assert!(preview.contains("path: src/calculator.rs"));
         assert!(preview.contains("content: "));
         assert!(preview.contains("lines"));
+    }
+
+    #[test]
+    fn test_preview_search_and_read_inputs_support_alias_keys() {
+        let search = serde_json::json!({
+            "text": "release",
+            "directory": "docs",
+            "limit": 7,
+        });
+        let preview = preview_tool_input("search_files", &search, ToolPreviewStyle::Structured, 3);
+        assert!(preview.contains("query: release"));
+        assert!(preview.contains("path: docs"));
+        assert!(preview.contains("max_results: 7"));
+
+        let read = serde_json::json!({
+            "file": "RELEASING.md",
+            "offset": 50,
+            "limit": 25,
+        });
+        let preview = preview_tool_input("read_file", &read, ToolPreviewStyle::Structured, 3);
+        assert!(preview.contains("path: RELEASING.md"));
+        assert!(preview.contains("offset: 50"));
+        assert!(preview.contains("limit: 25"));
     }
 }
