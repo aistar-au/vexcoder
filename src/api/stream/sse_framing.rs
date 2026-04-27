@@ -1,46 +1,46 @@
 use super::chat_compat::parse_chat_compat_chunk;
-use super::provider::{ProviderApiStreamError, ProviderStreamEvent};
+use super::provider::{ProviderApiStreamError, ProviderStreamItem};
 use super::{IngressPayload, MAX_SSE_BUFFER_BYTES, StreamParser};
 use crate::runtime::RuntimeEnvelope;
 use anyhow::Result;
 
 impl StreamParser {
-    pub fn process_sse_event(
+    pub fn process_sse_frame(
         &mut self,
-        event_type: &str,
+        frame_kind: &str,
         data: &str,
     ) -> Result<Vec<RuntimeEnvelope>> {
-        self.parse_event_payload((!event_type.is_empty()).then_some(event_type), data)
+        self.decode_frame_payload((!frame_kind.is_empty()).then_some(frame_kind), data)
     }
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<RuntimeEnvelope>> {
         if self.overflowed {
-            return Ok(vec![self.sse_buffer_overflow_event()]);
+            return Ok(vec![self.sse_overflow_frame()]);
         }
 
         if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
             self.overflowed = true;
-            return Ok(vec![self.sse_buffer_overflow_event()]);
+            return Ok(vec![self.sse_overflow_frame()]);
         }
         self.buffer.extend_from_slice(chunk);
         self.strip_utf8_bom_once();
 
-        let mut events = Vec::new();
+        let mut frames = Vec::new();
 
         while let Some((pos, delim_len)) = self.find_sse_frame_delimiter() {
             let end = pos + delim_len;
             let frame_bytes = self.buffer[..pos].to_vec();
             self.buffer.drain(..end);
-            events.extend(self.parse_sse_frame_bytes(frame_bytes)?);
+            frames.extend(self.parse_sse_frame_bytes(frame_bytes)?);
         }
 
-        Ok(events)
+        Ok(frames)
     }
 
     fn parse_sse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
         let frame_text = String::from_utf8(frame_bytes)?;
         let normalised_frame = normalise_sse_line_endings(&frame_text);
-        let mut event_type = None;
+        let mut frame_kind = None;
         let mut data_lines = Vec::new();
 
         for line in normalised_frame.split('\n') {
@@ -48,16 +48,16 @@ impl StreamParser {
                 continue;
             }
             if let Some(rest) = line.strip_prefix("event:") {
-                event_type = Some(strip_single_leading_space(rest).to_string());
+                frame_kind = Some(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("data:") {
                 data_lines.push(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("id:") {
                 let val = strip_single_leading_space(rest);
                 if !val.contains('\0') {
-                    self.last_event_id = Some(val.to_string());
+                    self.last_frame_id = Some(val.to_string());
                 }
             } else if line == "id" {
-                self.last_event_id = Some(String::new());
+                self.last_frame_id = Some(String::new());
             } else if let Some(rest) = line.strip_prefix("retry:")
                 && let Ok(ms) = strip_single_leading_space(rest).parse::<u64>()
             {
@@ -78,12 +78,12 @@ impl StreamParser {
 
         let json_data = data_lines.join("\n");
 
-        self.parse_event_payload(event_type.as_deref(), &json_data)
+        self.decode_frame_payload(frame_kind.as_deref(), &json_data)
     }
 
-    fn parse_event_payload(
+    fn decode_frame_payload(
         &mut self,
-        event_type: Option<&str>,
+        frame_kind: Option<&str>,
         json_data: &str,
     ) -> Result<Vec<RuntimeEnvelope>> {
         if json_data.is_empty() {
@@ -94,31 +94,31 @@ impl StreamParser {
             return Ok(self.enter_runtime_envelope_mode(envelope));
         }
 
-        let payload = self.parse_protocol_event_payload(event_type, json_data);
+        let payload = self.decode_protocol_frame(frame_kind, json_data);
         Ok(self.adapt_protocol_payload(payload))
     }
 
-    fn parse_protocol_event_payload(
+    fn decode_protocol_frame(
         &mut self,
-        event_type: Option<&str>,
+        frame_kind: Option<&str>,
         json_data: &str,
     ) -> IngressPayload {
-        if event_type == Some("ping") {
-            return IngressPayload::Provider(Box::new(ProviderStreamEvent::Ping));
+        if frame_kind == Some("ping") {
+            return IngressPayload::Provider(Box::new(ProviderStreamItem::Ping));
         }
 
-        match serde_json::from_str::<ProviderStreamEvent>(json_data) {
+        match serde_json::from_str::<ProviderStreamItem>(json_data) {
             Ok(evt) => IngressPayload::Provider(Box::new(evt)),
             Err(messages_v1_error) => {
                 if let Some(chat_compat_payload) = parse_chat_compat_chunk(json_data) {
                     IngressPayload::ChatCompat(chat_compat_payload)
                 } else {
                     super::super::logging::emit_sse_parse_error(
-                        event_type,
+                        frame_kind,
                         json_data,
                         &messages_v1_error,
                     );
-                    IngressPayload::Provider(Box::new(ProviderStreamEvent::Error {
+                    IngressPayload::Provider(Box::new(ProviderStreamItem::Error {
                         error: ProviderApiStreamError {
                             error_type: "sse_parse_error".to_string(),
                             message: messages_v1_error.to_string(),
@@ -167,7 +167,7 @@ impl StreamParser {
         }
     }
 
-    fn sse_buffer_overflow_event(&mut self) -> RuntimeEnvelope {
+    fn sse_overflow_frame(&mut self) -> RuntimeEnvelope {
         self.protocol_stream_error_envelope(
             "sse_buffer_overflow",
             format!(
@@ -177,8 +177,8 @@ impl StreamParser {
         )
     }
 
-    pub fn last_event_id(&self) -> Option<&str> {
-        self.last_event_id.as_deref()
+    pub fn last_frame_id(&self) -> Option<&str> {
+        self.last_frame_id.as_deref()
     }
 
     pub fn reconnect_delay_ms(&self) -> Option<u64> {

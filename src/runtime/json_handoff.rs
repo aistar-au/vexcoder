@@ -17,7 +17,7 @@ mod protocol_ingress;
 mod tool_calls;
 
 use self::derived::{DerivedTurnState, turn_tokens_from_usage};
-pub use self::derived::{runtime_approval_request_event, token_usage_from_turn_tokens};
+pub use self::derived::{approval_request_signal, token_usage_from_turn_tokens};
 use self::protocol_ingress::ProtocolIngressState;
 use self::tool_calls::{PendingToolCall, PendingToolCallContext};
 
@@ -29,14 +29,20 @@ pub struct RuntimeEnvelope {
     pub task_id: String,
     pub pulse: u32,
     pub seq: u64,
-    pub event_id: String,
+    #[serde(rename = "event_id")]
+    pub frame_id: String,
     pub emitted_at: String,
     pub source: RuntimeEnvelopeSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent_event_id: Option<String>,
-    pub event: RuntimeEvent,
+    #[serde(
+        rename = "parent_event_id",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub parent_frame_id: Option<String>,
+    #[serde(rename = "event")]
+    pub signal: RuntimeSignal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,7 +56,7 @@ pub enum RuntimeEnvelopeSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum RuntimeEvent {
+pub enum RuntimeSignal {
     PulseStart {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         input: Option<String>,
@@ -298,7 +304,7 @@ impl RuntimeEnvelopeNormalizer {
         self.next_synthetic_block_index = SYNTHETIC_FINAL_TEXT_BLOCK_START;
         self.protocol_ingress = ProtocolIngressState::default();
 
-        self.next_envelope(RuntimeEvent::PulseStart { input })
+        self.next_envelope(RuntimeSignal::PulseStart { input })
     }
 
     pub fn normalize_content_block(&mut self, block: &ContentBlock) -> Vec<RuntimeEnvelope> {
@@ -362,14 +368,14 @@ impl RuntimeEnvelopeNormalizer {
             UiUpdate::TranscriptLine(line) => {
                 let mut envelopes = self.close_open_final_text_block();
                 envelopes
-                    .push(self.next_envelope(RuntimeEvent::TranscriptLine { line: line.clone() }));
+                    .push(self.next_envelope(RuntimeSignal::TranscriptLine { line: line.clone() }));
                 envelopes
             }
             UiUpdate::StreamDelta(text) => {
                 let (index, block_start) = self.ensure_open_final_text_block();
                 let mut envelopes = block_start.into_iter().collect::<Vec<_>>();
                 envelopes.push(self.next_envelope_with_source(
-                    RuntimeEvent::TranscriptBlockDelta {
+                    RuntimeSignal::TranscriptBlockDelta {
                         index,
                         delta: text.clone(),
                     },
@@ -384,7 +390,7 @@ impl RuntimeEnvelopeNormalizer {
                 let source = source_for_stream_block(block);
                 self.block_sources.insert(*index, source.clone());
                 envelopes.push(self.next_envelope_with_source(
-                    RuntimeEvent::TranscriptBlockStart {
+                    RuntimeSignal::TranscriptBlockStart {
                         index: *index,
                         block: block.clone(),
                     },
@@ -405,7 +411,7 @@ impl RuntimeEnvelopeNormalizer {
                 let mut envelopes = Vec::new();
 
                 envelopes.push(self.next_envelope_with_source(
-                    RuntimeEvent::TranscriptBlockDelta {
+                    RuntimeSignal::TranscriptBlockDelta {
                         index: *index,
                         delta: delta.clone(),
                     },
@@ -424,7 +430,7 @@ impl RuntimeEnvelopeNormalizer {
                 }
                 let source = self.block_sources.remove(index);
                 vec![self.next_envelope_with_source(
-                    RuntimeEvent::TranscriptBlockComplete { index: *index },
+                    RuntimeSignal::TranscriptBlockComplete { index: *index },
                     None,
                     None,
                     source,
@@ -439,11 +445,11 @@ impl RuntimeEnvelopeNormalizer {
             ),
             UiUpdate::ToolApprovalRequest(request) => {
                 let mut envelopes = self.close_open_final_text_block();
-                envelopes.push(self.next_envelope(runtime_approval_request_event(request)));
+                envelopes.push(self.next_envelope(approval_request_signal(request)));
                 envelopes
             }
             UiUpdate::ServerMetadata(metadata) => {
-                vec![self.next_envelope(RuntimeEvent::ServerMetadata {
+                vec![self.next_envelope(RuntimeSignal::ServerMetadata {
                     metadata: Box::new((**metadata).clone()),
                 })]
             }
@@ -457,10 +463,10 @@ impl RuntimeEnvelopeNormalizer {
     }
 
     pub fn normalize_runtime_request(&mut self, request: &RuntimeRequest) -> Vec<RuntimeEnvelope> {
-        approval_resolution_event(request)
-            .map(|event| {
+        approval_resolution_signal(request)
+            .map(|signal| {
                 vec![self.next_envelope_with_context(
-                    event,
+                    signal,
                     Some(request.request_id().to_string()),
                     None,
                 )]
@@ -476,7 +482,7 @@ impl RuntimeEnvelopeNormalizer {
         turn_end: PulseEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
-        envelopes.push(self.next_envelope(RuntimeEvent::Error {
+        envelopes.push(self.next_envelope(RuntimeSignal::Error {
             code,
             message,
             recoverable,
@@ -489,7 +495,7 @@ impl RuntimeEnvelopeNormalizer {
             self.pending_tool_call_contexts.clear();
             self.streaming_tool_call_blocks.clear();
             self.block_sources.clear();
-            envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
+            envelopes.push(self.next_envelope(RuntimeSignal::PulseEnd {
                 status: "failed".to_string(),
                 usage: turn_end.usage,
                 changed_files,
@@ -511,8 +517,8 @@ impl RuntimeEnvelopeNormalizer {
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
         self.block_sources.clear();
-        envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
-        envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
+        envelopes.push(self.next_envelope(RuntimeSignal::MaxTurnsReached { max_turns }));
+        envelopes.push(self.next_envelope(RuntimeSignal::PulseEnd {
             status: "failed".to_string(),
             usage: turn_end.usage,
             changed_files,
@@ -524,8 +530,8 @@ impl RuntimeEnvelopeNormalizer {
         self.finish_turn_with_status("cancelled", turn_end)
     }
 
-    pub fn emit_event(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {
-        self.next_envelope(event)
+    pub fn emit_signal(&mut self, signal: RuntimeSignal) -> RuntimeEnvelope {
+        self.next_envelope(signal)
     }
 
     fn complete_turn(&mut self, turn_end: PulseEndContext) -> Vec<RuntimeEnvelope> {
@@ -544,7 +550,7 @@ impl RuntimeEnvelopeNormalizer {
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
         self.block_sources.clear();
-        envelopes.push(self.next_envelope(RuntimeEvent::PulseEnd {
+        envelopes.push(self.next_envelope(RuntimeSignal::PulseEnd {
             status: status.to_string(),
             usage: turn_end.usage,
             changed_files,
@@ -566,7 +572,7 @@ impl RuntimeEnvelopeNormalizer {
         (
             index,
             Some(self.next_envelope_with_source(
-                RuntimeEvent::TranscriptBlockStart {
+                RuntimeSignal::TranscriptBlockStart {
                     index,
                     block: StreamBlock::FinalText {
                         content: String::new(),
@@ -587,31 +593,31 @@ impl RuntimeEnvelopeNormalizer {
         let source = self.block_sources.remove(&index);
 
         vec![self.next_envelope_with_source(
-            RuntimeEvent::TranscriptBlockComplete { index },
+            RuntimeSignal::TranscriptBlockComplete { index },
             None,
             None,
             source,
         )]
     }
 
-    fn next_envelope(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {
-        self.next_envelope_with_context(event, None, None)
+    fn next_envelope(&mut self, signal: RuntimeSignal) -> RuntimeEnvelope {
+        self.next_envelope_with_context(signal, None, None)
     }
 
     fn next_envelope_with_context(
         &mut self,
-        event: RuntimeEvent,
+        signal: RuntimeSignal,
         request_id: Option<String>,
-        parent_event_id: Option<String>,
+        parent_frame_id: Option<String>,
     ) -> RuntimeEnvelope {
-        self.next_envelope_with_source(event, request_id, parent_event_id, None)
+        self.next_envelope_with_source(signal, request_id, parent_frame_id, None)
     }
 
     fn next_envelope_with_source(
         &mut self,
-        event: RuntimeEvent,
+        signal: RuntimeSignal,
         request_id: Option<String>,
-        parent_event_id: Option<String>,
+        parent_frame_id: Option<String>,
         source: Option<RuntimeEnvelopeSource>,
     ) -> RuntimeEnvelope {
         let seq = self.next_seq;
@@ -620,32 +626,34 @@ impl RuntimeEnvelopeNormalizer {
             task_id: self.task_id.clone(),
             pulse: self.pulse,
             seq,
-            event_id: format!("evt:{}:{}:{seq}", self.task_id, self.pulse),
+            frame_id: format!("evt:{}:{}:{seq}", self.task_id, self.pulse),
             emitted_at: timestamp_string(Utc::now()),
-            source: source.unwrap_or_else(|| source_for_event(&event)),
+            source: source.unwrap_or_else(|| source_for_signal(&signal)),
             request_id,
-            parent_event_id,
-            event,
+            parent_frame_id,
+            signal,
         };
         self.next_seq = seq.saturating_add(1);
         envelope
     }
 }
 
-pub fn approval_resolution_event(request: &RuntimeRequest) -> Option<RuntimeEvent> {
+pub fn approval_resolution_signal(request: &RuntimeRequest) -> Option<RuntimeSignal> {
     match request {
         RuntimeRequest::ApproveCapability {
             capability, scope, ..
-        } => Some(RuntimeEvent::ApprovalResolved {
+        } => Some(RuntimeSignal::ApprovalResolved {
             capability: capability.clone(),
             scope: scope.clone(),
             approved: true,
         }),
-        RuntimeRequest::DenyCapability { capability, .. } => Some(RuntimeEvent::ApprovalResolved {
-            capability: capability.clone(),
-            scope: "once".to_string(),
-            approved: false,
-        }),
+        RuntimeRequest::DenyCapability { capability, .. } => {
+            Some(RuntimeSignal::ApprovalResolved {
+                capability: capability.clone(),
+                scope: "once".to_string(),
+                approved: false,
+            })
+        }
         RuntimeRequest::SubmitInput { .. } | RuntimeRequest::Interrupt { .. } => None,
     }
 }
@@ -663,8 +671,8 @@ pub fn derive_batch_records(
 
     for envelope in envelopes {
         task_id.get_or_insert_with(|| envelope.task_id.clone());
-        match &envelope.event {
-            RuntimeEvent::PulseStart { input } => {
+        match &envelope.signal {
+            RuntimeSignal::PulseStart { input } => {
                 if let Some(state) = current_turn.take() {
                     pulses.push(state.into_record(instructions_path.clone()));
                 }
@@ -674,24 +682,24 @@ pub fn derive_batch_records(
                     ..DerivedTurnState::default()
                 });
             }
-            RuntimeEvent::TranscriptBlockStart { index, block } => {
+            RuntimeSignal::TranscriptBlockStart { index, block } => {
                 if let Some(state) = current_turn.as_mut()
                     && let StreamBlock::FinalText { content } = block
                 {
                     state.start_final_text_block(*index, content.clone());
                 }
             }
-            RuntimeEvent::TranscriptBlockDelta { index, delta } => {
+            RuntimeSignal::TranscriptBlockDelta { index, delta } => {
                 if let Some(state) = current_turn.as_mut() {
                     state.append_final_text_delta(*index, delta);
                 }
             }
-            RuntimeEvent::TranscriptBlockComplete { index } => {
+            RuntimeSignal::TranscriptBlockComplete { index } => {
                 if let Some(state) = current_turn.as_mut() {
                     state.complete_final_text_block(*index);
                 }
             }
-            RuntimeEvent::ToolCallCompleted {
+            RuntimeSignal::ToolCallCompleted {
                 tool_name, status, ..
             } => {
                 if let Some(state) = current_turn.as_mut()
@@ -702,7 +710,7 @@ pub fn derive_batch_records(
                     state.command_history.push(evidence);
                 }
             }
-            RuntimeEvent::ToolCallFailed {
+            RuntimeSignal::ToolCallFailed {
                 tool_name, status, ..
             } => {
                 if let Some(state) = current_turn.as_mut()
@@ -713,7 +721,7 @@ pub fn derive_batch_records(
                     state.command_history.push(evidence);
                 }
             }
-            RuntimeEvent::PulseEnd {
+            RuntimeSignal::PulseEnd {
                 status,
                 usage,
                 changed_files,
@@ -730,20 +738,20 @@ pub fn derive_batch_records(
                     pulses.push(state.into_record(instructions_path.clone()));
                 }
             }
-            RuntimeEvent::MaxTurnsReached { .. } => {
+            RuntimeSignal::MaxTurnsReached { .. } => {
                 max_turns_reached = true;
             }
-            RuntimeEvent::TranscriptLine { .. }
-            | RuntimeEvent::ToolCallStarted { .. }
-            | RuntimeEvent::ToolCallArgumentsDelta { .. }
-            | RuntimeEvent::ToolCallStatusUpdated { .. }
-            | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
-            | RuntimeEvent::ServerMetadata { .. }
-            | RuntimeEvent::UsageUpdated { .. }
-            | RuntimeEvent::ApprovalRequest { .. }
-            | RuntimeEvent::ApprovalResolved { .. }
-            | RuntimeEvent::ValidationResult { .. }
-            | RuntimeEvent::Error { .. } => {}
+            RuntimeSignal::TranscriptLine { .. }
+            | RuntimeSignal::ToolCallStarted { .. }
+            | RuntimeSignal::ToolCallArgumentsDelta { .. }
+            | RuntimeSignal::ToolCallStatusUpdated { .. }
+            | RuntimeSignal::TranscriptBlockPhaseUpdated { .. }
+            | RuntimeSignal::ServerMetadata { .. }
+            | RuntimeSignal::UsageUpdated { .. }
+            | RuntimeSignal::ApprovalRequest { .. }
+            | RuntimeSignal::ApprovalResolved { .. }
+            | RuntimeSignal::ValidationResult { .. }
+            | RuntimeSignal::Error { .. } => {}
         }
     }
 
@@ -782,29 +790,29 @@ fn source_for_stream_block(block: &StreamBlock) -> RuntimeEnvelopeSource {
     }
 }
 
-fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
-    match event {
-        RuntimeEvent::PulseStart { .. } | RuntimeEvent::ApprovalResolved { .. } => {
+fn source_for_signal(signal: &RuntimeSignal) -> RuntimeEnvelopeSource {
+    match signal {
+        RuntimeSignal::PulseStart { .. } | RuntimeSignal::ApprovalResolved { .. } => {
             RuntimeEnvelopeSource::UserRequest
         }
-        RuntimeEvent::TranscriptLine { .. } => RuntimeEnvelopeSource::Runtime,
-        RuntimeEvent::TranscriptBlockStart { block, .. } => source_for_stream_block(block),
-        RuntimeEvent::TranscriptBlockComplete { .. }
-        | RuntimeEvent::ToolCallStarted { .. }
-        | RuntimeEvent::ToolCallArgumentsDelta { .. }
-        | RuntimeEvent::ServerMetadata { .. }
-        | RuntimeEvent::UsageUpdated { .. } => RuntimeEnvelopeSource::Model,
+        RuntimeSignal::TranscriptLine { .. } => RuntimeEnvelopeSource::Runtime,
+        RuntimeSignal::TranscriptBlockStart { block, .. } => source_for_stream_block(block),
+        RuntimeSignal::TranscriptBlockComplete { .. }
+        | RuntimeSignal::ToolCallStarted { .. }
+        | RuntimeSignal::ToolCallArgumentsDelta { .. }
+        | RuntimeSignal::ServerMetadata { .. }
+        | RuntimeSignal::UsageUpdated { .. } => RuntimeEnvelopeSource::Model,
 
-        RuntimeEvent::TranscriptBlockDelta { .. } => RuntimeEnvelopeSource::Runtime,
-        RuntimeEvent::ToolCallStatusUpdated { .. }
-        | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
-        | RuntimeEvent::ToolCallCompleted { .. }
-        | RuntimeEvent::ToolCallFailed { .. }
-        | RuntimeEvent::ApprovalRequest { .. }
-        | RuntimeEvent::ValidationResult { .. }
-        | RuntimeEvent::PulseEnd { .. }
-        | RuntimeEvent::Error { .. }
-        | RuntimeEvent::MaxTurnsReached { .. } => RuntimeEnvelopeSource::Runtime,
+        RuntimeSignal::TranscriptBlockDelta { .. } => RuntimeEnvelopeSource::Runtime,
+        RuntimeSignal::ToolCallStatusUpdated { .. }
+        | RuntimeSignal::TranscriptBlockPhaseUpdated { .. }
+        | RuntimeSignal::ToolCallCompleted { .. }
+        | RuntimeSignal::ToolCallFailed { .. }
+        | RuntimeSignal::ApprovalRequest { .. }
+        | RuntimeSignal::ValidationResult { .. }
+        | RuntimeSignal::PulseEnd { .. }
+        | RuntimeSignal::Error { .. }
+        | RuntimeSignal::MaxTurnsReached { .. } => RuntimeEnvelopeSource::Runtime,
     }
 }
 

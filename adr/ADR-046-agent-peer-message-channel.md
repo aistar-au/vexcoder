@@ -16,7 +16,7 @@ Concurrent sub-agents had no structured path to exchange corrections or status u
 - Message format: JSON object with `id`, `sent_at` (pagination cursor), `sender_id`, `sender_agent_id`, `recipient`, `kind`, `content`, `session_task_id`.
 - Two-layer locking: in-process [`std::sync::Mutex`](https://doc.rust-lang.org/std/sync/struct.Mutex.html) + [`std::sync::OnceLock`](https://doc.rust-lang.org/std/sync/struct.OnceLock.html) for process-local serialization, plus cross-process `flock` via [`fs2`](https://docs.rs/fs2).
 - No model-aware interrupt; agents poll on their read cadence.
-- Reserve `PeerMessagePosted` `RuntimeEvent` variant for ADR-045 compatibility.
+- Reserve `PeerMessagePosted` `RuntimeSignal` variant for ADR-045 compatibility.
 
 ## References
 

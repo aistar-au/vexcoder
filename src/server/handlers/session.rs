@@ -130,7 +130,7 @@ fn rollup_to_response(s: crate::app::FacadeSessionTaskRollup) -> SessionTaskRoll
     }
 }
 
-fn session_task_event(
+fn session_task_signal(
     snapshot: crate::app::FacadeSessionTaskRollup,
 ) -> Result<Event, serde_json::Error> {
     serde_json::to_string(&rollup_to_response(snapshot))
@@ -146,7 +146,7 @@ pub async fn watch_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ProblemDetailsResponse> {
-    let mut updates = state.subscribe_session_task_events();
+    let mut updates = state.subscribe_session_task_signals();
 
     let initial_rollup = facade_get_session_task(&state.config.working_dir, &id)
         .map_err(internal_anyhow)?
@@ -156,12 +156,12 @@ pub async fn watch_session_task_handler(
     let initial_is_terminal = lifecycle_state_is_terminal(&initial_rollup.lifecycle_state);
     let mut last_updated_at = initial_rollup.updated_at_ms;
 
-    let initial_event = session_task_event(initial_rollup).map_err(|err| {
+    let initial_signal = session_task_signal(initial_rollup).map_err(|err| {
         internal_anyhow(anyhow::anyhow!(
             "failed to serialize session-task watch rollup: {err}"
         ))
     })?;
-    tx.send(Ok(initial_event)).map_err(|_| {
+    tx.send(Ok(initial_signal)).map_err(|_| {
         internal_anyhow(anyhow::anyhow!("failed to seed session-task watch stream"))
     })?;
 
@@ -184,11 +184,11 @@ pub async fn watch_session_task_handler(
                 }
                 last_updated_at = snapshot.updated_at_ms;
 
-                let event = match session_task_event(snapshot) {
-                    Ok(event) => event,
+                let sse_frame = match session_task_signal(snapshot) {
+                    Ok(sse_frame) => sse_frame,
                     Err(_) => break,
                 };
-                if tx.send(Ok(event)).is_err() {
+                if tx.send(Ok(sse_frame)).is_err() {
                     break;
                 }
                 if is_terminal {

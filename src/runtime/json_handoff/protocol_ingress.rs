@@ -1,11 +1,11 @@
 use super::derived::{empty_json_object, token_usage_from_turn_tokens};
-use super::{PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent};
+use super::{PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeSignal};
 use crate::api::stream::MAX_TOOL_CALL_INDEX;
 use crate::api::stream::chat_compat::{
     ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatFunctionArguments,
     ChatCompatPayload, ChatCompatToolCallDelta,
 };
-use crate::api::stream::provider::{ProviderDelta, ProviderStreamEvent};
+use crate::api::stream::provider::{ProviderDelta, ProviderStreamItem};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ApiUsage, StreamChunkMetadata};
 use crate::usage::PulseTokens;
@@ -191,12 +191,12 @@ impl RuntimeEnvelopeNormalizer {
         envelopes
     }
 
-    pub(crate) fn normalize_provider_stream_event(
+    pub(crate) fn normalize_provider_stream_item(
         &mut self,
-        event: ProviderStreamEvent,
+        item: ProviderStreamItem,
     ) -> Vec<RuntimeEnvelope> {
-        match event {
-            ProviderStreamEvent::MessageStart { message } => {
+        match item {
+            ProviderStreamItem::MessageStart { message } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = message_start_metadata(message.metadata) {
                     envelopes.extend(self.emit_provider_metadata(metadata));
@@ -206,7 +206,7 @@ impl RuntimeEnvelopeNormalizer {
                 }
                 envelopes
             }
-            ProviderStreamEvent::ContentBlockStart {
+            ProviderStreamItem::ContentBlockStart {
                 index,
                 content_block,
             } => match decode_provider_content_block(content_block.clone()) {
@@ -226,22 +226,22 @@ impl RuntimeEnvelopeNormalizer {
                         raw_payload = %truncated,
                         "failed to decode provider content_block_start; raw payload logged for diagnosis"
                     );
-                    vec![self.emit_event(RuntimeEvent::Error {
+                    vec![self.emit_signal(RuntimeSignal::Error {
                         code: "provider_content_block_start_decode".to_string(),
                         message: format!(
-                            "failed to decode provider content_block_start event at index {index}: {err}"
+                            "failed to decode provider content_block_start item at index {index}: {err}"
                         ),
                         recoverable: true,
                     })]
                 }
             },
-            ProviderStreamEvent::ContentBlockDelta { index, delta } => provider_block_delta(&delta)
+            ProviderStreamItem::ContentBlockDelta { index, delta } => provider_block_delta(&delta)
                 .map(|delta| self.apply_provider_stream_delta(index, delta))
                 .unwrap_or_default(),
-            ProviderStreamEvent::ContentBlockStop { index } => {
+            ProviderStreamItem::ContentBlockStop { index } => {
                 self.close_provider_stream_block(index)
             }
-            ProviderStreamEvent::MessageDelta { delta, usage } => {
+            ProviderStreamItem::MessageDelta { delta, usage } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = delta.metadata {
                     envelopes.extend(self.emit_provider_metadata(metadata));
@@ -251,10 +251,10 @@ impl RuntimeEnvelopeNormalizer {
                 }
                 envelopes
             }
-            ProviderStreamEvent::MessageStop
-            | ProviderStreamEvent::Ping
-            | ProviderStreamEvent::Unknown => Vec::new(),
-            ProviderStreamEvent::Error { error } => vec![self.emit_event(RuntimeEvent::Error {
+            ProviderStreamItem::MessageStop
+            | ProviderStreamItem::Ping
+            | ProviderStreamItem::Unknown => Vec::new(),
+            ProviderStreamItem::Error { error } => vec![self.emit_signal(RuntimeSignal::Error {
                 code: error.error_type,
                 message: error.message,
                 recoverable: true,
@@ -288,7 +288,7 @@ impl RuntimeEnvelopeNormalizer {
         message: String,
     ) -> RuntimeEnvelope {
         let _ = self.ensure_protocol_ingress_turn_started();
-        self.emit_event(RuntimeEvent::Error {
+        self.emit_signal(RuntimeSignal::Error {
             code,
             message,
             recoverable: true,
@@ -416,7 +416,7 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = self.ensure_protocol_ingress_turn_started();
         if let Some(usage) = token_usage_from_api_usage(&usage) {
-            envelopes.push(self.emit_event(RuntimeEvent::UsageUpdated { usage }));
+            envelopes.push(self.emit_signal(RuntimeSignal::UsageUpdated { usage }));
         }
         envelopes
     }

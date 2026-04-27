@@ -20,7 +20,7 @@ consumer-boundary hardening follow-up is
   opening a second downstream parse path.
 - The server SSE path now forwards accepted envelope JSON without legacy mode
   negotiation.
-- The conversation tool loop now consumes accepted `RuntimeEvent` values,
+- The conversation tool loop now consumes accepted `RuntimeSignal` values,
   including runtime-owned tool-call IDs, metadata, and usage updates.
 - The merged follow-up lane closes the whole-system consumer cleanup from
   PR #402. Tagged/XML fallback parsing is now gone, legacy thinking-tag
@@ -49,7 +49,7 @@ Primary reference: `adr/ADR-047-amendment-2026-04-20.md`
 - Accepted contract: `src/runtime/json_handoff.rs` and
   `schemas/runtime_envelope_v1.json`
 - Server SSE transport: `src/server/sse.rs` and `src/server/handlers/mod.rs`
-- API SSE boundary: `src/runtime/backend.rs`, `src/api/eventsource.rs`,
+- API SSE boundary: `src/runtime/backend.rs`, `src/api/stream_ingress.rs`,
   `src/api/stream.rs`, `src/api/mock_client.rs`, `src/api/client/**`, and
   `crates/vexcoder-api-types/src/lib.rs`
 - Runtime event parser and tool loop: `src/state/conversation/**`,
@@ -68,7 +68,7 @@ Primary reference: `adr/ADR-047-amendment-2026-04-20.md`
 - [x] Change `src/runtime/backend.rs` so downstream code receives
   `RuntimeEnvelope` rather than `StreamEvent`.
 - [x] Normalize compatibility SSE payloads into envelopes at the API boundary
-  in `src/api/eventsource.rs`, `src/api/mock_client.rs`, and `src/api/stream.rs`.
+  in `src/api/stream_ingress.rs`, `src/api/mock_client.rs`, and `src/api/stream.rs`.
 - [x] Remove `src/api/stream/mappers.rs` and preserve only provider-edge types
   still required before normalization.
 - [x] Restrict `src/api/client/**` to request-shape concerns and immediate

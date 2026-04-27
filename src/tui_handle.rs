@@ -5,8 +5,8 @@ use std::sync::Once;
 use crate::ui::tui::{
     DefaultTerminal, Frame, Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
-    event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
+    input::{DisableBracketedPaste, EnableBracketedPaste},
     layout::Size,
     terminal::{Clear, ClearType, MoveToColumn, Show, host_display_size},
     try_init_with_options, try_restore,

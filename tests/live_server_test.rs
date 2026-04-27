@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
 use vexcoder::config::Config;
 use vexcoder::runtime::{
-    ModelBackend, ModelBackendKind, ModelProtocol, RuntimeEvent, ToolCallMode, ToolPolicy,
+    ModelBackend, ModelBackendKind, ModelProtocol, RuntimeSignal, ToolCallMode, ToolPolicy,
 };
 use vexcoder::types::{ApiMessage, Content, ModelProfile};
 
@@ -453,15 +453,15 @@ async fn stalled_stream_falls_back_to_non_stream_json_for_both_protocols() {
         } else {
             "toolu_stalled_1"
         };
-        assert!(envelopes.iter().any(|e| matches!(&e.event, RuntimeEvent::TranscriptBlockStart { block: vexcoder::state::StreamBlock::ToolCall { id, name, .. }, .. } if id == expected_id && name == "read_file")), "{protocol}: must emit tool call block");
-        assert!(envelopes.iter().any(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { tool_call_id, tool_name, .. } if tool_call_id.starts_with("tx_") && tool_name == "read_file")), "{protocol}: must emit ToolCallStarted");
+        assert!(envelopes.iter().any(|e| matches!(&e.signal, RuntimeSignal::TranscriptBlockStart { block: vexcoder::state::StreamBlock::ToolCall { id, name, .. }, .. } if id == expected_id && name == "read_file")), "{protocol}: must emit tool call block");
+        assert!(envelopes.iter().any(|e| matches!(&e.signal, RuntimeSignal::ToolCallStarted { tool_call_id, tool_name, .. } if tool_call_id.starts_with("tx_") && tool_name == "read_file")), "{protocol}: must emit ToolCallStarted");
         assert!(
             !envelopes
                 .iter()
-                .any(|e| matches!(&e.event, RuntimeEvent::ToolCallArgumentsDelta { .. })),
+                .any(|e| matches!(&e.signal, RuntimeSignal::ToolCallArgumentsDelta { .. })),
             "{protocol}: materialized fallback must not emit deltas"
         );
-        assert!(envelopes.iter().any(|e| matches!(&e.event, RuntimeEvent::PulseEnd { status, .. } if status == "completed")), "{protocol}: must emit PulseEnd");
+        assert!(envelopes.iter().any(|e| matches!(&e.signal, RuntimeSignal::PulseEnd { status, .. } if status == "completed")), "{protocol}: must emit PulseEnd");
         server.abort();
     }
 }
@@ -574,13 +574,13 @@ async fn empty_and_null_content_fallback_emit_pulse_end_without_tool_calls() {
         assert!(
             envelopes
                 .iter()
-                .any(|e| matches!(&e.event, RuntimeEvent::PulseEnd { .. })),
+                .any(|e| matches!(&e.signal, RuntimeSignal::PulseEnd { .. })),
             "{label}: must emit PulseEnd"
         );
         assert!(
             !envelopes
                 .iter()
-                .any(|e| matches!(&e.event, RuntimeEvent::ToolCallStarted { .. })),
+                .any(|e| matches!(&e.signal, RuntimeSignal::ToolCallStarted { .. })),
             "{label}: must not emit ToolCallStarted"
         );
         server.abort();

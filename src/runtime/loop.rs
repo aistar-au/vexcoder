@@ -32,7 +32,7 @@ impl<M: RuntimeMode> Runtime<M> {
             let mut state_changed = false;
             if let Some(input) = frontend.poll_user_input(&self.mode) {
                 state_changed = true;
-                self.mode.on_frontend_event(input, ctx);
+                self.mode.on_frontend_signal(input, ctx);
             }
 
             while let Ok(update) = self.update_rx.try_recv() {
@@ -57,7 +57,7 @@ impl<M: RuntimeMode> Runtime<M> {
 mod tests {
     use super::*;
     use crate::api::{ApiClient, mock_client::MockApiClient};
-    use crate::runtime::frontend::UserInputEvent;
+    use crate::runtime::frontend::InputOccurrence;
     use crate::state::ConversationManager;
     use std::collections::{HashMap, VecDeque};
     use std::sync::Arc;
@@ -79,8 +79,8 @@ mod tests {
     }
 
     impl FrontendAdapter<crate::app::TuiMode> for HeadlessFrontend {
-        fn poll_user_input(&mut self, _mode: &crate::app::TuiMode) -> Option<UserInputEvent> {
-            self.inputs.pop_front().map(UserInputEvent::Text)
+        fn poll_user_input(&mut self, _mode: &crate::app::TuiMode) -> Option<InputOccurrence> {
+            self.inputs.pop_front().map(InputOccurrence::Text)
         }
 
         fn render(&mut self, _mode: &crate::app::TuiMode) {
@@ -114,15 +114,15 @@ mod tests {
     }
 
     struct InterruptFrontend {
-        events: VecDeque<UserInputEvent>,
+        pending_inputs: VecDeque<InputOccurrence>,
         render_count: usize,
         quit_after_renders: usize,
     }
 
     impl InterruptFrontend {
-        fn new(events: Vec<UserInputEvent>, quit_after_renders: usize) -> Self {
+        fn new(inputs: Vec<InputOccurrence>, quit_after_renders: usize) -> Self {
             Self {
-                events: events.into_iter().collect(),
+                pending_inputs: inputs.into_iter().collect(),
                 render_count: 0,
                 quit_after_renders,
             }
@@ -130,8 +130,8 @@ mod tests {
     }
 
     impl FrontendAdapter<InterruptMode> for InterruptFrontend {
-        fn poll_user_input(&mut self, _mode: &InterruptMode) -> Option<UserInputEvent> {
-            self.events.pop_front()
+        fn poll_user_input(&mut self, _mode: &InterruptMode) -> Option<InputOccurrence> {
+            self.pending_inputs.pop_front()
         }
 
         fn render(&mut self, _mode: &InterruptMode) {
@@ -160,7 +160,7 @@ mod tests {
     }
 
     impl FrontendAdapter<InterruptMode> for IdleFrontend {
-        fn poll_user_input(&mut self, _mode: &InterruptMode) -> Option<UserInputEvent> {
+        fn poll_user_input(&mut self, _mode: &InterruptMode) -> Option<InputOccurrence> {
             None
         }
 
@@ -227,7 +227,7 @@ mod tests {
         };
         let mut runtime = Runtime::new(mode, update_rx);
 
-        let mut frontend = InterruptFrontend::new(vec![UserInputEvent::Interrupt], 1);
+        let mut frontend = InterruptFrontend::new(vec![InputOccurrence::Interrupt], 1);
         runtime.run(&mut frontend, &mut ctx).await;
 
         assert_eq!(runtime.mode.interrupt_calls, 1);

@@ -1,10 +1,10 @@
 use self::protocol_discovery::discover_protocol;
-use super::eventsource::create_event_stream;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
+use super::stream_ingress::open_signal_stream;
 use crate::config::Config;
 use crate::observability::REQUEST_ID_HEADER;
 use crate::runtime::backend::{
-    EventStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
+    ModelBackend, ModelBackendKind, ModelProtocol, SignalStream, ToolCallMode, ToolPolicy,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
@@ -270,7 +270,7 @@ Tool results from earlier pulses may be condensed to their first few lines; if y
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {
-    fn create_mock_stream(&self, messages: &[ApiMessage]) -> Result<EventStream>;
+    fn create_mock_stream(&self, messages: &[ApiMessage]) -> Result<SignalStream>;
 }
 
 #[derive(Clone)]
@@ -554,7 +554,7 @@ impl ApiClient {
         self
     }
 
-    pub async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream> {
+    pub async fn create_stream(&self, messages: &[ApiMessage]) -> Result<SignalStream> {
         #[cfg(test)]
         {
             if let Some(producer) = &self.mock_stream_producer {
@@ -766,7 +766,7 @@ impl ApiClient {
             "routing model request"
         );
 
-        create_event_stream(
+        open_signal_stream(
             self.http.clone(),
             &request_url,
             &payload,
@@ -837,7 +837,7 @@ impl ModelBackend for ApiClient {
         self.is_local_endpoint()
     }
 
-    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream> {
+    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<SignalStream> {
         self.create_stream(messages).await
     }
 }

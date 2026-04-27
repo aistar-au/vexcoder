@@ -34,6 +34,21 @@ fn protocol_inference_and_url_adaptation_for_local_shapes() {
 
     for (input, messages_url, chat_url) in [
         (
+            "http://127.0.0.1:8000/messages/v1",
+            "http://127.0.0.1:8000/v1/messages",
+            "http://127.0.0.1:8000/v1/chat/completions",
+        ),
+        (
+            "http://127.0.0.1:8000/messages/v1/",
+            "http://127.0.0.1:8000/v1/messages",
+            "http://127.0.0.1:8000/v1/chat/completions",
+        ),
+        (
+            "http://localhost:8000/v1/chat/completions",
+            "http://localhost:8000/v1/messages",
+            "http://localhost:8000/v1/chat/completions",
+        ),
+        (
             "http://localhost:8000/v1",
             "http://localhost:8000/v1/messages",
             "http://localhost:8000/v1/chat/completions",
@@ -116,5 +131,56 @@ fn native_protocol_overrides_configured_for_bare_base_url() {
     assert_eq!(
         client.request_url(),
         "http://localhost:8000/v1/chat/completions"
+    );
+}
+
+#[test]
+fn base_url_explicit_protocol_controls_request_url() {
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url.clear();
+    config.api_client.base_url = "http://127.0.0.1:8787".to_string();
+    config.api_client.explicit_protocol = Some(ModelProtocol::ChatCompat);
+
+    let client = ApiClient::new(&config).expect("client should build");
+
+    assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
+    assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat);
+    assert_eq!(
+        client.request_url(),
+        "http://127.0.0.1:8787/v1/chat/completions"
+    );
+}
+
+#[test]
+fn explicit_model_url_paths_remain_authoritative_over_discovery() {
+    let chat_compat_config = local_stream_test_config(
+        "http://localhost:8000/v1/chat/completions".to_string(),
+        ModelProtocol::MessagesV1,
+    );
+    let chat_compat_client = ApiClient::new(&chat_compat_config).expect("client should build");
+    chat_compat_client.set_server_info(ServerInfo {
+        native_protocol: Some(ModelProtocol::MessagesV1),
+        ..ServerInfo::default()
+    });
+    assert_eq!(chat_compat_client.api_protocol(), ApiProtocol::ChatCompat);
+    assert_eq!(
+        chat_compat_client.request_url(),
+        "http://localhost:8000/v1/chat/completions"
+    );
+
+    let messages_config = local_stream_test_config(
+        "http://localhost:8000/v1/messages".to_string(),
+        ModelProtocol::ChatCompat,
+    );
+    let messages_client = ApiClient::new(&messages_config).expect("client should build");
+    messages_client.set_server_info(ServerInfo {
+        native_protocol: Some(ModelProtocol::ChatCompat),
+        ..ServerInfo::default()
+    });
+    assert_eq!(messages_client.api_protocol(), ApiProtocol::MessagesV1);
+    assert_eq!(
+        messages_client.request_url(),
+        "http://localhost:8000/v1/messages"
     );
 }

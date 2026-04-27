@@ -9,7 +9,7 @@ use crate::types::ModelProfile;
 use crate::util::is_local_endpoint_url;
 
 pub mod hooks;
-pub use hooks::{HookConfig, HookEvent, HookOnFail, HttpHookConfig, default_hook_on_fail};
+pub use hooks::{HookConfig, HookOnFail, HookTrigger, HttpHookConfig, default_hook_on_fail};
 
 mod cache;
 mod load;

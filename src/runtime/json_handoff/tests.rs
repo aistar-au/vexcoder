@@ -8,12 +8,12 @@ fn runtime_envelope_serializes_with_required_fields() {
         task_id: "task-1741700000000".to_string(),
         pulse: 1,
         seq: 3,
-        event_id: "evt:task-1741700000000:1:3".to_string(),
+        frame_id: "evt:task-1741700000000:1:3".to_string(),
         emitted_at: "2026-04-16T00:00:00.000Z".to_string(),
         source: RuntimeEnvelopeSource::Model,
         request_id: Some("req-1".to_string()),
-        parent_event_id: None,
-        event: RuntimeEvent::ToolCallStarted {
+        parent_frame_id: None,
+        signal: RuntimeSignal::ToolCallStarted {
             tool_call_id: "tx_1_9a2f".to_string(),
             tool_name: "read_file".to_string(),
             arguments: json!({"path": "src/app.rs"}),
@@ -68,8 +68,8 @@ fn normalizer_discards_provider_ids_and_tracks_tool_results() {
         .pop()
         .expect("tool call envelope");
 
-    let runtime_call_id = match &tool_call.event {
-        RuntimeEvent::ToolCallStarted {
+    let runtime_call_id = match &tool_call.signal {
+        RuntimeSignal::ToolCallStarted {
             tool_call_id,
             tool_name,
             arguments,
@@ -95,8 +95,8 @@ fn normalizer_discards_provider_ids_and_tracks_tool_results() {
         .pop()
         .expect("tool result envelope");
 
-    match tool_result.event {
-        RuntimeEvent::ToolCallCompleted {
+    match tool_result.signal {
+        RuntimeSignal::ToolCallCompleted {
             tool_call_id,
             status,
             output,

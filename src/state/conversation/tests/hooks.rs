@@ -2,9 +2,14 @@
 use super::*;
 
 #[cfg(not(windows))]
-fn shell_hook(event: HookEvent, tool: &str, command: String, on_fail: HookOnFail) -> HookConfig {
+fn shell_hook(
+    trigger: HookTrigger,
+    tool: &str,
+    command: String,
+    on_fail: HookOnFail,
+) -> HookConfig {
     HookConfig {
-        event,
+        trigger,
         tool: tool.to_string(),
         command: "sh".to_string(),
         args: vec!["-c".to_string(), command],
@@ -55,7 +60,7 @@ async fn hook_post_tool_runs_after_apply_patch() -> Result<()> {
     let manager = hook_manager(
         &temp,
         vec![shell_hook(
-            HookEvent::PostTool,
+            HookTrigger::PostTool,
             "apply_patch",
             format!("printf post > {}", hook_file.display()),
             HookOnFail::Abort,
@@ -89,7 +94,7 @@ async fn hook_on_fail_abort_interrupts_turn_and_warn_continues() -> Result<()> {
     let abort_manager = hook_manager(
         &temp,
         vec![shell_hook(
-            HookEvent::PostTool,
+            HookTrigger::PostTool,
             "write_file",
             "exit 1".to_string(),
             HookOnFail::Abort,
@@ -116,7 +121,7 @@ async fn hook_on_fail_abort_interrupts_turn_and_warn_continues() -> Result<()> {
     let warn_manager = hook_manager(
         &temp,
         vec![shell_hook(
-            HookEvent::PostTool,
+            HookTrigger::PostTool,
             "write_file",
             "exit 1".to_string(),
             HookOnFail::Warn,

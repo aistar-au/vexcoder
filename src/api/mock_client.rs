@@ -1,6 +1,6 @@
 use crate::api::client::MockStreamProducer;
 use crate::api::stream::StreamParser;
-use crate::runtime::backend::EventStream;
+use crate::runtime::backend::SignalStream;
 use crate::types::ApiMessage;
 use anyhow::Result;
 use futures::stream;
@@ -22,7 +22,7 @@ impl MockApiClient {
 
 #[cfg(test)]
 impl MockStreamProducer for MockApiClient {
-    fn create_mock_stream(&self, _messages: &[ApiMessage]) -> Result<EventStream> {
+    fn create_mock_stream(&self, _messages: &[ApiMessage]) -> Result<SignalStream> {
         let mut responses_guard = self.responses.lock().unwrap();
         if responses_guard.is_empty() {
             return Err(anyhow::anyhow!(
@@ -40,8 +40,8 @@ impl MockStreamProducer for MockApiClient {
             ),
             |(mut chunks, mut parser, mut pending, mut finished)| async move {
                 loop {
-                    if let Some(event) = pending.pop_front() {
-                        return Ok(Some((event, (chunks, parser, pending, finished))));
+                    if let Some(envelope) = pending.pop_front() {
+                        return Ok(Some((envelope, (chunks, parser, pending, finished))));
                     }
                     match chunks.next() {
                         None => {
@@ -58,8 +58,8 @@ impl MockStreamProducer for MockApiClient {
                             } else {
                                 format!("{chunk}\n\n")
                             };
-                            let events = parser.process(framed.as_bytes())?;
-                            pending.extend(events);
+                            let frames = parser.process(framed.as_bytes())?;
+                            pending.extend(frames);
                         }
                     }
                 }

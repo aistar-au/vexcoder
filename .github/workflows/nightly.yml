@@ -52,7 +52,7 @@ jobs:
           short_sha="${GITHUB_SHA:0:7}"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
 
-          if git ls-remote --tags origin | grep -qw "refs/tags/${short_sha}"; then
+          if git rev-parse -q --verify "refs/tags/${short_sha}" >/dev/null; then
             echo "::notice::Snapshot tag ${short_sha} already exists — nightly release is current."
             echo "created=false" >> "$GITHUB_OUTPUT"
           else

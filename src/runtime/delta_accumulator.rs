@@ -9,7 +9,7 @@ const MAX_STORED_PARTIAL_BYTES: usize = 65_536;
 const MAX_TOOL_DELTA_QUEUE_DEPTH: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PeerDeltaEvent {
+pub enum PeerDelta {
     ToolStart {
         tool_call_id: ToolCallId,
         task_id: String,
@@ -45,22 +45,22 @@ pub struct ToolState {
 
 pub struct DeltaAccumulator {
     state: Arc<Mutex<HashMap<ToolCallId, ToolState>>>,
-    peer_events: Option<mpsc::Sender<PeerDeltaEvent>>,
+    peer_updates: Option<mpsc::Sender<PeerDelta>>,
     memory_watermark_bytes: usize,
 }
 
 impl DeltaAccumulator {
     pub fn new(memory_watermark_bytes: usize) -> Self {
-        Self::new_with_peer_events(memory_watermark_bytes, None)
+        Self::new_with_peer_updates(memory_watermark_bytes, None)
     }
 
-    pub fn new_with_peer_events(
+    pub fn new_with_peer_updates(
         memory_watermark_bytes: usize,
-        peer_events: Option<mpsc::Sender<PeerDeltaEvent>>,
+        peer_updates: Option<mpsc::Sender<PeerDelta>>,
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
-            peer_events,
+            peer_updates,
             memory_watermark_bytes,
         }
     }
@@ -100,7 +100,7 @@ impl DeltaAccumulator {
             );
         }
 
-        self.publish_event(PeerDeltaEvent::ToolStart {
+        self.publish_signal(PeerDelta::ToolStart {
             tool_call_id: id,
             task_id,
             name,
@@ -110,9 +110,9 @@ impl DeltaAccumulator {
     }
 
     pub fn accumulate(&self, id: &ToolCallId, partial_json: &str) -> Result<(), AccumulationError> {
-        let (task_id, truncation_event) = {
+        let (task_id, truncation_signal) = {
             let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
-            let mut truncation_event = None;
+            let mut truncation_signal = None;
 
             {
                 let entry = map
@@ -134,7 +134,7 @@ impl DeltaAccumulator {
                     if next_len > MAX_STORED_PARTIAL_BYTES {
                         if !entry.partial_args_truncated {
                             entry.partial_args_truncated = true;
-                            truncation_event = Some(PeerDeltaEvent::PartialArgsTruncated {
+                            truncation_signal = Some(PeerDelta::PartialArgsTruncated {
                                 tool_call_id: id.clone(),
                                 task_id: entry.task_id.clone(),
                                 stored_bytes: MAX_STORED_PARTIAL_BYTES,
@@ -154,17 +154,17 @@ impl DeltaAccumulator {
                 map.get(id)
                     .map(|state| state.task_id.clone())
                     .unwrap_or_default(),
-                truncation_event,
+                truncation_signal,
             )
         };
 
-        self.publish_event(PeerDeltaEvent::ToolDelta {
+        self.publish_signal(PeerDelta::ToolDelta {
             tool_call_id: id.clone(),
             task_id,
             partial_json: partial_json.to_string(),
         });
-        if let Some(event) = truncation_event {
-            self.publish_event(event);
+        if let Some(signal) = truncation_signal {
+            self.publish_signal(signal);
         }
 
         Ok(())
@@ -181,7 +181,7 @@ impl DeltaAccumulator {
         };
 
         if let Some(task_id) = task_id {
-            self.publish_event(PeerDeltaEvent::ToolFinish {
+            self.publish_signal(PeerDelta::ToolFinish {
                 tool_call_id: id.clone(),
                 task_id,
             });
@@ -237,13 +237,13 @@ impl DeltaAccumulator {
         map.remove(&oldest_id);
     }
 
-    fn publish_event(&self, event: PeerDeltaEvent) {
-        let Some(peer_events) = &self.peer_events else {
+    fn publish_signal(&self, delta: PeerDelta) {
+        let Some(peer_updates) = &self.peer_updates else {
             return;
         };
 
-        if let Err(error) = peer_events.try_send(event) {
-            tracing::debug!(%error, "dropped delta accumulator peer event");
+        if let Err(error) = peer_updates.try_send(delta) {
+            tracing::debug!(%error, "dropped delta accumulator peer update");
         }
     }
 }
@@ -310,9 +310,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn start_accumulate_finish_tracks_state_and_peer_events() {
+    fn start_accumulate_finish_tracks_state_and_peer_updates() {
         let (tx, mut rx) = mpsc::channel(8);
-        let accumulator = DeltaAccumulator::new_with_peer_events(1_024, Some(tx));
+        let accumulator = DeltaAccumulator::new_with_peer_updates(1_024, Some(tx));
         let tool_call_id = "tx_1_abcd".to_string();
 
         accumulator
@@ -340,7 +340,7 @@ mod tests {
 
         assert_eq!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolStart {
+            PeerDelta::ToolStart {
                 tool_call_id: tool_call_id.clone(),
                 task_id: "task-1".to_string(),
                 name: "read_file".to_string(),
@@ -348,7 +348,7 @@ mod tests {
         );
         assert_eq!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolDelta {
+            PeerDelta::ToolDelta {
                 tool_call_id: tool_call_id.clone(),
                 task_id: "task-1".to_string(),
                 partial_json: r#"{"path":"src/"#.to_string(),
@@ -356,7 +356,7 @@ mod tests {
         );
         assert_eq!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolDelta {
+            PeerDelta::ToolDelta {
                 tool_call_id: tool_call_id.clone(),
                 task_id: "task-1".to_string(),
                 partial_json: r#"main.rs"}"#.to_string(),
@@ -364,7 +364,7 @@ mod tests {
         );
         assert_eq!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolFinish {
+            PeerDelta::ToolFinish {
                 tool_call_id,
                 task_id: "task-1".to_string(),
             }
@@ -372,9 +372,9 @@ mod tests {
     }
 
     #[test]
-    fn partial_args_truncation_emits_peer_event_and_sets_flag() {
+    fn partial_args_truncation_emits_peer_update_and_sets_flag() {
         let (tx, mut rx) = mpsc::channel(8);
-        let accumulator = DeltaAccumulator::new_with_peer_events(512 * 1_024, Some(tx));
+        let accumulator = DeltaAccumulator::new_with_peer_updates(512 * 1_024, Some(tx));
         let tool_call_id = "tx_3_trunc".to_string();
         accumulator
             .start_tool(
@@ -398,15 +398,15 @@ mod tests {
 
         assert!(matches!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolStart { .. }
+            PeerDelta::ToolStart { .. }
         ));
         assert!(matches!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::ToolDelta { .. }
+            PeerDelta::ToolDelta { .. }
         ));
         assert_eq!(
             rx.blocking_recv().unwrap(),
-            PeerDeltaEvent::PartialArgsTruncated {
+            PeerDelta::PartialArgsTruncated {
                 tool_call_id,
                 task_id: "task-trunc".to_string(),
                 stored_bytes: MAX_STORED_PARTIAL_BYTES,

@@ -16,7 +16,7 @@ async fn eof_flushes_pulse_end_and_does_not_repoll_upstream() {
         }
     });
 
-    let mut state = EventStreamState {
+    let mut state = SignalStreamState {
         upstream: Box::pin(upstream),
         parser,
         pending: VecDeque::new(),
@@ -34,8 +34,8 @@ async fn eof_flushes_pulse_end_and_does_not_repoll_upstream() {
         summary_emitted: false,
     };
 
-    let event = next_stream_event(&mut state).await.unwrap().unwrap();
-    assert!(matches!(event.event, RuntimeEvent::PulseEnd { .. }));
+    let envelope = next_stream_event(&mut state).await.unwrap().unwrap();
+    assert!(matches!(envelope.signal, RuntimeSignal::PulseEnd { .. }));
     assert!(next_stream_event(&mut state).await.unwrap().is_none());
     assert_eq!(polls.load(Ordering::SeqCst), 1);
 }
@@ -57,7 +57,7 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
         }
     });
 
-    let mut state = EventStreamState {
+    let mut state = SignalStreamState {
         upstream: Box::pin(upstream),
         parser,
         pending: VecDeque::new(),
@@ -76,16 +76,16 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
     };
 
     let mut emitted = Vec::new();
-    while let Some(event) = next_stream_event(&mut state).await.unwrap() {
-        emitted.push(event);
+    while let Some(envelope) = next_stream_event(&mut state).await.unwrap() {
+        emitted.push(envelope);
     }
 
     assert!(
         emitted
             .iter()
-            .any(|e| matches!(e.event, RuntimeEvent::PulseEnd { .. })),
+            .any(|e| matches!(e.signal, RuntimeSignal::PulseEnd { .. })),
         "chat-compatible [DONE] must flush PulseEnd; got {:?}",
-        emitted.iter().map(|e| &e.event).collect::<Vec<_>>()
+        emitted.iter().map(|e| &e.signal).collect::<Vec<_>>()
     );
     assert_eq!(polls.load(Ordering::SeqCst), 1);
 }

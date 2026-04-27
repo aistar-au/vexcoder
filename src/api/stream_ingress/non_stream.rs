@@ -2,7 +2,7 @@ use super::{LOCAL_NON_STREAM_FALLBACK_TIMEOUT, protocol_name, retry_local_connec
 use crate::api::client::{api_request_timeout_error, map_api_request_error, map_api_status_error};
 use crate::api::logging::{debug_payload_enabled, emit_log_value};
 use crate::api::stream::StreamParser;
-use crate::runtime::backend::EventStream;
+use crate::runtime::backend::SignalStream;
 use crate::runtime::{ModelProtocol, RuntimeEnvelope};
 use anyhow::{Context, Result, bail};
 use futures::stream;
@@ -17,7 +17,7 @@ pub(super) async fn create_non_stream_fallback_stream(
     protocol: ModelProtocol,
     request_id: &str,
     fallback_reason: &'static str,
-) -> Result<EventStream> {
+) -> Result<SignalStream> {
     let fallback_start = Instant::now();
     let request_url_for_logs = crate::runtime::rewrite_url_for_logs(request_url);
     let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
@@ -178,7 +178,7 @@ fn normalize_non_stream_response(
     match protocol {
         ModelProtocol::MessagesV1 => {
             let content_blocks = messages_v1_content_blocks(&response);
-            feed_synthetic_event(
+            inject_synthetic_signal(
                 &mut parser,
                 &mut envelopes,
                 "message_start",
@@ -218,7 +218,7 @@ fn normalize_non_stream_response(
                 .into_iter()
                 .enumerate()
             {
-                feed_synthetic_event(
+                inject_synthetic_signal(
                     &mut parser,
                     &mut envelopes,
                     "content_block_start",
@@ -230,7 +230,7 @@ fn normalize_non_stream_response(
                 )?;
             }
 
-            feed_synthetic_event(
+            inject_synthetic_signal(
                 &mut parser,
                 &mut envelopes,
                 "message_delta",
@@ -292,7 +292,7 @@ fn normalize_non_stream_response(
                 })
                 .collect::<Vec<_>>();
 
-            feed_synthetic_event(
+            inject_synthetic_signal(
                 &mut parser,
                 &mut envelopes,
                 "",
@@ -602,13 +602,13 @@ fn log_non_stream_response_shape(
     }
 }
 
-fn feed_synthetic_event(
+fn inject_synthetic_signal(
     parser: &mut StreamParser,
     envelopes: &mut Vec<RuntimeEnvelope>,
-    event_type: &str,
+    frame_kind: &str,
     payload: Value,
 ) -> Result<()> {
     let payload = serde_json::to_string(&payload)?;
-    envelopes.extend(parser.process_sse_event(event_type, &payload)?);
+    envelopes.extend(parser.process_sse_frame(frame_kind, &payload)?);
     Ok(())
 }
