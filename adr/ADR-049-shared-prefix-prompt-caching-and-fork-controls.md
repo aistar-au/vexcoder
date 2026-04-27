@@ -60,6 +60,4 @@ The same reasoning applies to the fork affordance. Slash commands remain necessa
 
 ## References
 
-- Official prompt-caching specifications reviewed during implementation.
-- [WAI-ARIA Button Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/button/)
 - [Crossterm Event Module](https://docs.rs/crossterm/latest/crossterm/event/index.html)
