@@ -24,8 +24,8 @@ fn runtime_envelope_serializes_with_required_fields() {
     let v = serde_json::to_value(&envelope).unwrap();
     assert_eq!(v["version"], 1);
     assert_eq!(v["source"], "model");
-    assert_eq!(v["event"]["type"], "tool_call_started");
-    assert_eq!(v["event"]["tool_name"], "read_file");
+    assert_eq!(v["signal"]["type"], "tool_call_started");
+    assert_eq!(v["signal"]["tool_name"], "read_file");
 }
 
 #[test]

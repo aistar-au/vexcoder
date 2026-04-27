@@ -90,6 +90,7 @@ rustls = { version = "0.23", default-features = false, features = [
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = "0.26"
@@ -447,6 +448,10 @@ gix-index.workspace = true
 #             with standard git diff formats.
 #             Wire point: src/edit_diff.rs.
 imara-diff.workspace = true
+# xxhash-rust: non-cryptographic high-throughput hashing; xxh3_128 provides
+#              SIMD-accelerated 128-bit output for deterministic shared-prefix
+#              fingerprinting in src/runtime/multiplex_prefix.rs.
+xxhash-rust.workspace = true
 
 # --- OS-native credential storage (Gap 38) ---
 # keyring: read/write/delete secrets in the platform-native credential store.

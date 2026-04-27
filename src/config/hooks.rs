@@ -22,7 +22,6 @@ pub fn default_hook_on_fail() -> HookOnFail {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HookConfig {
-    #[serde(rename = "event")]
     pub trigger: HookTrigger,
     pub tool: String,
     pub command: String,
@@ -34,7 +33,6 @@ pub struct HookConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpHookConfig {
-    #[serde(rename = "event")]
     pub trigger: HookTrigger,
     pub tool: String,
     pub url: String,

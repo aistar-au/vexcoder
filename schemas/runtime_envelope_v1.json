@@ -9,22 +9,22 @@
     "task_id",
     "turn",
     "seq",
-    "event_id",
+    "frame_id",
     "emitted_at",
     "source",
-    "event"
+    "signal"
   ],
   "properties": {
     "version": { "type": "integer", "const": 1 },
     "task_id": { "type": "string", "minLength": 1 },
     "turn": { "type": "integer", "minimum": 1 },
     "seq": { "type": "integer", "minimum": 1 },
-    "event_id": { "type": "string", "minLength": 1 },
+    "frame_id": { "type": "string", "minLength": 1 },
     "emitted_at": { "$ref": "#/$defs/timestamp" },
     "source": { "$ref": "#/$defs/envelope_source" },
     "request_id": { "type": ["string", "null"], "minLength": 1 },
-    "parent_event_id": { "type": ["string", "null"], "minLength": 1 },
-    "event": { "$ref": "#/$defs/runtime_event" }
+    "parent_frame_id": { "type": ["string", "null"], "minLength": 1 },
+    "signal": { "$ref": "#/$defs/runtime_signal" }
   },
   "$defs": {
     "tool_call_id": {
@@ -126,7 +126,7 @@
         "content": { "type": "string" }
       }
     },
-    "runtime_event": {
+    "runtime_signal": {
       "oneOf": [
         { "$ref": "#/$defs/turn_start" },
         { "$ref": "#/$defs/transcript_line" },

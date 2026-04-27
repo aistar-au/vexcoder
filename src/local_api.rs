@@ -497,7 +497,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_local_api_mode_emits_transcript_block_events() {
+    async fn test_local_api_mode_emits_transcript_block_signals() {
         let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
         let quit = Arc::new(AtomicBool::new(false));
         let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(

@@ -226,7 +226,7 @@ just to publish the matching `v<current-version>` tag.
 For semver and short-SHA tags, the pushed tag drives the rest of the release
 flow automatically: archive packaging, checksums, signature bundles, the
 release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the
-same tag event.
+same tag push trigger.
 
 A daily GitHub-hosted schedule (`.github/workflows/nightly.yml`) creates
 a short-SHA snapshot tag from the current HEAD of `main` if one does
@@ -563,9 +563,9 @@ vexcoder/ (standalone view)
 | `src/runtime/context.rs` | Async pulse execution context, edit-pulse driver, and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
 | `src/runtime/context_assembler/mod.rs` | Context assembly orchestration for model pulses (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/mod.rs> |
 | `src/runtime/context_assembler/reads.rs` | Candidate-path extraction, snapshot conversion, and related-path inference for context assembly. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/reads.rs> |
-| `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input event types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
-| `src/runtime/json_handoff.rs` | ADR-025 shared runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeEvent`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
-| `src/runtime/loop.rs` | Runtime event loop orchestration between mode, frontend, and context. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
+| `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input signal types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
+| `src/runtime/json_handoff.rs` | ADR-025 shared runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeSignal`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
+| `src/runtime/loop.rs` | Runtime signal-work loop orchestration between mode, frontend, and context. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
 | `src/runtime/edit_loop.rs` | Task-completion edit loop: assemble→model→apply→validate→retry cycle. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop.rs> |
 | `src/runtime/mode.rs` | Runtime mode trait defining input/update hooks. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/mode.rs> |
 | `src/runtime/policy.rs` | Output revision and tool-evidence policy helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/policy.rs> |
@@ -578,7 +578,7 @@ vexcoder/ (standalone view)
 | `src/runtime/validation.rs` | Concurrent validation suite: command execution, retry formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |
 | `src/state.rs` | State module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state.rs> |
 | `src/state/conversation.rs` | Conversation module entrypoint and re-exports for split conversation submodules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation.rs> |
-| `src/state/conversation/core.rs` | Main conversation pulse loop, streaming event processing, and model/tool round orchestration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/core.rs> |
+| `src/state/conversation/core.rs` | Main conversation pulse loop, streaming signal processing, and model/tool round orchestration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/core.rs> |
 | `src/state/conversation/history.rs` | Message history pruning, truncation, and read-file result summarization helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/history.rs> |
 | `src/state/conversation/state.rs` | Conversation state types and `ConversationManager` constructors/accessors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/state.rs> |
 | `src/state/conversation/streaming.rs` | Stream block lifecycle helpers, block promotion, and delta emission utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/streaming.rs> |

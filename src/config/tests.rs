@@ -43,7 +43,7 @@ fn model_url_validation(
 
 #[rstest]
 #[case("[api]\nkey = \"literal-secret\"\n", "api.key")]
-#[case("[[hooks]]\nevent = \"pre_tool\"\ncommand = \"echo hi\"\n", "hooks")]
+#[case("[[hooks]]\ntrigger = \"pre_tool\"\ncommand = \"echo hi\"\n", "hooks")]
 #[case(
     "[[mcp_servers]]\nname = \"s\"\ntransport = \"stdio\"\ncommand = \"tool\"\n",
     "mcp_servers"

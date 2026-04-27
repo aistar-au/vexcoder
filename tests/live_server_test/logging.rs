@@ -53,11 +53,11 @@ async fn fallback_writes_protocol_discovery_and_shape_debug_records_for_both_pro
 
         let log = std::fs::read_to_string(log_file.path()).expect("debug log must be readable");
         for expected in [
-            "\"event\":\"api.protocol_discovery\"",
+            "\"operation\":\"api.protocol_discovery\"",
             &format!("\"selected_protocol\":\"{expected_protocol}\""),
-            "\"event\":\"api.non_stream_fallback_request\"",
-            "\"event\":\"api.non_stream_fallback_response\"",
-            "\"event\":\"api.non_stream_fallback_shape\"",
+            "\"operation\":\"api.non_stream_fallback_request\"",
+            "\"operation\":\"api.non_stream_fallback_response\"",
+            "\"operation\":\"api.non_stream_fallback_shape\"",
             expected_count_key,
         ] {
             assert!(

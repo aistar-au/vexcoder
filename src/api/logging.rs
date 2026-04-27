@@ -15,7 +15,7 @@ pub fn debug_payload_enabled() -> bool {
 
 pub fn emit_debug_payload(request_url: &str, payload: &Value) {
     emit_log_value(&json!({
-        "event": "api.payload_request",
+        "operation": "api.payload_request",
         "url": request_url,
         "payload_summary": summarize_debug_payload(payload),
     }));
@@ -27,7 +27,7 @@ pub fn emit_sse_parse_error(
     parse_error: &serde_json::Error,
 ) {
     emit_log_value(&json!({
-        "event": "api.sse_parse_failed",
+        "operation": "api.sse_parse_failed",
         "frame_kind": frame_kind.unwrap_or("<none>"),
         "error": parse_error.to_string(),
         "data_summary": summarize_sse_payload(json_data),
@@ -36,7 +36,7 @@ pub fn emit_sse_parse_error(
 
 pub(crate) fn emit_log_value(value: &Value) {
     let encoded = serde_json::to_string(value)
-        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
+        .unwrap_or_else(|_| "{\"operation\":\"api.log.encode_failed\"}".to_string());
     if let Some(path) = resolve_log_path()
         && append_log_file(&path, &format!("{encoded}\n")).is_ok()
     {
@@ -230,7 +230,7 @@ mod tests {
                 "model": "local/test",
                 "messages": [{
                     "role": "user",
-                    "content": "super secret prompt text"
+                    "content": "sentinel-elided-prompt-text"
                 }],
                 "tools": [{"function": {"name": "read_file"}}],
                 "stream": true,
@@ -239,7 +239,7 @@ mod tests {
 
         let content = std::fs::read_to_string(temp.path()).unwrap();
         assert!(
-            !content.contains("super secret prompt text"),
+            !content.contains("sentinel-elided-prompt-text"),
             "got: {content}"
         );
         assert!(content.contains("\"message_count\":1"), "got: {content}");
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_emit_sse_parse_error_redacts_event_data() {
+    fn test_emit_sse_parse_error_elides_sse_frame_body() {
         let env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture(&env_lock, API_LOG_PATH_ENV);
         let temp = tempfile::NamedTempFile::new().unwrap();
@@ -263,13 +263,13 @@ mod tests {
 
         emit_sse_parse_error(
             Some("content_block_delta"),
-            "{\"tool_calls\":[{\"function\":{\"arguments\":\"super secret arguments\"}}]",
+            "{\"tool_calls\":[{\"function\":{\"arguments\":\"sentinel-elided-tool-arguments\"}}]",
             &parse_error,
         );
 
         let content = std::fs::read_to_string(temp.path()).unwrap();
         assert!(
-            !content.contains("super secret arguments"),
+            !content.contains("sentinel-elided-tool-arguments"),
             "got: {content}"
         );
         assert!(

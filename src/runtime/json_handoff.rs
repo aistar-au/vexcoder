@@ -29,19 +29,13 @@ pub struct RuntimeEnvelope {
     pub task_id: String,
     pub pulse: u32,
     pub seq: u64,
-    #[serde(rename = "event_id")]
     pub frame_id: String,
     pub emitted_at: String,
     pub source: RuntimeEnvelopeSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    #[serde(
-        rename = "parent_event_id",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_frame_id: Option<String>,
-    #[serde(rename = "event")]
     pub signal: RuntimeSignal,
 }
 

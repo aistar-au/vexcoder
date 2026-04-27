@@ -1,7 +1,8 @@
 use serde_json::{Map, Value};
 use std::collections::{HashMap, VecDeque};
+use xxhash_rust::xxh3::xxh3_128;
 
-pub const FINGERPRINT_VERSION: u16 = 1;
+pub const FINGERPRINT_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SharedPrefix {
@@ -19,7 +20,7 @@ pub struct ToolDescriptor {
 impl SharedPrefix {
     pub fn fingerprint(&self) -> String {
         let implemented = self.implemented_json();
-        let digest = fnv1a_128(implemented.as_bytes());
+        let digest = xxh3_128(implemented.as_bytes());
         format!("v{}-{:032x}", FINGERPRINT_VERSION, digest)
     }
 
@@ -111,17 +112,6 @@ fn thin_json_value(value: &Value) -> Value {
         }
         _ => value.clone(),
     }
-}
-
-fn fnv1a_128(bytes: &[u8]) -> u128 {
-    const OFFSET: u128 = 0x6c62272e07bb014262b821756295c58d;
-    const PRIME: u128 = 0x0000000001000000000000000000013b;
-    let mut hash = OFFSET;
-    for &byte in bytes {
-        hash ^= byte as u128;
-        hash = hash.wrapping_mul(PRIME);
-    }
-    hash
 }
 
 #[derive(Debug)]

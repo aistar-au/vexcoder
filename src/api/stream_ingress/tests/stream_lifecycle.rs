@@ -34,9 +34,9 @@ async fn eof_flushes_pulse_end_and_does_not_repoll_upstream() {
         summary_emitted: false,
     };
 
-    let envelope = next_stream_event(&mut state).await.unwrap().unwrap();
+    let envelope = next_stream_item(&mut state).await.unwrap().unwrap();
     assert!(matches!(envelope.signal, RuntimeSignal::PulseEnd { .. }));
-    assert!(next_stream_event(&mut state).await.unwrap().is_none());
+    assert!(next_stream_item(&mut state).await.unwrap().is_none());
     assert_eq!(polls.load(Ordering::SeqCst), 1);
 }
 
@@ -76,7 +76,7 @@ async fn chat_compat_done_finalizes_without_waiting_for_transport_eof() {
     };
 
     let mut emitted = Vec::new();
-    while let Some(envelope) = next_stream_event(&mut state).await.unwrap() {
+    while let Some(envelope) = next_stream_item(&mut state).await.unwrap() {
         emitted.push(envelope);
     }
 
