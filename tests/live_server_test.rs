@@ -429,7 +429,9 @@ async fn test_live_server_messages_v1_stream_emits_text_and_completes() {
 
     let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
     let mut stream = client
-        .create_stream(&single_user_message("Reply with a short plain-text acknowledgement."))
+        .create_stream(&single_user_message(
+            "Reply with a short plain-text acknowledgement.",
+        ))
         .await
         .expect("live stream should start");
 

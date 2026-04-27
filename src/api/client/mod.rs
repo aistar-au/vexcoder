@@ -315,10 +315,8 @@ impl ApiClient {
         let api_url = api_client_base_url
             .clone()
             .unwrap_or_else(|| config.model_url.clone());
-        let http = crate::net::http_client::model_client(
-            &api_url,
-            config.model_url_skip_tls_check,
-        )?;
+        let http =
+            crate::net::http_client::model_client(&api_url, config.model_url_skip_tls_check)?;
         Ok(Self {
             http,
             api_key: config.model_token.clone(),

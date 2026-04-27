@@ -267,8 +267,8 @@ pub fn preview_tool_input(
             preview_write_file_input(input, "    ", Some('+'), usize::MAX)
         }
         (ToolPreviewStyle::Structured, "read_file") => {
-            let path = first_input_str(input, &["path", "file_path", "file"])
-                .unwrap_or("<missing>");
+            let path =
+                first_input_str(input, &["path", "file_path", "file"]).unwrap_or("<missing>");
             let mut out = format!("path: {path}");
             if let Some(offset) = input.get("offset").and_then(|v| v.as_u64()) {
                 out.push_str(&format!("\noffset: {offset}"));
@@ -279,31 +279,30 @@ pub fn preview_tool_input(
             out
         }
         (ToolPreviewStyle::Structured, "rename_file") => {
-            let old_path = first_input_str(input, &["old_path", "from", "source_path"])
-                .unwrap_or("<missing>");
-            let new_path = first_input_str(input, &["new_path", "to", "target_path"])
-                .unwrap_or("<missing>");
+            let old_path =
+                first_input_str(input, &["old_path", "from", "source_path"]).unwrap_or("<missing>");
+            let new_path =
+                first_input_str(input, &["new_path", "to", "target_path"]).unwrap_or("<missing>");
             format!("old_path: {old_path}\nnew_path: {new_path}")
         }
         (ToolPreviewStyle::Structured, "list_files" | "list_directory" | "list_dir") => {
-            let path = first_input_str(input, &["path", "dir", "directory", "root"])
-                .unwrap_or(".");
-            let max_entries = first_input_u64(input, &["max_entries", "max_results", "limit"])
-                .unwrap_or(100);
+            let path = first_input_str(input, &["path", "dir", "directory", "root"]).unwrap_or(".");
+            let max_entries =
+                first_input_u64(input, &["max_entries", "max_results", "limit"]).unwrap_or(100);
             format!("path: {path}\nmax_entries: {max_entries}")
         }
         (ToolPreviewStyle::Structured, "glob_files") => {
-            let pattern = first_input_str(input, &["pattern", "glob", "query"])
-                .unwrap_or("<missing>");
-            let max_results = first_input_u64(input, &["max_results", "limit", "max_entries"])
-                .unwrap_or(50);
+            let pattern =
+                first_input_str(input, &["pattern", "glob", "query"]).unwrap_or("<missing>");
+            let max_results =
+                first_input_u64(input, &["max_results", "limit", "max_entries"]).unwrap_or(50);
             format!("pattern: {pattern}\nmax_results: {max_results}")
         }
         (ToolPreviewStyle::Structured, "search_files" | "search") => {
             let query = first_input_str(input, &["query", "pattern", "text", "search", "needle"])
                 .unwrap_or("<missing>");
-            let max_results = first_input_u64(input, &["max_results", "limit", "max_entries"])
-                .unwrap_or(30);
+            let max_results =
+                first_input_u64(input, &["max_results", "limit", "max_entries"]).unwrap_or(30);
 
             let mut out = String::new();
             out.push_str(&format!("query: {query}\n"));

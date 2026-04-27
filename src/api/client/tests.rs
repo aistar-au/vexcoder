@@ -8,13 +8,13 @@ use axum::Json;
 use axum::Router;
 use axum::extract::State;
 use axum::http::{StatusCode, header};
-use axum::response::sse::{Event, Sse};
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, Sse};
 use axum::routing::post;
 use futures::{StreamExt, stream};
 use serde_json::{Value, json};
-use std::convert::Infallible;
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -252,7 +252,11 @@ async fn client_keeps_local_sse_stream_when_first_event_is_delayed() {
     server.abort();
 
     let reqs = requests.lock().unwrap();
-    assert_eq!(reqs.len(), 1, "delayed SSE should not trigger non-stream fallback");
+    assert_eq!(
+        reqs.len(),
+        1,
+        "delayed SSE should not trigger non-stream fallback"
+    );
     assert_eq!(reqs[0].get("stream"), Some(&Value::Bool(true)));
     assert!(envelopes.iter().any(|e| matches!(&e.signal,
         RuntimeSignal::TranscriptBlockDelta { delta, .. } if delta == "streamed OK"

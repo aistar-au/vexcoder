@@ -2,7 +2,6 @@ use super::*;
 use crate::api::client::MockStreamProducer;
 use crate::api::mock_client::MockApiClient;
 use crate::runtime::backend::SignalStream;
-use crate::types::ApiMessage;
 
 #[derive(Clone)]
 struct OverflowThenSuccessProducer {

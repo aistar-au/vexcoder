@@ -11,7 +11,9 @@ use crate::startup::{
     STARTUP_NOISE_GUARD, looks_like_session_output, should_ignore_startup_paste_text,
 };
 use crate::ui::editor::{InputAction, InputEditor, file_mention_range};
-use crate::ui::layout::{Rect, preferred_four_region_input_rows_for_content, split_three_pane_layout};
+use crate::ui::layout::{
+    Rect, preferred_four_region_input_rows_for_content, split_three_pane_layout,
+};
 use crate::ui::render::{
     OverlayModal, expand_rows_for_display, history_content_width_for_area, input_visual_rows,
     render_input, render_messages, render_overlay_modal_in_area, render_status_line,
@@ -674,7 +676,9 @@ fn inline_rows_to_insert(
         return None;
     }
 
-    let end = current.visible_start.min(previous.expanded_output_rows.len());
+    let end = current
+        .visible_start
+        .min(previous.expanded_output_rows.len());
     (end > previous.visible_start).then_some((previous.visible_start, end))
 }
 
