@@ -283,7 +283,7 @@ impl ConversationManager {
             }
 
             let payload = serde_json::json!({
-                "event": hook.trigger,
+                "trigger": hook.trigger,
                 "tool": tool_name,
                 "path": primary_path,
                 "timestamp_ms": timestamp_ms,

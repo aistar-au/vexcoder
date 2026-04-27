@@ -45,7 +45,7 @@ pub(super) async fn create_non_stream_fallback_stream(
     );
     if debug_payload_enabled() {
         emit_log_value(&json!({
-            "event": "api.non_stream_fallback_request",
+            "operation": "api.non_stream_fallback_request",
             "request_id": request_id,
             "url": request_url_for_logs,
             "protocol": protocol_name(protocol),
@@ -115,7 +115,7 @@ pub(super) async fn create_non_stream_fallback_stream(
     );
     if debug_payload_enabled() {
         emit_log_value(&json!({
-            "event": "api.non_stream_fallback_response",
+            "operation": "api.non_stream_fallback_response",
             "request_id": request_id,
             "url": request_url_for_logs,
             "protocol": protocol_name(protocol),
@@ -416,7 +416,7 @@ fn log_non_stream_response_shape(
             );
             if debug_payload_enabled() {
                 emit_log_value(&json!({
-                    "event": "api.non_stream_fallback_shape",
+                    "operation": "api.non_stream_fallback_shape",
                     "request_id": request_id,
                     "url": request_url_for_logs,
                     "protocol": protocol_name(protocol),
@@ -578,7 +578,7 @@ fn log_non_stream_response_shape(
             );
             if debug_payload_enabled() {
                 emit_log_value(&json!({
-                    "event": "api.non_stream_fallback_shape",
+                    "operation": "api.non_stream_fallback_shape",
                     "request_id": request_id,
                     "url": request_url_for_logs,
                     "protocol": protocol_name(protocol),

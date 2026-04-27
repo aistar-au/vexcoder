@@ -226,7 +226,7 @@ just to publish the matching `v<current-version>` tag.
 For semver and short-SHA tags, the pushed tag drives the rest of the release
 flow automatically: archive packaging, checksums, signature bundles, the
 release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the
-same tag push signal.
+same tag push trigger.
 
 A daily GitHub-hosted schedule (`.github/workflows/nightly.yml`) creates
 a short-SHA snapshot tag from the current HEAD of `main` if one does

@@ -183,7 +183,7 @@ fn emit_protocol_discovery_result(
     }
 
     emit_log_value(&json!({
-        "event": "api.protocol_discovery",
+        "operation": "api.protocol_discovery",
         "base_url": rewrite_url_for_logs(base_url),
         "selected_protocol": selected_protocol,
         "endpoint": rewrite_url_for_logs(endpoint),
@@ -198,7 +198,7 @@ fn emit_protocol_discovery_failure(base_url: &str, attempts: &[ProbeAttempt]) {
     }
 
     emit_log_value(&json!({
-        "event": "api.protocol_discovery_failed",
+        "operation": "api.protocol_discovery_failed",
         "base_url": rewrite_url_for_logs(base_url),
         "attempts": attempts.iter().map(probe_attempt_summary).collect::<Vec<_>>(),
     }));

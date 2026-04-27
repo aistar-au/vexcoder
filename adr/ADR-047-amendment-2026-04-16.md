@@ -6,7 +6,7 @@
 ## Amendment
 
 - `RuntimeEnvelope` is the primary internal API; consumed by transports, UI, persistence, and peer coordination.
-- Envelope additions: `event_id`, `emitted_at`, `source`, optional `request_id`, `parent_event_id`.
+- Envelope additions: `frame_id`, `emitted_at`, `source`, optional `request_id`, `parent_frame_id`.
 - Explicit tool lifecycle events: `tool_call_started`, `tool_call_arguments_delta`, `tool_call_output_delta`, `tool_call_completed`, `tool_call_failed`.
 - Transcript block events remain renderer-oriented; not the primary tool-lifecycle API.
 - Requests carry `request_id`; fire-and-forget notifications are distinct.

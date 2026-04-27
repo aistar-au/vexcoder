@@ -15,7 +15,7 @@ pub fn debug_payload_enabled() -> bool {
 
 pub fn emit_debug_payload(request_url: &str, payload: &Value) {
     emit_log_value(&json!({
-        "event": "api.payload_request",
+        "operation": "api.payload_request",
         "url": request_url,
         "payload_summary": summarize_debug_payload(payload),
     }));
@@ -27,7 +27,7 @@ pub fn emit_sse_parse_error(
     parse_error: &serde_json::Error,
 ) {
     emit_log_value(&json!({
-        "event": "api.sse_parse_failed",
+        "operation": "api.sse_parse_failed",
         "frame_kind": frame_kind.unwrap_or("<none>"),
         "error": parse_error.to_string(),
         "data_summary": summarize_sse_payload(json_data),
@@ -36,7 +36,7 @@ pub fn emit_sse_parse_error(
 
 pub(crate) fn emit_log_value(value: &Value) {
     let encoded = serde_json::to_string(value)
-        .unwrap_or_else(|_| "{\"event\":\"api.log.encode_failed\"}".to_string());
+        .unwrap_or_else(|_| "{\"operation\":\"api.log.encode_failed\"}".to_string());
     if let Some(path) = resolve_log_path()
         && append_log_file(&path, &format!("{encoded}\n")).is_ok()
     {
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_emit_sse_parse_error_redacts_event_data() {
+    fn test_emit_sse_parse_error_elides_sse_frame_body() {
         let env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture(&env_lock, API_LOG_PATH_ENV);
         let temp = tempfile::NamedTempFile::new().unwrap();
