@@ -193,35 +193,7 @@ impl ContextAssembler {
         let mut out = String::new();
         out.push_str("## Context\n");
 
-        if ctx.file_rollups.is_empty() {
-            out.push_str("[context: no file rollups]\n");
-        } else {
-            out.push_str("### File rollups\n");
-            for snapshot in &ctx.file_rollups {
-                out.push_str(&format!("- {}\n", snapshot.path.display()));
-                if snapshot.content_limited {
-                    out.push_str(&format!(
-                        "  [context: file excerpt limited to first {} bytes]\n",
-                        self.max_file_bytes
-                    ));
-                }
-                if let Some(content) = &snapshot.content {
-                    out.push_str("```text\n");
-                    out.push_str(content);
-                    if !content.ends_with('\n') {
-                        out.push('\n');
-                    }
-                    out.push_str("```\n");
-                } else {
-                    out.push_str("```text\n");
-                    out.push_str(&format!(
-                        "[context: file unreadable — {}]\n",
-                        snapshot.path.display()
-                    ));
-                    out.push_str("```\n");
-                }
-            }
-        }
+        self.render_file_rollups(ctx, &mut out);
 
         out.push_str("\n### Git status\n");
         match &ctx.git_status_summary {
@@ -258,6 +230,54 @@ impl ContextAssembler {
 
         out
     }
+
+    pub fn render_shared_prefix(&self, ctx: &AssembledContext) -> String {
+        let mut out = String::new();
+        out.push_str("## Shared context prefix\n");
+
+        self.render_file_rollups(ctx, &mut out);
+
+        if !ctx.related_paths.is_empty() {
+            out.push_str("\n### Related paths\n");
+            for path in &ctx.related_paths {
+                out.push_str(&format!("- {}\n", path.display()));
+            }
+        }
+
+        out
+    }
+
+    fn render_file_rollups(&self, ctx: &AssembledContext, out: &mut String) {
+        if ctx.file_rollups.is_empty() {
+            out.push_str("[context: no file rollups]\n");
+        } else {
+            out.push_str("### File rollups\n");
+            for snapshot in &ctx.file_rollups {
+                out.push_str(&format!("- {}\n", snapshot.path.display()));
+                if snapshot.content_limited {
+                    out.push_str(&format!(
+                        "  [context: file excerpt limited to first {} bytes]\n",
+                        self.max_file_bytes
+                    ));
+                }
+                if let Some(content) = &snapshot.content {
+                    out.push_str("```text\n");
+                    out.push_str(content);
+                    if !content.ends_with('\n') {
+                        out.push('\n');
+                    }
+                    out.push_str("```\n");
+                } else {
+                    out.push_str("```text\n");
+                    out.push_str(&format!(
+                        "[context: file unreadable — {}]\n",
+                        snapshot.path.display()
+                    ));
+                    out.push_str("```\n");
+                }
+            }
+        }
+    }
 }
 
 fn resolve_include_git_context(default_enabled: bool) -> bool {
@@ -277,10 +297,10 @@ fn resolve_include_git_context(default_enabled: bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContextAssembler, extract_candidate_paths};
+    use super::{AssembledContext, ContextAssembler, FileRollup, extract_candidate_paths};
     use crate::tools::ToolOperator;
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
 
     #[tokio::test]
@@ -347,6 +367,42 @@ mod tests {
             ctx.file_rollups.len(),
             5,
             "all five named files must be rolled-up regardless of max_related"
+        );
+    }
+
+    #[test]
+    fn test_render_shared_prefix_omits_git_sections() {
+        let assembler = ContextAssembler::default();
+        let ctx = AssembledContext {
+            file_rollups: vec![FileRollup {
+                path: PathBuf::from("src/lib.rs"),
+                content: Some("pub fn run() {}\n".to_string()),
+                content_limited: false,
+            }],
+            git_status_summary: Some(" M src/lib.rs\n".to_string()),
+            recent_diff: Some("diff --git a/src/lib.rs b/src/lib.rs\n".to_string()),
+            has_staged_changes: true,
+            has_working_tree_changes: true,
+            git_dir: Some(PathBuf::from(".git")),
+            committer_name: Some("tester".to_string()),
+            staged_paths: vec![PathBuf::from("src/lib.rs")],
+            related_paths: vec![PathBuf::from("src/runtime/context.rs")],
+            cache_hits: 0,
+            cache_misses: 1,
+        };
+
+        let rendered = assembler.render_shared_prefix(&ctx);
+
+        assert!(rendered.contains("## Shared context prefix"));
+        assert!(rendered.contains("src/lib.rs"));
+        assert!(rendered.contains("src/runtime/context.rs"));
+        assert!(
+            !rendered.contains("### Git status"),
+            "shared prefix must exclude mutable git status"
+        );
+        assert!(
+            !rendered.contains("### Recent diff"),
+            "shared prefix must exclude mutable git diff data"
         );
     }
 

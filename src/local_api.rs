@@ -196,7 +196,7 @@ impl RuntimeMode for LocalApiMode {
         Self::emit_envelopes(&mut shared, vec![start]);
         drop(shared);
 
-        ctx.start_pulse_with_system_prompt_and_policy(input, None, PulseToolPolicy::Default);
+        ctx.start_pulse_with_system_prompt_and_policy(input, None, PulseToolPolicy::Default, None);
     }
 
     fn on_interrupt(&mut self, ctx: &mut RuntimeContext) {

@@ -121,7 +121,7 @@ impl ConversationManager {
         content: String,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
-        self.send_message_with_policy(content, stream_delta_tx, PulseToolPolicy::Default)
+        self.send_message_with_policy(content, stream_delta_tx, PulseToolPolicy::Default, None)
             .await
     }
 }

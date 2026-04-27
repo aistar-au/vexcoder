@@ -21,12 +21,14 @@ impl ConversationManager {
         content: String,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
         turn_tool_policy: PulseToolPolicy,
+        shared_prefix_context: Option<String>,
     ) -> Result<String> {
         self.last_turn_tokens = PulseTokens::default();
         let original_user_input = content.clone();
         self.ensure_task_doc();
         self.begin_turn_doc(content.clone(), turn_tool_policy);
-        self.push_user_message(content);
+        let cache_hint = self.shared_prefix_cache_hint(shared_prefix_context.as_deref());
+        self.push_user_message(content, cache_hint);
         if let Some(response) = builtin_supported_git_tools_response(&original_user_input) {
             self.api_messages.push(ApiMessage {
                 role: "assistant".to_string(),

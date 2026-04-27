@@ -55,6 +55,7 @@ impl RuntimeContext {
             input,
             supplementary_system_prompt,
             PulseToolPolicy::Default,
+            None,
         );
     }
 
@@ -63,6 +64,7 @@ impl RuntimeContext {
         input: String,
         supplementary_system_prompt: Option<String>,
         turn_tool_policy: PulseToolPolicy,
+        shared_prefix_context: Option<String>,
     ) {
         if tokio::runtime::Handle::try_current().is_err() {
             let _ = self.update_tx.send(UiUpdate::Error(
@@ -76,16 +78,25 @@ impl RuntimeContext {
         let conversation = Arc::clone(&self.conversation);
         let session_tokens = Arc::clone(&self.session_tokens);
         let input_for_estimate = input.clone();
+        let shared_prefix_context = shared_prefix_context
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
 
         tokio::spawn(async move {
             set_runtime_prompt(&conversation, supplementary_system_prompt).await;
             let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
             let conversation_for_send = Arc::clone(&conversation);
+            let shared_prefix_context_for_send = shared_prefix_context.clone();
 
             let send_handle = tokio::spawn(async move {
                 let mut mgr = conversation_for_send.lock().await;
                 let result = mgr
-                    .send_message_with_policy(input, Some(&delta_tx), turn_tool_policy)
+                    .send_message_with_policy(
+                        input,
+                        Some(&delta_tx),
+                        turn_tool_policy,
+                        shared_prefix_context_for_send,
+                    )
                     .await;
                 let turn_tokens = mgr.take_last_turn_tokens();
                 (result, turn_tokens)
@@ -206,7 +217,7 @@ impl RuntimeContext {
         let send_handle = tokio::spawn(async move {
             let mut mgr = conversation.lock().await;
             let result = mgr
-                .send_message_with_policy(input, Some(&delta_tx), PulseToolPolicy::Default)
+                .send_message_with_policy(input, Some(&delta_tx), PulseToolPolicy::Default, None)
                 .await;
             let patch_applied = mgr.current_turn_has_successful_mutation();
             (result, patch_applied)

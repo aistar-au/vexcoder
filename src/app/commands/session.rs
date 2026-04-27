@@ -12,7 +12,8 @@ impl TuiMode {
         } else {
             args.to_string()
         };
-        let rendered_context = self.assemble_rendered_context(&scope_instruction);
+        let (rendered_context, shared_prefix_context) =
+            self.assemble_rendered_context(&scope_instruction);
         let instruction =
             render_custom_command_instruction(&command.template, &rendered_context, args);
         let prompt = if command.template.contains("{{context}}") {
@@ -20,7 +21,7 @@ impl TuiMode {
         } else {
             render_edit_prompt(&instruction, &rendered_context)
         };
-        self.start_single_turn(prompt, ctx, false, None);
+        self.start_single_turn(prompt, ctx, false, None, shared_prefix_context);
     }
     pub(crate) fn handle_generate_tests_command(&mut self, args: &str, ctx: &mut RuntimeContext) {
         let parsed = match parse_generate_tests_args(args) {
@@ -38,7 +39,8 @@ impl TuiMode {
         };
 
         let scope_instruction = format!("generate tests for {target_path}");
-        let rendered_context = self.assemble_rendered_context(&scope_instruction);
+        let (rendered_context, shared_prefix_context) =
+            self.assemble_rendered_context(&scope_instruction);
         let framework = parsed
             .framework
             .unwrap_or_else(|| self.infer_generate_tests_framework());
@@ -50,6 +52,7 @@ impl TuiMode {
             false,
             Some(self.selected_system_prompt()),
             PulseToolPolicy::TestsOnlyMutations,
+            shared_prefix_context,
         );
     }
     pub(crate) fn default_generate_tests_path(&self) -> Option<String> {

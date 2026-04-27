@@ -265,6 +265,10 @@ impl ManagedTuiFrontend {
             }
         }
 
+        if let Some(action) = task_shortcut_occurrence(key) {
+            return Some(action);
+        }
+
         match key.code {
             KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
                 Some(InputOccurrence::Scroll {
@@ -598,3 +602,42 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
 pub(crate) mod picker;
 pub use self::picker::*;
+
+fn task_shortcut_occurrence(key: KeyStroke) -> Option<InputOccurrence> {
+    match key.code {
+        KeyCode::Char(ch)
+            if ch.eq_ignore_ascii_case(&'f')
+                && key.modifiers.contains(KeyModifiers::ALT)
+                && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+        {
+            Some(InputOccurrence::Text("/fork".to_string()))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alt_f_maps_to_fork_command() {
+        let occurrence =
+            task_shortcut_occurrence(KeyStroke::new(KeyCode::Char('f'), KeyModifiers::ALT));
+
+        assert!(matches!(
+            occurrence,
+            Some(InputOccurrence::Text(text)) if text == "/fork"
+        ));
+    }
+
+    #[test]
+    fn ctrl_alt_f_does_not_trigger_fork_command() {
+        let occurrence = task_shortcut_occurrence(KeyStroke::new(
+            KeyCode::Char('f'),
+            KeyModifiers::ALT | KeyModifiers::CONTROL,
+        ));
+
+        assert!(occurrence.is_none());
+    }
+}

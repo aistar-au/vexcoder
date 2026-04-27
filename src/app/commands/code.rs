@@ -114,10 +114,17 @@ impl TuiMode {
             .map(|path| format!("explain {path}"))
             .unwrap_or_else(|| "explain the current workspace state".to_string());
 
-        let rendered_context = self.assemble_rendered_context(&scope_instruction);
+        let (rendered_context, shared_prefix_context) =
+            self.assemble_rendered_context(&scope_instruction);
 
         let prompt = render_explain_prompt(&scope_instruction, &rendered_context);
-        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+        self.start_single_turn(
+            prompt,
+            ctx,
+            true,
+            Some(self.selected_system_prompt()),
+            shared_prefix_context,
+        );
     }
     pub(crate) fn handle_review_command(&mut self, args: &str, ctx: &mut RuntimeContext) {
         let parsed = match parse_review_args(args) {
@@ -213,7 +220,13 @@ impl TuiMode {
                 }
 
                 let prompt = render_review_prompt(instruction, "", &diff_context);
-                self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+                self.start_single_turn(
+                    prompt,
+                    ctx,
+                    true,
+                    Some(self.selected_system_prompt()),
+                    None,
+                );
             }
             Err(error) => {
                 self.push_history_line(format!("[review] error: {error}"));
@@ -253,6 +266,7 @@ impl TuiMode {
         };
         let render_assembler = self.context_assembler.clone();
         let diff_context = render_assembler.render(&assembled);
+        let shared_prefix_context = Some(render_assembler.render_shared_prefix(&assembled));
         let mut context_lines = vec![
             format!("[review files] pattern: {files_glob}"),
             format!("[review files] matched: {}", matched_paths.join(", ")),
@@ -266,7 +280,13 @@ impl TuiMode {
         }
 
         let prompt = render_review_prompt(instruction, &context_lines.join("\n"), &diff_context);
-        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+        self.start_single_turn(
+            prompt,
+            ctx,
+            true,
+            Some(self.selected_system_prompt()),
+            shared_prefix_context,
+        );
     }
 
     pub(crate) fn handle_plan_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
@@ -285,8 +305,15 @@ impl TuiMode {
         };
         let render_assembler = self.context_assembler.clone();
         let rendered_context = render_assembler.render(&assembled);
+        let shared_prefix_context = Some(render_assembler.render_shared_prefix(&assembled));
         let prompt = render_plan_prompt(&instruction, &rendered_context, &scope_instruction);
         self.plan_turn_active = true;
-        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+        self.start_single_turn(
+            prompt,
+            ctx,
+            true,
+            Some(self.selected_system_prompt()),
+            shared_prefix_context,
+        );
     }
 }

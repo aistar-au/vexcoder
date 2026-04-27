@@ -6,6 +6,7 @@ use crate::observability::REQUEST_ID_HEADER;
 use crate::runtime::backend::{
     ModelBackend, ModelBackendKind, ModelProtocol, SignalStream, ToolCallMode, ToolPolicy,
 };
+use crate::runtime::multiplex_prefix::{SharedPrefix, ToolDescriptor};
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
 use anyhow::Result;
@@ -479,6 +480,42 @@ impl ApiClient {
             .expect("api client supplementary prompt lock poisoned") = prompt
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+    }
+
+    pub(crate) fn shared_prefix_fingerprint(&self, workspace_context: &str) -> Option<String> {
+        let workspace_context = workspace_context.trim();
+        if workspace_context.is_empty() {
+            return None;
+        }
+
+        Some(
+            SharedPrefix {
+                system_prompt: self.effective_system_prompt(),
+                tools: self.shared_prefix_tools(),
+                workspace_context: workspace_context.to_string(),
+            }
+            .fingerprint(),
+        )
+    }
+
+    fn shared_prefix_tools(&self) -> Vec<ToolDescriptor> {
+        if !self.supports_structured_tool_protocol() {
+            return Vec::new();
+        }
+
+        tool_definitions_for_policy(self.tool_policy, &self.extra_tool_definitions)
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| {
+                let name = tool.get("name")?.as_str()?.to_string();
+                let schema = tool
+                    .get("input_schema")
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "type": "object" }));
+                Some(ToolDescriptor { name, schema })
+            })
+            .collect()
     }
 
     fn api_protocol(&self) -> ApiProtocol {

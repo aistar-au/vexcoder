@@ -178,12 +178,43 @@ fn clear_messages_resets_cached_conversation_state() {
         vec![],
     )));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
-    manager.push_user_message("hello".to_string());
+    manager.push_user_message("hello".to_string(), None);
     manager.ensure_task_doc();
     manager.begin_turn_doc("hello".to_string(), PulseToolPolicy::Default);
     manager.clear_messages();
     assert!(manager.messages_for_api().is_empty());
     assert!(manager.task_doc.is_none());
+}
+
+#[tokio::test]
+async fn send_message_applies_shared_prefix_cache_hint_to_user_turn() {
+    let shared_prefix_context =
+        "## Shared context prefix\n### File rollups\n- src/lib.rs\n```text\npub fn run() {}\n```\n";
+    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+        vec![],
+    )));
+    client.set_supplementary_system_prompt(Some("Respond as a focused Rust reviewer.".to_string()));
+    let expected_hint = client
+        .shared_prefix_fingerprint(shared_prefix_context)
+        .expect("shared prefix fingerprint");
+    let mut manager = ConversationManager::new_mock(client, HashMap::new());
+
+    let response = manager
+        .send_message_with_policy(
+            "what git tools are available?".to_string(),
+            None,
+            PulseToolPolicy::Default,
+            Some(shared_prefix_context.to_string()),
+        )
+        .await
+        .expect("send_message_with_policy");
+
+    assert!(response.contains("git_status"));
+    assert_eq!(manager.api_messages[0].role, "user");
+    assert_eq!(
+        manager.api_messages[0].cache_hint.as_deref(),
+        Some(expected_hint.as_str())
+    );
 }
 
 #[test]
