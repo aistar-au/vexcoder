@@ -300,7 +300,5 @@ that tap repository exists.
 ## References
 
 - [Semantic Versioning 2.0.0](https://semver.org/)
-- [Conventional Commits](https://www.conventionalcommits.org/) (recommended
-  for commit messages)
 - [Keep a Changelog](https://keepachangelog.com/) (useful guidance for the
   generated release notes format)
