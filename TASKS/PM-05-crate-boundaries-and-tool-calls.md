@@ -3,7 +3,7 @@
 This task checklist records the repo-facing documentation alignment for PR #342
 after the Tier 4 ratatui-stack overhaul.
 
-The purpose is to keep vexcoder grounded in conventional Rust CLI patterns
+The purpose is to keep vexcoder grounded in best practice Rust CLI patterns
 without copying wording or implementation material from any other project.
 Comparable public codebases can inform dependency choices, but vexcoder must
 document its own rationale in neutral, repo-specific language.
