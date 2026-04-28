@@ -30,7 +30,7 @@ document its own rationale in neutral, repo-specific language.
 - [x] Document the current structured tool-call formats:
   XML tags, JSON tool-call arrays, and content-block tool use.
 - [x] Record current active crates that already define the runtime seam:
-  `axum`, `rmcp`, `quick-xml`, `tower-http`, `fs2`, `portable-pty`, `similar`
+  `axum`, `rmcp`, `tower-http`, `fs2`, `portable-pty`, `similar`
   (`similar` replaces `diffy` as the diff algorithm in `src/edit_diff.rs`).
 - [x] Record next-batch dependency candidates grounded in comparable Rust CLI
   patterns: `bm25`, `which`, `notify`.
@@ -46,7 +46,6 @@ crate addition itself is still tied to a later code batch:
 
 - `axum` remains the HTTP server foundation for the local API surface.
 - `rmcp` remains the MCP client transport layer.
-- `quick-xml` remains the structured XML tag parser for fallback tool-call markup.
 - `similar` is active as the diff algorithm in `src/edit_diff.rs`, replacing `diffy`.
   Generic line-diff algorithm with no branding dependency.
 - `bm25` is accepted as the preferred next ranking layer for `codebase_search`

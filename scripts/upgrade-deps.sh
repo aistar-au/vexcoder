@@ -36,8 +36,8 @@ Examples:
   bash scripts/upgrade-deps.sh deny
   bash scripts/upgrade-deps.sh deny advisories
   bash scripts/upgrade-deps.sh audit
-  bash scripts/upgrade-deps.sh plan -p quick-xml@0.40 -p tree-sitter@0.27
-  bash scripts/upgrade-deps.sh apply -p quick-xml@0.40 -p tree-sitter@0.27
+  bash scripts/upgrade-deps.sh plan -p tree-sitter@0.27 -p pulldown-cmark@0.14
+  bash scripts/upgrade-deps.sh apply -p tree-sitter@0.27 -p pulldown-cmark@0.14
   bash scripts/upgrade-deps.sh apply --incompatible allow
 EOF
 }
@@ -72,7 +72,6 @@ Review these local seams when an upgraded crate needs source changes:
     types; review src/** and crates/vexcoder-api-types/src/lib.rs directly
   - rust / MSRV: update package.rust-version and CI toolchain declarations
     together
-  - quick-xml: src/state/conversation/tool_call_parser.rs
   - tree-sitter: src/tools/index.rs
   - Markdown rendering: src/ui/render/markdown.rs
 

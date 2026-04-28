@@ -112,7 +112,6 @@ When an upgraded crate needs source changes, keep that wiring localized to the
 existing seam files instead of spreading version-specific code through the tree:
 
 - TUI stack (`ratatui`, `crossterm`, `ansi-to-tui`, `ratatui-macros`): `src/ui/tui.rs`, `src/tui_handle.rs`
-- XML tool-call parsing (`quick-xml`): `src/state/conversation/tool_call_parser.rs`
 - Structural indexing (`tree-sitter` and grammar crates): `src/tools/index.rs`
 - Markdown rendering (`pulldown-cmark`, `syntect`): `src/ui/render/markdown.rs`
 - HTTP and MCP stack (`reqwest`, `rustls`, `rmcp`): `src/api/client/mod.rs`, `src/mcp.rs`, `src/server/`

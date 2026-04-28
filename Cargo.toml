@@ -116,7 +116,6 @@ unicode-width = "0.2"
 uuid = { version = "1", features = ["v4"] }
 portable-pty = "0.9"
 tempfile = "3"
-quick-xml = "0.39"
 textwrap = "0.16"
 tree-sitter = "0.26"
 tree-sitter-rust = "0.24"
@@ -272,8 +271,6 @@ opentelemetry_sdk = ["src/observability.rs"]
 tower-http = ["src/server/http.rs", "src/observability.rs"]
 tower_governor = ["src/server/http.rs"]
 tracing-opentelemetry = ["src/observability.rs", "src/api/client/mod.rs"]
-# XML tool-call parser — the only call site for quick-xml's reader API.
-quick-xml = ["src/state/conversation/tool_call_parser.rs"]
 # tree-sitter grammar loading and query API — one indexing module.
 tree-sitter = ["src/tools/index.rs"]
 tree-sitter-rust = ["src/tools/index.rs"]
@@ -367,7 +364,6 @@ unicode-width.workspace = true
 uuid.workspace = true
 portable-pty.workspace = true
 tempfile.workspace = true
-quick-xml.workspace = true
 textwrap.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true

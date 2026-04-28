@@ -229,10 +229,8 @@ so future bumps start from one checklist and one reviewed file map.
   local is the lower-churn choice.
 - `rust`: when the MSRV moves, update `package.rust-version` and CI toolchain
   declarations together.
-- `quick-xml`, `tree-sitter`, and Markdown rendering crates keep using the
-  existing focused seams: `src/api/stream/{framing,chat_compat,provider}.rs`,
-  `src/runtime/json_handoff.rs`, `src/tools/index.rs`, and
-  `src/ui/render/markdown.rs`.
+- `tree-sitter` and Markdown rendering crates keep using the existing focused
+  seams: `src/tools/index.rs` and `src/ui/render/markdown.rs`.
 
 The goal is not zero source edits. The goal is to keep upgrade work inside a
 declared set of seam files instead of re-touching unrelated call sites across

@@ -78,35 +78,60 @@ async fn local_endpoint_retries_once_when_tool_evidence_required() -> Result<()>
 }
 
 #[tokio::test]
-async fn local_endpoint_executes_tagged_text_tool_calls() -> Result<()> {
+async fn local_endpoint_treats_tagged_text_tool_calls_as_missing_tool_evidence() -> Result<()> {
     let tagged_tool_call = vec![
                 r#"data: {"choices":[{"delta":{"content":"<function=read_file>\n<parameter=path>file.txt</parameter>\n</function>"},"finish_reason":"stop"}]}"#
                         .to_string(),
         ];
+    let tool_less_retry = vec![
+                r#"data: {"choices":[{"delta":{"content":"still no structured tool call"},"finish_reason":"stop"}]}"#
+                        .to_string(),
+        ];
     let final_response = vec![
-                r#"data: {"choices":[{"delta":{"content":"The file says hello."},"finish_reason":"stop"}]}"#
+                r#"data: {"choices":[{"delta":{"content":"done without tool evidence"},"finish_reason":"stop"}]}"#
                         .to_string(),
         ];
     let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
         tagged_tool_call,
+        tool_less_retry,
         final_response,
     ])));
-    let mut mock_tool_responses = HashMap::new();
-    mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
-    let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+    let mut manager = ConversationManager::new_mock(client, HashMap::new());
 
     let final_text = manager
         .send_message("What is in file.txt?".into(), None)
         .await?;
 
-    assert!(final_text.contains("The file says hello."));
-    assert!(matches!(
-            &manager.api_messages[1].content,
-            Content::Text(text) if text.contains("<function=read_file>")
-    ));
-    assert!(matches!(
-            &manager.api_messages[2].content,
-            Content::Text(text) if text.contains("tool_result read_file")
-    ));
+    assert!(
+                final_text.contains("[loop guard] Model did not call any tool call required to answer this request with workspace evidence."),
+                "unexpected final text: {final_text}"
+        );
+    assert!(
+                manager.api_messages.iter().any(|message| {
+                        matches!(
+                                &message.content,
+                                Content::Text(text) if text.contains("<function=read_file>")
+                        ) || matches!(
+                                &message.content,
+                                Content::Blocks(blocks)
+                                        if blocks.iter().any(|block| matches!(
+                                                block,
+                                                ContentBlock::Text { text, .. } if text.contains("<function=read_file>")
+                                        ))
+                        )
+                }),
+                "raw tagged assistant text should remain visible in history when the fallback is disabled: {:?}",
+                manager.api_messages
+        );
+    assert!(
+        manager.api_messages.iter().all(|message| {
+            !matches!(
+                    &message.content,
+                    Content::Text(text) if text.contains("tool_result read_file")
+            )
+        }),
+        "tagged text must not be rewritten into tool results: {:?}",
+        manager.api_messages
+    );
     Ok(())
 }
