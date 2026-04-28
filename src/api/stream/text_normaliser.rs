@@ -26,7 +26,43 @@ impl StreamTextNormaliser {
         let mut chunks = Vec::new();
 
         loop {
-            let Some(function_start) = self.pending.find("<function=") else {
+            let function_start = self.pending.find("<function=");
+            // Hermes / Qwen3-Instruct format: <tool_call>{"name":"X","arguments":{...}}</tool_call>
+            // Detected when <tool_call> is immediately followed (modulo whitespace) by '{'.
+            // Qwen3-Coder wraps <function=...> inside <tool_call>; that is handled by the
+            // existing <function= path after stripping the outer <tool_call> prefix as text.
+            let hermes_start = find_hermes_json_tool_call(&self.pending);
+
+            let take_hermes = match (function_start, hermes_start) {
+                (_, None) => false,
+                (None, Some(_)) => true,
+                (Some(fs), Some(hs)) => hs < fs,
+            };
+
+            if take_hermes {
+                let hs = hermes_start.unwrap();
+                let prefix = self.pending[..hs].to_string();
+                push_text_chunk(&mut chunks, strip_tool_call_wrappers(&prefix));
+
+                let remaining = self.pending[hs..].to_string();
+                let content_start = "<tool_call>".len();
+                let Some(close_rel) = remaining.find("</tool_call>") else {
+                    // Incomplete — buffer until closing tag arrives.
+                    self.pending = remaining;
+                    break;
+                };
+
+                let content = remaining[content_start..close_rel].trim();
+                if let Some((name, input)) = parse_hermes_json_tool_call(content) {
+                    chunks.push(NormalisedChunk::TaggedToolCall { name, input });
+                }
+
+                let close_end = close_rel + "</tool_call>".len();
+                self.pending = remaining[close_end..].to_string();
+                continue;
+            }
+
+            let Some(function_start) = function_start else {
                 let (text_prefix, pending_suffix) = split_incomplete_tool_tag_suffix(&self.pending);
                 push_text_chunk(&mut chunks, strip_tool_call_wrappers(text_prefix));
                 self.pending = pending_suffix.to_string();
@@ -79,6 +115,41 @@ fn push_text_chunk(chunks: &mut Vec<NormalisedChunk>, text: String) {
 
 fn strip_tool_call_wrappers(text: &str) -> String {
     text.replace("<tool_call>", "").replace("</tool_call>", "")
+}
+
+// Returns the byte position of the first <tool_call> whose content (after optional
+// whitespace) starts with '{', indicating Hermes/Qwen3-Instruct JSON format.
+// Qwen3-Coder wraps <function=...> inside <tool_call>; that format is NOT matched here
+// because the trimmed content starts with '<', not '{'.
+fn find_hermes_json_tool_call(text: &str) -> Option<usize> {
+    let tag = "<tool_call>";
+    let mut search_from = 0;
+    loop {
+        let rel = text[search_from..].find(tag)?;
+        let abs = search_from + rel;
+        let after_tag = &text[abs + tag.len()..];
+        if after_tag.trim_start().starts_with('{') {
+            return Some(abs);
+        }
+        search_from = abs + 1;
+    }
+}
+
+// Parses the JSON body of a Hermes-format tool call:
+//   {"name": "tool_name", "arguments": {...}}  (arguments may be a JSON object or string)
+fn parse_hermes_json_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
+    let obj = serde_json::from_str::<serde_json::Value>(content).ok()?;
+    let name = obj.get("name")?.as_str()?.trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let input = match obj.get("arguments") {
+        Some(serde_json::Value::String(s)) => serde_json::from_str(s)
+            .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new())),
+        Some(v) => v.clone(),
+        None => serde_json::Value::Object(serde_json::Map::new()),
+    };
+    Some((name, input))
 }
 
 fn split_incomplete_tool_tag_suffix(text: &str) -> (&str, &str) {
@@ -141,10 +212,24 @@ fn parse_single_tagged_tool_call(raw: &str) -> Option<(String, serde_json::Value
     }
 
     let body = &raw[name_end + 1..raw.len() - "</function>".len()];
-    Some((
-        name,
-        serde_json::Value::Object(parse_tagged_parameters(body)),
-    ))
+
+    // Primary format: <parameter=key>value</parameter>
+    let params = parse_tagged_parameters(body);
+    if !params.is_empty() {
+        return Some((name, serde_json::Value::Object(params)));
+    }
+
+    // Fallback: JSON object body — <function=name>{"key": "val"}</function>
+    // Used by some model variants that omit <parameter=> tags.
+    let trimmed_body = body.trim();
+    if trimmed_body.starts_with('{')
+        && let Ok(serde_json::Value::Object(map)) = serde_json::from_str(trimmed_body)
+    {
+        return Some((name, serde_json::Value::Object(map)));
+    }
+
+    // Body is empty or unrecognised — emit with empty args rather than dropping.
+    Some((name, serde_json::Value::Object(params)))
 }
 
 fn parse_tagged_parameters(body: &str) -> serde_json::Map<String, serde_json::Value> {
@@ -271,6 +356,96 @@ mod tests {
             vec![NormalisedChunk::TaggedToolCall {
                 name: "read_file".to_string(),
                 input: json!({"path": "file.txt"}),
+            }]
+        );
+    }
+
+    // Qwen3-Coder wraps <function=...> in <tool_call>...</tool_call>.
+    // The outer <tool_call>\n prefix is stripped to "\n" text; the inner <function=...> block is
+    // parsed as usual; the "\n" between </function> and </tool_call> is emitted as trailing text.
+    #[test]
+    fn normalise_qwen3_coder_tool_call_with_outer_wrapper() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let chunks = normaliser.normalise(
+            "<tool_call>\n<function=read_file>\n<parameter=path>src/lib.rs</parameter>\n</function>\n</tool_call>",
+        );
+        assert_eq!(
+            chunks,
+            vec![
+                NormalisedChunk::Text("\n".to_string()),
+                NormalisedChunk::TaggedToolCall {
+                    name: "read_file".to_string(),
+                    input: json!({"path": "src/lib.rs"}),
+                },
+                NormalisedChunk::Text("\n".to_string()),
+            ]
+        );
+    }
+
+    // Hermes / Qwen3-Instruct format: <tool_call>{"name":"X","arguments":{...}}</tool_call>
+    #[test]
+    fn normalise_hermes_json_tool_call() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let chunks = normaliser.normalise(
+            "Let me read it.\n<tool_call>\n{\"name\": \"read_file\", \"arguments\": {\"path\": \"Cargo.toml\"}}\n</tool_call>",
+        );
+        assert_eq!(
+            chunks,
+            vec![
+                NormalisedChunk::Text("Let me read it.\n".to_string()),
+                NormalisedChunk::TaggedToolCall {
+                    name: "read_file".to_string(),
+                    input: json!({"path": "Cargo.toml"}),
+                },
+            ]
+        );
+    }
+
+    // Hermes format with arguments as a JSON-encoded string instead of object.
+    #[test]
+    fn normalise_hermes_json_tool_call_string_arguments() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let chunks = normaliser.normalise(
+            "<tool_call>{\"name\": \"search_files\", \"arguments\": \"{\\\"pattern\\\": \\\"*.rs\\\"}\"}</tool_call>",
+        );
+        assert_eq!(
+            chunks,
+            vec![NormalisedChunk::TaggedToolCall {
+                name: "search_files".to_string(),
+                input: json!({"pattern": "*.rs"}),
+            }]
+        );
+    }
+
+    // Incomplete Hermes tool call — must buffer until </tool_call> arrives.
+    #[test]
+    fn normalise_buffers_incomplete_hermes_tool_call() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let first = normaliser
+            .normalise("<tool_call>\n{\"name\": \"read_file\", \"arguments\": {\"path\":");
+        assert_eq!(first, vec![]);
+
+        let second = normaliser.normalise(" \"README.md\"}}\n</tool_call>");
+        assert_eq!(
+            second,
+            vec![NormalisedChunk::TaggedToolCall {
+                name: "read_file".to_string(),
+                input: json!({"path": "README.md"}),
+            }]
+        );
+    }
+
+    // JSON body fallback: <function=name>{"key":"val"}</function> (no <parameter=> tags).
+    #[test]
+    fn normalise_function_with_json_body_fallback() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let chunks =
+            normaliser.normalise("<function=read_file>\n{\"path\": \"src/main.rs\"}\n</function>");
+        assert_eq!(
+            chunks,
+            vec![NormalisedChunk::TaggedToolCall {
+                name: "read_file".to_string(),
+                input: json!({"path": "src/main.rs"}),
             }]
         );
     }

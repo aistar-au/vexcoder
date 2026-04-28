@@ -24,11 +24,23 @@ pub(super) struct ProtocolIngressState {
     next_tagged_tool_block_index: usize,
 
     chat_compat_tool_lifecycles: BTreeMap<usize, PendingChatCompatToolState>,
+    // Set to true the first time a native chat-compat tool call block opens.
+    // When true, XML tool calls synthesised from text content are suppressed so that
+    // models which echo their tool call as both a native tool_calls entry AND as XML
+    // in the text content do not produce duplicate tool call blocks.
+    has_native_tool_calls: bool,
 
     chat_compat_stream_terminated: bool,
 }
 
-const TAGGED_TOOL_BLOCK_START_INDEX: usize = 2_000_000;
+// Start tagged-XML tool blocks at 1, immediately after the chat-compat text block (always index 0).
+// Index space: 0 = text, 1..=N = tagged XML tool calls.
+// Native chat-compat tool calls use raw_index+1 (1..=MAX_TOOL_CALL_INDEX+1), but when the server
+// sends native tool_calls the has_native_tool_calls flag suppresses XML tool call synthesis,
+// so collisions cannot occur in practice (see emit_tagged_tool_call_from_text).
+// Local coding models (tool-parser implementations and local inference server PRs) confirm
+// that models either emit XML in content OR use native tool_calls — never both.
+const TAGGED_TOOL_BLOCK_START_INDEX: usize = 1;
 
 impl Default for ProtocolIngressState {
     fn default() -> Self {
@@ -40,6 +52,7 @@ impl Default for ProtocolIngressState {
             tagged_text_normalisers: BTreeMap::new(),
             next_tagged_tool_block_index: TAGGED_TOOL_BLOCK_START_INDEX,
             chat_compat_tool_lifecycles: BTreeMap::new(),
+            has_native_tool_calls: false,
             chat_compat_stream_terminated: false,
         }
     }
@@ -173,6 +186,19 @@ impl RuntimeEnvelopeNormalizer {
         }
 
         let mut envelopes = Vec::new();
+
+        // Flush first-layer normaliser buffers before closing blocks. Text held in the
+        // pending buffer (e.g. a trailing `<` held as a partial-tag candidate) is emitted
+        // here. Do this before taking open_blocks so that any new tool blocks synthesised
+        // by emit_tagged_tool_call_from_text are opened and closed atomically.
+        let normalisers = std::mem::take(&mut self.protocol_ingress.tagged_text_normalisers);
+        for (index, mut normaliser) in normalisers {
+            let chunks = normaliser.finish();
+            if !chunks.is_empty() {
+                envelopes.extend(self.emit_normalised_provider_chunks(index, chunks));
+            }
+        }
+
         let open_blocks = std::mem::take(&mut self.protocol_ingress.open_blocks);
         for index in open_blocks {
             envelopes.extend(
@@ -491,6 +517,19 @@ impl RuntimeEnvelopeNormalizer {
         name: String,
         input: serde_json::Value,
     ) -> Vec<RuntimeEnvelope> {
+        // Suppress XML-derived tool calls when the server has already sent native tool_calls
+        // in the same turn.  Some local models echo the tool call both as a native entry
+        // in tool_calls AND as XML inside the content field; suppressing here prevents
+        // duplicate blocks in the UI.
+        if self.protocol_ingress.has_native_tool_calls {
+            tracing::debug!(
+                target: "vex::protocol",
+                %name,
+                "suppressing tagged XML tool call — native tool_calls already received this turn"
+            );
+            return Vec::new();
+        }
+
         let index = self.protocol_ingress.next_tagged_tool_block_index;
         self.protocol_ingress.next_tagged_tool_block_index = self
             .protocol_ingress
@@ -811,6 +850,10 @@ impl RuntimeEnvelopeNormalizer {
                 block_index,
                 "opening chat-compatible tool block"
             );
+            // Mark that this turn has native tool calls so that XML tool calls synthesised
+            // from text content are suppressed (prevents duplicate blocks when the model
+            // echoes its tool call both in tool_calls and as XML inside content).
+            self.protocol_ingress.has_native_tool_calls = true;
             envelopes.extend(self.open_provider_stream_block(block_index, content_block));
         }
         if let Some(partial_json) = partial_json {
