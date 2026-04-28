@@ -368,10 +368,12 @@ impl ConversationManager {
             let mut assistant_text_for_history = assistant_text.clone();
             let mut used_tagged_fallback = false;
             if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
-                let tagged_calls = dedupe_tagged_tool_calls(parse_tagged_tool_calls(&assistant_text));
+                let tagged_calls =
+                    dedupe_tagged_tool_calls(parse_tagged_tool_calls(&assistant_text));
                 if !tagged_calls.is_empty() {
                     used_tagged_fallback = true;
-                    assistant_text_for_history = core_policy.sanitize_assistant_text(&assistant_text);
+                    assistant_text_for_history =
+                        core_policy.sanitize_assistant_text(&assistant_text);
                     let fallback_start_index = self.current_round_stream_block_count;
                     tool_use_blocks = tagged_calls
                         .into_iter()
@@ -493,8 +495,10 @@ impl ConversationManager {
             } else {
                 assistant_text_for_history.clone()
             };
-            let assistant_history_text =
-                truncate_for_history(&assistant_history_source, limits.max_assistant_history_chars);
+            let assistant_history_text = truncate_for_history(
+                &assistant_history_source,
+                limits.max_assistant_history_chars,
+            );
 
             if use_structured_round {
                 let mut assistant_content_blocks = Vec::new();

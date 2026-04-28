@@ -159,7 +159,9 @@ fn tagged_tool_call_scrubs_raw_streamed_markup_from_transcript() {
 
     let lines = mode.history_lines();
     assert!(
-        !lines.iter().any(|line| line.contains("<function=read_file>")),
+        !lines
+            .iter()
+            .any(|line| line.contains("<function=read_file>")),
         "raw tagged tool markup must be removed once a tool call block exists; lines: {lines:?}"
     );
     assert!(
@@ -167,7 +169,42 @@ fn tagged_tool_call_scrubs_raw_streamed_markup_from_transcript() {
         "raw tagged parameter markup must be removed once a tool call block exists; lines: {lines:?}"
     );
     assert!(
-        lines.iter().any(|line| line.contains(".github/workflows/release.yml")),
+        lines
+            .iter()
+            .any(|line| line.contains(".github/workflows/release.yml")),
         "the materialized tool call should still retain the explicit file path; lines: {lines:?}"
+    );
+}
+
+#[test]
+fn streamed_tagged_tool_markup_is_hidden_before_tool_call_materializes() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("inspect release workflow".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::StreamDelta(
+            "I need to inspect it.\n<function=read_file>\n<parameter=path>\n.github/workflows/release.yml\n</parameter>\n</function>"
+                .to_string(),
+        ),
+        &mut ctx,
+    );
+
+    let lines = mode.history_lines();
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("<function=read_file>")),
+        "raw tagged tool markup must be hidden during streaming; lines: {lines:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("<parameter=path>")),
+        "raw tagged parameter markup must be hidden during streaming; lines: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("I need to inspect it.")),
+        "non-tool assistant text should remain visible after sanitizing streamed tool markup; lines: {lines:?}"
     );
 }

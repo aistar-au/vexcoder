@@ -70,7 +70,10 @@ impl MockStreamProducer for MultiRoundOverflowProducer {
     }
 }
 
-fn tagged_text_tool_call_stream(messages: &[ApiMessage], path: &str) -> anyhow::Result<SignalStream> {
+fn tagged_text_tool_call_stream(
+    messages: &[ApiMessage],
+    path: &str,
+) -> anyhow::Result<SignalStream> {
     MockApiClient::new(vec![vec![format!(
         r#"data: {{"choices":[{{"delta":{{"content":"<function=read_file>\n<parameter=path>{path}</parameter>\n</function>"}},"finish_reason":"stop"}}]}}"#
     )]])

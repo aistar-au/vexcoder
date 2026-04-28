@@ -146,6 +146,7 @@ impl TuiMode {
                         },
                     });
                 }
+                self.scrub_materialized_tool_markup();
                 self.clamp_transcript_after_mutation();
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
@@ -187,6 +188,7 @@ impl TuiMode {
                                     started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
                                 );
                             }
+                            self.scrub_materialized_tool_markup();
                         }
                         let updated_existing =
                             if let Some(active) = self.task_doc.active_pulse.as_mut() {
@@ -230,6 +232,7 @@ impl TuiMode {
                                 streaming: true,
                             },
                         });
+                        self.scrub_materialized_tool_markup();
                     }
                     StreamBlock::Thinking { content, collapsed } => {
                         let updated_existing =
@@ -382,6 +385,7 @@ impl TuiMode {
                         false
                     });
                 }
+                self.scrub_materialized_tool_markup();
                 self.clamp_transcript_after_mutation();
             }
 

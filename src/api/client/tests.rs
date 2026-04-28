@@ -40,7 +40,7 @@ fn single_user_message(text: &str) -> Vec<ApiMessage> {
 }
 
 #[tokio::test]
-async fn client_falls_back_to_non_streaming_chat_compat_when_stream_is_slow() {
+async fn client_falls_back_to_non_streaming_chat_compat_when_stream_response_is_json() {
     async fn handler(State(log): State<RequestLog>, Json(p): Json<Value>) -> impl IntoResponse {
         log.lock().unwrap().push(p.clone());
         if p.get("stream").and_then(Value::as_bool) == Some(true) {
@@ -89,7 +89,7 @@ async fn client_falls_back_to_non_streaming_chat_compat_when_stream_is_slow() {
 }
 
 #[tokio::test]
-async fn client_falls_back_to_non_streaming_messages_v1_when_stream_is_slow() {
+async fn client_falls_back_to_non_streaming_messages_v1_when_stream_response_is_json() {
     async fn handler(State(log): State<RequestLog>, Json(p): Json<Value>) -> impl IntoResponse {
         log.lock().unwrap().push(p.clone());
         if p.get("stream").and_then(Value::as_bool) == Some(true) {

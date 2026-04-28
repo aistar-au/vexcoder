@@ -135,15 +135,46 @@ fn parse_tagged_parameters(body: &str) -> serde_json::Map<String, serde_json::Va
             (None, None) => (body.len(), body.len()),
         };
 
-        let value = normalize_tagged_parameter_value(&body[value_start..value_end]);
+        let value = tagged_parameter_json_value(&body[value_start..value_end]);
         if !key.is_empty() {
-            input.insert(key, serde_json::Value::String(value));
+            input.insert(key, value);
         }
 
         parameter_cursor = next_cursor.max(parameter_start + 1);
     }
 
     input
+}
+
+fn tagged_parameter_json_value(raw: &str) -> serde_json::Value {
+    let value = normalize_tagged_parameter_value(raw);
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return serde_json::Value::String(value);
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed)
+        && !matches!(parsed, serde_json::Value::String(_))
+    {
+        return parsed;
+    }
+
+    if let Ok(parsed) = trimmed.parse::<u64>() {
+        return serde_json::Value::Number(parsed.into());
+    }
+
+    if let Ok(parsed) = trimmed.parse::<i64>() {
+        return serde_json::Value::Number(parsed.into());
+    }
+
+    if let Ok(parsed) = trimmed.parse::<f64>()
+        && let Some(number) = serde_json::Number::from_f64(parsed)
+    {
+        return serde_json::Value::Number(number);
+    }
+
+    serde_json::Value::String(value)
 }
 
 fn normalize_tagged_parameter_value(raw: &str) -> String {
@@ -349,4 +380,27 @@ pub(crate) fn builtin_supported_git_tools_response(input: &str) -> Option<String
         "Built-in git tools available here: git_status, git_diff, git_log, git_show, git_add, git_commit."
             .to_string(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_tagged_tool_calls_coerces_numeric_parameters() {
+        let calls = parse_tagged_tool_calls(
+            "<function=read_file>\n<parameter=path>file.txt</parameter>\n<parameter=offset>50</parameter>\n<parameter=limit>200</parameter>\n</function>",
+        );
+
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].input,
+            json!({
+                "path": "file.txt",
+                "offset": 50,
+                "limit": 200,
+            })
+        );
+    }
 }
