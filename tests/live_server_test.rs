@@ -346,6 +346,49 @@ pub(crate) async fn spawn_auto_detect_messages_v1_tool_calls_server() -> (String
     (format!("http://{addr}"), server)
 }
 
+pub(crate) async fn spawn_auto_detect_chat_tagged_tool_call_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(missing_probe_handler))
+                .route(
+                    "/v1/chat/completions",
+                    get(probe_chat_handler).post(tagged_tool_call_chat_handler),
+                ),
+        )
+        .await
+        .unwrap();
+    });
+    (format!("http://{addr}"), server)
+}
+
+pub(crate) async fn spawn_auto_detect_messages_tagged_tool_call_server() -> (String, JoinHandle<()>)
+{
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route(
+                    "/v1/messages",
+                    get(probe_messages_handler).post(tagged_tool_call_messages_v1_handler),
+                )
+                .route("/v1/chat/completions", get(missing_probe_handler)),
+        )
+        .await
+        .unwrap();
+    });
+    (format!("http://{addr}"), server)
+}
+
 async fn tool_calls_json_args_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
         return no_initial_sse_response();
@@ -358,6 +401,40 @@ async fn tool_calls_messages_v1_handler(Json(payload): Json<Value>) -> Response 
         return no_initial_sse_response();
     }
     Json(json!({"id":"msg-tool-fallback","type":"message","role":"assistant","model":"test-model","content":[{"type":"tool_use","id":"toolu_auto_1","name":"read_file","input":{"path":"src/lib.rs"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":5}})).into_response()
+}
+
+async fn tagged_tool_call_chat_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return (
+            [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+            concat!(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"<function=read_file>\\n<parameter=path>src/main.rs</parameter>\\n</function>\"},\"finish_reason\":\"stop\"}]}\n\n",
+                "data: [DONE]\n\n"
+            ),
+        )
+            .into_response();
+    }
+
+    Json(json!({"id":"chatcmpl-tagged-tool","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":"<function=read_file>\n<parameter=path>src/main.rs</parameter>\n</function>"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}})).into_response()
+}
+
+async fn tagged_tool_call_messages_v1_handler(Json(payload): Json<Value>) -> Response {
+    if stream_requested(&payload) {
+        return (
+            [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+            concat!(
+                "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-tagged-tool\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"test-model\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}\n\n",
+                "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+                "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"<function=read_file>\\n<parameter=path>src/lib.rs</parameter>\\n</function>\"}}\n\n",
+                "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+                "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":5}}\n\n",
+                "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+            ),
+        )
+            .into_response();
+    }
+
+    Json(json!({"id":"msg-tagged-tool","type":"message","role":"assistant","model":"test-model","content":[{"type":"text","text":"<function=read_file>\n<parameter=path>src/lib.rs</parameter>\n</function>"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":5}})).into_response()
 }
 
 async fn slow_non_stream_handler(_payload: Json<Value>) -> Response {

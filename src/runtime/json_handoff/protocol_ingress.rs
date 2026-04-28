@@ -1,11 +1,11 @@
 use super::derived::{empty_json_object, token_usage_from_turn_tokens};
 use super::{PulseEndContext, RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeSignal};
-use crate::api::stream::MAX_TOOL_CALL_INDEX;
 use crate::api::stream::chat_compat::{
     ChatCompatChoice, ChatCompatChunk, ChatCompatDelta, ChatCompatFunctionArguments,
     ChatCompatPayload, ChatCompatToolCallDelta,
 };
 use crate::api::stream::provider::{ProviderDelta, ProviderStreamItem};
+use crate::api::stream::{MAX_TOOL_CALL_INDEX, NormalisedChunk, StreamTextNormaliser};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ApiUsage, StreamChunkMetadata};
 use crate::usage::PulseTokens;
@@ -14,17 +14,35 @@ use opentelemetry_semantic_conventions::attribute as semconv;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Default)]
 pub(super) struct ProtocolIngressState {
     turn_started: bool,
 
     open_blocks: BTreeSet<usize>,
     turn_tokens: PulseTokens,
     chat_compat_message_started: bool,
+    tagged_text_normalisers: BTreeMap<usize, StreamTextNormaliser>,
+    next_tagged_tool_block_index: usize,
 
     chat_compat_tool_lifecycles: BTreeMap<usize, PendingChatCompatToolState>,
 
     chat_compat_stream_terminated: bool,
+}
+
+const TAGGED_TOOL_BLOCK_START_INDEX: usize = 2_000_000;
+
+impl Default for ProtocolIngressState {
+    fn default() -> Self {
+        Self {
+            turn_started: false,
+            open_blocks: BTreeSet::new(),
+            turn_tokens: PulseTokens::default(),
+            chat_compat_message_started: false,
+            tagged_text_normalisers: BTreeMap::new(),
+            next_tagged_tool_block_index: TAGGED_TOOL_BLOCK_START_INDEX,
+            chat_compat_tool_lifecycles: BTreeMap::new(),
+            chat_compat_stream_terminated: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -315,6 +333,12 @@ impl RuntimeEnvelopeNormalizer {
         index: usize,
         content_block: ProviderContentBlock,
     ) -> Vec<RuntimeEnvelope> {
+        let needs_text_normaliser = matches!(
+            content_block,
+            ProviderContentBlock::Text { .. }
+                | ProviderContentBlock::Thinking { .. }
+                | ProviderContentBlock::ThinkingData { .. }
+        );
         if let ProviderContentBlock::ToolUse { id, name, .. }
         | ProviderContentBlock::ServerToolUse { id, name, .. } = &content_block
         {
@@ -332,13 +356,24 @@ impl RuntimeEnvelopeNormalizer {
 
         let mut envelopes = self.ensure_protocol_ingress_turn_started();
         self.protocol_ingress.open_blocks.insert(index);
+        if needs_text_normaliser {
+            self.protocol_ingress
+                .tagged_text_normalisers
+                .entry(index)
+                .or_insert_with(StreamTextNormaliser::new);
+        }
         envelopes.extend(
             self.normalize_ui_update(&super::UiUpdate::StreamBlockStart { index, block }, None),
         );
         if let Some(delta) = initial_delta.filter(|delta| !delta.is_empty()) {
-            envelopes.extend(
-                self.normalize_ui_update(&super::UiUpdate::StreamBlockDelta { index, delta }, None),
-            );
+            if needs_text_normaliser {
+                envelopes.extend(self.apply_normalised_provider_text(index, &delta));
+            } else {
+                envelopes.extend(self.normalize_ui_update(
+                    &super::UiUpdate::StreamBlockDelta { index, delta },
+                    None,
+                ));
+            }
         }
         envelopes
     }
@@ -384,9 +419,13 @@ impl RuntimeEnvelopeNormalizer {
             delta_bytes = delta.len(),
             "applying provider stream delta"
         );
-        envelopes.extend(
-            self.normalize_ui_update(&super::UiUpdate::StreamBlockDelta { index, delta }, None),
-        );
+        if is_text_delta {
+            envelopes.extend(self.apply_normalised_provider_text(index, &delta));
+        } else {
+            envelopes.extend(
+                self.normalize_ui_update(&super::UiUpdate::StreamBlockDelta { index, delta }, None),
+            );
+        }
         envelopes
     }
 
@@ -395,12 +434,79 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         }
 
+        let mut envelopes = Vec::new();
+        if let Some(mut normaliser) = self.protocol_ingress.tagged_text_normalisers.remove(&index) {
+            envelopes.extend(self.emit_normalised_provider_chunks(index, normaliser.finish()));
+        }
+
         tracing::trace!(
             target: "vex::protocol",
             index,
             "closing provider stream block"
         );
-        self.normalize_ui_update(&super::UiUpdate::StreamBlockComplete { index }, None)
+        envelopes.extend(
+            self.normalize_ui_update(&super::UiUpdate::StreamBlockComplete { index }, None),
+        );
+        envelopes
+    }
+
+    fn apply_normalised_provider_text(
+        &mut self,
+        index: usize,
+        delta: &str,
+    ) -> Vec<RuntimeEnvelope> {
+        let chunks = self
+            .protocol_ingress
+            .tagged_text_normalisers
+            .entry(index)
+            .or_insert_with(StreamTextNormaliser::new)
+            .normalise(delta);
+        self.emit_normalised_provider_chunks(index, chunks)
+    }
+
+    fn emit_normalised_provider_chunks(
+        &mut self,
+        index: usize,
+        chunks: Vec<NormalisedChunk>,
+    ) -> Vec<RuntimeEnvelope> {
+        let mut envelopes = Vec::new();
+        for chunk in chunks {
+            match chunk {
+                NormalisedChunk::Text(text) => {
+                    envelopes.extend(self.normalize_ui_update(
+                        &super::UiUpdate::StreamBlockDelta { index, delta: text },
+                        None,
+                    ));
+                }
+                NormalisedChunk::TaggedToolCall { name, input } => {
+                    envelopes.extend(self.emit_tagged_tool_call_from_text(name, input));
+                }
+            }
+        }
+        envelopes
+    }
+
+    fn emit_tagged_tool_call_from_text(
+        &mut self,
+        name: String,
+        input: serde_json::Value,
+    ) -> Vec<RuntimeEnvelope> {
+        let index = self.protocol_ingress.next_tagged_tool_block_index;
+        self.protocol_ingress.next_tagged_tool_block_index = self
+            .protocol_ingress
+            .next_tagged_tool_block_index
+            .saturating_add(1);
+
+        let mut envelopes = self.open_provider_stream_block(
+            index,
+            ProviderContentBlock::ToolUse {
+                id: format!("toolu_tagged_{index}"),
+                name,
+                input,
+            },
+        );
+        envelopes.extend(self.close_provider_stream_block(index));
+        envelopes
     }
 
     fn emit_provider_metadata(&mut self, metadata: StreamChunkMetadata) -> Vec<RuntimeEnvelope> {

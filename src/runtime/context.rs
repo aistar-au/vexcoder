@@ -124,7 +124,8 @@ impl RuntimeContext {
             }
 
             if !cancelled {
-                for (index, _) in textual_block_by_index.drain() {
+                for (index, mut normaliser) in textual_block_by_index.drain() {
+                    emit_normalised_chunks(normaliser.finish(), Some(index), &tx);
                     let _ = tx.send(UiUpdate::StreamBlockComplete { index });
                 }
             }
@@ -538,7 +539,9 @@ fn forward_conversation_update(
             });
         }
         ConversationStreamUpdate::BlockComplete { index } => {
-            let _ = textual_block_by_index.remove(&index);
+            if let Some(mut normaliser) = textual_block_by_index.remove(&index) {
+                emit_normalised_chunks(normaliser.finish(), Some(index), tx);
+            }
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
         ConversationStreamUpdate::ToolApprovalRequest(request) => {
@@ -615,6 +618,7 @@ fn emit_normalised_chunks(
                     let _ = tx.send(UiUpdate::StreamDelta(text));
                 }
             }
+            NormalisedChunk::TaggedToolCall { .. } => {}
         }
     }
 }
