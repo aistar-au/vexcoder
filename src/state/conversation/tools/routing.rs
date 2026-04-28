@@ -416,7 +416,7 @@ pub(crate) fn missing_read_only_location_prompt(
     match name {
         "read_file" => {
             if missing(&["path", "file_path", "file", "filename"]) {
-                Some("I need an explicit file path before reading a file. Please provide a non-empty `path` such as `src/main.rs` or `adr/ADR-README.md`. If the user referenced a file with `@`, its content is already in the conversation — look for the `[file: ...]` block instead of calling read_file again. Do not retry without a concrete path. No file changes were made.".to_string())
+                Some("I need an explicit file path before reading a file. If the user referenced a file with `@` or a `[file: ...]` block, extract that exact path and reuse the embedded content when it is sufficient; otherwise call `read_file` or `search_files` with that concrete path for targeted inspection. Do not invent a substitute filename or retry without a non-empty `path`. No file changes were made.".to_string())
             } else {
                 None
             }

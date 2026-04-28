@@ -25,6 +25,28 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
+    fn scrub_materialized_tool_markup(&mut self) {
+        let Some(active) = self.task_doc.active_pulse.as_mut() else {
+            return;
+        };
+
+        for entry in &mut active.entries {
+            if let PulseEntry::AssistantBlock { block, .. } = entry
+                && block.phase == AssistantPhase::Final
+            {
+                block.content = crate::runtime::policy::sanitize_assistant_text(&block.content);
+            }
+        }
+
+        active.entries.retain(|entry| {
+            !matches!(
+                entry,
+                PulseEntry::AssistantBlock { block, .. }
+                    if block.phase == AssistantPhase::Final && block.content.trim().is_empty()
+            )
+        });
+    }
+
     fn alloc_step_id(&mut self) -> u64 {
         let id = self.task_doc.info.next_step_id;
         self.task_doc.info.next_step_id = self.task_doc.info.next_step_id.saturating_add(1);
@@ -124,6 +146,7 @@ impl TuiMode {
                         },
                     });
                 }
+                self.scrub_materialized_tool_markup();
                 self.clamp_transcript_after_mutation();
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
@@ -155,6 +178,7 @@ impl TuiMode {
                 let previous_output_len = self.expanded_output_row_count();
                 match block {
                     StreamBlock::FinalText { content } => {
+                        self.stream_uses_structured_final_output = true;
                         if self.ttft.is_none()
                             && let Some(started) = self.turn_started_at
                         {
@@ -164,14 +188,19 @@ impl TuiMode {
                                     started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
                                 );
                             }
+                            self.scrub_materialized_tool_markup();
                         }
                         let updated_existing =
                             if let Some(active) = self.task_doc.active_pulse.as_mut() {
                                 if let Some(PulseEntry::AssistantBlock { block, .. }) =
                                     active.entries.last_mut()
                                 {
-                                    if block.block_index == index {
+                                    if block.block_index == index
+                                        || (block.block_index == usize::MAX
+                                            && block.phase == AssistantPhase::Final)
+                                    {
                                         block.phase = AssistantPhase::Final;
+                                        block.block_index = index;
                                         block.collapsed = false;
                                         block.streaming = true;
                                         if !content.is_empty() {
@@ -203,6 +232,7 @@ impl TuiMode {
                                 streaming: true,
                             },
                         });
+                        self.scrub_materialized_tool_markup();
                     }
                     StreamBlock::Thinking { content, collapsed } => {
                         let updated_existing =
@@ -250,6 +280,7 @@ impl TuiMode {
                         input,
                         status,
                     } => {
+                        self.scrub_materialized_tool_markup();
                         let exists = if let Some(active) = self.task_doc.active_pulse.as_mut() {
                             active.entries.iter_mut().any(|e| {
                                 if let PulseEntry::ToolCall {
@@ -354,6 +385,7 @@ impl TuiMode {
                         false
                     });
                 }
+                self.scrub_materialized_tool_markup();
                 self.clamp_transcript_after_mutation();
             }
 
@@ -625,6 +657,8 @@ impl TuiMode {
                     crate::runtime::session_task::now_millis(),
                 );
                 self.set_task_status(TaskStatus::Failed);
+                self.turn_completion_pending = false;
+                self.reset_turn_capture();
             }
         }
     }

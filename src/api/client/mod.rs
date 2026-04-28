@@ -8,7 +8,10 @@ use crate::runtime::backend::{
 };
 use crate::runtime::multiplex_prefix::{SharedPrefix, ToolDescriptor};
 use crate::types::{ApiMessage, Content, ContentBlock};
-use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
+use crate::util::{
+    is_local_endpoint_url, preferred_loopback_url_for_local_endpoint,
+    preferred_plain_http_url_for_local_endpoint,
+};
 use anyhow::Result;
 use anyhow::anyhow;
 use opentelemetry::KeyValue;
@@ -312,15 +315,18 @@ enum ApiProtocol {
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
         let api_client_base_url = configured_api_client_base_url(config);
-        let http = crate::net::http_client::default_client(config.model_url_skip_tls_check)?;
+        let api_url = api_client_base_url
+            .clone()
+            .unwrap_or_else(|| config.model_url.clone());
+        let api_url = preferred_loopback_url_for_local_endpoint(&api_url).unwrap_or(api_url);
+        let http =
+            crate::net::http_client::model_client(&api_url, config.model_url_skip_tls_check)?;
         Ok(Self {
             http,
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            api_url: api_client_base_url
-                .clone()
-                .unwrap_or_else(|| config.model_url.clone()),
+            api_url,
             api_client_explicit_protocol: config.api_client.explicit_protocol,
             model_backend: config.model_backend,
             model_protocol: config

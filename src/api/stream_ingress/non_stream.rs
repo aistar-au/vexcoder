@@ -1,5 +1,5 @@
-use super::{LOCAL_NON_STREAM_FALLBACK_TIMEOUT, protocol_name, retry_local_connect_errors};
-use crate::api::client::{api_request_timeout_error, map_api_request_error, map_api_status_error};
+use super::{protocol_name, retry_local_connect_errors};
+use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::logging::{debug_payload_enabled, emit_log_value};
 use crate::api::stream::StreamParser;
 use crate::runtime::backend::SignalStream;
@@ -21,11 +21,6 @@ pub(super) async fn create_non_stream_fallback_stream(
     let fallback_start = Instant::now();
     let request_url_for_logs = crate::runtime::rewrite_url_for_logs(request_url);
     let is_local_endpoint = crate::util::is_local_endpoint_url(request_url);
-    let local_timeout_ms = if is_local_endpoint {
-        LOCAL_NON_STREAM_FALLBACK_TIMEOUT.as_millis() as u64
-    } else {
-        0
-    };
     let mut request_headers = headers.clone();
     request_headers.insert(
         reqwest::header::ACCEPT,
@@ -40,7 +35,6 @@ pub(super) async fn create_non_stream_fallback_stream(
         fallback_reason = fallback_reason,
         protocol = ?protocol,
         local_endpoint = is_local_endpoint,
-        local_timeout_ms,
         "issuing non-streaming fallback request"
     );
     if debug_payload_enabled() {
@@ -51,7 +45,6 @@ pub(super) async fn create_non_stream_fallback_stream(
             "protocol": protocol_name(protocol),
             "fallback_reason": fallback_reason,
             "local_endpoint": is_local_endpoint,
-            "local_timeout_ms": local_timeout_ms,
         }));
     }
 
@@ -81,24 +74,9 @@ pub(super) async fn create_non_stream_fallback_stream(
             }
         });
 
-    let (status, retry_after, body) = if is_local_endpoint {
-        match tokio::time::timeout(LOCAL_NON_STREAM_FALLBACK_TIMEOUT, request_future).await {
-            Ok(result) => result.map_err(|error| map_api_request_error(error, request_url))?,
-            Err(_) => {
-                return Err(api_request_timeout_error(
-                    request_url,
-                    &format!(
-                        "local non-stream fallback exceeded {} ms",
-                        LOCAL_NON_STREAM_FALLBACK_TIMEOUT.as_millis()
-                    ),
-                ));
-            }
-        }
-    } else {
-        request_future
-            .await
-            .map_err(|error| map_api_request_error(error, request_url))?
-    };
+    let (status, retry_after, body) = request_future
+        .await
+        .map_err(|error| map_api_request_error(error, request_url))?;
 
     let latency_ms = fallback_start.elapsed().as_millis() as u64;
 

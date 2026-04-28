@@ -108,6 +108,20 @@ pub fn preferred_plain_http_url_for_local_endpoint(url: &str) -> Option<String> 
     Some(adapted.to_string())
 }
 
+pub fn preferred_loopback_url_for_local_endpoint(url: &str) -> Option<String> {
+    let parsed = Url::parse(url.trim()).ok()?;
+    if parsed.host_str()? != "0.0.0.0" {
+        return None;
+    }
+    if !is_local_endpoint_url(url) {
+        return None;
+    }
+
+    let mut adapted = parsed;
+    adapted.set_host(Some("127.0.0.1")).ok()?;
+    Some(adapted.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +181,28 @@ mod tests {
         );
         assert!(
             preferred_plain_http_url_for_local_endpoint("https://api.example.com/v1/messages")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_preferred_loopback_url_for_wildcard_local_endpoint() {
+        let adapted =
+            preferred_loopback_url_for_local_endpoint(" http://0.0.0.0:8000/v1/messages ");
+        assert_eq!(
+            adapted.as_deref(),
+            Some("http://127.0.0.1:8000/v1/messages")
+        );
+    }
+
+    #[test]
+    fn test_preferred_loopback_url_ignores_non_wildcard_hosts() {
+        assert!(
+            preferred_loopback_url_for_local_endpoint("http://127.0.0.1:8000/v1/messages")
+                .is_none()
+        );
+        assert!(
+            preferred_loopback_url_for_local_endpoint("https://api.example.com/v1/messages")
                 .is_none()
         );
     }

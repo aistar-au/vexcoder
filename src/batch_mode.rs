@@ -274,6 +274,13 @@ impl BatchMode {
             self.current_turn_command_history.push(evidence);
         }
     }
+
+    fn sanitize_buffered_response_for_tool_call(&mut self) {
+        let sanitized = crate::runtime::policy::sanitize_assistant_text(&self.current_response);
+        if sanitized != self.current_response {
+            self.current_response = sanitized;
+        }
+    }
 }
 
 fn resolve_batch_project_instructions(config: &Config) -> (Option<String>, Option<String>) {
@@ -354,6 +361,7 @@ impl RuntimeMode for BatchMode {
                 StreamBlock::ToolCall {
                     id, name, input, ..
                 } => {
+                    self.sanitize_buffered_response_for_tool_call();
                     self.pending_tool_calls
                         .insert(id, PendingToolCall { name, input });
                 }

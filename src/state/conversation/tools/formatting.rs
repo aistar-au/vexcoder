@@ -30,6 +30,198 @@ pub(crate) fn tool_input_preview(tool_name: &str, input: &serde_json::Value) -> 
     )
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TaggedToolCall {
+    pub(crate) name: String,
+    pub(crate) input: serde_json::Value,
+}
+
+pub(crate) fn parse_tagged_tool_calls(text: &str) -> Vec<TaggedToolCall> {
+    let mut calls = Vec::new();
+    let mut cursor = 0usize;
+
+    while let Some(function_rel) = text[cursor..].find("<function=") {
+        let function_start = cursor + function_rel;
+        let name_start = function_start + "<function=".len();
+        let Some(name_end_rel) = text[name_start..].find('>') else {
+            break;
+        };
+        let name_end = name_start + name_end_rel;
+        let function_name = text[name_start..name_end]
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
+
+        let body_start = name_end + 1;
+        let (body_end, next_cursor) = find_function_body_bounds(text, body_start);
+        let body = &text[body_start..body_end];
+
+        let input = parse_tagged_parameters(body);
+
+        if !function_name.is_empty() {
+            calls.push(TaggedToolCall {
+                name: function_name,
+                input: serde_json::Value::Object(input),
+            });
+        }
+
+        cursor = next_cursor.max(function_start + 1);
+    }
+
+    calls
+}
+
+pub(crate) fn dedupe_tagged_tool_calls(calls: Vec<TaggedToolCall>) -> Vec<TaggedToolCall> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut deduped = Vec::new();
+
+    for call in calls {
+        let payload = serde_json::to_string(&call.input).unwrap_or_else(|_| call.input.to_string());
+        let signature = format!("{}:{payload}", call.name);
+        if seen.insert(signature) {
+            deduped.push(call);
+        }
+    }
+
+    deduped
+}
+
+fn find_function_body_bounds(text: &str, body_start: usize) -> (usize, usize) {
+    let function_close = text[body_start..]
+        .find("</function>")
+        .map(|rel| body_start + rel);
+    let next_function = text[body_start..]
+        .find("<function=")
+        .map(|rel| body_start + rel);
+
+    match (function_close, next_function) {
+        (Some(close), Some(next)) if next < close => (next, next),
+        (Some(close), _) => (close, close + "</function>".len()),
+        (None, Some(next)) => (next, next),
+        (None, None) => (text.len(), text.len()),
+    }
+}
+
+fn parse_tagged_parameters(body: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut input = serde_json::Map::new();
+    let mut parameter_cursor = 0usize;
+
+    while let Some(parameter_rel) = body[parameter_cursor..].find("<parameter=") {
+        let parameter_start = parameter_cursor + parameter_rel;
+        let key_start = parameter_start + "<parameter=".len();
+        let Some(key_end_rel) = body[key_start..].find('>') else {
+            break;
+        };
+        let key_end = key_start + key_end_rel;
+        let key = body[key_start..key_end]
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
+
+        let value_start = key_end + 1;
+        let parameter_close = body[value_start..]
+            .find("</parameter>")
+            .map(|rel| value_start + rel);
+        let next_parameter = body[value_start..]
+            .find("<parameter=")
+            .map(|rel| value_start + rel);
+
+        let (value_end, next_cursor) = match (parameter_close, next_parameter) {
+            (Some(close), Some(next)) if next < close => (next, next),
+            (Some(close), _) => (close, close + "</parameter>".len()),
+            (None, Some(next)) => (next, next),
+            (None, None) => (body.len(), body.len()),
+        };
+
+        let value = tagged_parameter_json_value(&body[value_start..value_end]);
+        if !key.is_empty() {
+            input.insert(key, value);
+        }
+
+        parameter_cursor = next_cursor.max(parameter_start + 1);
+    }
+
+    input
+}
+
+fn tagged_parameter_json_value(raw: &str) -> serde_json::Value {
+    let value = normalize_tagged_parameter_value(raw);
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return serde_json::Value::String(value);
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed)
+        && !matches!(parsed, serde_json::Value::String(_))
+    {
+        return parsed;
+    }
+
+    if let Ok(parsed) = trimmed.parse::<u64>() {
+        return serde_json::Value::Number(parsed.into());
+    }
+
+    if let Ok(parsed) = trimmed.parse::<i64>() {
+        return serde_json::Value::Number(parsed.into());
+    }
+
+    if let Ok(parsed) = trimmed.parse::<f64>()
+        && let Some(number) = serde_json::Number::from_f64(parsed)
+    {
+        return serde_json::Value::Number(number);
+    }
+
+    serde_json::Value::String(value)
+}
+
+fn normalize_tagged_parameter_value(raw: &str) -> String {
+    let mut value = raw.replace("\r\n", "\n");
+    if value.starts_with('\n') {
+        value.remove(0);
+    }
+    if value.ends_with('\n') {
+        value.pop();
+    }
+    value
+}
+
+pub(crate) fn render_tool_calls_for_text_protocol(blocks: &[ContentBlock]) -> String {
+    let mut out = String::new();
+    for block in blocks {
+        if let ContentBlock::ToolUse { name, input, .. } = block {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&format!("<function={name}>\n"));
+
+            if let Some(obj) = input.as_object() {
+                let mut keys: Vec<_> = obj.keys().collect();
+                keys.sort_unstable();
+                for key in keys {
+                    let value = obj
+                        .get(key)
+                        .map(json_value_to_text_protocol_value)
+                        .unwrap_or_default();
+                    out.push_str(&format!("<parameter={key}>\n{value}\n</parameter>\n"));
+                }
+            }
+
+            out.push_str("</function>");
+        }
+    }
+    out
+}
+
+fn json_value_to_text_protocol_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        _ => value.to_string(),
+    }
+}
+
 pub(crate) fn render_loop_limit_guard_message(
     last_assistant_text: &str,
     max_rounds: usize,
@@ -188,4 +380,27 @@ pub(crate) fn builtin_supported_git_tools_response(input: &str) -> Option<String
         "Built-in git tools available here: git_status, git_diff, git_log, git_show, git_add, git_commit."
             .to_string(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_tagged_tool_calls_coerces_numeric_parameters() {
+        let calls = parse_tagged_tool_calls(
+            "<function=read_file>\n<parameter=path>file.txt</parameter>\n<parameter=offset>50</parameter>\n<parameter=limit>200</parameter>\n</function>",
+        );
+
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].input,
+            json!({
+                "path": "file.txt",
+                "offset": 50,
+                "limit": 200,
+            })
+        );
+    }
 }

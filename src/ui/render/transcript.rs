@@ -537,11 +537,15 @@ fn collapse_file_blocks_for_display(text: &str) -> String {
 }
 
 fn word_wrap_transcript_row(row: &TranscriptRow, cols: usize) -> Vec<String> {
-    if is_structural_transcript_row(row) {
+    if matches!(row, TranscriptRow::WaitingPlaceholder(_)) {
         return vec![row.as_display_str().to_string()];
     }
     let text = row.as_display_str();
-    word_wrap_plain_row(text, cols)
+    let wrap_cols = transcript_row_wrap_width(row, cols);
+    if display_width(text) <= wrap_cols || is_structural_transcript_row(row) {
+        return vec![text.to_string()];
+    }
+    word_wrap_plain_row(text, wrap_cols)
 }
 
 fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
@@ -556,16 +560,54 @@ fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
 
 fn is_structural_transcript_row(row: &TranscriptRow) -> bool {
     match row {
+        TranscriptRow::WaitingPlaceholder(_) => true,
+
         TranscriptRow::ToolHeader(_)
         | TranscriptRow::ToolDetail(_)
         | TranscriptRow::Evidence(_)
         | TranscriptRow::Error(_)
-        | TranscriptRow::UserInput(_)
-        | TranscriptRow::WaitingPlaceholder(_) => true,
+        | TranscriptRow::UserInput(_) => false,
 
         TranscriptRow::Plain(s) => is_structural_plain_str(s),
 
         TranscriptRow::AssistantText { .. } => false,
+    }
+}
+
+fn transcript_row_wrap_width(row: &TranscriptRow, cols: usize) -> usize {
+    cols.saturating_sub(transcript_row_prefix_width(row)).max(1)
+}
+
+fn transcript_row_prefix_width(row: &TranscriptRow) -> usize {
+    match row {
+        TranscriptRow::ToolHeader(_) => display_width("  \u{2726} "),
+        TranscriptRow::ToolDetail(_) => display_width("    "),
+        TranscriptRow::Evidence(_) => display_width("      \u{2727} "),
+        TranscriptRow::Error(_) => display_width("  \u{2716} "),
+        TranscriptRow::UserInput(_) => display_width("> "),
+        TranscriptRow::Plain(line) => plain_row_prefix_width(line),
+        TranscriptRow::AssistantText { .. } | TranscriptRow::WaitingPlaceholder(_) => 0,
+    }
+}
+
+fn plain_row_prefix_width(line: &str) -> usize {
+    if line.strip_prefix("[approval] ").is_some() {
+        display_width("  ? ")
+    } else if line.strip_prefix("[approval_detail] ").is_some() {
+        display_width("    ")
+    } else if parse_command_session_started(line).is_some() {
+        display_width("  \u{2726} ")
+    } else if line.strip_prefix("[command session exit: ").is_some()
+        || line == "[command session cancelled]"
+        || line == "[command session cancellation requested]"
+    {
+        display_width("    ")
+    } else if line.strip_prefix("[command session] error: ").is_some() {
+        display_width("  \u{2716} ")
+    } else if line.strip_prefix("[stderr] ").is_some() {
+        display_width("      \u{2727} ")
+    } else {
+        0
     }
 }
 
@@ -668,4 +710,49 @@ pub(crate) fn is_horizontal_rule(line: &str) -> bool {
     let mark_count = trimmed.chars().filter(|ch| *ch as u8 == first).count();
     let space_count = trimmed.chars().filter(|ch| *ch == ' ').count();
     mark_count >= 3 && mark_count + space_count == trimmed.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rendered_width(row: &TranscriptRow) -> usize {
+        let line = transcript_output_line(row);
+        let text = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        display_width(&text)
+    }
+
+    #[test]
+    fn expand_rows_wraps_tool_detail_to_visual_width() {
+        let rows = vec![TranscriptRow::ToolDetail(
+            "Input: query: <missing> adjacent sectors after finding release workflow".to_string(),
+        )];
+
+        let expanded = expand_rows_for_display(&rows, 24);
+
+        assert!(
+            expanded.len() > 1,
+            "tool detail should wrap for inline scrollback"
+        );
+        assert!(expanded.iter().all(|row| rendered_width(row) <= 24));
+    }
+
+    #[test]
+    fn expand_rows_wraps_tool_header_to_visual_width() {
+        let rows = vec![TranscriptRow::ToolHeader(
+            "search_files · .github/workflows/release.yml · Response complete.".to_string(),
+        )];
+
+        let expanded = expand_rows_for_display(&rows, 28);
+
+        assert!(
+            expanded.len() > 1,
+            "tool header should wrap for inline scrollback"
+        );
+        assert!(expanded.iter().all(|row| rendered_width(row) <= 28));
+    }
 }

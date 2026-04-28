@@ -50,3 +50,22 @@ fn history_status_uses_visual_row_count() {
     mode.push_document_notice("a\nb\nc".to_string(), NoticeSeverity::Info);
     assert!(mode.status_line().contains("history:3"));
 }
+
+#[test]
+fn error_clears_active_pulse_and_allows_next_turn() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect release notes".to_string(), &mut ctx);
+    assert!(mode.is_pulse_in_progress());
+
+    mode.on_model_update(
+        UiUpdate::Error("request exceeded context window".to_string()),
+        &mut ctx,
+    );
+
+    assert!(!mode.is_pulse_in_progress());
+
+    mode.on_user_input("retry with narrower scope".to_string(), &mut ctx);
+    assert!(mode.is_pulse_in_progress());
+}

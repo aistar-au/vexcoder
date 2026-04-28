@@ -99,10 +99,10 @@ use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
 use self::scroll::{RenderGuard, input_rows_for_buffer};
 use self::util::{
-    builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
-    list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
-    resolve_repo_label, run_validation_suite_capture, sanitize_task_label, scope_to_label,
-    shell_command_request,
+    builtin_slash_command_names, capability_for_tool_name, format_inline_block,
+    format_inline_reference, kebab_to_scope, list_recent_task_entries, new_task_id,
+    parse_generate_tests_args, parse_review_args, resolve_repo_label, run_validation_suite_capture,
+    sanitize_task_label, scope_to_label, shell_command_request,
 };
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
@@ -248,7 +248,7 @@ pub struct TaskLayoutState {
 #[derive(Clone, Debug, Default)]
 pub struct TaskViewProjection {
     pub status_line: String,
-    pub output_rows: Vec<TranscriptRow>,
+    pub expanded_output_rows: std::sync::Arc<[TranscriptRow]>,
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub composer_text: String,
@@ -258,10 +258,13 @@ pub struct TaskViewProjection {
 }
 
 impl TaskLayoutState {
-    pub fn into_view_projection(self) -> TaskViewProjection {
+    pub fn into_view_projection(
+        self,
+        expanded_output_rows: std::sync::Arc<[TranscriptRow]>,
+    ) -> TaskViewProjection {
         TaskViewProjection {
             status_line: self.status_line,
-            output_rows: self.output_rows,
+            expanded_output_rows,
             output_scroll_offset: self.output_scroll_offset,
             output_scroll_anchor: self.output_scroll_anchor,
             composer_text: self.composer_text,
