@@ -5,6 +5,10 @@ fn missing_read_only_location_prompt_requires_explicit_paths() {
     let prompt = missing_read_only_location_prompt("read_file", &json!({}))
         .expect("must prompt for missing path");
     assert!(prompt.contains("explicit file path") && prompt.contains("[file: ...]"));
+    assert!(
+        !prompt.contains("src/main.rs"),
+        "missing-path guidance should not anchor the model on an unrelated example path"
+    );
     assert!(missing_read_only_location_prompt("read_file", &json!({"path":"   "})).is_some());
     assert!(
         missing_read_only_location_prompt("read_file", &json!({"path":"src/calculator.rs"}))

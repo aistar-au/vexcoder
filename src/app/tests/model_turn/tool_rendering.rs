@@ -100,3 +100,74 @@ fn verb_first_read_file_renders_path_in_label() {
         "tool call label must include file path; lines: {lines:?}"
     );
 }
+
+#[test]
+fn structured_final_text_reuses_provisional_stream_delta_block() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("answer once".to_string(), &mut ctx);
+
+    mode.on_model_update(UiUpdate::StreamDelta("Hello".to_string()), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: "Hello".to_string(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
+
+    let assistant_lines: Vec<_> = mode
+        .history_lines()
+        .into_iter()
+        .filter(|line| line.contains("Hello"))
+        .collect();
+    assert_eq!(
+        assistant_lines,
+        vec!["Hello".to_string()],
+        "structured final text must not duplicate provisional stream deltas"
+    );
+}
+
+#[test]
+fn tagged_tool_call_scrubs_raw_streamed_markup_from_transcript() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("inspect release workflow".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::StreamDelta(
+            "I need to inspect it.\n<function=read_file>\n<parameter=path>\n.github/workflows/release.yml\n</parameter>\n</function>"
+                .to_string(),
+        ),
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-read".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path": ".github/workflows/release.yml"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    let lines = mode.history_lines();
+    assert!(
+        !lines.iter().any(|line| line.contains("<function=read_file>")),
+        "raw tagged tool markup must be removed once a tool call block exists; lines: {lines:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("<parameter=path>")),
+        "raw tagged parameter markup must be removed once a tool call block exists; lines: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains(".github/workflows/release.yml")),
+        "the materialized tool call should still retain the explicit file path; lines: {lines:?}"
+    );
+}
