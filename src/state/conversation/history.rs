@@ -40,7 +40,8 @@ impl ConversationManager {
         }
 
         let len = self.api_messages.len();
-        let mut keep_start = len.saturating_sub(max_api_messages);
+        let target_keep_start = len.saturating_sub(max_api_messages);
+        let mut keep_start = target_keep_start;
 
         while keep_start < len {
             let message = &self.api_messages[keep_start];
@@ -51,8 +52,7 @@ impl ConversationManager {
         }
 
         if keep_start >= len {
-            self.api_messages.clear();
-            return;
+            keep_start = target_keep_start;
         }
 
         if keep_start > 0 {
@@ -81,6 +81,7 @@ impl ConversationManager {
         } else {
             target_keep_start
         };
+        let fallback_keep_start = keep_start;
 
         while keep_start < len {
             if keep_preserve_anchor && keep_start == preserve_index {
@@ -94,8 +95,7 @@ impl ConversationManager {
         }
 
         if keep_start >= len {
-            self.api_messages.clear();
-            return 0;
+            keep_start = fallback_keep_start.min(len.saturating_sub(1));
         }
 
         if keep_start > 0 {
@@ -107,12 +107,18 @@ impl ConversationManager {
     }
 
     pub(super) fn compact_for_context_overflow(&mut self) {
-        const KEEP_MESSAGES: usize = 4;
-        if self.api_messages.len() <= KEEP_MESSAGES {
+        self.compact_for_context_overflow_with_keep(4);
+    }
+
+    pub(super) fn compact_for_context_overflow_with_keep(&mut self, keep_messages: usize) {
+        let keep_messages = keep_messages.max(1);
+        self.condense_all_tool_results_for_overflow();
+        if self.api_messages.len() <= keep_messages {
             return;
         }
         let len = self.api_messages.len();
-        let mut keep_start = len.saturating_sub(KEEP_MESSAGES);
+        let target_keep_start = len.saturating_sub(keep_messages);
+        let mut keep_start = target_keep_start;
 
         while keep_start < len {
             let msg = &self.api_messages[keep_start];
@@ -122,8 +128,34 @@ impl ConversationManager {
             keep_start += 1;
         }
 
+        if keep_start >= len {
+            keep_start = target_keep_start;
+        }
+
         if keep_start > 0 && keep_start < len {
             self.api_messages.drain(0..keep_start);
+        }
+    }
+
+    fn condense_all_tool_results_for_overflow(&mut self) {
+        for message in &mut self.api_messages {
+            if message.role != "user" {
+                continue;
+            }
+            match &mut message.content {
+                Content::Blocks(blocks) => {
+                    for block in blocks.iter_mut() {
+                        if let ContentBlock::ToolResult { content, .. } = block {
+                            *content = truncate_to_lines(content, CONDENSED_TOOL_RESULT_LINES);
+                        }
+                    }
+                }
+                Content::Text(text) => {
+                    if text_protocol_tool_result_message(text) {
+                        *text = condense_text_protocol_tool_results(text);
+                    }
+                }
+            }
         }
     }
 
@@ -330,8 +362,15 @@ pub(super) fn message_contains_tool_result(message: &ApiMessage) -> bool {
         Content::Blocks(blocks) => blocks
             .iter()
             .any(|block| matches!(block, ContentBlock::ToolResult { .. })),
-        Content::Text(_) => false,
+        Content::Text(text) => text_protocol_tool_result_message(text),
     }
+}
+
+fn text_protocol_tool_result_message(text: &str) -> bool {
+    text.lines().any(|line| {
+        let trimmed = line.trim_start();
+        trimmed.starts_with("tool_result ") || trimmed.starts_with("tool_error ")
+    })
 }
 
 pub(super) fn resolve_history_limits(is_local_endpoint: bool) -> HistoryLimits {

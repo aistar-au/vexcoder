@@ -59,7 +59,7 @@ impl ConversationManager {
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
-        let mut overflow_retry_used = false;
+        let mut overflow_retry_count = 0usize;
         self.condense_old_tool_results(history_keep_turns);
 
         let ctx_window = self.client.context_window_tokens();
@@ -101,18 +101,30 @@ impl ConversationManager {
             }
 
             let mut stream = match self.client.create_stream(&self.api_messages).await {
-                Ok(s) => s,
+                Ok(s) => {
+                    overflow_retry_count = 0;
+                    s
+                }
                 Err(e)
-                    if !overflow_retry_used
+                    if overflow_retry_count < 3
                         && crate::api::client::is_context_overflow(&e.to_string()) =>
                 {
+                    let keep_messages = match overflow_retry_count {
+                        0 => 4,
+                        1 => 2,
+                        _ => 1,
+                    };
                     let before = self.api_messages.len();
-                    self.compact_for_context_overflow();
+                    if overflow_retry_count == 0 {
+                        self.compact_for_context_overflow();
+                    } else {
+                        self.compact_for_context_overflow_with_keep(keep_messages);
+                    }
                     let after = self.api_messages.len();
-                    overflow_retry_used = true;
+                    overflow_retry_count += 1;
                     let summary = format!(
-                        "compacted {} → {} messages to fit server window",
-                        before, after
+                        "compacted {} → {} messages to fit server window (keep {})",
+                        before, after, keep_messages
                     );
                     emit_text_update(
                         stream_delta_tx,

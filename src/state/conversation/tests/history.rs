@@ -22,6 +22,74 @@ impl MockStreamProducer for OverflowThenSuccessProducer {
     }
 }
 
+#[derive(Clone)]
+struct ToolCallThenOverflowUntilMessageCountProducer {
+    calls: Arc<std::sync::Mutex<usize>>,
+    max_messages: usize,
+    initial: MockApiClient,
+    success: MockApiClient,
+}
+
+impl MockStreamProducer for ToolCallThenOverflowUntilMessageCountProducer {
+    fn create_mock_stream(&self, messages: &[ApiMessage]) -> anyhow::Result<SignalStream> {
+        let mut calls = self.calls.lock().unwrap();
+        *calls += 1;
+        if *calls == 1 {
+            return self.initial.create_mock_stream(messages);
+        }
+        if messages.len() > self.max_messages {
+            return Err(anyhow::anyhow!(
+                "request exceeds the available context size (8192 tokens)"
+            ));
+        }
+        self.success.create_mock_stream(messages)
+    }
+}
+
+#[derive(Clone)]
+struct MultiRoundOverflowProducer {
+    calls: Arc<std::sync::Mutex<usize>>,
+}
+
+impl MockStreamProducer for MultiRoundOverflowProducer {
+    fn create_mock_stream(&self, messages: &[ApiMessage]) -> anyhow::Result<SignalStream> {
+        let mut calls = self.calls.lock().unwrap();
+        *calls += 1;
+        match *calls {
+            1 => tagged_text_tool_call_stream(messages, "file1.txt"),
+            2 => overflow_error(),
+            3 => tagged_text_tool_call_stream(messages, "file2.txt"),
+            4 => overflow_error(),
+            5 => tagged_text_tool_call_stream(messages, "file3.txt"),
+            6 => overflow_error(),
+            7 => tagged_text_tool_call_stream(messages, "file4.txt"),
+            8 => overflow_error(),
+            9 => text_response_stream(messages, "done"),
+            _ => unreachable!("unexpected create_stream call count"),
+        }
+    }
+}
+
+fn tagged_text_tool_call_stream(messages: &[ApiMessage], path: &str) -> anyhow::Result<SignalStream> {
+    MockApiClient::new(vec![vec![format!(
+        r#"data: {{"choices":[{{"delta":{{"content":"<function=read_file>\n<parameter=path>{path}</parameter>\n</function>"}},"finish_reason":"stop"}}]}}"#
+    )]])
+    .create_mock_stream(messages)
+}
+
+fn text_response_stream(messages: &[ApiMessage], text: &str) -> anyhow::Result<SignalStream> {
+    MockApiClient::new(vec![vec![format!(
+        r#"data: {{"choices":[{{"delta":{{"content":"{text}"}},"finish_reason":"stop"}}]}}"#
+    )]])
+    .create_mock_stream(messages)
+}
+
+fn overflow_error() -> anyhow::Result<SignalStream> {
+    Err(anyhow::anyhow!(
+        "request exceeds the available context size (8192 tokens)"
+    ))
+}
+
 #[test]
 fn tool_result_signal_uses_recorded_start_time() {
     let mut manager = ConversationManager::new_mock(
@@ -194,6 +262,113 @@ fn compact_for_context_overflow_keeps_recent_messages_and_is_noop_when_small() {
     assert_eq!(manager.api_messages.len(), before);
 }
 
+#[test]
+fn text_protocol_tool_results_count_as_tool_result_messages() {
+    let message = ApiMessage {
+        role: "user".to_string(),
+        content: Content::Text(
+            "tool_result read_file:\nRead foo.rs: 10 chars, 2 lines.".to_string(),
+        ),
+        cache_hint: None,
+    };
+
+    assert!(message_contains_tool_result(&message));
+}
+
+#[test]
+fn history_pruning_and_overflow_compaction_fallback_to_recent_tool_window() {
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        ))),
+        executor,
+    );
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("original prompt".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk one".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk two".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk three".to_string()),
+            cache_hint: None,
+        },
+    ];
+
+    manager.prune_message_history(4);
+    assert_eq!(manager.api_messages.len(), 4);
+    assert_eq!(manager.api_messages[0].role, "assistant");
+
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("original prompt".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk one".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk two".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("<function=read_file>".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("tool_result read_file:\nchunk three".to_string()),
+            cache_hint: None,
+        },
+    ];
+
+    manager.compact_for_context_overflow();
+    assert_eq!(manager.api_messages.len(), 4);
+    assert_eq!(manager.api_messages[0].role, "assistant");
+}
+
 #[tokio::test]
 async fn context_overflow_retries_even_after_proactive_compaction() -> Result<()> {
     let calls = Arc::new(std::sync::Mutex::new(0));
@@ -234,6 +409,65 @@ async fn context_overflow_retries_even_after_proactive_compaction() -> Result<()
 
     assert_eq!(result, "done");
     assert_eq!(*calls.lock().unwrap(), 2, "must retry once after overflow");
+    Ok(())
+}
+
+#[tokio::test]
+async fn context_overflow_retries_with_smaller_keep_window_when_needed() -> Result<()> {
+    let calls = Arc::new(std::sync::Mutex::new(0));
+    let initial = MockApiClient::new(vec![vec![
+        r#"data: {"choices":[{"delta":{"content":"<function=read_file>\n<parameter=path>file.txt</parameter>\n</function>"},"finish_reason":"stop"}]}"#.to_string(),
+    ]]);
+    let success = MockApiClient::new(vec![vec![
+        r#"data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}"#.to_string(),
+    ]]);
+    let client = ApiClient::new_mock(Arc::new(ToolCallThenOverflowUntilMessageCountProducer {
+        calls: Arc::clone(&calls),
+        max_messages: 2,
+        initial,
+        success,
+    }));
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert("file.txt".to_string(), "hello".to_string());
+    let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+
+    let result = manager
+        .send_message("What is in file.txt?".to_string(), None)
+        .await?;
+
+    assert_eq!(result, "done");
+    assert_eq!(
+        *calls.lock().unwrap(),
+        4,
+        "must retry again with a smaller keep window after the first overflow compaction"
+    );
+    assert!(manager.api_messages.len() <= 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn context_overflow_retries_reset_after_successful_tool_rounds() -> Result<()> {
+    let calls = Arc::new(std::sync::Mutex::new(0));
+    let client = ApiClient::new_mock(Arc::new(MultiRoundOverflowProducer {
+        calls: Arc::clone(&calls),
+    }));
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert("file1.txt".to_string(), "one".to_string());
+    mock_tool_responses.insert("file2.txt".to_string(), "two".to_string());
+    mock_tool_responses.insert("file3.txt".to_string(), "three".to_string());
+    mock_tool_responses.insert("file4.txt".to_string(), "four".to_string());
+    let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+
+    let result = manager
+        .send_message("What is in file1.txt?".to_string(), None)
+        .await?;
+
+    assert_eq!(result, "done");
+    assert_eq!(
+        *calls.lock().unwrap(),
+        9,
+        "each successful tool round must restore overflow retry budget for the next round"
+    );
     Ok(())
 }
 
