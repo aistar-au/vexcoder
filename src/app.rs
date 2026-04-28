@@ -248,7 +248,7 @@ pub struct TaskLayoutState {
 #[derive(Clone, Debug, Default)]
 pub struct TaskViewProjection {
     pub status_line: String,
-    pub output_rows: Vec<TranscriptRow>,
+    pub expanded_output_rows: std::sync::Arc<[TranscriptRow]>,
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub composer_text: String,
@@ -258,10 +258,13 @@ pub struct TaskViewProjection {
 }
 
 impl TaskLayoutState {
-    pub fn into_view_projection(self) -> TaskViewProjection {
+    pub fn into_view_projection(
+        self,
+        expanded_output_rows: std::sync::Arc<[TranscriptRow]>,
+    ) -> TaskViewProjection {
         TaskViewProjection {
             status_line: self.status_line,
-            output_rows: self.output_rows,
+            expanded_output_rows,
             output_scroll_offset: self.output_scroll_offset,
             output_scroll_anchor: self.output_scroll_anchor,
             composer_text: self.composer_text,

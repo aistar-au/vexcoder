@@ -323,20 +323,22 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
         ),
     );
 
-    let expanded_output_rows = expand_rows_for_display(&state.output_rows, frame_area.width);
     const STATUS_ROWS: u16 = 1;
     let available_output = frame_area
         .height
         .saturating_sub(STATUS_ROWS)
         .saturating_sub(input_rows);
-    let (output_start, output_end) =
-        task_output_window_with_total(state, expanded_output_rows.len(), available_output as usize);
+    let (output_start, output_end) = task_output_window_with_total(
+        state,
+        state.expanded_output_rows.len(),
+        available_output as usize,
+    );
     let visible_rows = (output_end - output_start) as u16;
     let layout = split_compact_task_layout(frame_area, STATUS_ROWS, visible_rows, input_rows);
     frame.render_widget(Clear, frame_area);
     render_status_line(frame, layout.header, &state.status_line);
 
-    let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
+    let output_lines: Vec<Line> = state.expanded_output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))
         .collect();

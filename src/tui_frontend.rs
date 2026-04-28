@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::ops::Range;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::app::{
@@ -43,7 +44,7 @@ struct InlineScrollbackSnapshot {
     task_id: String,
     area: Rect,
     visible_start: usize,
-    expanded_output_rows: Vec<crate::app::TranscriptRow>,
+    expanded_output_rows: Arc<[crate::app::TranscriptRow]>,
 }
 
 impl ManagedTuiFrontend {
@@ -67,10 +68,15 @@ impl ManagedTuiFrontend {
         })
     }
 
-    fn maybe_insert_task_scrollback(&mut self, state: &crate::app::TaskLayoutState, area: Rect) {
+    fn maybe_insert_task_scrollback(
+        &mut self,
+        state: &crate::app::TaskLayoutState,
+        expanded_output_rows: Arc<[crate::app::TranscriptRow]>,
+        area: Rect,
+    ) {
         let current = state
             .follow_mode
-            .then(|| build_inline_scrollback_snapshot(state, area));
+            .then(|| build_inline_scrollback_snapshot(state, expanded_output_rows, area));
 
         if let (Some(previous), Some(current)) = (self.inline_scrollback.as_ref(), current.as_ref())
             && let Some((start, end)) = inline_rows_to_insert(previous, current)
@@ -552,8 +558,15 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
-            self.maybe_insert_task_scrollback(&task_state, display_area);
-            let view = task_state.into_view_projection();
+            let expanded_output_rows = Arc::<[crate::app::TranscriptRow]>::from(
+                expand_rows_for_display(&task_state.output_rows, display_area.width),
+            );
+            self.maybe_insert_task_scrollback(
+                &task_state,
+                expanded_output_rows.clone(),
+                display_area,
+            );
+            let view = task_state.into_view_projection(expanded_output_rows);
             let _ = self.tui.draw(|frame| {
                 render_task_layout(frame, &view);
                 let area = frame.area();
@@ -637,6 +650,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
 fn build_inline_scrollback_snapshot(
     state: &crate::app::TaskLayoutState,
+    expanded_output_rows: Arc<[crate::app::TranscriptRow]>,
     area: Rect,
 ) -> InlineScrollbackSnapshot {
     let input_width = area.width.saturating_sub(2).max(1) as usize;
@@ -645,7 +659,6 @@ fn build_inline_scrollback_snapshot(
         area.height,
         desired_input_rows.min(u16::MAX as usize) as u16,
     );
-    let expanded_output_rows = expand_rows_for_display(&state.output_rows, area.width);
     let available_output = area.height.saturating_sub(1).saturating_sub(input_rows) as usize;
     let total = expanded_output_rows.len();
     let max_offset = total.saturating_sub(available_output);
@@ -735,13 +748,14 @@ mod tests {
                 crate::app::TranscriptRow::Plain("c".to_string()),
                 crate::app::TranscriptRow::Plain("d".to_string()),
                 crate::app::TranscriptRow::Plain("e".to_string()),
-            ],
+            ]
+            .into(),
         };
         let current = InlineScrollbackSnapshot {
             task_id: "task-1".to_string(),
             area: Rect::new(0, 0, 80, 20),
             visible_start: 4,
-            expanded_output_rows: vec![],
+            expanded_output_rows: vec![].into(),
         };
 
         assert_eq!(inline_rows_to_insert(&previous, &current), Some((2, 4)));
@@ -753,19 +767,19 @@ mod tests {
             task_id: "task-1".to_string(),
             area: Rect::new(0, 0, 80, 20),
             visible_start: 3,
-            expanded_output_rows: vec![crate::app::TranscriptRow::Plain("a".to_string())],
+            expanded_output_rows: vec![crate::app::TranscriptRow::Plain("a".to_string())].into(),
         };
         let resized = InlineScrollbackSnapshot {
             task_id: "task-1".to_string(),
             area: Rect::new(0, 0, 100, 20),
             visible_start: 4,
-            expanded_output_rows: vec![],
+            expanded_output_rows: vec![].into(),
         };
         let same_window = InlineScrollbackSnapshot {
             task_id: "task-1".to_string(),
             area: Rect::new(0, 0, 80, 20),
             visible_start: 3,
-            expanded_output_rows: vec![],
+            expanded_output_rows: vec![].into(),
         };
 
         assert_eq!(inline_rows_to_insert(&previous, &resized), None);
