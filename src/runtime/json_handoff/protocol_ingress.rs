@@ -360,7 +360,7 @@ impl RuntimeEnvelopeNormalizer {
             self.protocol_ingress
                 .tagged_text_normalisers
                 .entry(index)
-                .or_insert_with(StreamTextNormaliser::new);
+                .or_default();
         }
         envelopes.extend(
             self.normalize_ui_update(&super::UiUpdate::StreamBlockStart { index, block }, None),
@@ -459,7 +459,7 @@ impl RuntimeEnvelopeNormalizer {
             .protocol_ingress
             .tagged_text_normalisers
             .entry(index)
-            .or_insert_with(StreamTextNormaliser::new)
+            .or_default()
             .normalise(delta);
         self.emit_normalised_provider_chunks(index, chunks)
     }
