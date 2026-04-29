@@ -808,13 +808,29 @@ impl RuntimeEnvelopeNormalizer {
                     state.id.clone()
                 };
                 state.lifecycle = ToolCallLifecycle::Opened;
+                // Try materialized args first, then attempt to parse any accumulated
+                // pending_arguments string as complete JSON (handles the case where the
+                // server sends name and arguments in the same SSE delta). If pending
+                // args parse successfully, clear them to prevent re-emission as a delta.
+                let input = state
+                    .materialized_arguments
+                    .take()
+                    .or_else(|| {
+                        if state.pending_arguments.is_empty() {
+                            return None;
+                        }
+                        serde_json::from_str::<serde_json::Value>(&state.pending_arguments)
+                            .ok()
+                            .map(|parsed| {
+                                state.pending_arguments.clear();
+                                parsed
+                            })
+                    })
+                    .unwrap_or_else(empty_json_object);
                 ProviderContentBlock::ToolUse {
                     id,
                     name: state.name.clone(),
-                    input: state
-                        .materialized_arguments
-                        .take()
-                        .unwrap_or_else(empty_json_object),
+                    input,
                 }
             });
 
