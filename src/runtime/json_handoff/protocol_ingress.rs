@@ -821,9 +821,8 @@ impl RuntimeEnvelopeNormalizer {
                         }
                         serde_json::from_str::<serde_json::Value>(&state.pending_arguments)
                             .ok()
-                            .map(|parsed| {
+                            .inspect(|_| {
                                 state.pending_arguments.clear();
-                                parsed
                             })
                     })
                     .unwrap_or_else(empty_json_object);
