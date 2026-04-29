@@ -290,6 +290,23 @@ impl ConversationManager {
                             );
                         }
                         if let Some(arguments) = arguments {
+                            // Re-emit BlockStart so the TUI tool-call card updates from the
+                            // initial empty-args placeholder to the fully-parsed arguments.
+                            // ToolCallArgumentsUpdated alone does not re-render the card.
+                            if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
+                                emit_stream_update(
+                                    stream_delta_tx,
+                                    ConversationStreamUpdate::BlockStart {
+                                        index,
+                                        block: StreamBlock::ToolCall {
+                                            id: tool_call_id.clone(),
+                                            name: tool_name_for_ui.clone().unwrap_or_default(),
+                                            input: arguments.clone(),
+                                            status: ToolStatus::Pending,
+                                        },
+                                    },
+                                );
+                            }
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::ToolCallArgumentsUpdated {
