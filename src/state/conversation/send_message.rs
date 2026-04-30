@@ -159,6 +159,7 @@ impl ConversationManager {
             let mut block_tool_call_ids: HashMap<usize, String> = HashMap::new();
             let mut completed_tool_call_ids = HashSet::new();
             let mut saw_usage_update = false;
+            let mut saw_native_tool_call_block = false;
             while let Some(signal_outcome) = stream.next().await {
                 let signal = match signal_outcome {
                     Ok(envelope) => envelope.signal,
@@ -186,7 +187,10 @@ impl ConversationManager {
                         StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {
                             self.upsert_turn_block(index, block, stream_delta_tx);
                         }
-                        StreamBlock::ToolCall { .. } => {
+                        StreamBlock::ToolCall { id, .. } => {
+                            if !id.starts_with("toolu_tagged_") {
+                                saw_native_tool_call_block = true;
+                            }
                             pending_tool_block_indices.push_back(index);
                             self.emit_stream_block_start_update(index, block, stream_delta_tx);
                         }
@@ -383,7 +387,8 @@ impl ConversationManager {
             });
 
             let assistant_text_for_history = assistant_text.clone();
-            let use_structured_round = use_structured_tool_protocol;
+            let use_structured_round = use_structured_tool_protocol
+                && (!self.client.is_local_endpoint() || saw_native_tool_call_block);
 
             let mut inject_repeated_round_nudge = false;
             if !tool_use_blocks.is_empty() {
