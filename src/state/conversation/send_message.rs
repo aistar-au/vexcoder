@@ -585,7 +585,7 @@ impl ConversationManager {
                     self.set_tool_call_status(&id, final_status, stream_delta_tx);
 
                     if name == "read_file" && result.is_ok() {
-                        if let Some(path) = input.get("path").and_then(Value::as_str) {
+                        if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
                             last_read_file_path = Some(path.to_string());
                         }
                     }
@@ -799,7 +799,7 @@ impl ConversationManager {
                         }
 
                         if result.is_ok() && name == "read_file" {
-                            if let Some(path) = input.get("path").and_then(Value::as_str) {
+                            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
                                 last_read_file_path = Some(path.to_string());
                             }
                         }
