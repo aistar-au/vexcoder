@@ -54,6 +54,7 @@ impl ConversationManager {
         let mut forced_tool_retry_count = 0usize;
         let mut saw_any_tool_round = false;
         let mut previous_round_signature: Option<Vec<String>> = None;
+        let mut seen_read_only_signatures: HashSet<Vec<String>> = HashSet::new();
         let mut repeated_read_only_rounds = 0usize;
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
@@ -397,8 +398,12 @@ impl ConversationManager {
                 let repeated_signature = previous_round_signature
                     .as_ref()
                     .is_some_and(|previous| previous == &current_signature);
-                if is_read_only_tool_round(&tool_use_blocks) && repeated_signature {
-                    repeated_read_only_rounds += 1;
+                if is_read_only_tool_round(&tool_use_blocks) {
+                    if !seen_read_only_signatures.insert(current_signature.clone()) {
+                        repeated_read_only_rounds += 1;
+                    } else {
+                        repeated_read_only_rounds = 0;
+                    }
                 } else {
                     repeated_read_only_rounds = 0;
                 }
