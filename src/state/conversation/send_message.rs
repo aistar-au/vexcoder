@@ -58,6 +58,7 @@ impl ConversationManager {
         let mut repeated_read_only_rounds = 0usize;
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
+        let mut last_read_file_path: Option<String> = None;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
         let mut overflow_retry_count = 0usize;
@@ -295,9 +296,6 @@ impl ConversationManager {
                             );
                         }
                         if let Some(arguments) = arguments {
-                            // Re-emit BlockStart so the TUI tool-call card updates from the
-                            // initial empty-args placeholder to the fully-parsed arguments.
-                            // ToolCallArgumentsUpdated alone does not re-render the card.
                             if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
                                 emit_stream_update(
                                     stream_delta_tx,
@@ -586,6 +584,12 @@ impl ConversationManager {
                     };
                     self.set_tool_call_status(&id, final_status, stream_delta_tx);
 
+                    if name == "read_file" && result.is_ok() {
+                        if let Some(path) = input.get("path").and_then(Value::as_str) {
+                            last_read_file_path = Some(path.to_string());
+                        }
+                    }
+
                     let output_for_stream = result
                         .as_ref()
                         .map_or_else(|e| e.to_string(), ToString::to_string);
@@ -625,9 +629,16 @@ impl ConversationManager {
                         id, name, input, ..
                     } = block
                     {
-                        if let Some(clarification) =
+                        if let Some(mut clarification) =
                             missing_read_only_location_prompt(&name, &input)
                         {
+                            if name == "read_file" {
+                                if let Some(ref last_path) = last_read_file_path {
+                                    clarification.push_str(&format!(
+                                        " You were most recently reading '{last_path}' — specify that path to continue."
+                                    ));
+                                }
+                            }
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
@@ -785,6 +796,12 @@ impl ConversationManager {
                             && let Some(cp) = undo_snapshot
                         {
                             self.push_undo_checkpoint(cp);
+                        }
+
+                        if result.is_ok() && name == "read_file" {
+                            if let Some(path) = input.get("path").and_then(Value::as_str) {
+                                last_read_file_path = Some(path.to_string());
+                            }
                         }
 
                         let final_status = if result.is_err() {

@@ -275,9 +275,7 @@ impl BatchMode {
         }
     }
 
-    fn sanitize_buffered_response_for_tool_call(&mut self) {
-        // No-op: raw provider markup is no longer rewritten in the batch consumer.
-    }
+    fn sanitize_buffered_response_for_tool_call(&mut self) {}
 }
 
 fn resolve_batch_project_instructions(config: &Config) -> (Option<String>, Option<String>) {

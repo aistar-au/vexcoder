@@ -25,9 +25,7 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
-    fn scrub_materialized_tool_markup(&mut self) {
-        // No-op: raw provider markup is no longer rewritten in the TUI consumer.
-    }
+    fn scrub_materialized_tool_markup(&mut self) {}
 
     fn alloc_step_id(&mut self) -> u64 {
         let id = self.task_doc.info.next_step_id;

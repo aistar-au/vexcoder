@@ -5,9 +5,6 @@ use crate::runtime::task_document::{AssistantPhase, PulseEntry};
 use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
 
-// Collapsed-placeholder padding is cosmetic only. Cap the gap to prevent unbounded loops
-// when a synthetic block index (e.g. tagged-XML tool calls) lands far above the last
-// seen index. Rendering skips collapsed Thinking blocks, so missing placeholders are invisible.
 const MAX_INLINE_PAD_GAP: usize = 2048;
 
 impl ConversationManager {

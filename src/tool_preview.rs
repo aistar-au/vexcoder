@@ -253,8 +253,6 @@ pub fn preview_tool_input(
     style: ToolPreviewStyle,
     diff_context_lines: usize,
 ) -> String {
-    // When a streaming tool call hasn't received arguments yet its input is {}.
-    // Return a neutral placeholder rather than showing "<missing>" for each field.
     if input.as_object().is_some_and(|obj| obj.is_empty()) {
         return "...".to_string();
     }

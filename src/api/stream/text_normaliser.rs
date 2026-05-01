@@ -27,10 +27,6 @@ impl StreamTextNormaliser {
 
         loop {
             let function_start = self.pending.find("<function=");
-            // Hermes / Qwen3-Instruct format: <tool_call>{"name":"X","arguments":{...}}</tool_call>
-            // Detected when <tool_call> is immediately followed (modulo whitespace) by '{'.
-            // Qwen3-Coder wraps <function=...> inside <tool_call>; that is handled by the
-            // existing <function= path after stripping the outer <tool_call> prefix as text.
             let hermes_start = find_hermes_json_tool_call(&self.pending);
 
             let take_hermes = match (function_start, hermes_start) {
@@ -47,7 +43,6 @@ impl StreamTextNormaliser {
                 let remaining = self.pending[hs..].to_string();
                 let content_start = "<tool_call>".len();
                 let Some(close_rel) = remaining.find("</tool_call>") else {
-                    // Incomplete — buffer until closing tag arrives.
                     self.pending = remaining;
                     break;
                 };
@@ -117,10 +112,6 @@ fn strip_tool_call_wrappers(text: &str) -> String {
     text.replace("<tool_call>", "").replace("</tool_call>", "")
 }
 
-// Returns the byte position of the first <tool_call> whose content (after optional
-// whitespace) starts with '{', indicating Hermes/Qwen3-Instruct JSON format.
-// Qwen3-Coder wraps <function=...> inside <tool_call>; that format is NOT matched here
-// because the trimmed content starts with '<', not '{'.
 fn find_hermes_json_tool_call(text: &str) -> Option<usize> {
     let tag = "<tool_call>";
     let mut search_from = 0;
@@ -135,8 +126,6 @@ fn find_hermes_json_tool_call(text: &str) -> Option<usize> {
     }
 }
 
-// Parses the JSON body of a Hermes-format tool call:
-//   {"name": "tool_name", "arguments": {...}}  (arguments may be a JSON object or string)
 fn parse_hermes_json_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
     let obj = serde_json::from_str::<serde_json::Value>(content).ok()?;
     let name = obj.get("name")?.as_str()?.trim().to_string();
@@ -213,14 +202,11 @@ fn parse_single_tagged_tool_call(raw: &str) -> Option<(String, serde_json::Value
 
     let body = &raw[name_end + 1..raw.len() - "</function>".len()];
 
-    // Primary format: <parameter=key>value</parameter>
     let params = parse_tagged_parameters(body);
     if !params.is_empty() {
         return Some((name, serde_json::Value::Object(params)));
     }
 
-    // Fallback: JSON object body — <function=name>{"key": "val"}</function>
-    // Used by some model variants that omit <parameter=> tags.
     let trimmed_body = body.trim();
     if trimmed_body.starts_with('{')
         && let Ok(serde_json::Value::Object(map)) = serde_json::from_str(trimmed_body)
@@ -228,7 +214,6 @@ fn parse_single_tagged_tool_call(raw: &str) -> Option<(String, serde_json::Value
         return Some((name, serde_json::Value::Object(map)));
     }
 
-    // Body is empty or unrecognised — emit with empty args rather than dropping.
     Some((name, serde_json::Value::Object(params)))
 }
 
@@ -360,9 +345,6 @@ mod tests {
         );
     }
 
-    // Qwen3-Coder wraps <function=...> in <tool_call>...</tool_call>.
-    // The outer <tool_call>\n prefix is stripped to "\n" text; the inner <function=...> block is
-    // parsed as usual; the "\n" between </function> and </tool_call> is emitted as trailing text.
     #[test]
     fn normalise_qwen3_coder_tool_call_with_outer_wrapper() {
         let mut normaliser = StreamTextNormaliser::new();
@@ -382,7 +364,6 @@ mod tests {
         );
     }
 
-    // Hermes / Qwen3-Instruct format: <tool_call>{"name":"X","arguments":{...}}</tool_call>
     #[test]
     fn normalise_hermes_json_tool_call() {
         let mut normaliser = StreamTextNormaliser::new();
@@ -401,7 +382,6 @@ mod tests {
         );
     }
 
-    // Hermes format with arguments as a JSON-encoded string instead of object.
     #[test]
     fn normalise_hermes_json_tool_call_string_arguments() {
         let mut normaliser = StreamTextNormaliser::new();
@@ -417,7 +397,6 @@ mod tests {
         );
     }
 
-    // Incomplete Hermes tool call — must buffer until </tool_call> arrives.
     #[test]
     fn normalise_buffers_incomplete_hermes_tool_call() {
         let mut normaliser = StreamTextNormaliser::new();
@@ -435,7 +414,6 @@ mod tests {
         );
     }
 
-    // JSON body fallback: <function=name>{"key":"val"}</function> (no <parameter=> tags).
     #[test]
     fn normalise_function_with_json_body_fallback() {
         let mut normaliser = StreamTextNormaliser::new();
