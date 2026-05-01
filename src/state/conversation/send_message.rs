@@ -194,7 +194,6 @@ impl ConversationManager {
                                 saw_native_tool_call_block = true;
                             }
                             pending_tool_block_indices.push_back(index);
-                            self.emit_stream_block_start_update(index, block, stream_delta_tx);
                         }
                         StreamBlock::ToolResult { .. } => {
                             self.emit_stream_block_start_update(index, block, stream_delta_tx);
@@ -243,6 +242,16 @@ impl ConversationManager {
                         if let Some(index) = pending_tool_block_indices.pop_front() {
                             tool_block_indices.insert(tool_call_id.clone(), index);
                             block_tool_call_ids.insert(index, tool_call_id.clone());
+                            self.emit_stream_block_start_update(
+                                index,
+                                StreamBlock::ToolCall {
+                                    id: tool_call_id.clone(),
+                                    name: tool_name.clone(),
+                                    input: arguments.clone(),
+                                    status: ToolStatus::Pending,
+                                },
+                                stream_delta_tx,
+                            );
                         }
 
                         let position = *tool_use_positions
@@ -296,20 +305,6 @@ impl ConversationManager {
                             );
                         }
                         if let Some(arguments) = arguments {
-                            if let Some(index) = tool_block_indices.get(&tool_call_id).copied() {
-                                emit_stream_update(
-                                    stream_delta_tx,
-                                    ConversationStreamUpdate::BlockStart {
-                                        index,
-                                        block: StreamBlock::ToolCall {
-                                            id: tool_call_id.clone(),
-                                            name: tool_name_for_ui.clone().unwrap_or_default(),
-                                            input: arguments.clone(),
-                                            status: ToolStatus::Pending,
-                                        },
-                                    },
-                                );
-                            }
                             emit_stream_update(
                                 stream_delta_tx,
                                 ConversationStreamUpdate::ToolCallArgumentsUpdated {
