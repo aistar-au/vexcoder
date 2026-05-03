@@ -58,6 +58,7 @@ impl ConversationManager {
         let mut repeated_read_only_rounds = 0usize;
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
+        let mut final_answer_attempted = false;
         let mut last_read_file_path: Option<String> = None;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
@@ -88,18 +89,29 @@ impl ConversationManager {
                 .prune_message_history_preserving(limits.max_api_messages, turn_user_anchor_index);
             rounds += 1;
             if rounds > max_tool_rounds {
-                let msg = render_loop_limit_guard_message(
-                    &last_assistant_text_for_history,
-                    max_tool_rounds,
-                );
-                if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
-                    emit_stream_update(
-                        stream_delta_tx,
-                        ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                if !final_answer_attempted {
+                    final_answer_attempted = true;
+                    self.api_messages.push(ApiMessage {
+                        role: "user".to_string(),
+                        content: Content::Text(
+                            core_policy.final_answer_instruction().to_string(),
+                        ),
+                        cache_hint: None,
+                    });
+                } else {
+                    let msg = render_loop_limit_guard_message(
+                        &last_assistant_text_for_history,
+                        max_tool_rounds,
                     );
+                    if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                        );
+                    }
+                    self.finish_turn_doc(PulseOutcome::MaxTurnsReached, PulseTokens::default());
+                    return Ok(msg);
                 }
-                self.finish_turn_doc(PulseOutcome::MaxTurnsReached, PulseTokens::default());
-                return Ok(msg);
             }
 
             let mut stream = match self.client.create_stream(&self.api_messages).await {

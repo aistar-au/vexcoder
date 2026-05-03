@@ -2,6 +2,7 @@ pub trait RuntimeCorePolicy {
     fn request_requires_tool_evidence(&self, input: &str) -> bool;
     fn tool_retry_instruction(&self) -> &'static str;
     fn repeated_tool_round_instruction(&self) -> &'static str;
+    fn final_answer_instruction(&self) -> &'static str;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -14,6 +15,10 @@ answering.";
 const REPEATED_TOOL_ROUND_INSTRUCTION: &str = "You repeated the same read/search tool call with unchanged arguments. \
 Do not repeat identical tool calls. Use existing tool results to answer now. \
 Only call a different tool if new evidence is required.";
+
+const FINAL_ANSWER_INSTRUCTION: &str = "You have reached the tool-call budget for this turn. \
+Stop calling tools and write your final answer now using the information already gathered. \
+Summarize the relevant findings and respond directly to the user's request.";
 
 const TOOL_REQUIRED_HINTS: [&str; 29] = [
     "file",
@@ -66,6 +71,10 @@ impl RuntimeCorePolicy for DefaultRuntimeCorePolicy {
     fn repeated_tool_round_instruction(&self) -> &'static str {
         REPEATED_TOOL_ROUND_INSTRUCTION
     }
+
+    fn final_answer_instruction(&self) -> &'static str {
+        FINAL_ANSWER_INSTRUCTION
+    }
 }
 
 #[cfg(test)]
@@ -78,5 +87,13 @@ mod tests {
         assert!(policy.request_requires_tool_evidence("how many files are in this tree"));
         assert!(policy.request_requires_tool_evidence("what's in docs/src/"));
         assert!(!policy.request_requires_tool_evidence("say hello"));
+    }
+
+    #[test]
+    fn test_final_answer_instruction_directs_no_more_tools() {
+        let policy = default_runtime_policy();
+        let text = policy.final_answer_instruction();
+        assert!(text.contains("Stop calling tools"));
+        assert!(text.contains("final answer"));
     }
 }
