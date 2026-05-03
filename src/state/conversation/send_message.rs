@@ -93,9 +93,7 @@ impl ConversationManager {
                     final_answer_attempted = true;
                     self.api_messages.push(ApiMessage {
                         role: "user".to_string(),
-                        content: Content::Text(
-                            core_policy.final_answer_instruction().to_string(),
-                        ),
+                        content: Content::Text(core_policy.final_answer_instruction().to_string()),
                         cache_hint: None,
                     });
                 } else {
@@ -591,10 +589,11 @@ impl ConversationManager {
                     };
                     self.set_tool_call_status(&id, final_status, stream_delta_tx);
 
-                    if name == "read_file" && result.is_ok() {
-                        if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                            last_read_file_path = Some(path.to_string());
-                        }
+                    if name == "read_file"
+                        && result.is_ok()
+                        && let Some(path) = input.get("path").and_then(|v| v.as_str())
+                    {
+                        last_read_file_path = Some(path.to_string());
                     }
 
                     let output_for_stream = result
@@ -639,12 +638,12 @@ impl ConversationManager {
                         if let Some(mut clarification) =
                             missing_read_only_location_prompt(&name, &input)
                         {
-                            if name == "read_file" {
-                                if let Some(ref last_path) = last_read_file_path {
-                                    clarification.push_str(&format!(
-                                        " You were most recently reading '{last_path}' — specify that path to continue."
-                                    ));
-                                }
+                            if name == "read_file"
+                                && let Some(ref last_path) = last_read_file_path
+                            {
+                                clarification.push_str(&format!(
+                                    " You were most recently reading '{last_path}' — specify that path to continue."
+                                ));
                             }
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
@@ -805,10 +804,11 @@ impl ConversationManager {
                             self.push_undo_checkpoint(cp);
                         }
 
-                        if result.is_ok() && name == "read_file" {
-                            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                                last_read_file_path = Some(path.to_string());
-                            }
+                        if result.is_ok()
+                            && name == "read_file"
+                            && let Some(path) = input.get("path").and_then(|v| v.as_str())
+                        {
+                            last_read_file_path = Some(path.to_string());
                         }
 
                         let final_status = if result.is_err() {

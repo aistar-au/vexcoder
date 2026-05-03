@@ -32,7 +32,7 @@ to:
 use_structured_tool_protocol
 ```
 
-This caused a regression for local models that produce only XML-encoded tool calls (e.g., models served at `0.0.0.0:8000` via llama.cpp without a chat-template that emits native `tool_calls`). When the model generated XML tool calls and the runtime sent back `ContentBlock::ToolUse`/`ContentBlock::ToolResult` blocks (Anthropic structured format), the local model could not interpret the context and would loop.
+This caused a regression for local models that produce only XML-encoded tool calls (e.g., models served via an OAS-compatible HTTP endpoint without a chat-template that emits native structured tool-call entries). When the model generated XML tool calls and the runtime sent back `ContentBlock::ToolUse`/`ContentBlock::ToolResult` blocks (the SDK structured-content format), the local model could not interpret the context and would loop.
 
 Fix (commit 9fd4c8f): `use_structured_round` is now:
 
@@ -44,7 +44,7 @@ let use_structured_round = use_structured_tool_protocol
 `saw_native_tool_call_block` is set to `true` within a turn when any `StreamBlock::ToolCall` is opened with an ID that does not start with `toulu_tagged_`. This correctly distinguishes:
 
 - **Local XML-only model**: all tool blocks have `toulu_tagged_` IDs → `saw_native_tool_call_block` stays `false` → `use_structured_round = false` → tool results enter history as plain text protocol, which the model understands.
-- **Local model with native tool_calls support**: at least one block has a model-generated ID → `saw_native_tool_call_block = true` → `use_structured_round = true` → tool results enter history as `ContentBlock::ToolResult` (Anthropic format).
+- **Local model with native structured tool-call support**: at least one block has a model-generated ID → `saw_native_tool_call_block = true` → `use_structured_round = true` → tool results enter history as `ContentBlock::ToolResult` (SDK structured-content format).
 - **Remote endpoint**: `is_local_endpoint()` returns `false` → structured round always used regardless of tool call source.
 
 This per-turn detection is persistent for the life of the turn. The flag is reset to `false` at the start of each tool round via the per-round variable declaration.

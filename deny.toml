@@ -110,6 +110,10 @@ reason = "backoff 0.4.0 is intentionally used for bounded local-startup connecti
 id = "RUSTSEC-2024-0384"
 reason = "instant 0.1.13 is pulled transitively by backoff 0.4.0 for the same local-startup retry path. The crate is not used directly by this repository. Resolution: remove this exception when the bounded retry implementation moves off backoff and instant leaves the graph."
 
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0119"
+reason = "hickory-proto 0.24.4 BinEncoder O(n²) name compression DoS; pulled in transitively via reqwest → hyper-util → hickory-resolver for outbound HTTPS hostname resolution. The advisory affects message *encoding*, which is the server-side path; this codebase only resolves its own outbound endpoints and does not encode DNS responses to untrusted clients. Resolution: remove when reqwest's hickory-resolver dependency upgrades to a hickory-proto release that contains the upstream fix."
+
 # ---------------------------------------------------------------------------
 # 2. Dependency graph quality
 # ---------------------------------------------------------------------------

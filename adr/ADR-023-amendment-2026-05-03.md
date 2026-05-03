@@ -10,7 +10,7 @@
 
 ADR-023 established a `max_tool_rounds` cap (12 for local endpoints, 24 otherwise) with the rationale that no productive turn requires more than that many tool calls. ADR-023-amendment-2026-05-01 then strengthened the read-only loop guard with HashSet-based signature accumulation so that any-distance signature repetitions are caught.
 
-Live testing against a local llama.cpp endpoint (Qwen3-Coder-REAP-25B, 16384-token context) reproduced a failure mode that neither guard catches and that the cap alone does not handle gracefully:
+Live testing against a local OAS-compatible endpoint (a 25B-parameter coder model loaded with a 16384-token context) reproduced a failure mode that neither guard catches and that the cap alone does not handle gracefully:
 
 ```
 read_file("release.yml", offset=0,   limit=80)   → round 1
@@ -67,7 +67,7 @@ The flag is per-turn (declared inside `send_message`'s outer loop) and is not pe
 
 ### Live verification
 
-A reproduction was run against `llama-server` (`Qwen3-Coder-REAP-25B-A3B-IQ3_XXS.gguf`, `-c 16384`, CPU-only) with `VEX_MAX_TOOL_ROUNDS=3` to compress the budget so the fallback fires quickly:
+A reproduction was run against a local OAS-compatible inference server (a 25B-parameter coder model, 16384-token context, CPU-only) with `VEX_MAX_TOOL_ROUNDS=3` to compress the budget so the fallback fires quickly:
 
 ```
 $ VEX_MODEL_URL=http://0.0.0.0:8000/v1/messages \
@@ -76,7 +76,7 @@ $ VEX_MODEL_URL=http://0.0.0.0:8000/v1/messages \
   ./target/debug/vex -f -p "read-only do not modify and debug .github/workflows/release.yml" -m jsonl exec
 ```
 
-Inference timeline (from `llama-server` logs):
+Inference timeline (from the local inference server logs):
 
 ```
 POST /v1/messages — round 1: read_file(release.yml, offset=0)   →   91 s
