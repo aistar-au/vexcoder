@@ -54,9 +54,12 @@ impl ConversationManager {
         let mut forced_tool_retry_count = 0usize;
         let mut saw_any_tool_round = false;
         let mut previous_round_signature: Option<Vec<String>> = None;
+        let mut seen_read_only_signatures: HashSet<Vec<String>> = HashSet::new();
         let mut repeated_read_only_rounds = 0usize;
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
+        let mut final_answer_attempted = false;
+        let mut last_read_file_path: Option<String> = None;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
         let mut overflow_retry_count = 0usize;
@@ -86,18 +89,29 @@ impl ConversationManager {
                 .prune_message_history_preserving(limits.max_api_messages, turn_user_anchor_index);
             rounds += 1;
             if rounds > max_tool_rounds {
-                let msg = render_loop_limit_guard_message(
-                    &last_assistant_text_for_history,
-                    max_tool_rounds,
-                );
-                if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
-                    emit_stream_update(
-                        stream_delta_tx,
-                        ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                if !final_answer_attempted {
+                    final_answer_attempted = true;
+                    self.api_messages.push(ApiMessage {
+                        role: "user".to_string(),
+                        content: Content::Text(
+                            core_policy.final_answer_instruction().to_string(),
+                        ),
+                        cache_hint: None,
+                    });
+                } else {
+                    let msg = render_loop_limit_guard_message(
+                        &last_assistant_text_for_history,
+                        max_tool_rounds,
                     );
+                    if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                        );
+                    }
+                    self.finish_turn_doc(PulseOutcome::MaxTurnsReached, PulseTokens::default());
+                    return Ok(msg);
                 }
-                self.finish_turn_doc(PulseOutcome::MaxTurnsReached, PulseTokens::default());
-                return Ok(msg);
             }
 
             let mut stream = match self.client.create_stream(&self.api_messages).await {
@@ -159,6 +173,7 @@ impl ConversationManager {
             let mut block_tool_call_ids: HashMap<usize, String> = HashMap::new();
             let mut completed_tool_call_ids = HashSet::new();
             let mut saw_usage_update = false;
+            let mut saw_native_tool_call_block = false;
             while let Some(signal_outcome) = stream.next().await {
                 let signal = match signal_outcome {
                     Ok(envelope) => envelope.signal,
@@ -186,9 +201,11 @@ impl ConversationManager {
                         StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {
                             self.upsert_turn_block(index, block, stream_delta_tx);
                         }
-                        StreamBlock::ToolCall { .. } => {
+                        StreamBlock::ToolCall { id, .. } => {
+                            if !id.starts_with("toolu_tagged_") {
+                                saw_native_tool_call_block = true;
+                            }
                             pending_tool_block_indices.push_back(index);
-                            self.emit_stream_block_start_update(index, block, stream_delta_tx);
                         }
                         StreamBlock::ToolResult { .. } => {
                             self.emit_stream_block_start_update(index, block, stream_delta_tx);
@@ -237,6 +254,16 @@ impl ConversationManager {
                         if let Some(index) = pending_tool_block_indices.pop_front() {
                             tool_block_indices.insert(tool_call_id.clone(), index);
                             block_tool_call_ids.insert(index, tool_call_id.clone());
+                            self.emit_stream_block_start_update(
+                                index,
+                                StreamBlock::ToolCall {
+                                    id: tool_call_id.clone(),
+                                    name: tool_name.clone(),
+                                    input: arguments.clone(),
+                                    status: ToolStatus::Pending,
+                                },
+                                stream_delta_tx,
+                            );
                         }
 
                         let position = *tool_use_positions
@@ -365,49 +392,9 @@ impl ConversationManager {
                 }
             });
 
-            let mut assistant_text_for_history = assistant_text.clone();
-            let mut used_tagged_fallback = false;
-            if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
-                let tagged_calls =
-                    dedupe_tagged_tool_calls(parse_tagged_tool_calls(&assistant_text));
-                if !tagged_calls.is_empty() {
-                    used_tagged_fallback = true;
-                    assistant_text_for_history =
-                        core_policy.sanitize_assistant_text(&assistant_text);
-                    let fallback_start_index = self.current_round_stream_block_count;
-                    tool_use_blocks = tagged_calls
-                        .into_iter()
-                        .enumerate()
-                        .map(|(offset, call)| {
-                            let block = ContentBlock::ToolUse {
-                                id: format!("toolu_tagged_{rounds}_{offset}"),
-                                name: call.name,
-                                input: call.input,
-                                metadata: None,
-                            };
-
-                            if let ContentBlock::ToolUse {
-                                id, name, input, ..
-                            } = &block
-                            {
-                                self.upsert_turn_block(
-                                    fallback_start_index + offset,
-                                    StreamBlock::ToolCall {
-                                        id: id.clone(),
-                                        name: name.clone(),
-                                        input: input.clone(),
-                                        status: ToolStatus::Pending,
-                                    },
-                                    stream_delta_tx,
-                                );
-                            }
-
-                            block
-                        })
-                        .collect();
-                }
-            }
-            let use_structured_round = use_structured_tool_protocol && !used_tagged_fallback;
+            let assistant_text_for_history = assistant_text.clone();
+            let use_structured_round = use_structured_tool_protocol
+                && (!self.client.is_local_endpoint() || saw_native_tool_call_block);
 
             let mut inject_repeated_round_nudge = false;
             if !tool_use_blocks.is_empty() {
@@ -416,8 +403,12 @@ impl ConversationManager {
                 let repeated_signature = previous_round_signature
                     .as_ref()
                     .is_some_and(|previous| previous == &current_signature);
-                if is_read_only_tool_round(&tool_use_blocks) && repeated_signature {
-                    repeated_read_only_rounds += 1;
+                if is_read_only_tool_round(&tool_use_blocks) {
+                    if !seen_read_only_signatures.insert(current_signature.clone()) {
+                        repeated_read_only_rounds += 1;
+                    } else {
+                        repeated_read_only_rounds = 0;
+                    }
                 } else {
                     repeated_read_only_rounds = 0;
                 }
@@ -600,6 +591,12 @@ impl ConversationManager {
                     };
                     self.set_tool_call_status(&id, final_status, stream_delta_tx);
 
+                    if name == "read_file" && result.is_ok() {
+                        if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
+                            last_read_file_path = Some(path.to_string());
+                        }
+                    }
+
                     let output_for_stream = result
                         .as_ref()
                         .map_or_else(|e| e.to_string(), ToString::to_string);
@@ -639,9 +636,16 @@ impl ConversationManager {
                         id, name, input, ..
                     } = block
                     {
-                        if let Some(clarification) =
+                        if let Some(mut clarification) =
                             missing_read_only_location_prompt(&name, &input)
                         {
+                            if name == "read_file" {
+                                if let Some(ref last_path) = last_read_file_path {
+                                    clarification.push_str(&format!(
+                                        " You were most recently reading '{last_path}' — specify that path to continue."
+                                    ));
+                                }
+                            }
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
@@ -799,6 +803,12 @@ impl ConversationManager {
                             && let Some(cp) = undo_snapshot
                         {
                             self.push_undo_checkpoint(cp);
+                        }
+
+                        if result.is_ok() && name == "read_file" {
+                            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
+                                last_read_file_path = Some(path.to_string());
+                            }
                         }
 
                         let final_status = if result.is_err() {

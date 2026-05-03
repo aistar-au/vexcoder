@@ -9,7 +9,7 @@ Merged in PR #402. The whole-system consumer cleanup follow-up landed on
 and the active structural-extraction follow-up is
 `work/vexcoder-api-stream-structural-extraction` in PR #404. The current
 consumer-boundary hardening follow-up is
-`work/vexcoder-cli-tui-envelope-consumer-audit`.
+`work/vexcoder-remove-tagged-xml-fallback`.
 
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into

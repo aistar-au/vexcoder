@@ -25,27 +25,7 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
-    fn scrub_materialized_tool_markup(&mut self) {
-        let Some(active) = self.task_doc.active_pulse.as_mut() else {
-            return;
-        };
-
-        for entry in &mut active.entries {
-            if let PulseEntry::AssistantBlock { block, .. } = entry
-                && block.phase == AssistantPhase::Final
-            {
-                block.content = crate::runtime::policy::sanitize_assistant_text(&block.content);
-            }
-        }
-
-        active.entries.retain(|entry| {
-            !matches!(
-                entry,
-                PulseEntry::AssistantBlock { block, .. }
-                    if block.phase == AssistantPhase::Final && block.content.trim().is_empty()
-            )
-        });
-    }
+    fn scrub_materialized_tool_markup(&mut self) {}
 
     fn alloc_step_id(&mut self) -> u64 {
         let id = self.task_doc.info.next_step_id;

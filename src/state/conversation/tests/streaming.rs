@@ -78,7 +78,7 @@ async fn local_endpoint_retries_once_when_tool_evidence_required() -> Result<()>
 }
 
 #[tokio::test]
-async fn local_endpoint_executes_tagged_text_tool_calls() -> Result<()> {
+async fn local_endpoint_normalizes_tagged_text_tool_calls() -> Result<()> {
     let tagged_tool_call = vec![
                 r#"data: {"choices":[{"delta":{"content":"<function=read_file>\n<parameter=path>file.txt</parameter>\n</function>"},"finish_reason":"stop"}]}"#
                         .to_string(),
@@ -100,13 +100,21 @@ async fn local_endpoint_executes_tagged_text_tool_calls() -> Result<()> {
         .await?;
 
     assert!(final_text.contains("The file says hello."));
-    assert!(matches!(
-            &manager.api_messages[1].content,
-            Content::Text(text) if text.contains("<function=read_file>")
-    ));
-    assert!(matches!(
-            &manager.api_messages[2].content,
-            Content::Text(text) if text.contains("tool_result read_file")
-    ));
+    assert!(
+        !final_text.contains("[loop guard]"),
+        "unexpected final text: {final_text}"
+    );
+    assert_eq!(manager.api_messages.len(), 4);
+    assert!(manager.api_messages.iter().any(|message| {
+                message.role == "user"
+                        && (matches!(
+                                &message.content,
+                                Content::Text(text) if text.contains("tool_result read_file")
+                        ) || matches!(
+                                &message.content,
+                                Content::Blocks(blocks)
+                                        if blocks.iter().any(|block| matches!(block, ContentBlock::ToolResult { .. }))
+                        ))
+        }));
     Ok(())
 }

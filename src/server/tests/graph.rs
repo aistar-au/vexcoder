@@ -1,10 +1,14 @@
 use crate::app::{task_graph_rollup_path, todos_rollup_path};
+use crate::test_support::{ENV_LOCK, EnvRestore};
 
 use super::phase_e::{delegate_one, setup_phase_e_router};
 use super::*;
 
 #[tokio::test]
 async fn task_graph_endpoint_returns_nodes_with_session_tasks() {
+    let _env_lock = ENV_LOCK.lock().await;
+    let _restore = EnvRestore::capture(&_env_lock, "VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
@@ -44,6 +48,9 @@ async fn task_graph_endpoint_returns_nodes_with_session_tasks() {
 
 #[tokio::test]
 async fn todos_endpoint_returns_live_session_tasks() {
+    let _env_lock = ENV_LOCK.lock().await;
+    let _restore = EnvRestore::capture(&_env_lock, "VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let st_id = delegate_one(
         setup_phase_e_router(temp.path()),
@@ -75,6 +82,9 @@ async fn todos_endpoint_returns_live_session_tasks() {
 
 #[tokio::test]
 async fn delegate_writes_task_graph_and_todos_rollup_files() {
+    let _env_lock = ENV_LOCK.lock().await;
+    let _restore = EnvRestore::capture(&_env_lock, "VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),

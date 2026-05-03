@@ -5,6 +5,8 @@ use crate::runtime::task_document::{AssistantPhase, PulseEntry};
 use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
 
+const MAX_INLINE_PAD_GAP: usize = 2048;
+
 impl ConversationManager {
     pub(super) fn emit_stream_block_start_update(
         &mut self,
@@ -12,24 +14,27 @@ impl ConversationManager {
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        while self.current_round_stream_block_count < index {
-            let pad_index = self.current_round_stream_block_count;
-            let placeholder = StreamBlock::Thinking {
-                content: String::new(),
-                collapsed: true,
-            };
-            self.apply_doc_delta(RuntimeSignal::TranscriptBlockStart {
-                index: pad_index,
-                block: placeholder.clone(),
-            });
-            self.current_round_stream_block_count += 1;
-            emit_stream_update(
-                stream_delta_tx,
-                ConversationStreamUpdate::BlockStart {
+        let gap = index.saturating_sub(self.current_round_stream_block_count);
+        if gap <= MAX_INLINE_PAD_GAP {
+            while self.current_round_stream_block_count < index {
+                let pad_index = self.current_round_stream_block_count;
+                let placeholder = StreamBlock::Thinking {
+                    content: String::new(),
+                    collapsed: true,
+                };
+                self.apply_doc_delta(RuntimeSignal::TranscriptBlockStart {
                     index: pad_index,
-                    block: placeholder,
-                },
-            );
+                    block: placeholder.clone(),
+                });
+                self.current_round_stream_block_count += 1;
+                emit_stream_update(
+                    stream_delta_tx,
+                    ConversationStreamUpdate::BlockStart {
+                        index: pad_index,
+                        block: placeholder,
+                    },
+                );
+            }
         }
 
         self.current_round_stream_block_count = index + 1;
@@ -337,6 +342,7 @@ impl ConversationManager {
                 .filter_map(|entry| {
                     if let PulseEntry::AssistantBlock { block, .. } = entry
                         && block.phase == AssistantPhase::Thinking
+                        && !block.collapsed
                     {
                         return Some(block.block_index);
                     }

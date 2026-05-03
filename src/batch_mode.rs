@@ -275,12 +275,7 @@ impl BatchMode {
         }
     }
 
-    fn sanitize_buffered_response_for_tool_call(&mut self) {
-        let sanitized = crate::runtime::policy::sanitize_assistant_text(&self.current_response);
-        if sanitized != self.current_response {
-            self.current_response = sanitized;
-        }
-    }
+    fn sanitize_buffered_response_for_tool_call(&mut self) {}
 }
 
 fn resolve_batch_project_instructions(config: &Config) -> (Option<String>, Option<String>) {

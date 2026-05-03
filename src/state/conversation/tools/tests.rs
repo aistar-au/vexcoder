@@ -1,12 +1,9 @@
 #[cfg(test)]
 mod tool_tests {
     use super::super::PulseToolPolicy;
-    use crate::state::conversation::tools::formatting::parse_tagged_tool_calls;
-    use crate::state::conversation::tools::routing::call_tool_routing;
     use crate::state::conversation::tools::validation::{
         is_read_only_user_request, is_test_target_path, tests_only_mutation_conflict_prompt,
     };
-    use crate::tools::ToolOperator;
     use serde_json::json;
 
     #[test]
@@ -81,25 +78,5 @@ mod tool_tests {
             !result,
             "VEX_FORCE_MUTATING_TURN=1 should force mutating classification"
         );
-    }
-
-    #[test]
-    fn tagged_numeric_read_file_parameters_preserve_requested_range() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("file.txt"), "one\ntwo\nthree\nfour\nfive\n").unwrap();
-        let operator = ToolOperator::new(dir.path().to_path_buf());
-        let calls = parse_tagged_tool_calls(
-            "<function=read_file>\n<parameter=path>file.txt</parameter>\n<parameter=offset>3</parameter>\n<parameter=limit>2</parameter>\n</function>",
-        );
-
-        let output = call_tool_routing(&operator, "read_file", &calls[0].input).unwrap();
-
-        assert!(
-            output.contains("(showing lines 3-4 of 5)"),
-            "unexpected output: {output}"
-        );
-        assert!(output.contains("\tthree"), "unexpected output: {output}");
-        assert!(output.contains("\tfour"), "unexpected output: {output}");
-        assert!(!output.contains("\tone\n"), "unexpected output: {output}");
     }
 }

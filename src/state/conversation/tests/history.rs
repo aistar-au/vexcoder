@@ -56,13 +56,13 @@ impl MockStreamProducer for MultiRoundOverflowProducer {
         let mut calls = self.calls.lock().unwrap();
         *calls += 1;
         match *calls {
-            1 => tagged_text_tool_call_stream(messages, "file1.txt"),
+            1 => structured_tool_call_stream(messages, "file1.txt"),
             2 => overflow_error(),
-            3 => tagged_text_tool_call_stream(messages, "file2.txt"),
+            3 => structured_tool_call_stream(messages, "file2.txt"),
             4 => overflow_error(),
-            5 => tagged_text_tool_call_stream(messages, "file3.txt"),
+            5 => structured_tool_call_stream(messages, "file3.txt"),
             6 => overflow_error(),
-            7 => tagged_text_tool_call_stream(messages, "file4.txt"),
+            7 => structured_tool_call_stream(messages, "file4.txt"),
             8 => overflow_error(),
             9 => text_response_stream(messages, "done"),
             _ => unreachable!("unexpected create_stream call count"),
@@ -70,14 +70,35 @@ impl MockStreamProducer for MultiRoundOverflowProducer {
     }
 }
 
-fn tagged_text_tool_call_stream(
+fn structured_tool_call_response(path: &str) -> Vec<String> {
+    vec![
+        r#"event: message_start
+data: {"type": "message_start", "message": {"id": "msg_mock_history_01", "type": "message", "role": "assistant", "model": "mock-model", "content": [], "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 10, "output_tokens": 1}}}"#
+            .to_string(),
+        r#"event: content_block_start
+data: {"type": "content_block_start", "index":0,"content_block":{"type":"tool_use","id":"toolu_mock_history_01", "name":"read_file","input":{}}}"#
+            .to_string(),
+        format!(
+            r#"event: content_block_delta
+data: {{"type": "content_block_delta", "index":0,"delta":{{"type":"input_json_delta","partial_json":"{{\"path\": \"{path}\"}}"}}}}"#
+        ),
+        r#"event: content_block_stop
+data: {"type": "content_block_stop", "index":0}"#
+            .to_string(),
+        r#"event: message_delta
+data: {"type": "message_delta", "delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":6}}"#
+            .to_string(),
+        r#"event: message_stop
+data: {"type": "message_stop"}"#
+            .to_string(),
+    ]
+}
+
+fn structured_tool_call_stream(
     messages: &[ApiMessage],
     path: &str,
 ) -> anyhow::Result<SignalStream> {
-    MockApiClient::new(vec![vec![format!(
-        r#"data: {{"choices":[{{"delta":{{"content":"<function=read_file>\n<parameter=path>{path}</parameter>\n</function>"}},"finish_reason":"stop"}}]}}"#
-    )]])
-    .create_mock_stream(messages)
+    MockApiClient::new(vec![structured_tool_call_response(path)]).create_mock_stream(messages)
 }
 
 fn text_response_stream(messages: &[ApiMessage], text: &str) -> anyhow::Result<SignalStream> {
@@ -418,9 +439,7 @@ async fn context_overflow_retries_even_after_proactive_compaction() -> Result<()
 #[tokio::test]
 async fn context_overflow_retries_with_smaller_keep_window_when_needed() -> Result<()> {
     let calls = Arc::new(std::sync::Mutex::new(0));
-    let initial = MockApiClient::new(vec![vec![
-        r#"data: {"choices":[{"delta":{"content":"<function=read_file>\n<parameter=path>file.txt</parameter>\n</function>"},"finish_reason":"stop"}]}"#.to_string(),
-    ]]);
+    let initial = MockApiClient::new(vec![structured_tool_call_response("file.txt")]);
     let success = MockApiClient::new(vec![vec![
         r#"data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}"#.to_string(),
     ]]);
