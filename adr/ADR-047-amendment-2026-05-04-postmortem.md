@@ -1,4 +1,4 @@
-# ADR-047 Amendment (2026-05-04): PR #429 Iteration Post-Mortem and What-Not-To-Do
+# ADR-047 Amendment (2026-05-04): PR #429 Iteration Post-Outage and What-Not-To-Do
 
 **Status:** Amended
 **Amends:** ADR-047, ADR-047-amendment-2026-04-16, ADR-047-amendment-2026-04-20, ADR-047-amendment-2026-05-01, ADR-047-amendment-2026-05-03
