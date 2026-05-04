@@ -134,7 +134,7 @@ Files such as `.github/workflows/*.yml`, `scripts/release.sh`, `scripts/bump-ver
 
 This follow-up aligns with two publicly documented agent-design patterns:
 
-- A public terminal-agent prompting guide states that long-running threads should compact context by summarizing relevant prior state and discarding less relevant detail so the agent can continue across many steps without replaying the full transcript.
+- A public long-running agent prompting guide states that long-running threads should compact context by summarizing relevant prior state and discarding less relevant detail so the agent can continue across many steps without replaying the full transcript.
 - A public function-calling guide describes the tool loop as an explicit developer-managed sequence of: model selects a tool, the developer executes it, the tool result is fed back, and the cycle repeats until the model produces a final answer. That structure favors concise handoff state over verbatim replay of earlier rounds.
 
 Together, those references support a runtime policy that preserves the current request verbatim while reducing older turns to a bounded handoff summary.
