@@ -10,7 +10,7 @@
 
 ADR-023 established a `max_tool_rounds` cap (12 for local endpoints, 24 otherwise) with the rationale that no productive turn requires more than that many tool calls. ADR-023-amendment-2026-05-01 then strengthened the read-only loop guard with HashSet-based signature accumulation so that any-distance signature repetitions are caught.
 
-Live testing against a local llama.cpp endpoint (Qwen3-Coder-REAP-25B, 16384-token context) reproduced a failure mode that neither guard catches and that the cap alone does not handle gracefully:
+Live testing against a local OAS-compatible endpoint (a 25B-parameter coder model loaded with a 16384-token context) reproduced a failure mode that neither guard catches and that the cap alone does not handle gracefully:
 
 ```
 read_file("release.yml", offset=0,   limit=80)   → round 1
@@ -67,7 +67,7 @@ The flag is per-turn (declared inside `send_message`'s outer loop) and is not pe
 
 ### Live verification
 
-A reproduction was run against `llama-server` (`Qwen3-Coder-REAP-25B-A3B-IQ3_XXS.gguf`, `-c 16384`, CPU-only) with `VEX_MAX_TOOL_ROUNDS=3` to compress the budget so the fallback fires quickly:
+A reproduction was run against a local OAS-compatible inference server (a 25B-parameter coder model, 16384-token context, CPU-only) with `VEX_MAX_TOOL_ROUNDS=3` to compress the budget so the fallback fires quickly:
 
 ```
 $ VEX_MODEL_URL=http://0.0.0.0:8000/v1/messages \
@@ -76,7 +76,7 @@ $ VEX_MODEL_URL=http://0.0.0.0:8000/v1/messages \
   ./target/debug/vex -f -p "read-only do not modify and debug .github/workflows/release.yml" -m jsonl exec
 ```
 
-Inference timeline (from `llama-server` logs):
+Inference timeline (from the local inference server logs):
 
 ```
 POST /v1/messages — round 1: read_file(release.yml, offset=0)   →   91 s
@@ -97,3 +97,54 @@ JSONL output (truncated):
 ```
 
 Pre-fix behaviour for the same scenario produced `status: MaxTurnsReached` and `response: "Let me read the file to understand its contents.\n\n[loop guard] Stopped after 3 tool rounds to prevent an infinite loop."` — the model's intermediate thinking plus the termination notice, with no usable answer. After the fix, the same model on the same budget returns a structured, evidence-backed analysis of the file the user asked about.
+
+### Follow-up: second-turn handoff compaction for local read-only sessions (2026-05-04)
+
+Live testing against a local OAS-compatible endpoint with an `8192`-token context window surfaced a separate failure after the max-tool-round fallback was fixed. A first read-heavy turn on `.github/workflows/release.yml` could complete, but the next read-only turn on `.github/workflows/nightly.yml` could still inherit too much literal history from the prior turn. In that state the model sometimes resumed the earlier release-workflow analysis instead of treating the nightly workflow as the active target.
+
+### Fix: proactive one-turn handoff compaction before local read-only follow-ups
+
+When the operator is using the default compaction configuration on a local endpoint, any read-only follow-up turn that still has retained history now collapses the older conversation into a single handoff summary before the next model call. The compactor keeps only the current user turn, caps the heuristic summary at `384` tokens, and rewrites the surviving prompt into this shape:
+
+```text
+[conversation summary] ...
+
+Use the summary only as background context. Treat the current request below as authoritative and do not continue earlier file targets unless the current request asks for them.
+
+[current request]
+<current user prompt>
+```
+
+This is intentionally stricter than the generic overflow compactor. The goal is not only to fit inside the server window; it is also to keep the current file target more salient than the previous turn's raw tool transcript on smaller local models.
+
+The overflow retry path now preserves the active user-turn anchor as well. That matters when a proactive handoff is followed by another read-heavy tool round: the retry compactor must be allowed to condense tool-result payloads, but it must not drop the current file request just because the tail of the transcript contains only assistant/tool chatter. The heuristic handoff summary is also limited to prior user requests and user-side tool evidence so stale assistant headings do not leak into the next file's answer title.
+
+### Edit the owning files first
+
+The high-leverage edit surface for this failure is small and local:
+
+- `src/state/conversation/history.rs` owns proactive compaction policy, summary insertion, and the surviving prompt shape.
+- `src/state/conversation/send_message.rs` is the caller that decides when the turn enters the proactive compactor.
+- `src/state/conversation/tests/history.rs` is the specific regression surface for the second-turn handoff path.
+- `adr/ADR-023-amendment-2026-05-03.md` is the correct architecture note to record the runtime contract change and the live validation evidence.
+
+Files such as `.github/workflows/*.yml`, `scripts/release.sh`, `scripts/bump-version.sh`, `src/app/input.rs`, and `src/runtime/context.rs` are useful for reproducing the symptom, but they are not the controlling implementation surface for this bug. Editing those first burns time without changing the second-turn compaction decision.
+
+### External rationale
+
+This follow-up aligns with two publicly documented agent-design patterns:
+
+- A public long-running agent prompting guide states that long-running threads should compact context by summarizing relevant prior state and discarding less relevant detail so the agent can continue across many steps without replaying the full transcript.
+- A public function-calling guide describes the tool loop as an explicit developer-managed sequence of: model selects a tool, the developer executes it, the tool result is fed back, and the cycle repeats until the model produces a final answer. That structure favors concise handoff state over verbatim replay of earlier rounds.
+
+Together, those references support a runtime policy that preserves the current request verbatim while reducing older turns to a bounded handoff summary.
+
+### Live verification
+
+A three-turn live probe against `http://127.0.0.1:8000/v1/messages` in the detached worktree produced the following post-fix sequence:
+
+- first turn: overflow recovery condensed a read-heavy `release.yml` audit without dropping the active request.
+- second turn: proactive handoff compaction reduced the carried state to a single prompt before the `nightly.yml` request (`17 -> 1` messages), and the response stayed on `.github/workflows/nightly.yml`.
+- third turn: another proactive handoff reduced the carried state before the `version-bump.yml` request (`7 -> 1` messages), and the response stayed on `.github/workflows/version-bump.yml` rather than drifting back to `release.yml` or `nightly.yml`.
+
+Before this follow-up, the same multi-file path could either answer from the older release-workflow context or hit the read/search loop guard after resuming the wrong file family on later turns.

@@ -63,11 +63,14 @@ impl ConversationManager {
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
         let mut overflow_retry_count = 0usize;
+        let mut preserve_current_user_on_overflow = false;
         self.condense_old_tool_results(history_keep_turns);
 
         let ctx_window = self.client.context_window_tokens();
-        if let Some((before, after, _heuristic_content)) = self.run_proactive_compaction(ctx_window)
+        if let Some((before, after, _heuristic_content)) =
+            self.run_proactive_compaction(ctx_window, requires_tool_evidence)
         {
+            preserve_current_user_on_overflow = true;
             let display_summary = format!("{before} → {after} messages (proactive)");
             emit_text_update(
                 stream_delta_tx,
@@ -93,9 +96,7 @@ impl ConversationManager {
                     final_answer_attempted = true;
                     self.api_messages.push(ApiMessage {
                         role: "user".to_string(),
-                        content: Content::Text(
-                            core_policy.final_answer_instruction().to_string(),
-                        ),
+                        content: Content::Text(core_policy.final_answer_instruction().to_string()),
                         cache_hint: None,
                     });
                 } else {
@@ -129,10 +130,16 @@ impl ConversationManager {
                         _ => 1,
                     };
                     let before = self.api_messages.len();
-                    if overflow_retry_count == 0 {
-                        self.compact_for_context_overflow();
+                    if preserve_current_user_on_overflow {
+                        turn_user_anchor_index = self.compact_for_context_overflow_preserving(
+                            keep_messages,
+                            turn_user_anchor_index,
+                        );
                     } else {
-                        self.compact_for_context_overflow_with_keep(keep_messages);
+                        let _ = self.compact_for_context_overflow_preserving(
+                            keep_messages,
+                            self.api_messages.len(),
+                        );
                     }
                     let after = self.api_messages.len();
                     overflow_retry_count += 1;
@@ -591,10 +598,11 @@ impl ConversationManager {
                     };
                     self.set_tool_call_status(&id, final_status, stream_delta_tx);
 
-                    if name == "read_file" && result.is_ok() {
-                        if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                            last_read_file_path = Some(path.to_string());
-                        }
+                    if name == "read_file"
+                        && result.is_ok()
+                        && let Some(path) = input.get("path").and_then(|v| v.as_str())
+                    {
+                        last_read_file_path = Some(path.to_string());
                     }
 
                     let output_for_stream = result
@@ -639,12 +647,12 @@ impl ConversationManager {
                         if let Some(mut clarification) =
                             missing_read_only_location_prompt(&name, &input)
                         {
-                            if name == "read_file" {
-                                if let Some(ref last_path) = last_read_file_path {
-                                    clarification.push_str(&format!(
-                                        " You were most recently reading '{last_path}' — specify that path to continue."
-                                    ));
-                                }
+                            if name == "read_file"
+                                && let Some(ref last_path) = last_read_file_path
+                            {
+                                clarification.push_str(&format!(
+                                    " You were most recently reading '{last_path}' — specify that path to continue."
+                                ));
                             }
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
@@ -805,10 +813,11 @@ impl ConversationManager {
                             self.push_undo_checkpoint(cp);
                         }
 
-                        if result.is_ok() && name == "read_file" {
-                            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                                last_read_file_path = Some(path.to_string());
-                            }
+                        if result.is_ok()
+                            && name == "read_file"
+                            && let Some(path) = input.get("path").and_then(|v| v.as_str())
+                        {
+                            last_read_file_path = Some(path.to_string());
                         }
 
                         let final_status = if result.is_err() {
