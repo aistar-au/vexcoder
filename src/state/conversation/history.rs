@@ -93,6 +93,10 @@ impl ConversationManager {
             keep_start += 1;
         }
 
+        // The anchor heuristic can place keep_start below target_keep_start, breaking the
+        // max_api_messages contract and causing repeated context-overflow retries.
+        keep_start = keep_start.max(len.saturating_sub(max_api_messages));
+
         if keep_start >= len {
             self.api_messages.clear();
             return 0;

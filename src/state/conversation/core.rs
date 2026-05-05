@@ -106,10 +106,14 @@ impl ConversationManager {
         let completed = join_all(executions).await;
 
         for call in &completed {
-            if call.result.is_ok()
-                && let Some(cp) = undo_snapshots.remove(&call.id)
-            {
-                self.push_undo_checkpoint(cp);
+            if call.result.is_ok() {
+                if let Some(cp) = undo_snapshots.remove(&call.id) {
+                    self.push_undo_checkpoint(cp);
+                }
+            } else {
+                // Snapshot was captured before validation; drop it now that we know
+                // the tool never ran (prevents stale /undo restores of untouched files).
+                undo_snapshots.remove(&call.id);
             }
         }
 

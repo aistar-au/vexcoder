@@ -230,3 +230,77 @@ fn truncate_for_history_preserves_head_and_suffix_context() {
     let short = "abcdefghij";
     assert_eq!(truncate_for_history(short, 40), short);
 }
+
+// Regression: anchor heuristic previously allowed keep_start < target_keep_start,
+// leaving len - preserve_index > max_api_messages messages and triggering repeated
+// context-overflow retry loops in send_message_with_policy.
+#[test]
+fn prune_message_history_preserving_anchor_never_exceeds_max() {
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(MockApiClient::new(vec![]))),
+        executor,
+    );
+
+    // 20 messages: alternating user / assistant
+    for i in 0..10 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("u{i}")),
+            cache_hint: None,
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("a{i}")),
+            cache_hint: None,
+        });
+    }
+    assert_eq!(manager.api_messages.len(), 20);
+
+    // max=14  → target_keep_start = 20 − 14 = 6
+    // preserve_index=5, distance=1 ≤ 2 → anchor fires, pre-fix keep_start=5 → 15 msgs
+    let _new_index = manager.prune_message_history_preserving(14, 5);
+
+    assert!(
+        manager.api_messages.len() <= 14,
+        "expected ≤ 14 messages after prune, got {}",
+        manager.api_messages.len()
+    );
+    assert_eq!(
+        manager.api_messages[0].role,
+        "user",
+        "first kept message must be a clean user turn"
+    );
+}
+
+// Regression: undo snapshots were captured before validation in execute_parallel_tool_round.
+// A validation failure (e.g., mutating call on a read-only request) left orphaned snapshots,
+// causing /undo to attempt restoring files that were never modified.
+#[tokio::test]
+async fn parallel_tool_round_drops_snapshot_on_validation_failure() {
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(MockApiClient::new(vec![]))),
+        executor,
+    );
+    assert!(manager.is_undo_enabled());
+
+    // write_file with a path → capture_undo_snapshot returns Some
+    // "show me" → is_read_only_user_request=true → mutating_tool_read_only_conflict fires
+    let blocks = vec![ContentBlock::ToolUse {
+        id: "toolu_snap_01".to_string(),
+        name: "write_file".to_string(),
+        input: json!({ "path": "/tmp/vex_snapshot_leak_test.txt", "content": "x" }),
+        metadata: None,
+    }];
+
+    manager
+        .execute_parallel_tool_round(&blocks, "show me the diff", Duration::from_secs(5), false, None)
+        .await;
+
+    assert_eq!(
+        manager.undo_stack_len(),
+        0,
+        "undo snapshot must not be pushed when the tool was blocked by validation"
+    );
+}
