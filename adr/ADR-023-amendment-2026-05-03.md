@@ -125,7 +125,7 @@ The high-leverage edit surface for this failure is small and local:
 
 - `src/state/conversation/history.rs` owns proactive compaction policy, summary insertion, and the surviving prompt shape.
 - `src/state/conversation/send_message.rs` is the caller that decides when the turn enters the proactive compactor.
-- `src/state/conversation/tests/history.rs` is the narrow regression surface for the second-turn handoff path.
+- `src/state/conversation/tests/history.rs` is the specific regression surface for the second-turn handoff path.
 - `adr/ADR-023-amendment-2026-05-03.md` is the correct architecture note to record the runtime contract change and the live validation evidence.
 
 Files such as `.github/workflows/*.yml`, `scripts/release.sh`, `scripts/bump-version.sh`, `src/app/input.rs`, and `src/runtime/context.rs` are useful for reproducing the symptom, but they are not the controlling implementation surface for this bug. Editing those first burns time without changing the second-turn compaction decision.
