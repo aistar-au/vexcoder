@@ -104,3 +104,54 @@ async fn multi_read_only_tool_round_reads_correct_content_per_file() -> Result<(
     );
     Ok(())
 }
+
+// Regression for PR #432: execute_parallel_tool_round captured undo snapshots before the
+// validation gate ran. When the gate fired (e.g. mutating tool on a read-only request),
+// the tool never executed but the snapshot stayed in the map, so a later /undo would try
+// to restore a file that was never written.
+#[tokio::test]
+async fn parallel_tool_round_drops_undo_snapshot_on_validation_failure() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let file_path = dir.path().join("target.txt");
+    std::fs::write(&file_path, b"original")?;
+
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(MockApiClient::new(vec![]))),
+        ToolOperator::new(dir.path().to_path_buf()),
+    );
+    assert!(manager.is_undo_enabled(), "undo must be enabled by default");
+
+    let blocks = vec![ContentBlock::ToolUse {
+        id: "tool-1".to_string(),
+        name: "write_file".to_string(),
+        input: json!({"path": "target.txt", "content": "should not be written"}),
+        metadata: None,
+    }];
+
+    let completed = manager
+        .execute_parallel_tool_round(
+            &blocks,
+            "read-only inspect target.txt",
+            Duration::from_secs(5),
+            true,
+            None,
+        )
+        .await;
+
+    assert_eq!(completed.len(), 1);
+    assert!(
+        completed[0].result.is_err(),
+        "mutating call on a read-only request must be blocked by the validation gate"
+    );
+    assert_eq!(
+        manager.undo_stack_len(),
+        0,
+        "validation failure must not leak an undo checkpoint onto the stack"
+    );
+    assert_eq!(
+        std::fs::read(&file_path)?,
+        b"original",
+        "the gated tool must not have written the target file"
+    );
+    Ok(())
+}
