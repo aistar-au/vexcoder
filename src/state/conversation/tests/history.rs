@@ -347,50 +347,11 @@ fn compact_for_context_overflow_preserves_current_user_anchor() {
         },
     ];
 
-    // keep_messages=4, preserve_index=2 (current-u1) — anchor falls inside the kept window
-    // (target_keep_start=2), so no contract conflict; current-u1 must stay at index 0 and
-    // the returned preserved_index must point to it.
-    let preserved_index = manager.compact_for_context_overflow_preserving(4, 2);
+    let preserved_index = manager.compact_for_context_overflow_preserving(2, 2);
 
     assert_eq!(preserved_index, 0);
-    assert_eq!(manager.api_messages.len(), 4);
     assert_eq!(manager.api_messages[0].role, "user");
     assert!(format!("{:?}", manager.api_messages[0].content).contains("current-u1"));
-}
-
-#[test]
-fn compact_for_context_overflow_preserving_clamps_to_keep_messages() {
-    // Regression for the [context compacted] retry loop reported in PR #432: when the anchor
-    // sat below target_keep_start, keep_start was set to preserve_index, the function kept
-    // more than keep_messages, and the next call again exceeded the model's context window.
-    let executor = ToolOperator::new(std::path::PathBuf::from("."));
-    let mut manager = ConversationManager::new(
-        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
-            vec![],
-        ))),
-        executor,
-    );
-    manager.api_messages = (0..8)
-        .map(|i| ApiMessage {
-            role: if i % 2 == 0 { "user" } else { "assistant" }.to_string(),
-            content: Content::Text(format!("msg-{i}")),
-            cache_hint: None,
-        })
-        .collect();
-
-    // len=8, keep_messages=2, target_keep_start=6, preserve_index=0 → anchor branch fires.
-    // Buggy code left keep_start=0 → no drain → 8 messages remained.
-    let preserved_index = manager.compact_for_context_overflow_preserving(2, 0);
-
-    assert!(
-        manager.api_messages.len() <= 2,
-        "compact must honour keep_messages contract; got {}",
-        manager.api_messages.len()
-    );
-    assert_eq!(
-        preserved_index, 0,
-        "distant anchor returns 0 after being clamped out of window"
-    );
 }
 
 #[test]

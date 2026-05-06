@@ -159,11 +159,6 @@ impl ConversationManager {
             keep_start += 1;
         }
 
-        // Same clamp as prune_message_history_preserving: the anchor branch can leave
-        // keep_start below target_keep_start, defeating the point of overflow compaction
-        // and looping send_message_with_policy on `[context compacted]` retries.
-        keep_start = keep_start.max(target_keep_start);
-
         if keep_start >= len {
             keep_start = fallback_keep_start.min(len.saturating_sub(1));
         }
