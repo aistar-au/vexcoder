@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::app::{TaskViewProjection, TranscriptRow};
 use crate::status_contract::{StatusTone, pending_status_label, status_tone};
 use crate::ui::input_metrics::{char_display_width, display_width, truncate_to_display_width};
@@ -7,6 +9,8 @@ use crate::ui::tui::{
     text::{Line, Span},
 };
 use ansi_to_tui::IntoText;
+
+const ESC: char = '\x1b';
 
 pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
     match row {
@@ -99,115 +103,211 @@ fn render_tool_header(rest: &str) -> Line<'static> {
 }
 
 fn render_assistant_text(text: &str) -> Line<'static> {
-    if text.contains('\x1b') {
-        match text.into_text() {
-            Ok(t) => t.lines.into_iter().next().unwrap_or_else(|| Line::from("")),
-            Err(_) => Line::from(Span::styled(
-                text.to_string(),
-                Style::default().fg(Color::White),
-            )),
-        }
+    let default = Style::default().fg(Color::White);
+    if contains_ansi_escape(text) {
+        ansi_to_inline_line(text, default)
     } else if looks_like_inline_markdown(text) {
         super::markdown_to_inline_line(text)
             .unwrap_or_else(|| Line::from(Span::raw(text.to_string())))
     } else {
-        Line::from(Span::styled(
-            text.to_string(),
-            Style::default().fg(Color::White),
-        ))
+        Line::from(Span::styled(text.to_string(), default))
+    }
+}
+
+pub(crate) fn contains_ansi_escape(text: &str) -> bool {
+    text.contains(ESC)
+}
+
+pub(crate) fn ansi_to_inline_line(text: &str, fallback_style: Style) -> Line<'static> {
+    let cleaned = strip_overstrike(text);
+    match cleaned.as_ref().into_text() {
+        Ok(parsed) => collapse_text_to_line(parsed.lines, &cleaned, fallback_style),
+        Err(_) => Line::from(Span::styled(cleaned.into_owned(), fallback_style)),
+    }
+}
+
+fn collapse_text_to_line(
+    lines: Vec<Line<'static>>,
+    fallback: &str,
+    fallback_style: Style,
+) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    for line in lines {
+        if !spans.is_empty() {
+            spans.push(Span::raw(" "));
+        }
+        spans.extend(line.spans);
+    }
+    if spans.is_empty() {
+        Line::from(Span::styled(fallback.to_string(), fallback_style))
+    } else {
+        Line::from(spans)
+    }
+}
+
+fn strip_overstrike(text: &str) -> Cow<'_, str> {
+    if !text.contains('\r') {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut first = true;
+    for segment in text.split('\n') {
+        if !first {
+            out.push('\n');
+        }
+        first = false;
+        let last = segment.rsplit('\r').next().unwrap_or(segment);
+        out.push_str(last);
+    }
+    Cow::Owned(out)
+}
+
+pub(crate) fn visible_display_width(text: &str) -> usize {
+    if !contains_ansi_escape(text) {
+        return display_width(text);
+    }
+    let cleaned = strip_overstrike(text);
+    match cleaned.as_ref().into_text() {
+        Ok(parsed) => parsed
+            .lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| display_width(span.content.as_ref()))
+                    .sum::<usize>()
+            })
+            .max()
+            .unwrap_or(0),
+        Err(_) => display_width(cleaned.as_ref()),
     }
 }
 
 fn render_plain_row(row: &str) -> Line<'static> {
+    if let Some(line) = render_plain_row_dispatch(row) {
+        return line;
+    }
+    if contains_ansi_escape(row) {
+        return ansi_to_inline_line(row, Style::default().fg(Color::White));
+    }
+    if looks_like_inline_markdown(row) {
+        return super::markdown_to_inline_line(row)
+            .unwrap_or_else(|| Line::from(Span::raw(row.to_string())));
+    }
+    Line::from(Span::styled(
+        row.to_string(),
+        Style::default().fg(Color::White),
+    ))
+}
+
+fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
     if let Some(rest) = row.strip_prefix("[approval] ") {
-        Line::from(vec![
-            Span::styled(
-                "  ? ",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[approval_detail] ") {
-        Line::styled(
+        return Some(line_with_marker(
+            "  ? ",
+            rest,
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    if let Some(rest) = row.strip_prefix("[approval_detail] ") {
+        return Some(Line::styled(
             format!("    {rest}"),
             Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
-        )
-    } else if let Some((command, pid)) = parse_command_session_started(row) {
-        let summary = pid
-            .map(|pid| {
-                format!(
-                    "command session · {command} · pid {pid} · {}",
-                    pending_status_label()
-                )
-            })
-            .unwrap_or_else(|| format!("command session · {command} · {}", pending_status_label()));
-        render_tool_header(&summary)
-    } else if let Some(rest) = row.strip_prefix("[command session exit: ") {
-        structured_transcript_line(
+        ));
+    }
+    if let Some((command, pid)) = parse_command_session_started(row) {
+        let summary = match pid {
+            Some(pid) => format!(
+                "command session · {command} · pid {pid} · {}",
+                pending_status_label()
+            ),
+            None => format!("command session · {command} · {}", pending_status_label()),
+        };
+        return Some(render_tool_header(&summary));
+    }
+    if let Some(rest) = row.strip_prefix("[command session exit: ") {
+        return Some(structured_transcript_line(
             &format!("Exit: {}", rest.trim_end_matches(']')),
             "    ",
             None,
-        )
-    } else if row == "[command session cancelled]" {
-        structured_transcript_line("Status: cancelled", "    ", None)
-    } else if row == "[command session cancellation requested]" {
-        structured_transcript_line("Status: cancellation requested", "    ", None)
-    } else if let Some(rest) = row.strip_prefix("[command session] error: ") {
-        Line::from(vec![
-            Span::styled(
-                "  ✖ ",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[stderr] ") {
-        Line::from(vec![
-            Span::styled(
-                "      \u{2727} ",
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
-            ),
-        ])
-    } else if row.contains('\x1b') {
-        match row.into_text() {
-            Ok(text) => text
-                .lines
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| Line::from("")),
-            Err(_) => Line::from(Span::styled(
-                row.to_string(),
-                Style::default().fg(Color::White),
-            )),
-        }
-    } else if looks_like_inline_markdown(row) {
-        super::markdown_to_inline_line(row)
-            .unwrap_or_else(|| Line::from(Span::raw(row.to_string())))
-    } else {
-        Line::from(Span::styled(
-            row.to_string(),
-            Style::default().fg(Color::White),
-        ))
+        ));
     }
+    if row == "[command session cancelled]" {
+        return Some(structured_transcript_line(
+            "Status: cancelled",
+            "    ",
+            None,
+        ));
+    }
+    if row == "[command session cancellation requested]" {
+        return Some(structured_transcript_line(
+            "Status: cancellation requested",
+            "    ",
+            None,
+        ));
+    }
+    if let Some(rest) = row.strip_prefix("[command session] error: ") {
+        return Some(line_with_marker(
+            "  ✖ ",
+            rest,
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ));
+    }
+    if let Some(rest) = row.strip_prefix("[stderr] ") {
+        return Some(line_with_marker(
+            "      \u{2727} ",
+            rest,
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+            Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
+        ));
+    }
+    None
 }
 
-fn looks_like_inline_markdown(row: &str) -> bool {
-    !row.contains("```") && (row.starts_with('#') || row.contains("**") || row.contains('`'))
+fn line_with_marker(
+    marker: &'static str,
+    body: &str,
+    marker_style: Style,
+    body_style: Style,
+) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(marker.to_string(), marker_style),
+        Span::styled(body.to_string(), body_style),
+    ])
+}
+
+pub(crate) fn looks_like_inline_markdown(row: &str) -> bool {
+    if row.contains("```") {
+        return false;
+    }
+    if row.starts_with("# ") || row.starts_with("## ") || row.starts_with("### ") {
+        return true;
+    }
+    if has_paired_marker(row, "**") {
+        return true;
+    }
+    has_paired_backtick(row)
+}
+
+fn has_paired_marker(row: &str, marker: &str) -> bool {
+    let mut count = 0usize;
+    let mut rest = row;
+    while let Some(idx) = rest.find(marker) {
+        count += 1;
+        rest = &rest[idx + marker.len()..];
+    }
+    count >= 2
+}
+
+fn has_paired_backtick(row: &str) -> bool {
+    row.bytes().filter(|b| *b == b'`').count() >= 2
 }
 
 pub(crate) fn structured_transcript_line(
@@ -541,8 +641,11 @@ fn word_wrap_transcript_row(row: &TranscriptRow, cols: usize) -> Vec<String> {
         return vec![row.as_display_str().to_string()];
     }
     let text = row.as_display_str();
+    if contains_ansi_escape(text) {
+        return vec![text.to_string()];
+    }
     let wrap_cols = transcript_row_wrap_width(row, cols);
-    if display_width(text) <= wrap_cols || is_structural_transcript_row(row) {
+    if visible_display_width(text) <= wrap_cols || is_structural_transcript_row(row) {
         return vec![text.to_string()];
     }
     word_wrap_plain_row(text, wrap_cols)
@@ -552,7 +655,10 @@ fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
     if cols < 4 || line.is_empty() {
         return vec![line.to_string()];
     }
-    if display_width(line) <= cols || is_structural_plain_str(line) {
+    if contains_ansi_escape(line) {
+        return vec![line.to_string()];
+    }
+    if visible_display_width(line) <= cols || is_structural_plain_str(line) {
         return vec![line.to_string()];
     }
     word_wrap_to_cols(line, cols)
@@ -754,5 +860,95 @@ mod tests {
             "tool header should wrap for inline scrollback"
         );
         assert!(expanded.iter().all(|row| rendered_width(row) <= 28));
+    }
+
+    #[test]
+    fn strip_overstrike_keeps_only_last_segment_per_line() {
+        assert_eq!(strip_overstrike("plain"), "plain");
+        assert_eq!(strip_overstrike("first\rsecond"), "second");
+        assert_eq!(
+            strip_overstrike("downloading 50%\rdownloading 75%\rdone"),
+            "done"
+        );
+        assert_eq!(strip_overstrike("a\rb\nc\rd"), "b\nd");
+    }
+
+    #[test]
+    fn ansi_to_inline_line_preserves_content_after_cr_overstrike() {
+        let raw = "stale\rfresh \x1b[32mvalue\x1b[0m";
+        let line = ansi_to_inline_line(raw, Style::default());
+        let visible: String = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(
+            !visible.contains("stale"),
+            "overstruck prefix must be dropped, got {visible:?}"
+        );
+        assert!(
+            visible.contains("fresh") && visible.contains("value"),
+            "post-CR content must survive, got {visible:?}"
+        );
+    }
+
+    #[test]
+    fn ansi_to_inline_line_collapses_multi_line_decoded_text() {
+        let raw = "alpha\x1b[31m\nbeta\x1b[0m";
+        let line = ansi_to_inline_line(raw, Style::default());
+        let visible: String = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(
+            visible.contains("alpha") && visible.contains("beta"),
+            "both decoded lines must be retained on a single rendered row, got {visible:?}"
+        );
+    }
+
+    #[test]
+    fn visible_display_width_ignores_ansi_bytes() {
+        let plain = "hello";
+        let styled = "\x1b[31mhello\x1b[0m";
+        assert_eq!(visible_display_width(plain), 5);
+        assert_eq!(visible_display_width(styled), 5);
+    }
+
+    #[test]
+    fn word_wrap_plain_row_does_not_split_ansi_sequences() {
+        let raw = "\x1b[31mthis is a long styled fragment that would otherwise be wrapped\x1b[0m";
+        let wrapped = word_wrap_plain_row(raw, 10);
+        assert_eq!(
+            wrapped,
+            vec![raw.to_string()],
+            "ANSI-bearing rows must not be wrapped (would split escape sequences)"
+        );
+    }
+
+    #[test]
+    fn looks_like_inline_markdown_rejects_unpaired_marks() {
+        assert!(!looks_like_inline_markdown("note: foo ** still open"));
+        assert!(!looks_like_inline_markdown("count = `len"));
+        assert!(!looks_like_inline_markdown("#define MAX 10"));
+    }
+
+    #[test]
+    fn looks_like_inline_markdown_accepts_real_markdown() {
+        assert!(looks_like_inline_markdown("# Heading"));
+        assert!(looks_like_inline_markdown("## Subheading"));
+        assert!(looks_like_inline_markdown("see **this** part"));
+        assert!(looks_like_inline_markdown("call `foo()` here"));
+    }
+
+    #[test]
+    fn render_plain_row_dispatch_handles_known_prefixes() {
+        assert!(render_plain_row_dispatch("[approval] confirm?").is_some());
+        assert!(render_plain_row_dispatch("[approval_detail] details").is_some());
+        assert!(render_plain_row_dispatch("[stderr] oops").is_some());
+        assert!(render_plain_row_dispatch("[command session exit: 0]").is_some());
+        assert!(render_plain_row_dispatch("[command session cancelled]").is_some());
+        assert!(render_plain_row_dispatch("[command session] error: boom").is_some());
+        assert!(render_plain_row_dispatch("ordinary line").is_none());
     }
 }
