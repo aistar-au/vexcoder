@@ -355,6 +355,39 @@ fn compact_for_context_overflow_preserves_current_user_anchor() {
 }
 
 #[test]
+fn prune_message_history_preserving_clamps_to_max_api_messages() {
+    // Regression for PR #432: with len=20, max_api_messages=14 and preserve_index=5 the
+    // anchor heuristic fired (preserve_distance=1) and set keep_start to preserve_index,
+    // leaving 15 messages and pushing the next request over the model's context window.
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        ))),
+        executor,
+    );
+    manager.api_messages = (0..20)
+        .map(|i| ApiMessage {
+            role: if i % 2 == 0 { "user" } else { "assistant" }.to_string(),
+            content: Content::Text(format!("msg-{i}")),
+            cache_hint: None,
+        })
+        .collect();
+
+    let preserved_index = manager.prune_message_history_preserving(14, 5);
+
+    assert!(
+        manager.api_messages.len() <= 14,
+        "prune must never exceed max_api_messages; got {}",
+        manager.api_messages.len()
+    );
+    assert_eq!(
+        preserved_index, 0,
+        "distant anchor returns 0 after the clamp drops it out of window"
+    );
+}
+
+#[test]
 fn text_protocol_tool_results_count_as_tool_result_messages() {
     let message = ApiMessage {
         role: "user".to_string(),

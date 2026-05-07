@@ -106,10 +106,16 @@ impl ConversationManager {
         let completed = join_all(executions).await;
 
         for call in &completed {
-            if call.result.is_ok()
-                && let Some(cp) = undo_snapshots.remove(&call.id)
-            {
-                self.push_undo_checkpoint(cp);
+            if call.result.is_ok() {
+                if let Some(cp) = undo_snapshots.remove(&call.id) {
+                    self.push_undo_checkpoint(cp);
+                }
+            } else {
+                // Snapshot was captured before the validation gate (read-only/mutating
+                // location prompts, mutating-on-read-only conflicts). When the gate fires
+                // the tool never runs, so dropping the snapshot prevents `/undo` from later
+                // trying to restore a file that was never written.
+                undo_snapshots.remove(&call.id);
             }
         }
 
