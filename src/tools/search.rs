@@ -92,6 +92,15 @@ impl ParsedQuery {
     fn has_positive_terms(&self) -> bool {
         !self.terms.is_empty() || !self.required_terms.is_empty()
     }
+
+    fn is_effectively_empty(&self) -> bool {
+        self.terms.is_empty()
+            && self.required_terms.is_empty()
+            && self.excluded_terms.is_empty()
+            && self.path_filters.is_empty()
+            && self.kind_filters.is_empty()
+            && self.lang_filters.is_empty()
+    }
 }
 
 #[derive(Debug)]
@@ -154,11 +163,14 @@ pub fn codebase_search(
     max_results: Option<usize>,
 ) -> Vec<SearchResult> {
     let cap = max_results.unwrap_or_else(max_results_default);
-    if query.is_empty() || index.is_empty() {
+    if query.trim().is_empty() || index.is_empty() {
         return Vec::new();
     }
 
     let parsed_query = ParsedQuery::parse(query);
+    if parsed_query.is_effectively_empty() {
+        return Vec::new();
+    }
     let positive_query = parsed_query.positive_query_text();
 
     let scored: Vec<(f64, usize)> = index
@@ -660,6 +672,22 @@ mod tests {
         let index = vec![make_chunk("foo", ItemKind::Function, "fn foo() {}")];
         let results = codebase_search("", &index, Some(10));
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_whitespace_or_quote_only_query_returns_empty() {
+        let index = vec![
+            make_chunk("foo", ItemKind::Function, "fn foo() {}"),
+            make_chunk("bar", ItemKind::Function, "fn bar() {}"),
+        ];
+        for query in ["   ", "\t\n", "\"\"", "\"   \"", "+", "-"] {
+            let results = codebase_search(query, &index, Some(10));
+            assert!(
+                results.is_empty(),
+                "query {query:?} should return no results, got {} results",
+                results.len()
+            );
+        }
     }
 
     #[test]
