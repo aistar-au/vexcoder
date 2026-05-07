@@ -256,7 +256,7 @@ Repeat this loop until the task is complete; do not stop early after a single to
 For requests that mention specific files/paths or code edits, do not answer with planning text; emit a tool call first.\n\
 Never claim a file was read/written/renamed/searched unless the corresponding tool call succeeded.\n\
 Do not narrate intended actions without calling the tool call.\n\
-Use codebase_search to find functions, types, and code patterns before reading files. Only use read_file with offset/limit when you know the exact location.\n\
+Use codebase_search to find functions, types, and code patterns before reading files. Use quoted phrases and path:/kind:/lang: filters when they sharpen the search. Only use read_file with offset/limit when you know the exact location.\n\
 Prefer search_files for targeted string matches and avoid full-file reads unless required.\n\
 Use list_files/search_files/read_file before saying a file is missing or present.\n\
 For repository summaries or unfamiliar codebases, start with list_files at the workspace root and/or codebase_search; do not call read_file until you have an explicit non-empty path.\n\

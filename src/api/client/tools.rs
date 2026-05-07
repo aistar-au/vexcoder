@@ -255,11 +255,11 @@ pub(super) fn tool_definitions() -> &'static Value {
                 },
                 {
                     "name": "codebase_search",
-                    "description": "Search the codebase for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers, and when embeddings are configured it also performs semantic reranking backed by a persisted index under .vex/index/. Prefer this over read_file for exploring unfamiliar code or producing a quick repo overview.",
+                    "description": "Search the codebase for functions, types, and code patterns by name, phrase, or filtered query. Supports quoted phrases plus `+required`, `-excluded`, `path:`, `kind:`, and `lang:` filters. Returns ranked code snippets with file paths and line numbers, and when embeddings are configured it also performs semantic reranking backed by a persisted index under .vex/index/. Prefer this over read_file for exploring unfamiliar code or producing a quick repo overview.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
-                            "query": { "type": "string", "description": "Natural language or identifier search query" },
+                            "query": { "type": "string", "description": "Identifier, phrase, or filtered query using quoted phrases, +required, -excluded, path:, kind:, and lang: filters" },
                             "max_results": { "type": "integer", "description": "Maximum results to return (default 10)", "minimum": 1, "maximum": 50 }
                         },
                         "required": ["query"]
