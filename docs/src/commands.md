@@ -306,7 +306,7 @@ session/capability auto-approval grant).
 | `find_files` | Find files by name pattern (glob) within the workspace. |
 | `list_dir` | Non-recursive directory listing. Workspace-confined and `.gitignore`-aware. Optional `path` (defaults to workspace root); optional `max_entries` (default 200, hard cap 500). |
 | `glob_files` | Workspace-wide glob matching. `.gitignore`-aware with bounded results. Required `pattern` (supports `*`, `**`, `?`, `[abc]`, `[a-z]`, `[^x]`); optional `max_results` (default 50, hard cap 200). |
-| `codebase_search` | Search the structural index for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers. When embeddings are configured, also performs semantic reranking. Prefer this over `read_file` for exploring unfamiliar code. |
+| `codebase_search` | Search the structural index for functions, types, and code patterns by name, phrase, or filtered query. Supports quoted phrases plus `+required`, `-excluded`, `path:`, `kind:`, and `lang:` filters. Returns ranked code snippets with file paths and line numbers. When embeddings are configured, also performs semantic reranking. Prefer this over `read_file` for exploring unfamiliar code. |
 | `git_status` | Show git repository status. |
 | `git_diff` | Show git diff output. |
 
@@ -323,9 +323,19 @@ session/capability auto-approval grant).
 ### Search ranking
 
 `codebase_search` uses a Tree-sitter-based structural index that extracts
-functions, structs, enums, impls, traits, modules, constants, and type
-aliases from Rust source files. The index is built at session start and
+functions, structs, classes, interfaces, enums, impls, traits, modules,
+constants, and type aliases from supported Rust, Python, TypeScript/TSX,
+and JavaScript source files. The index is built at session start and
 updated incrementally on file writes.
+
+Query syntax supports:
+
+- Quoted phrases for exact multi-word matches, such as `"process request"`
+- `+required` terms that must appear in the candidate result
+- `-excluded` terms that remove matching candidates
+- `path:` filters to confine matches to specific files or directories
+- `kind:` filters such as `kind:function` or `kind:struct`
+- `lang:` filters such as `lang:rust`, `lang:python`, or `lang:typescript`
 
 Results are scored by:
 
