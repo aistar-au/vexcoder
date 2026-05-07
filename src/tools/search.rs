@@ -108,7 +108,10 @@ impl ChunkSearchFields {
     fn from_chunk(chunk: &IndexChunk) -> Self {
         Self {
             name_lower: chunk.name.to_ascii_lowercase(),
-            scope_lower: chunk.parent_scope.as_ref().map(|scope| scope.to_ascii_lowercase()),
+            scope_lower: chunk
+                .parent_scope
+                .as_ref()
+                .map(|scope| scope.to_ascii_lowercase()),
             source_lower: chunk.source.to_ascii_lowercase(),
             path_lower: chunk.path.to_ascii_lowercase(),
             kind_lower: chunk.kind.label().to_ascii_lowercase(),
@@ -336,8 +339,8 @@ fn normalize_kind_filter(value: &str) -> Option<String> {
     let normalized = value.trim().to_ascii_lowercase();
     match normalized.as_str() {
         "" => None,
-        "function" | "struct" | "class" | "interface" | "enum" | "impl" | "trait"
-        | "module" | "const" | "static" | "type" => Some(normalized),
+        "function" | "struct" | "class" | "interface" | "enum" | "impl" | "trait" | "module"
+        | "const" | "static" | "type" => Some(normalized),
         "typealias" => Some("type".to_string()),
         _ => Some(normalized),
     }
@@ -432,7 +435,10 @@ fn matches_positive_terms(fields: &ChunkSearchFields, parsed_query: &ParsedQuery
         return true;
     }
 
-    parsed_query.terms.iter().any(|term| fields.matches_term(term))
+    parsed_query
+        .terms
+        .iter()
+        .any(|term| fields.matches_term(term))
 }
 
 fn score_term(fields: &ChunkSearchFields, term: &str, required: bool) -> f64 {
@@ -455,10 +461,10 @@ fn score_term(fields: &ChunkSearchFields, term: &str, required: bool) -> f64 {
         score += 10.0;
     }
 
-    if let Some(scope_lower) = fields.scope_lower.as_deref() {
-        if scope_lower.contains(term) {
-            score += 12.0;
-        }
+    if let Some(scope_lower) = fields.scope_lower.as_deref()
+        && scope_lower.contains(term)
+    {
+        score += 12.0;
     }
 
     let count = fields.source_lower.matches(term).count();
@@ -487,10 +493,10 @@ fn score_chunk(chunk: &IndexChunk, parsed_query: &ParsedQuery, positive_query: &
             score += 30.0;
         }
 
-        if let Some(scope_lower) = fields.scope_lower.as_deref() {
-            if scope_lower.contains(&query_lower) || query_lower.contains(scope_lower) {
-                score += 20.0;
-            }
+        if let Some(scope_lower) = fields.scope_lower.as_deref()
+            && (scope_lower.contains(&query_lower) || query_lower.contains(scope_lower))
+        {
+            score += 20.0;
         }
     }
 

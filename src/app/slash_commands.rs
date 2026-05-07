@@ -489,7 +489,9 @@ pub(super) fn builtin_tool_usage_hint(name: &str) -> &'static str {
         "glob_files" => "find files by name pattern across the workspace",
         "find_files" => "build a selected file list before reading content",
         "search" | "search_content" => "scan exact text or regex hits across files",
-        "codebase_search" => "rank functions, types, and filtered code snippets before opening files",
+        "codebase_search" => {
+            "rank functions, types, and filtered code snippets before opening files"
+        }
         "read_file" => "read exact paths once discovery yields a selected target",
         "write_file" | "edit_file" | "apply_patch" | "rename_file" => {
             "make targeted workspace mutations"
