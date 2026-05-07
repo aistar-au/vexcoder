@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 417
+- Total tracked files: 418
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -90,6 +90,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 79 | `adr/ADR-047-amendment-2026-04-20.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-20.md> |
 | 80 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 81 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md> |
+| 81a | `adr/ADR-050-doc-codepath-drift-detection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-050-doc-codepath-drift-detection.md> |
 | 82 | `adr/ADR-README.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 83 | `adr/completed/ADR-001-tdm-agentic-checklist-strategy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-checklist-strategy.md> |
 | 84 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
