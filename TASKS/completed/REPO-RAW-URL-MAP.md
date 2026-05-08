@@ -63,6 +63,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 52 | `adr/ADR-022-amendment-2026-04-20.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-04-20.md> |
 | 53 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |
 | 54 | `adr/ADR-023-deterministic-edit-loop.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-deterministic-edit-loop.md> |
+| 54a | `adr/ADR-023-amendment-2026-05-01.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-amendment-2026-05-01.md> |
+| 54b | `adr/ADR-023-amendment-2026-05-03.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-amendment-2026-05-03.md> |
 | 55 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
 | 56 | `adr/ADR-025-runtime-json-handoff-contract.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-025-runtime-json-handoff-contract.md> |
 | 57 | `adr/ADR-026-localapiserver-transport-binding.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-026-localapiserver-transport-binding.md> |
@@ -72,6 +74,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 61 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md> |
 | 62 | `adr/ADR-031-operator-surface-ui-overhaul.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-031-operator-surface-ui-overhaul.md> |
 | 63 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md> |
+| 63a | `adr/ADR-032-amendment-2026-05-01.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-032-amendment-2026-05-01.md> |
 | 64 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-033-hybrid-retrieval-context-architecture.md> |
 | 65 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
 | 66 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md> |
@@ -88,9 +91,12 @@ Canonical raw URL index for every tracked file in this repository.
 | 77 | `adr/ADR-047-amendment-2026-04-16-addendum.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16-addendum.md> |
 | 78 | `adr/ADR-047-amendment-2026-04-16.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16.md> |
 | 79 | `adr/ADR-047-amendment-2026-04-20.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-20.md> |
+| 79a | `adr/ADR-047-amendment-2026-05-01.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-05-01.md> |
+| 79b | `adr/ADR-047-amendment-2026-05-03.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-05-03.md> |
 | 80 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 81 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md> |
-| 81a | `adr/ADR-050-doc-codepath-drift-detection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-050-doc-codepath-drift-detection.md> |
+| 81a | `adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md> |
+| 81b | `adr/ADR-050-doc-codepath-drift-detection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-050-doc-codepath-drift-detection.md> |
 | 82 | `adr/ADR-README.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 83 | `adr/completed/ADR-001-tdm-agentic-checklist-strategy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-checklist-strategy.md> |
 | 84 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -166,11 +172,11 @@ Canonical raw URL index for every tracked file in this repository.
 | 154 | `src/api/client/tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tests.rs> |
 | 155 | `src/api/client/tests/protocol.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tests/protocol.rs> |
 | 156 | `src/api/client/tools.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tools.rs> |
-| 157 | `src/api/eventsource.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/eventsource.rs> |
-| 158 | `src/api/eventsource/non_stream.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/eventsource/non_stream.rs> |
-| 159 | `src/api/eventsource/tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/eventsource/tests.rs> |
-| 160 | `src/api/eventsource/tests/local_retry.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/eventsource/tests/local_retry.rs> |
-| 161 | `src/api/eventsource/tests/stream_lifecycle.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/eventsource/tests/stream_lifecycle.rs> |
+| 157 | `src/api/stream_ingress.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream_ingress.rs> |
+| 158 | `src/api/stream_ingress/non_stream.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream_ingress/non_stream.rs> |
+| 159 | `src/api/stream_ingress/tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream_ingress/tests.rs> |
+| 160 | `src/api/stream_ingress/tests/local_retry.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream_ingress/tests/local_retry.rs> |
+| 161 | `src/api/stream_ingress/tests/stream_lifecycle.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream_ingress/tests/stream_lifecycle.rs> |
 | 162 | `src/api/logging.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 163 | `src/api/mock_client.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | 164 | `src/api/stream.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
