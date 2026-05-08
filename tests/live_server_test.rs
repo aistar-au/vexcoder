@@ -389,6 +389,41 @@ pub(crate) async fn spawn_auto_detect_messages_tagged_tool_call_server() -> (Str
     (format!("http://{addr}"), server)
 }
 
+async fn streaming_messages_v1_text_handler(Json(payload): Json<Value>) -> Response {
+    if !stream_requested(&payload) {
+        return Json(json!({"id":"msg-stream-text","type":"message","role":"assistant","model":"stream-test-model","content":[{"type":"text","text":"fast acknowledgement"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":8,"output_tokens":2}})).into_response();
+    }
+
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        concat!(
+            "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-stream-text\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"stream-test-model\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":8,\"output_tokens\":1}}}\n\n",
+            "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"fast acknowledgement\"}}\n\n",
+            "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":2}}\n\n",
+            "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        ),
+    )
+        .into_response()
+}
+
+async fn spawn_messages_v1_stream_server() -> (String, JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new().route("/v1/messages", post(streaming_messages_v1_text_handler)),
+        )
+        .await
+        .unwrap();
+    });
+    (format!("http://{addr}"), server)
+}
+
 async fn tool_calls_json_args_chat_handler(Json(payload): Json<Value>) -> Response {
     if stream_requested(&payload) {
         return no_initial_sse_response();
@@ -498,11 +533,9 @@ async fn test_live_server_model_listing() {
 }
 
 #[tokio::test]
-async fn test_live_server_messages_v1_stream_emits_text_and_completes() {
-    let base_url = live_server_url();
-    let model = require_live_server!(&base_url);
-    let mut config = build_messages_v1_config(&base_url, &model);
-    config.model_url = format!("{}/messages/v1", base_url.trim_end_matches('/'));
+async fn messages_v1_stream_emits_text_and_completes() {
+    let (base_url, server) = spawn_messages_v1_stream_server().await;
+    let config = build_messages_v1_config(&base_url, "stream-test-model");
 
     let client = vexcoder::api::ApiClient::new(&config).expect("client should build");
     let mut stream = client
@@ -510,13 +543,13 @@ async fn test_live_server_messages_v1_stream_emits_text_and_completes() {
             "Reply with a short plain-text acknowledgement.",
         ))
         .await
-        .expect("live stream should start");
+        .expect("messages-v1 stream should start");
 
     let mut transcript = String::new();
     let mut completed = false;
 
     while let Some(envelope) = stream.next().await {
-        let envelope = envelope.expect("live envelope");
+        let envelope = envelope.expect("messages-v1 envelope");
         match envelope.signal {
             RuntimeSignal::TranscriptBlockDelta { delta, .. } => transcript.push_str(&delta),
             RuntimeSignal::TranscriptBlockStart {
@@ -528,11 +561,12 @@ async fn test_live_server_messages_v1_stream_emits_text_and_completes() {
         }
     }
 
-    assert!(completed, "live stream must complete successfully");
+    assert!(completed, "messages-v1 stream must complete successfully");
     assert!(
         !transcript.trim().is_empty(),
-        "live stream must emit assistant text"
+        "messages-v1 stream must emit assistant text"
     );
+    server.abort();
 }
 
 #[tokio::test]

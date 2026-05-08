@@ -287,7 +287,11 @@ pub(crate) fn looks_like_inline_markdown(row: &str) -> bool {
     if row.contains("```") {
         return false;
     }
-    if row.starts_with("# ") || row.starts_with("## ") || row.starts_with("### ") {
+    let heading_mark_count = row.bytes().take_while(|byte| *byte == b'#').count();
+    let after_heading_marks = row.as_bytes().get(heading_mark_count).copied();
+    if (1..=6).contains(&heading_mark_count)
+        && matches!(after_heading_marks, None | Some(b' ' | b'\t'))
+    {
         return true;
     }
     if has_paired_marker(row, "**") {
@@ -931,12 +935,16 @@ mod tests {
         assert!(!looks_like_inline_markdown("note: foo ** still open"));
         assert!(!looks_like_inline_markdown("count = `len"));
         assert!(!looks_like_inline_markdown("#define MAX 10"));
+        assert!(!looks_like_inline_markdown("####### Too deep"));
     }
 
     #[test]
     fn looks_like_inline_markdown_accepts_real_markdown() {
         assert!(looks_like_inline_markdown("# Heading"));
         assert!(looks_like_inline_markdown("## Subheading"));
+        assert!(looks_like_inline_markdown("###\tTabbed subheading"));
+        assert!(looks_like_inline_markdown("###### Deep subheading"));
+        assert!(looks_like_inline_markdown("#"));
         assert!(looks_like_inline_markdown("see **this** part"));
         assert!(looks_like_inline_markdown("call `foo()` here"));
     }
