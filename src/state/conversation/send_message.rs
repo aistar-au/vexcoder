@@ -651,9 +651,8 @@ impl ConversationManager {
                             if name == "read_file"
                                 && let Some((ref last_path, last_offset)) = last_read_file_anchor
                             {
-                                let offset_hint = last_offset.map_or_else(String::new, |off| {
-                                    format!(" at offset {off}")
-                                });
+                                let offset_hint = last_offset
+                                    .map_or_else(String::new, |off| format!(" at offset {off}"));
                                 clarification.push_str(&format!(
                                     " You were most recently reading '{last_path}'{offset_hint} — specify that path to continue."
                                 ));
