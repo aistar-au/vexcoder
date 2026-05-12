@@ -59,7 +59,7 @@ impl ConversationManager {
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
         let mut final_answer_attempted = false;
-        let mut last_read_file_path: Option<String> = None;
+        let mut last_read_file_anchor: Option<(String, Option<u64>)> = None;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = PulseTokens::default();
         let mut overflow_retry_count = 0usize;
@@ -602,7 +602,8 @@ impl ConversationManager {
                         && result.is_ok()
                         && let Some(path) = input.get("path").and_then(|v| v.as_str())
                     {
-                        last_read_file_path = Some(path.to_string());
+                        let offset = input.get("offset").and_then(serde_json::Value::as_u64);
+                        last_read_file_anchor = Some((path.to_string(), offset));
                     }
 
                     let output_for_stream = result
@@ -648,10 +649,12 @@ impl ConversationManager {
                             missing_read_only_location_prompt(&name, &input)
                         {
                             if name == "read_file"
-                                && let Some(ref last_path) = last_read_file_path
+                                && let Some((ref last_path, last_offset)) = last_read_file_anchor
                             {
+                                let offset_hint = last_offset
+                                    .map_or_else(String::new, |off| format!(" at offset {off}"));
                                 clarification.push_str(&format!(
-                                    " You were most recently reading '{last_path}' — specify that path to continue."
+                                    " You were most recently reading '{last_path}'{offset_hint} — specify that path to continue."
                                 ));
                             }
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
@@ -817,7 +820,8 @@ impl ConversationManager {
                             && name == "read_file"
                             && let Some(path) = input.get("path").and_then(|v| v.as_str())
                         {
-                            last_read_file_path = Some(path.to_string());
+                            let offset = input.get("offset").and_then(serde_json::Value::as_u64);
+                            last_read_file_anchor = Some((path.to_string(), offset));
                         }
 
                         let final_status = if result.is_err() {

@@ -16,7 +16,8 @@ Highest priority wins:
 
 1. Environment variables
 2. Repo-scoped `.vex/config.toml`
-3. User config: `~/.config/vex/config.toml` or `~/.vex/config.toml`
+3. User config: `XDG_CONFIG_HOME/vex/config.toml` or the platform config
+   directory returned by `dirs::config_dir()`
 4. System config: `/etc/vex/config.toml`
 5. Built-in defaults
 
@@ -49,9 +50,16 @@ These keys are read by the current runtime from config files:
 | `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, `container`, or `bubblewrap` | `passthrough` |
 | `sandbox_profile` | Sandbox profile path, container image name, or extra bubblewrap arguments | unset |
 | `sandbox_require` | Abort startup instead of falling back to passthrough when the sandbox probe fails | `false` |
-| `notes_path` | Notes file used by `/memory` | unset |
+| `notes_path` | User-config-only notes file override used by `/memory` | unset |
 
-`notes_path` is user-config only.
+`notes_path` is user-config only. When unset, `/memory` reads an existing
+`XDG_CONFIG_HOME/vex/memory.md` file and otherwise an existing
+`~/.config/vex/memory.md` file. New notes are written to the same XDG path when
+`XDG_CONFIG_HOME` is set, or to `~/.config/vex/memory.md` when it is not set.
+The legacy `~/.vex/memory.md` path is not consulted. Notes are appended to the
+model prompt only when their estimated token count is within
+`max_memory_tokens`; over-budget notes remain on disk and are omitted from that
+session's prompt.
 
 When `model_profile` is set, the runtime loads the profile at startup and uses
 its request parameters (`temperature`, `top_p`, `max_tokens`, stop sequences,

@@ -1,10 +1,13 @@
 # Task PJ-03: User Persistent Notes (`/memory`)
 
-**Target Files:** `src/app.rs`, `src/config.rs`, `tests/integration_test.rs`
+**Target Files:** `src/app.rs`, `src/app/commands/memory.rs`,
+`src/session_notes.rs`, `src/api/client/mod.rs`, `src/config.rs`,
+`src/config/load/`, `src/batch_mode.rs`, `src/app/tests/memory.rs`,
+`tests/integration_test.rs`
 
 **ADR:** ADR-024 Gap 16
 
-**Depends on:** PA-01 (layered config resolution chain — green at PR #48)
+**Depends on:** PA-01 (layered config resolution chain — passing at PR #48)
 
 ---
 
@@ -13,7 +16,8 @@
 No mechanism exists for operators to persist notes across sessions or inject
 them into the system context. ADR-024 Gap 16 defines a user-level notes
 surface stored at a user-config-layer path and injected at session start
-within a token budget.
+within a token budget. Content that exceeds the budget remains on disk and is
+not appended to the prompt.
 
 ---
 
@@ -24,8 +28,9 @@ within a token budget.
    notes are operator-personal and project-scoping them is a security boundary
    violation.
 
-2. Default path: `~/.config/vex/memory.md` (XDG). Fallback:
-   `~/.vex/memory.md`. The file is created on first `/memory add` if absent.
+2. Default path: `XDG_CONFIG_HOME/vex/memory.md` when `XDG_CONFIG_HOME` is set;
+   otherwise `~/.config/vex/memory.md`. The legacy `~/.vex/memory.md` path is
+   not consulted. The file is created on first `/memory add` if absent.
 
 3. Add three commands to `try_handle_slash_command` in `src/app.rs`:
 
@@ -47,7 +52,8 @@ within a token budget.
 4. At session start, inject notes file contents into the system context
    within a token budget. Budget overflow is a warning emitted via
    `push_history_line`; the session must continue without the notes rather
-   than abort.
+   than abort. This preserves disk-backed memory while preventing unbounded
+   prompt growth.
 
 5. Auto-memory (model-initiated extraction) is formally deferred. Do not
    implement it here.
@@ -63,7 +69,9 @@ within a token budget.
   failure with a diagnostic naming the file.
 - The notes file is never committed to source control. Do not add it to
   `.gitignore` in this task — that belongs to `vex init` (PJ-04).
-- Do not modify `src/runtime/`, `src/state/`, or `src/api/` in this task.
+- Keep implementation changes at the existing memory seams. The final
+  implementation uses `src/session_notes.rs` and `src/api/client/mod.rs` for
+  shared prompt injection across interactive and batch entry points.
 - Do not implement `/compact` (PJ-01), `/fork` (PJ-02), or `vex init` (PJ-04)
   in this task.
 
@@ -89,7 +97,7 @@ within a token budget.
 4. Notes are injected at session start within the token budget.
 5. Budget overflow emits a warning and continues the session.
 6. Repo-local config specifying a notes path is rejected at load time.
-7. `cargo test --all-targets` is green.
+7. `cargo test --all-targets` passes.
 
 ---
 
@@ -117,7 +125,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ---
 
-## Work Verification (work checklist only — implementation not yet merged into current `main`)
+## Initial Checklist Verification
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
@@ -132,7 +140,7 @@ fn test_tui_memory_does_not_call_start_turn() {
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
   - This branch stages the PJ-03 work checklist only.
-  - Do not mark PJ-03 green until the implementation branch lands and all
+  - Do not mark PJ-03 complete until the implementation branch lands and all
     anchor tests pass.
 
 ---
@@ -143,10 +151,16 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 - Deprecated branch name: omitted
 - Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
-- Files changed:
-  - `src/app.rs` (+`354` -`6`)
-  - `src/config.rs` (+`27` -`0`)
-  - `tests/integration_test.rs` (+`23` -`0`)
+- Primary files changed:
+  - `src/app.rs`
+  - `src/app/commands/memory.rs`
+  - `src/session_notes.rs`
+  - `src/api/client/mod.rs`
+  - `src/config.rs`
+  - `src/config/load/`
+  - `src/batch_mode.rs`
+  - `src/app/tests/memory.rs`
+  - `tests/integration_test.rs`
 - Validation:
   - `cargo test test_tui_memory_does_not_call_start_turn --all-targets` : pass
   - `cargo test test_memory_injection_within_budget --all-targets` : pass
@@ -157,9 +171,8 @@ fn test_tui_memory_does_not_call_start_turn() {
 - Notes:
   - Notes injection and /memory commands implemented per ADR-024 Gap 16.
   - Notes path remains user-config-layer only; repo-local override rejected.
-  - Scope note: implementation also touches `src/api/client/mod.rs`,
-    `src/runtime/context.rs`, `src/session_notes.rs`, and PE-01/PE-02 files
-    (`src/batch_mode.rs`, `src/bin/vex.rs`, `src/runtime/task_state/mod.rs`,
-    `TASKS/PE-01-batch-mode.md`).
+  - Scope note: implementation uses the shared session-notes and API-client
+    seams so interactive and batch entry points apply the same token-budgeted
+    injection rule.
   - Batch mode now handles `/memory clear` locally: no `--auto-approve`
     returns an error; `--auto-approve` clears notes with no model pulse.

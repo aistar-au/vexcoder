@@ -2,8 +2,8 @@
 
 **Target files:**
 - Slash-command routing in `src/app.rs` — `/memory`, `/memory add`, `/memory clear`
-- Notes file storage: `~/.config/vex/memory.md` or `~/.vex/memory.md` fallback
-- Session prompt injection: `src/runtime/context.rs` (after project instructions, within token budget)
+- Notes file storage: explicit user-config `notes_path` or XDG-style `~/.config/vex/memory.md`
+- Session prompt injection: `src/session_notes.rs` and `src/api/client/mod.rs` (after project instructions, within token budget)
 
 **ADR:** ADR-024 Gap 16
 
@@ -15,24 +15,28 @@
 
 ## Issue
 
-There is no operator-level persistent notes surface. Reference agents expose
-`/memory`, `/memory add <note>`, and `/memory clear` backed by a user-scoped
-Markdown file injected into every session system prompt. This is distinct from
+There is no operator-level persistent notes surface. Comparable coding-agent
+surfaces use file-backed Markdown instructions or notes so recurring
+operator-specific facts do not have to be retyped in every prompt. Vex keeps
+that state in an operator-scoped notes file, injects it only within a configured
+token budget, and leaves over-budget content on disk. This is distinct from
 project instructions (Gap 4 / `AGENTS.md`): project instructions are
 project-scoped and committed; user notes are operator-scoped and never
-committed. PJ-03 must not begin until PA-01 (layered config) is green.
+committed. PJ-03 must not begin until PA-01 (layered config) is passing.
 
 ---
 
 ## Decision
 
-1. **Storage path:** `~/.config/vex/memory.md` (XDG) or `~/.vex/memory.md` as
-   fallback. Created on first `/memory add` if absent.
+1. **Storage path:** explicit user-config `notes_path` when set; otherwise
+   `XDG_CONFIG_HOME/vex/memory.md` or `~/.config/vex/memory.md`. No repo-local
+   or legacy-home notes fallback is used. The file is created on first
+   `/memory add` if absent.
 
 2. **Session injection:** Read notes file at session start, append to system
    prompt after project instructions, within `VEX_MAX_MEMORY_TOKENS` budget
-   (default: 2048). Exceeding budget emits a startup warning and skips
-   injection without aborting the session.
+   (default: 2048). Exceeding budget emits a startup warning, skips injection,
+   and keeps the source content on disk for operator review.
 
 3. **Commands** (added to `try_handle_slash_command`):
 ```
@@ -64,9 +68,10 @@ committed. PJ-03 must not begin until PA-01 (layered config) is green.
 
 ## Definition of Done
 
-- `cargo test --all-targets` green.
-- `make gate-fast` green.
-- `/memory add "test note"` appends to `~/.config/vex/memory.md`.
+- `cargo test --all-targets` passes.
+- `make gate-fast` passes.
+- `/memory add "test note"` appends to the configured notes file or the XDG
+  default at `~/.config/vex/memory.md`.
 - Notes file content appears in session system prompt on next start (within budget).
 - Token budget overflow emits a startup warning and skips injection without aborting.
 - All seven anchor tests below pass.
@@ -103,4 +108,4 @@ fn test_memory_injection_over_budget_emits_warning() { ... }
 - Do not start a model pulse from any `/memory` subcommand.
 - Do not skip the confirmation overlay for `/memory clear` in `TuiMode`.
 - Do not implement auto-memory (model-initiated capture) — formally deferred per ADR-024 Gap 16.
-- Do not begin this task until PA-01 (layered config) is green.
+- Do not begin this task until PA-01 (layered config) is passing.
