@@ -86,23 +86,6 @@ pub(crate) fn clear_pulse_ledger() {
     ledger.entries.clear();
 }
 
-pub(crate) fn pulse_ledger_snapshot() -> Vec<LocatedRead> {
-    let ledger = global_pulse_ledger()
-        .lock()
-        .expect("pulse ledger mutex poisoned");
-    ledger.entries.clone()
-}
-
-pub(crate) fn restore_pulse_ledger(entries: Vec<LocatedRead>) {
-    let mut ledger = global_pulse_ledger()
-        .lock()
-        .expect("pulse ledger mutex poisoned");
-    ledger.entries = entries;
-    while ledger.entries.len() > MAX_PULSE_LEDGER_ENTRIES {
-        ledger.entries.remove(0);
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn lock_pulse_ledger_for_tests() -> std::sync::MutexGuard<'static, ()> {
     PULSE_LEDGER_TEST_LOCK
@@ -114,8 +97,7 @@ pub(crate) fn lock_pulse_ledger_for_tests() -> std::sync::MutexGuard<'static, ()
 mod tests {
     use super::{
         MAX_PULSE_LEDGER_ENTRIES, clear_pulse_ledger, file_fingerprint, find_pulse_read,
-        lock_pulse_ledger_for_tests, pulse_ledger_snapshot, record_pulse_read,
-        restore_pulse_ledger,
+        lock_pulse_ledger_for_tests, record_pulse_read,
     };
     use filetime::{FileTime, set_file_mtime};
     use std::fs;
@@ -159,46 +141,31 @@ mod tests {
     }
 
     #[test]
-    fn test_pulse_ledger_snapshot_and_restore_roundtrip() {
-        let _lock = lock_pulse_ledger_for_tests();
-        clear_pulse_ledger();
-        let workspace = tempfile::tempdir().expect("tempdir");
-        let path = workspace.path().join("note.txt");
-        fs::write(&path, "alpha\n").expect("write file");
-        let fingerprint = file_fingerprint(&path).expect("fingerprint");
-        record_pulse_read(path.clone(), 1, 1, fingerprint);
-
-        let snapshot = pulse_ledger_snapshot();
-        clear_pulse_ledger();
-        assert!(find_pulse_read(&path).is_none());
-
-        restore_pulse_ledger(snapshot);
-        assert!(
-            find_pulse_read(&path).is_some(),
-            "restoring a ledger snapshot should make the entry queryable again"
-        );
-        clear_pulse_ledger();
-    }
-
-    #[test]
-    fn test_pulse_ledger_caps_at_max_entries() {
+    fn test_pulse_ledger_evicts_oldest_when_capped() {
         let _lock = lock_pulse_ledger_for_tests();
         clear_pulse_ledger();
         let workspace = tempfile::tempdir().expect("tempdir");
 
+        let mut paths = Vec::new();
         for index in 0..(MAX_PULSE_LEDGER_ENTRIES + 4) {
             let name = format!("note-{index}.txt");
             let path = workspace.path().join(&name);
             fs::write(&path, format!("line {index}\n")).expect("write fixture");
             let fingerprint = file_fingerprint(&path).expect("fingerprint");
-            record_pulse_read(path, 1, 1, fingerprint);
+            record_pulse_read(path.clone(), 1, 1, fingerprint);
+            paths.push(path);
         }
 
-        let snapshot = pulse_ledger_snapshot();
+        for evicted in &paths[..4] {
+            assert!(
+                find_pulse_read(evicted).is_none(),
+                "the oldest entries must be evicted once the ledger exceeds its cap"
+            );
+        }
+        let kept = paths.last().expect("at least one entry recorded");
         assert!(
-            snapshot.len() <= MAX_PULSE_LEDGER_ENTRIES,
-            "ledger must cap at MAX_PULSE_LEDGER_ENTRIES, got {}",
-            snapshot.len()
+            find_pulse_read(kept).is_some(),
+            "the most recent entry must remain after eviction"
         );
         clear_pulse_ledger();
     }
