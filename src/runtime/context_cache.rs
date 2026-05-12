@@ -17,9 +17,17 @@ pub(crate) struct CachedFileRead {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FileFingerprint {
-    len: u64,
-    modified: SystemTime,
+pub(crate) struct FileFingerprint {
+    pub(crate) len: u64,
+    pub(crate) modified: SystemTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LocatedRead {
+    pub(crate) path: PathBuf,
+    pub(crate) start_line: usize,
+    pub(crate) end_line: usize,
+    pub(crate) fingerprint: FileFingerprint,
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +121,7 @@ pub(crate) fn read_cached_file(operator: &ToolOperator, path: &str) -> Result<Ca
     })
 }
 
-fn file_fingerprint(path: &Path) -> Result<FileFingerprint> {
+pub(crate) fn file_fingerprint(path: &Path) -> Result<FileFingerprint> {
     let metadata = std::fs::metadata(path)
         .with_context(|| format!("Failed to read metadata for {}", path.display()))?;
     let modified = metadata
@@ -125,6 +133,154 @@ fn file_fingerprint(path: &Path) -> Result<FileFingerprint> {
         modified,
     })
 }
+
+const MAX_PULSE_LEDGER_ENTRIES: usize = 64;
+
+#[derive(Debug, Default)]
+struct PulseLedger {
+    entries: Vec<LocatedRead>,
+}
+
+fn global_pulse_ledger() -> &'static Mutex<PulseLedger> {
+    static PULSE_LEDGER: OnceLock<Mutex<PulseLedger>> = OnceLock::new();
+    PULSE_LEDGER.get_or_init(|| Mutex::new(PulseLedger::default()))
+}
+
+pub(crate) fn record_pulse_read(
+    path: PathBuf,
+    start_line: usize,
+    end_line: usize,
+    fingerprint: FileFingerprint,
+) {
+    let mut ledger = global_pulse_ledger()
+        .lock()
+        .expect("pulse ledger mutex poisoned");
+    ledger.entries.retain(|entry| entry.path != path);
+    ledger.entries.push(LocatedRead {
+        path,
+        start_line,
+        end_line,
+        fingerprint,
+    });
+    while ledger.entries.len() > MAX_PULSE_LEDGER_ENTRIES {
+        ledger.entries.remove(0);
+    }
+}
+
+pub(crate) fn find_pulse_read(path: &Path) -> Option<LocatedRead> {
+    let current = file_fingerprint(path).ok()?;
+    let ledger = global_pulse_ledger()
+        .lock()
+        .expect("pulse ledger mutex poisoned");
+    ledger
+        .entries
+        .iter()
+        .rev()
+        .find(|entry| entry.path == path && entry.fingerprint == current)
+        .cloned()
+}
+
+pub(crate) fn clear_pulse_ledger() {
+    let mut ledger = global_pulse_ledger()
+        .lock()
+        .expect("pulse ledger mutex poisoned");
+    ledger.entries.clear();
+}
+
+pub(crate) fn pulse_ledger_snapshot() -> Vec<LocatedRead> {
+    let ledger = global_pulse_ledger()
+        .lock()
+        .expect("pulse ledger mutex poisoned");
+    ledger.entries.clone()
+}
+
+pub(crate) fn restore_pulse_ledger(entries: Vec<LocatedRead>) {
+    let mut ledger = global_pulse_ledger()
+        .lock()
+        .expect("pulse ledger mutex poisoned");
+    ledger.entries = entries;
+    while ledger.entries.len() > MAX_PULSE_LEDGER_ENTRIES {
+        ledger.entries.remove(0);
+    }
+}
+
+pub(crate) struct RangeReadOutcome {
+    pub(crate) rendered: String,
+    pub(crate) start_line: usize,
+    pub(crate) end_line: usize,
+    pub(crate) fingerprint: Option<FileFingerprint>,
+    pub(crate) resolved_path: Option<PathBuf>,
+}
+
+pub(crate) fn read_cached_file_range(
+    operator: &ToolOperator,
+    path: &str,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<RangeReadOutcome> {
+    let resolved = operator.existing_path(path)?;
+    let (content, fingerprint, resolved_path) = match resolved {
+        Some(resolved) if !resolved.is_dir() => match file_fingerprint(&resolved) {
+            Ok(fingerprint) if fingerprint.len <= MAX_CACHE_FILE_BYTES => {
+                let cached = if let Some(content) = try_read_from_cache(&resolved, fingerprint) {
+                    content
+                } else {
+                    let fresh = operator.read_file(path)?;
+                    insert_into_cache(resolved.clone(), fingerprint, &fresh);
+                    fresh
+                };
+                (cached, Some(fingerprint), Some(resolved))
+            }
+            Ok(fingerprint) => {
+                let fresh = operator.read_file(path)?;
+                (fresh, Some(fingerprint), Some(resolved))
+            }
+            Err(_) => {
+                let fresh = operator.read_file(path)?;
+                (fresh, None, Some(resolved))
+            }
+        },
+        _ => {
+            let fresh = operator.read_file(path)?;
+            (fresh, None, None)
+        }
+    };
+
+    let user_offset = offset.unwrap_or(1);
+    let start = user_offset.saturating_sub(1);
+    let lines: Vec<&str> = content.lines().collect();
+    let total = lines.len();
+    if start >= total {
+        return Ok(RangeReadOutcome {
+            rendered: format!("(file has {total} lines, offset {user_offset} is past end)"),
+            start_line: user_offset,
+            end_line: user_offset,
+            fingerprint,
+            resolved_path,
+        });
+    }
+    let end = limit
+        .map(|value| (start + value).min(total))
+        .unwrap_or(total);
+    let selected: Vec<String> = lines[start..end]
+        .iter()
+        .enumerate()
+        .map(|(index, line)| format!("{:>5}\t{}", start + index + 1, line))
+        .collect();
+    let header = if start > 0 || end < total {
+        format!("(showing lines {}-{} of {total})\n", start + 1, end)
+    } else {
+        String::new()
+    };
+    Ok(RangeReadOutcome {
+        rendered: format!("{}{}", header, selected.join("\n")),
+        start_line: start + 1,
+        end_line: end,
+        fingerprint,
+        resolved_path,
+    })
+}
+
 
 fn try_read_from_cache(path: &Path, fingerprint: FileFingerprint) -> Option<String> {
     let mut cache = global_context_cache()
@@ -189,8 +345,10 @@ pub(crate) fn lock_context_cache_for_tests() -> std::sync::MutexGuard<'static, (
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_CACHE_ENTRIES, lock_context_cache_for_tests, read_cached_file,
-        reset_context_cache_for_tests,
+        MAX_CACHE_ENTRIES, MAX_PULSE_LEDGER_ENTRIES, clear_pulse_ledger, file_fingerprint,
+        find_pulse_read, lock_context_cache_for_tests, pulse_ledger_snapshot, read_cached_file,
+        read_cached_file_range, record_pulse_read, reset_context_cache_for_tests,
+        restore_pulse_ledger,
     };
     use crate::tools::ToolOperator;
     use filetime::{FileTime, set_file_mtime};
@@ -260,5 +418,117 @@ mod tests {
             !reread.cache_hit,
             "oldest entry should be evicted once the cache exceeds its entry cap"
         );
+    }
+
+    #[test]
+    fn test_pulse_ledger_records_and_finds_matching_fingerprint() {
+        let _lock = lock_context_cache_for_tests();
+        reset_context_cache_for_tests();
+        clear_pulse_ledger();
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let path = workspace.path().join("note.txt");
+        fs::write(&path, "alpha\nbravo\ncharlie\n").expect("write file");
+        let fingerprint = file_fingerprint(&path).expect("fingerprint");
+        record_pulse_read(path.clone(), 1, 3, fingerprint);
+
+        let hit = find_pulse_read(&path).expect("ledger should remember the read");
+        assert_eq!(hit.start_line, 1);
+        assert_eq!(hit.end_line, 3);
+        assert_eq!(hit.fingerprint, fingerprint);
+        clear_pulse_ledger();
+    }
+
+    #[test]
+    fn test_pulse_ledger_misses_after_file_mutates() {
+        let _lock = lock_context_cache_for_tests();
+        reset_context_cache_for_tests();
+        clear_pulse_ledger();
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let path = workspace.path().join("note.txt");
+        fs::write(&path, "alpha\n").expect("write original");
+        set_file_mtime(&path, FileTime::from_unix_time(1, 0)).expect("set initial mtime");
+        let fingerprint = file_fingerprint(&path).expect("fingerprint");
+        record_pulse_read(path.clone(), 1, 1, fingerprint);
+
+        fs::write(&path, "alpha changed\n").expect("mutate file");
+        set_file_mtime(&path, FileTime::from_unix_time(2, 0)).expect("bump mtime");
+
+        assert!(
+            find_pulse_read(&path).is_none(),
+            "ledger must miss when the file fingerprint no longer matches"
+        );
+        clear_pulse_ledger();
+    }
+
+    #[test]
+    fn test_pulse_ledger_snapshot_and_restore_roundtrip() {
+        let _lock = lock_context_cache_for_tests();
+        reset_context_cache_for_tests();
+        clear_pulse_ledger();
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let path = workspace.path().join("note.txt");
+        fs::write(&path, "alpha\n").expect("write file");
+        let fingerprint = file_fingerprint(&path).expect("fingerprint");
+        record_pulse_read(path.clone(), 1, 1, fingerprint);
+
+        let snapshot = pulse_ledger_snapshot();
+        clear_pulse_ledger();
+        assert!(find_pulse_read(&path).is_none());
+
+        restore_pulse_ledger(snapshot);
+        assert!(
+            find_pulse_read(&path).is_some(),
+            "restoring a ledger snapshot should make the entry queryable again"
+        );
+        clear_pulse_ledger();
+    }
+
+    #[test]
+    fn test_pulse_ledger_caps_at_max_entries() {
+        let _lock = lock_context_cache_for_tests();
+        reset_context_cache_for_tests();
+        clear_pulse_ledger();
+        let workspace = tempfile::tempdir().expect("tempdir");
+
+        for index in 0..(MAX_PULSE_LEDGER_ENTRIES + 4) {
+            let name = format!("note-{index}.txt");
+            let path = workspace.path().join(&name);
+            fs::write(&path, format!("line {index}\n")).expect("write fixture");
+            let fingerprint = file_fingerprint(&path).expect("fingerprint");
+            record_pulse_read(path, 1, 1, fingerprint);
+        }
+
+        let snapshot = pulse_ledger_snapshot();
+        assert!(
+            snapshot.len() <= MAX_PULSE_LEDGER_ENTRIES,
+            "ledger must cap at MAX_PULSE_LEDGER_ENTRIES, got {}",
+            snapshot.len()
+        );
+        clear_pulse_ledger();
+    }
+
+    #[test]
+    fn test_read_cached_file_range_reports_range_and_fingerprint() {
+        let _lock = lock_context_cache_for_tests();
+        reset_context_cache_for_tests();
+        clear_pulse_ledger();
+        let workspace = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            workspace.path().join("note.txt"),
+            "alpha\nbravo\ncharlie\ndelta\n",
+        )
+        .expect("write file");
+        let operator = ToolOperator::new(workspace.path().to_path_buf());
+
+        let outcome =
+            read_cached_file_range(&operator, "note.txt", Some(2), Some(2)).expect("range read");
+        assert_eq!(outcome.start_line, 2);
+        assert_eq!(outcome.end_line, 3);
+        assert!(outcome.rendered.contains("bravo"));
+        assert!(outcome.rendered.contains("charlie"));
+        assert!(!outcome.rendered.contains("delta"));
+        assert!(outcome.fingerprint.is_some());
+        assert!(outcome.resolved_path.is_some());
+        clear_pulse_ledger();
     }
 }

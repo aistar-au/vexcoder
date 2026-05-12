@@ -4,6 +4,7 @@ use super::{
     ConversationManager, ConversationStreamUpdate, PulseToolPolicy, history::*, streaming::*,
     tools::*,
 };
+use crate::runtime::context_cache::clear_pulse_ledger;
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
 use crate::runtime::task_document::PulseOutcome;
 use crate::runtime::{RuntimeSignal, TokenUsageEnvelope};
@@ -24,6 +25,7 @@ impl ConversationManager {
         shared_prefix_context: Option<String>,
     ) -> Result<String> {
         self.last_turn_tokens = PulseTokens::default();
+        clear_pulse_ledger();
         let original_user_input = content.clone();
         self.ensure_task_doc();
         self.begin_turn_doc(content.clone(), turn_tool_policy);
