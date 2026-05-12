@@ -90,7 +90,9 @@ pub(crate) fn call_tool_routing_with_config(
             let auto_limit = read_file_max_lines();
             let effective_limit = limit.or(Some(auto_limit));
             let rendered = tool_operator.read_file_range(path, offset, effective_limit)?;
-            if let Ok(Some(resolved)) = tool_operator.existing_path(path)
+            let returned_content_lines = !rendered.starts_with("(file has ");
+            if returned_content_lines
+                && let Ok(Some(resolved)) = tool_operator.existing_path(path)
                 && !resolved.is_dir()
                 && let Ok(fingerprint) = file_fingerprint(&resolved)
             {

@@ -257,10 +257,17 @@ fn anchored_unique_replacement(
     let window_start = anchor.start_line.saturating_sub(EDIT_ANCHOR_LINE_PAD);
     let window_end = anchor.end_line.saturating_add(EDIT_ANCHOR_LINE_PAD);
 
+    let bytes = content.as_bytes();
+    let mut scanned_to = 0usize;
+    let mut current_line = 1usize;
     let mut candidate_offsets = Vec::new();
     for (byte_offset, _) in content.match_indices(old_str) {
-        let line = line_of_byte_offset(content, byte_offset);
-        if line >= window_start && line <= window_end {
+        current_line += bytes[scanned_to..byte_offset]
+            .iter()
+            .filter(|byte| **byte == b'\n')
+            .count();
+        scanned_to = byte_offset;
+        if current_line >= window_start && current_line <= window_end {
             candidate_offsets.push(byte_offset);
             if candidate_offsets.len() > 1 {
                 return Ok(None);
@@ -277,18 +284,6 @@ fn anchored_unique_replacement(
     new_content.push_str(new_str);
     new_content.push_str(&content[offset + old_str.len()..]);
     Ok(Some(new_content))
-}
-
-fn line_of_byte_offset(content: &str, byte_offset: usize) -> usize {
-    if byte_offset == 0 {
-        return 1;
-    }
-    let bounded = byte_offset.min(content.len());
-    content[..bounded]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count()
-        + 1
 }
 
 fn should_skip_list_entry(root: &Path, working_dir: &Path, name: &str) -> bool {
