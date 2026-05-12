@@ -166,8 +166,7 @@ impl ToolOperator {
             return fs::write(resolved, new_content).context("Failed to edit file");
         }
 
-        if let Some(anchored) =
-            anchored_unique_replacement(&resolved, &content, old_str, new_str)?
+        if let Some(anchored) = anchored_unique_replacement(&resolved, &content, old_str, new_str)?
         {
             return fs::write(resolved, anchored).context("Failed to edit file");
         }
@@ -285,7 +284,11 @@ fn line_of_byte_offset(content: &str, byte_offset: usize) -> usize {
         return 1;
     }
     let bounded = byte_offset.min(content.len());
-    content[..bounded].bytes().filter(|byte| *byte == b'\n').count() + 1
+    content[..bounded]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1
 }
 
 fn should_skip_list_entry(root: &Path, working_dir: &Path, name: &str) -> bool {
