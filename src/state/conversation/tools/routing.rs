@@ -4,7 +4,7 @@ use super::config::{
 use super::index::{CODEBASE_INDEX, build_codebase_index};
 use super::*;
 use crate::config::SearchConfig;
-use crate::runtime::context_cache::{read_cached_file_range, record_pulse_read};
+use crate::tools::pulse_ledger::{file_fingerprint, record_pulse_read};
 use crate::tools::search;
 use crate::tools::{ToolOperator, WriteFileOutcome, glob_files, list_dir};
 use anyhow::{Result, bail};
@@ -89,13 +89,18 @@ pub(crate) fn call_tool_routing_with_config(
 
             let auto_limit = read_file_max_lines();
             let effective_limit = limit.or(Some(auto_limit));
-            let outcome = read_cached_file_range(tool_operator, path, offset, effective_limit)?;
-            if let (Some(resolved), Some(fingerprint)) =
-                (outcome.resolved_path.clone(), outcome.fingerprint)
+            let rendered = tool_operator.read_file_range(path, offset, effective_limit)?;
+            if let Ok(Some(resolved)) = tool_operator.existing_path(path)
+                && !resolved.is_dir()
+                && let Ok(fingerprint) = file_fingerprint(&resolved)
             {
-                record_pulse_read(resolved, outcome.start_line, outcome.end_line, fingerprint);
+                let start_line = offset.unwrap_or(1).max(1);
+                let end_line = effective_limit
+                    .map(|count| start_line.saturating_add(count.saturating_sub(1)))
+                    .unwrap_or(start_line);
+                record_pulse_read(resolved, start_line, end_line, fingerprint);
             }
-            Ok(outcome.rendered)
+            Ok(rendered)
         }
         "write_file" => {
             let path =

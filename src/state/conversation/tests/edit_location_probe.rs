@@ -1,8 +1,7 @@
 use super::*;
 use crate::config::SearchConfig;
-use crate::runtime::context_cache::{
-    clear_pulse_ledger, find_pulse_read, lock_context_cache_for_tests,
-    reset_context_cache_for_tests,
+use crate::tools::pulse_ledger::{
+    clear_pulse_ledger, find_pulse_read, lock_pulse_ledger_for_tests,
 };
 use std::fs;
 
@@ -41,8 +40,7 @@ fn second_block_offset(fixture: &str) -> usize {
 
 #[test]
 fn probe_a_anchored_match_resolves_ambiguous_edit() {
-    let _lock = lock_context_cache_for_tests();
-    reset_context_cache_for_tests();
+    let _lock = lock_pulse_ledger_for_tests();
     clear_pulse_ledger();
 
     let fixture = anchor_fixture();
@@ -88,8 +86,7 @@ fn probe_a_anchored_match_resolves_ambiguous_edit() {
 fn probe_b_ledger_invalidates_after_external_mutation() {
     use filetime::{FileTime, set_file_mtime};
 
-    let _lock = lock_context_cache_for_tests();
-    reset_context_cache_for_tests();
+    let _lock = lock_pulse_ledger_for_tests();
     clear_pulse_ledger();
 
     let fixture = anchor_fixture();
@@ -133,8 +130,7 @@ fn probe_b_ledger_invalidates_after_external_mutation() {
 
 #[test]
 fn probe_c_ledger_clears_between_pulses() {
-    let _lock = lock_context_cache_for_tests();
-    reset_context_cache_for_tests();
+    let _lock = lock_pulse_ledger_for_tests();
     clear_pulse_ledger();
 
     let fixture = anchor_fixture();

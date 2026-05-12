@@ -3,8 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use crate::edit_diff::format_edit_hunks;
-use crate::runtime::context_cache::find_pulse_read;
 
+use super::super::pulse_ledger::find_pulse_read;
 use super::{PendingPatch, ToolOperator, WriteFileOutcome};
 
 const MAX_EDIT_SNIPPET_CHARS: usize = 2_000;

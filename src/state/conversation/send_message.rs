@@ -4,10 +4,10 @@ use super::{
     ConversationManager, ConversationStreamUpdate, PulseToolPolicy, history::*, streaming::*,
     tools::*,
 };
-use crate::runtime::context_cache::clear_pulse_ledger;
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
 use crate::runtime::task_document::PulseOutcome;
 use crate::runtime::{RuntimeSignal, TokenUsageEnvelope};
+use crate::tools::pulse_ledger::clear_pulse_ledger;
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::usage::PulseTokens;
 use anyhow::Result;
