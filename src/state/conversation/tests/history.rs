@@ -721,7 +721,9 @@ async fn local_second_turn_summary_omits_prior_tool_result_headers() -> Result<(
     let Content::Text(text) = &seen[0].content else {
         panic!("expected compacted current prompt as text message");
     };
-    assert!(text.contains("read-only do not modify and debug [file: .github/workflows/release.yml]"));
+    assert!(
+        text.contains("read-only do not modify and debug [file: .github/workflows/release.yml]")
+    );
     assert!(
         !text.contains("tool_result read_file"),
         "summary should carry prior user intent, not tool-result headers: {text}"
