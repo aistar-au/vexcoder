@@ -807,13 +807,13 @@ fn build_heuristic_summary(
     let mut total_bytes = 0usize;
 
     for msg in &messages[..boundary] {
-        if msg.role != "user" {
+        if msg.role != "user" || message_contains_tool_result(msg) {
             continue;
         }
 
         let role = &msg.role;
         let first_line = match &msg.content {
-            Content::Text(t) => t.lines().next().unwrap_or("").to_string(),
+            Content::Text(t) => summary_user_text_line(t).unwrap_or_default(),
             Content::Blocks(blocks) => blocks
                 .iter()
                 .find_map(|b| match b {
@@ -842,4 +842,24 @@ fn build_heuristic_summary(
     }
 
     parts.join("\n")
+}
+
+fn summary_user_text_line(text: &str) -> Option<String> {
+    if let Some((_, current_request)) = text.split_once("[current request]\n") {
+        return current_request
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(str::to_string);
+    }
+
+    text.lines()
+        .map(str::trim)
+        .find(|line| {
+            !line.is_empty()
+                && !line.starts_with("[conversation summary]")
+                && !line.starts_with("Use the summary only as background context.")
+                && !line.starts_with("Treat the current request below as authoritative")
+        })
+        .map(str::to_string)
 }
