@@ -105,6 +105,11 @@ async fn local_endpoint_normalizes_tagged_text_tool_calls() -> Result<()> {
         "unexpected final text: {final_text}"
     );
     assert_eq!(manager.api_messages.len(), 4);
+        assert!(matches!(
+                &manager.api_messages[1].content,
+                Content::Text(text)
+                        if text.contains("read_file") && !text.contains("<function=read_file>")
+        ));
     assert!(manager.api_messages.iter().any(|message| {
                 message.role == "user"
                         && (matches!(

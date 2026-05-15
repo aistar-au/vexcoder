@@ -482,7 +482,7 @@ impl ConversationManager {
             }
 
             let assistant_history_source = if !tool_use_blocks.is_empty() && !use_structured_round {
-                let rendered_tool_calls = render_tool_calls_for_text_protocol(&tool_use_blocks);
+                let rendered_tool_calls = render_tool_calls_for_history(&tool_use_blocks);
                 if assistant_text_for_history.is_empty() {
                     rendered_tool_calls
                 } else {
