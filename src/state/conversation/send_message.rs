@@ -74,10 +74,6 @@ impl ConversationManager {
         {
             preserve_current_user_on_overflow = true;
             let display_summary = format!("{before} → {after} messages (proactive)");
-            emit_text_update(
-                stream_delta_tx,
-                format!("\n[context compacted: {display_summary}]\n"),
-            );
             emit_stream_update(
                 stream_delta_tx,
                 ConversationStreamUpdate::ContextCompacted {
@@ -148,10 +144,6 @@ impl ConversationManager {
                     let summary = format!(
                         "compacted {} → {} messages to fit server window (keep {})",
                         before, after, keep_messages
-                    );
-                    emit_text_update(
-                        stream_delta_tx,
-                        format!("\n[context: {summary}, retrying]\n"),
                     );
                     emit_stream_update(
                         stream_delta_tx,
