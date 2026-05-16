@@ -57,6 +57,24 @@ pub(crate) fn render_tool_calls_for_text_protocol(blocks: &[ContentBlock]) -> St
     out
 }
 
+pub(crate) fn render_tool_calls_for_history(blocks: &[ContentBlock]) -> String {
+    let mut out = String::new();
+    for block in blocks {
+        if let ContentBlock::ToolUse { name, input, .. } = block {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            let preview = tool_input_preview(name, input);
+            if preview.trim().is_empty() {
+                out.push_str(&format!("[tool call] {name}"));
+            } else {
+                out.push_str(&format!("[tool call] {name}: {preview}"));
+            }
+        }
+    }
+    out
+}
+
 fn json_value_to_text_protocol_value(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::String(text) => text.clone(),

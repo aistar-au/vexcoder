@@ -659,6 +659,138 @@ async fn local_endpoint_second_turn_compacts_even_below_token_threshold() -> Res
 }
 
 #[tokio::test]
+async fn local_second_turn_summary_omits_prior_tool_result_headers() -> Result<()> {
+    let calls = Arc::new(std::sync::Mutex::new(0));
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let client = ApiClient::new_mock(Arc::new(CaptureMessagesThenSuccessProducer {
+        calls: Arc::clone(&calls),
+        seen: Arc::clone(&seen),
+    }));
+    client.set_server_info(crate::api::client::ServerInfo {
+        n_ctx: 8192,
+        ..Default::default()
+    });
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert(
+        "nightly.yml".to_string(),
+        "nightly workflow body".to_string(),
+    );
+    let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(
+                "read-only do not modify and debug [file: .github/workflows/release.yml]"
+                    .to_string(),
+            ),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("release summary".to_string()),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(
+                "tool_result read_file:\nname: release.yml\n(42 more lines)".to_string(),
+            ),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("release tool result acknowledged".to_string()),
+            cache_hint: None,
+        },
+    ];
+
+    let result = manager
+        .send_message(
+            "read-only do not modify and debug [file: .github/workflows/nightly.yml]".to_string(),
+            None,
+        )
+        .await?;
+
+    assert_eq!(result, "done");
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(
+        seen.len(),
+        1,
+        "local handoff should compact to a single current-turn prompt"
+    );
+    let Content::Text(text) = &seen[0].content else {
+        panic!("expected compacted current prompt as text message");
+    };
+    assert!(
+        text.contains("read-only do not modify and debug [file: .github/workflows/release.yml]")
+    );
+    assert!(
+        !text.contains("tool_result read_file"),
+        "summary should carry prior user intent, not tool-result headers: {text}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn local_second_turn_summary_reuses_prior_current_request_line() -> Result<()> {
+    let calls = Arc::new(std::sync::Mutex::new(0));
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let client = ApiClient::new_mock(Arc::new(CaptureMessagesThenSuccessProducer {
+        calls: Arc::clone(&calls),
+        seen: Arc::clone(&seen),
+    }));
+    client.set_server_info(crate::api::client::ServerInfo {
+        n_ctx: 8192,
+        ..Default::default()
+    });
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert(
+        "nightly.yml".to_string(),
+        "nightly workflow body".to_string(),
+    );
+    let mut manager = ConversationManager::new_mock(client, mock_tool_responses);
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(
+                "[conversation summary] - user: read-only do not modify and debug [file: .github/workflows/release.yml]\n\nUse the summary only as background context. Treat the current request below as authoritative and do not continue earlier file targets unless the current request asks for them.\n\n[current request]\nread-only do not modify and debug [file: .github/workflows/nightly.yml]"
+                    .to_string(),
+            ),
+            cache_hint: None,
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("nightly summary".to_string()),
+            cache_hint: None,
+        },
+    ];
+
+    let result = manager
+        .send_message(
+            "read-only do not modify and debug [file: .github/workflows/version-bump.yml]"
+                .to_string(),
+            None,
+        )
+        .await?;
+
+    assert_eq!(result, "done");
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 1);
+    let Content::Text(text) = &seen[0].content else {
+        panic!("expected compacted current prompt as text message");
+    };
+    assert!(
+        text.contains(".github/workflows/nightly.yml"),
+        "summary should carry the prior current request anchor: {text}"
+    );
+    assert!(
+        !text.contains("- user: [conversation summary]"),
+        "summary should not preserve prior summary scaffolding: {text}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn context_overflow_retries_with_smaller_keep_window_when_needed() -> Result<()> {
     let calls = Arc::new(std::sync::Mutex::new(0));
     let initial = MockApiClient::new(vec![structured_tool_call_response("file.txt")]);

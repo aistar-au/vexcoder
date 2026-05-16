@@ -4,10 +4,12 @@ use std::path::Path;
 
 use crate::edit_diff::format_edit_hunks;
 
+use super::super::pulse_ledger::find_pulse_read;
 use super::{PendingPatch, ToolOperator, WriteFileOutcome};
 
 const MAX_EDIT_SNIPPET_CHARS: usize = 2_000;
 const MAX_EDIT_SNIPPET_LINES: usize = 80;
+const EDIT_ANCHOR_LINE_PAD: usize = 3;
 
 impl ToolOperator {
     pub fn read_file(&self, path: &str) -> Result<String> {
@@ -159,16 +161,21 @@ impl ToolOperator {
         if occurrences == 0 {
             bail!("String '{}' not found in file", old_str);
         }
-        if occurrences > 1 {
-            bail!(
-                "String '{}' appears {} times; must be unique",
-                old_str,
-                occurrences
-            );
+        if occurrences == 1 {
+            let new_content = content.replacen(old_str, new_str, 1);
+            return fs::write(resolved, new_content).context("Failed to edit file");
         }
 
-        let new_content = content.replacen(old_str, new_str, 1);
-        fs::write(resolved, new_content).context("Failed to edit file")
+        if let Some(anchored) = anchored_unique_replacement(&resolved, &content, old_str, new_str)?
+        {
+            return fs::write(resolved, anchored).context("Failed to edit file");
+        }
+
+        bail!(
+            "String '{}' appears {} times; must be unique",
+            old_str,
+            occurrences
+        );
     }
 
     pub fn rename_file(&self, old_path: &str, new_path: &str) -> Result<String> {
@@ -235,6 +242,48 @@ impl ToolOperator {
             Ok(entries.join("\n"))
         }
     }
+}
+
+fn anchored_unique_replacement(
+    resolved: &Path,
+    content: &str,
+    old_str: &str,
+    new_str: &str,
+) -> Result<Option<String>> {
+    let Some(anchor) = find_pulse_read(resolved) else {
+        return Ok(None);
+    };
+
+    let window_start = anchor.start_line.saturating_sub(EDIT_ANCHOR_LINE_PAD);
+    let window_end = anchor.end_line.saturating_add(EDIT_ANCHOR_LINE_PAD);
+
+    let bytes = content.as_bytes();
+    let mut scanned_to = 0usize;
+    let mut current_line = 1usize;
+    let mut candidate_offsets = Vec::new();
+    for (byte_offset, _) in content.match_indices(old_str) {
+        current_line += bytes[scanned_to..byte_offset]
+            .iter()
+            .filter(|byte| **byte == b'\n')
+            .count();
+        scanned_to = byte_offset;
+        if current_line >= window_start && current_line <= window_end {
+            candidate_offsets.push(byte_offset);
+            if candidate_offsets.len() > 1 {
+                return Ok(None);
+            }
+        }
+    }
+
+    let Some(offset) = candidate_offsets.first().copied() else {
+        return Ok(None);
+    };
+
+    let mut new_content = String::with_capacity(content.len() + new_str.len());
+    new_content.push_str(&content[..offset]);
+    new_content.push_str(new_str);
+    new_content.push_str(&content[offset + old_str.len()..]);
+    Ok(Some(new_content))
 }
 
 fn should_skip_list_entry(root: &Path, working_dir: &Path, name: &str) -> bool {

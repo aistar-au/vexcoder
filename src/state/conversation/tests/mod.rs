@@ -15,6 +15,7 @@ pub(super) use tempfile::TempDir;
 pub(super) use tokio::sync::mpsc;
 
 mod approval;
+mod edit_location_probe;
 mod history;
 mod hooks;
 mod read_file_guard;

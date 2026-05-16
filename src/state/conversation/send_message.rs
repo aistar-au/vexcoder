@@ -7,6 +7,7 @@ use super::{
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
 use crate::runtime::task_document::PulseOutcome;
 use crate::runtime::{RuntimeSignal, TokenUsageEnvelope};
+use crate::tools::pulse_ledger::clear_pulse_ledger;
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::usage::PulseTokens;
 use anyhow::Result;
@@ -24,6 +25,7 @@ impl ConversationManager {
         shared_prefix_context: Option<String>,
     ) -> Result<String> {
         self.last_turn_tokens = PulseTokens::default();
+        clear_pulse_ledger();
         let original_user_input = content.clone();
         self.ensure_task_doc();
         self.begin_turn_doc(content.clone(), turn_tool_policy);
@@ -72,10 +74,6 @@ impl ConversationManager {
         {
             preserve_current_user_on_overflow = true;
             let display_summary = format!("{before} → {after} messages (proactive)");
-            emit_text_update(
-                stream_delta_tx,
-                format!("\n[context compacted: {display_summary}]\n"),
-            );
             emit_stream_update(
                 stream_delta_tx,
                 ConversationStreamUpdate::ContextCompacted {
@@ -146,10 +144,6 @@ impl ConversationManager {
                     let summary = format!(
                         "compacted {} → {} messages to fit server window (keep {})",
                         before, after, keep_messages
-                    );
-                    emit_text_update(
-                        stream_delta_tx,
-                        format!("\n[context: {summary}, retrying]\n"),
                     );
                     emit_stream_update(
                         stream_delta_tx,
@@ -482,7 +476,7 @@ impl ConversationManager {
             }
 
             let assistant_history_source = if !tool_use_blocks.is_empty() && !use_structured_round {
-                let rendered_tool_calls = render_tool_calls_for_text_protocol(&tool_use_blocks);
+                let rendered_tool_calls = render_tool_calls_for_history(&tool_use_blocks);
                 if assistant_text_for_history.is_empty() {
                     rendered_tool_calls
                 } else {

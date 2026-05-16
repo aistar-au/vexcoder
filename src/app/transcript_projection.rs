@@ -332,13 +332,16 @@ fn completed_tool_paragraph_rows(
         compact_outcome_summary(first_line)
     )));
     const MAX_EVIDENCE_LINES: usize = 3;
-    let nonempty: Vec<&str> = output
+    let nonempty: Vec<String> = output
         .lines()
-        .map(str::trim_end)
-        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.trim_end().replace('\t', " "))
+        .filter(|line| {
+            let t = line.trim();
+            !t.is_empty() && !t.chars().all(|c| c.is_ascii_digit())
+        })
         .collect();
     for line in nonempty.iter().take(MAX_EVIDENCE_LINES) {
-        rows.push(TranscriptRow::Evidence((*line).to_string()));
+        rows.push(TranscriptRow::Evidence(line.clone()));
     }
     if nonempty.len() > MAX_EVIDENCE_LINES {
         rows.push(TranscriptRow::Evidence(format!(
