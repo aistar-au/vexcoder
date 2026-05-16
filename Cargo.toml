@@ -195,7 +195,14 @@ rstest = "0.26"
 # Rust crate versions are resolved at compile time, not through runtime
 # variables. To avoid broad source sweeps on upgrades, keep each crate's API
 # surface behind the local seam files listed here and update those first.
-ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
+ratatui = [
+  "src/ui/tui.rs",
+  "src/ui/layout.rs",
+  "src/ui/render/mod.rs",
+  "src/ui/render/transcript.rs",
+  "src/ui/render/markdown.rs",
+  "src/tui_handle.rs",
+]
 crossterm = [
   "src/ui/tui.rs",
   "src/tui_frontend.rs",
@@ -287,6 +294,7 @@ git2 = ["src/tools/operator/git_ops.rs"]
 
 [workspace.metadata.upgrade-notes]
 rust = "Update workspace.package.rust-version and CI toolchain declarations together; also update clippy.toml msrv field."
+ratatui = "Keep 0.30 API churn localized to the facade plus the small layout/render adapter set. Prefer Layout::vertical(...).areas(), Constraint::Fill, Style::new(), Block::bordered()/title_top(), and Text::raw()/from_iter() over legacy builder forms when touching those files."
 serde = "Derive and field/container attributes are compile-time only; a facade does not reduce churn here."
 tokio = "Runtime helpers are localized in src/runtime/tokio.rs; attribute macros like #[tokio::test] remain direct in tests and binaries."
 tree-sitter = "All five grammar crates share the same seam (src/tools/index.rs); bump them together."

@@ -202,9 +202,14 @@ The source of truth is the root `Cargo.toml`
 tables. Cargo ignores those entries; they exist for maintainers and automation
 so future bumps start from one checklist and one reviewed file map.
 
-- `ratatui` and `crossterm`: start in `src/ui/tui.rs`, then adjust the small
-  TUI adapter set listed in the metadata table (`src/tui_handle.rs`,
-  `src/tui_frontend.rs`, `src/ui/editor/mod.rs`, and nearby UI call sites).
+- `ratatui`: start in `src/ui/tui.rs`, then treat `src/ui/layout.rs`,
+  `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
+  `src/ui/render/markdown.rs`, and `src/tui_handle.rs` as the maintained
+  adapter set. Those files absorb the current 0.30 layout, style, text, and
+  block-builder churn.
+- `crossterm`: start in `src/ui/tui.rs`, then adjust the small TUI adapter set
+  listed in the metadata table (`src/tui_frontend.rs`, `src/ui/editor/mod.rs`,
+  `src/app.rs`, `src/app/overlay.rs`, and nearby input/event call sites).
 - `async-compression`: keep codec and output-cap changes localized to
   `src/net/compression.rs`.
 - `jsonwebtoken`: keep JWT claim parsing and signature helper changes
@@ -235,6 +240,50 @@ so future bumps start from one checklist and one reviewed file map.
 The goal is not zero source edits. The goal is to keep upgrade work inside a
 declared set of seam files instead of re-touching unrelated call sites across
 the tree.
+
+## Ratatui 0.30 coverage staging
+
+A 100-entry ratatui 0.30 audit is a maintenance inventory, not a requirement
+to maximize raw percentage mechanically. This repository should prioritize APIs
+that satisfy three filters simultaneously: high community usage, direct
+applicability to the existing operator surface, and low risk of changing render
+semantics.
+
+The first maintenance batch covers these 10 APIs:
+
+- `Text::raw` for single-string paragraphs and status text.
+- `Text::from_iter` for `Vec<Line>` to `Text` construction without an extra
+  conversion pass.
+- `Stylize` named foreground shorthands for semantic accent colors already used
+  on the operator surface.
+- `Stylize` neutral-tone shorthands for secondary and status text.
+- `Stylize` modifier shorthands such as `bold` and `dim`.
+- `Style::new` as the preferred 0.30 style constructor.
+- `Block::bordered` instead of `Block::default().borders(Borders::ALL)`.
+- `Block::title_top` when a block owns an explicit top title row.
+- `Layout::vertical([...]).areas(...)` instead of
+  `Layout::default().direction(...).split(...)`.
+- `Constraint::Fill(weight)` for the elastic pane in mixed fixed/flexible
+  layouts.
+
+The remaining 90 audit items are staged into four follow-on batches by
+interaction cost rather than by raw popularity:
+
+- Batch 2: text mutation/alignment helpers, block padding/border styling, and
+  layout refinements such as `Layout::horizontal`, `Margin`, and `Flex`.
+- Batch 3: stateful widgets (`List`, `Table`, `Scrollbar`, `Tabs`, `Gauge`)
+  only when the operator surface actually needs selection state or structured
+  tabulation.
+- Batch 4: custom `Widget` / `StatefulWidget` implementations,
+  `render_widget_ref`, and buffer-level APIs for reusable high-performance
+  components.
+- Batch 5: niche or deliberately deferred APIs such as fullscreen viewport,
+  masked text, underline-color styling, and custom border symbol sets.
+
+Official ratatui 0.30 documentation is the normative source for these APIs.
+Comparable public Rust terminal applications reviewed during this change follow
+the same adoption order: text/layout/style first, stateful widgets only once
+the interaction model requires them.
 
 ## Investigating impact
 

@@ -1,4 +1,4 @@
-use crate::ui::tui::layout::{Constraint, Direction, Layout};
+use crate::ui::tui::layout::{Constraint, Layout};
 
 pub use crate::ui::tui::layout::Rect;
 
@@ -13,19 +13,17 @@ pub struct ThreePaneLayout {
 }
 
 pub fn split_three_pane_layout(area: Rect, input_rows: u16) -> ThreePaneLayout {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(0),
-            Constraint::Min(1),
-            Constraint::Length(input_rows.max(1)),
-        ])
-        .split(area);
+    let [header, history, input] = Layout::vertical([
+        Constraint::Length(0),
+        Constraint::Fill(1),
+        Constraint::Length(input_rows.max(1)),
+    ])
+    .areas(area);
 
     ThreePaneLayout {
-        header: chunks[0],
-        history: chunks[1],
-        input: chunks[2],
+        header,
+        history,
+        input,
     }
 }
 
@@ -54,21 +52,19 @@ pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -
         .clamp(1, MAX_INPUT_PANE_ROWS as u16)
         .min(max_input_rows);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(header_rows),
-            Constraint::Length(0),
-            Constraint::Min(1),
-            Constraint::Length(input_rows),
-        ])
-        .split(area);
+    let [header, activity, output, input] = Layout::vertical([
+        Constraint::Length(header_rows),
+        Constraint::Length(0),
+        Constraint::Fill(1),
+        Constraint::Length(input_rows),
+    ])
+    .areas(area);
 
     FourRegionLayout {
-        header: chunks[0],
-        activity: chunks[1],
-        output: chunks[2],
-        input: chunks[3],
+        header,
+        activity,
+        output,
+        input,
     }
 }
 
@@ -86,22 +82,20 @@ pub(crate) fn split_compact_task_layout(
     let available_for_output = remaining.saturating_sub(capped_input);
     let capped_output = output_rows.min(available_for_output);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(header_rows),
-            Constraint::Length(0),
-            Constraint::Length(capped_output),
-            Constraint::Length(capped_input),
-            Constraint::Min(0),
-        ])
-        .split(area);
+    let [header, activity, output, input, _remaining] = Layout::vertical([
+        Constraint::Length(header_rows),
+        Constraint::Length(0),
+        Constraint::Length(capped_output),
+        Constraint::Length(capped_input),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
 
     FourRegionLayout {
-        header: chunks[0],
-        activity: chunks[1],
-        output: chunks[2],
-        input: chunks[3],
+        header,
+        activity,
+        output,
+        input,
     }
 }
 

@@ -6,7 +6,7 @@ and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCompat CLI cutover, 10-flag normative table)
+Last updated: 2026-05-16 (ADR-031 maintenance amendment: ratatui 0.30 seam coverage staging and top-10 API batch)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
-| ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
+| ADR-031 | Accepted (all batches A-E merged; 2026-05-16 API-coverage amendment) | 4 maintenance batches planned | Core operator-surface contract complete; ratatui 0.30 seam coverage now tracks the facade plus layout/render adapters |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate rollup + broadcast fan-out; PR #261 closes Phase E watch-stream |
@@ -75,6 +75,20 @@ composer ergonomics, overlay or pager detail surfaces, transient timeline
 discoverability, and active or fallback fullscreen convergence without
 introducing a permanent telemetry pane. Parser work remains limited to
 normalisation hardening unless ADR-043 adoption gates are satisfied.
+
+ADR-031 also carries a maintenance-only ratatui 0.30 adoption lane. Batch 1
+lands the first 10 high-applicability APIs from the 100-entry audit:
+`Text::raw`, `Text::from_iter`, `Style::new`, `Block::bordered`,
+`Block::title_top`, `Layout::vertical(...).areas(...)`, `Constraint::Fill`,
+and the associated `Stylize` shorthand families already aligned with the
+operator surface's semantic color and secondary-text rules. The remaining 90
+inventory entries are grouped into four follow-on batches: Batch 2 for text,
+alignment, block, and layout refinements; Batch 3 for stateful widgets and
+scroll affordances only if the operator model requires them; Batch 4 for custom
+widgets, `render_widget_ref`, and buffer-level APIs when reusable
+high-performance surfaces become necessary; Batch 5 for niche or deliberately
+deferred APIs such as fullscreen viewport, masked text, underline-color
+styling, and custom border symbol sets.
 
 ADR-041 D5/D6/D7 (delta types, delta-native draw methods, bounded suffix
 deduplication) merged in PR #331 (commit e1dd681) on 2026-04-03.

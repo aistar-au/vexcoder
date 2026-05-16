@@ -15,7 +15,7 @@ pub mod layout {
 }
 
 pub mod style {
-    pub use ratatui::style::{Color, Modifier, Style};
+    pub use ratatui::style::{Color, Modifier, Style, Stylize};
 }
 
 pub mod text {
