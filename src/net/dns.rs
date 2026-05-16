@@ -33,7 +33,8 @@ impl DohResolver {
             )],
         );
 
-        let mut builder = TokioResolver::builder_with_config(config, TokioRuntimeProvider::default());
+        let mut builder =
+            TokioResolver::builder_with_config(config, TokioRuntimeProvider::default());
         let opts = builder.options_mut();
         opts.ip_strategy = hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4;
         opts.timeout = Duration::from_secs(5);
