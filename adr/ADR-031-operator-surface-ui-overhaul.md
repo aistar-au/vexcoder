@@ -38,17 +38,17 @@ This amendment records a maintenance rule rather than a new product
 requirement.
 
 - Treat the facade plus the small layout/render adapter set as one
-	upgrade-maintained ratatui seam.
+  upgrade-maintained ratatui seam.
 - The first maintenance batch prioritizes 10 APIs: `Text::raw`,
-	`Text::from_iter`, `Stylize` semantic accent shorthands, `Stylize`
-	neutral-tone shorthands, `Stylize` modifier shorthands, `Style::new`,
-	`Block::bordered`, `Block::title_top`, `Layout::vertical(...).areas(...)`,
-	and `Constraint::Fill`.
+  `Text::from_iter`, `Stylize` semantic accent shorthands, `Stylize`
+  neutral-tone shorthands, `Stylize` modifier shorthands, `Style::new`,
+  `Block::bordered`, `Block::title_top`, `Layout::vertical(...).areas(...)`,
+  and `Constraint::Fill`.
 - Do not chase raw coverage by wiring APIs that do not match the present
-	interaction model. `List`, `Table`, `Scrollbar`, `Tabs`, `Gauge`, custom
-	`Widget` implementations, and buffer-level writes remain optional until
-	selection state, structured tabulation, or reusable low-level widgets become
-	architectural requirements.
+  interaction model. `List`, `Table`, `Scrollbar`, `Tabs`, `Gauge`, custom
+  `Widget` implementations, and buffer-level writes remain optional until
+  selection state, structured tabulation, or reusable low-level widgets become
+  architectural requirements.
 
 Official ratatui 0.30 documentation makes these APIs the idiomatic surface for
 new code. Comparable public Rust TUI codebases reviewed during this change
