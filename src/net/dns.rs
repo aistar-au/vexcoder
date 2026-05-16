@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
 use hickory_resolver::{
-    TokioAsyncResolver,
-    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
+    TokioResolver,
+    config::{ConnectionConfig, NameServerConfig, ResolverConfig},
+    net::runtime::TokioRuntimeProvider,
 };
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 pub mod doh_endpoints {
@@ -13,30 +15,31 @@ pub mod doh_endpoints {
 }
 
 pub struct DohResolver {
-    inner: TokioAsyncResolver,
+    inner: TokioResolver,
 }
 
 impl DohResolver {
     pub fn new(doh_server_ip: IpAddr, doh_server_port: u16, tls_dns_name: &str) -> Result<Self> {
-        let name_server = NameServerConfig {
-            socket_addr: std::net::SocketAddr::new(doh_server_ip, doh_server_port),
-            protocol: Protocol::Https,
-            tls_dns_name: Some(tls_dns_name.to_string()),
-            trust_negative_responses: false,
-            tls_config: None,
-            bind_addr: None,
-        };
+        let mut connection = ConnectionConfig::https(Arc::from(tls_dns_name), None);
+        connection.port = doh_server_port;
 
-        let mut config = ResolverConfig::new();
-        config.add_name_server(name_server);
+        let config = ResolverConfig::from_parts(
+            None,
+            vec![],
+            vec![NameServerConfig::new(
+                doh_server_ip,
+                false,
+                vec![connection],
+            )],
+        );
 
-        let mut opts = ResolverOpts::default();
-
+        let mut builder = TokioResolver::builder_with_config(config, TokioRuntimeProvider::default());
+        let opts = builder.options_mut();
         opts.ip_strategy = hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4;
         opts.timeout = Duration::from_secs(5);
         opts.attempts = 2;
 
-        let inner = TokioAsyncResolver::tokio(config, opts);
+        let inner = builder.build()?;
         Ok(Self { inner })
     }
 
