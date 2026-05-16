@@ -281,9 +281,9 @@ interaction cost rather than by raw popularity:
   masked text, underline-color styling, and custom border symbol sets.
 
 Official ratatui 0.30 documentation is the normative source for these APIs.
-Comparable public Rust terminal applications reviewed during this change follow
-the same adoption order: text/layout/style first, stateful widgets only once
-the interaction model requires them.
+Comparable public Rust TUI codebases reviewed during this change follow the
+same adoption order: text/layout/style first, stateful widgets only once the
+interaction model requires them.
 
 ## Investigating impact
 

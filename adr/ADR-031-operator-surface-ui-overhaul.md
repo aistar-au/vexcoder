@@ -51,9 +51,9 @@ requirement.
 	architectural requirements.
 
 Official ratatui 0.30 documentation makes these APIs the idiomatic surface for
-new code. Comparable public Rust terminal applications reviewed during this
-change show the same ordering: text/layout/style first; stateful widgets only
-when the UI genuinely needs external widget state.
+new code. Comparable public Rust TUI codebases reviewed during this change
+show the same ordering: text/layout/style first; stateful widgets only when
+the UI genuinely needs external widget state.
 
 The remaining 90 audited APIs stay staged into four follow-on maintenance
 batches: Batch 2 for text/alignment/block/layout refinements, Batch 3 for
