@@ -17,25 +17,21 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
         TranscriptRow::WaitingPlaceholder(_) => Line::from(vec![
             Span::styled(
                 "  ⋯ ",
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD),
+                Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 pending_status_label().to_string(),
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::DIM),
+                Style::new().fg(Color::Magenta).add_modifier(Modifier::DIM),
             ),
         ]),
         TranscriptRow::Error(rest) => Line::from(vec![
             Span::styled(
                 "  ✖ ",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 rest.clone(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
         ]),
         TranscriptRow::ToolHeader(rest) => render_tool_header(rest),
@@ -46,13 +42,11 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
         TranscriptRow::UserInput(text) => Line::from(vec![
             Span::styled(
                 "> ",
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
+                Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
             ),
             Span::styled(
                 text.clone(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
             ),
         ]),
         TranscriptRow::AssistantText { text, .. } => render_assistant_text(text),
@@ -63,47 +57,41 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
 fn render_tool_header(rest: &str) -> Line<'static> {
     let mut spans = vec![Span::styled(
         "  \u{2726} ",
-        Style::default()
-            .fg(Color::Magenta)
-            .add_modifier(Modifier::BOLD),
+        Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
     )];
     if let Some((leading, status)) = split_tool_summary(rest) {
         for (index, segment) in leading.iter().enumerate() {
             if index > 0 {
                 spans.push(Span::styled(
                     " \u{00b7} ",
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::DIM),
+                    Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
                 ));
             }
             spans.push(Span::styled(
                 (*segment).to_string(),
                 if index == 0 {
-                    Style::default().fg(Color::White)
+                    Style::new().fg(Color::White)
                 } else {
-                    Style::default().fg(Color::Gray)
+                    Style::new().fg(Color::Gray)
                 },
             ));
         }
         spans.push(Span::styled(
             " \u{00b7} ",
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
+            Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
         ));
         spans.push(Span::styled(status.to_string(), tool_status_style(status)));
     } else {
         spans.push(Span::styled(
             rest.to_string(),
-            Style::default().fg(Color::White),
+            Style::new().fg(Color::White),
         ));
     }
     Line::from(spans)
 }
 
 fn render_assistant_text(text: &str) -> Line<'static> {
-    let default = Style::default().fg(Color::White);
+    let default = Style::new().fg(Color::White);
     if contains_ansi_escape(text) {
         ansi_to_inline_line(text, default)
     } else if looks_like_inline_markdown(text) {
@@ -188,16 +176,13 @@ fn render_plain_row(row: &str) -> Line<'static> {
         return line;
     }
     if contains_ansi_escape(row) {
-        return ansi_to_inline_line(row, Style::default().fg(Color::White));
+        return ansi_to_inline_line(row, Style::new().fg(Color::White));
     }
     if looks_like_inline_markdown(row) {
         return super::markdown_to_inline_line(row)
             .unwrap_or_else(|| Line::from(Span::raw(row.to_string())));
     }
-    Line::from(Span::styled(
-        row.to_string(),
-        Style::default().fg(Color::White),
-    ))
+    Line::from(Span::styled(row.to_string(), Style::new().fg(Color::White)))
 }
 
 fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
@@ -205,18 +190,14 @@ fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
         return Some(line_with_marker(
             "  ? ",
             rest,
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ));
     }
     if let Some(rest) = row.strip_prefix("[approval_detail] ") {
         return Some(Line::styled(
             format!("    {rest}"),
-            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
         ));
     }
     if let Some((command, pid)) = parse_command_session_started(row) {
@@ -254,18 +235,16 @@ fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
         return Some(line_with_marker(
             "  ✖ ",
             rest,
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
         ));
     }
     if let Some(rest) = row.strip_prefix("[stderr] ") {
         return Some(line_with_marker(
             "      \u{2727} ",
             rest,
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
-            Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
+            Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
+            Style::new().fg(Color::Red).add_modifier(Modifier::DIM),
         ));
     }
     None
@@ -321,15 +300,13 @@ pub(crate) fn structured_transcript_line(
 ) -> Line<'static> {
     let trimmed = row.trim_start();
     if let Some((color, bold)) = diff_style(trimmed) {
-        let mut style = Style::default().fg(color).add_modifier(Modifier::DIM);
+        let mut style = Style::new().fg(color).add_modifier(Modifier::DIM);
         if bold {
             style = style.add_modifier(Modifier::BOLD);
         }
         let mut spans = vec![Span::styled(
             format!("{indent}{}", marker.unwrap_or("")),
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
+            Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
         )];
         spans.push(Span::styled(trimmed.to_string(), style));
         return Line::from(spans);
@@ -344,14 +321,12 @@ pub(crate) fn structured_transcript_line(
         return Line::from(vec![
             Span::styled(
                 format!("{indent}{}", marker.unwrap_or("")),
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
+                Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
             ),
-            Span::styled("• ".to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled("• ".to_string(), Style::new().fg(Color::Yellow)),
             Span::styled(
                 rest.to_string(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
             ),
         ]);
     }
@@ -359,27 +334,23 @@ pub(crate) fn structured_transcript_line(
         return Line::from(vec![
             Span::styled(
                 format!("{indent}{}", marker.unwrap_or("")),
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
+                Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
             ),
-            Span::styled(prefix.to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled(prefix.to_string(), Style::new().fg(Color::Yellow)),
             Span::styled(
                 rest.to_string(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
             ),
         ]);
     }
     Line::from(vec![
         Span::styled(
             format!("{indent}{}", marker.unwrap_or("")),
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
+            Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
         ),
         Span::styled(
             trimmed.to_string(),
-            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
         ),
     ])
 }
@@ -391,9 +362,7 @@ pub(crate) fn json_transcript_line(
 ) -> Line<'static> {
     let mut spans = vec![Span::styled(
         format!("{indent}{}", marker.unwrap_or("")),
-        Style::default()
-            .fg(Color::DarkGray)
-            .add_modifier(Modifier::DIM),
+        Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
     )];
     let mut chars = row.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -410,15 +379,13 @@ pub(crate) fn json_transcript_line(
             } else {
                 Color::Green
             };
-            spans.push(Span::styled(token, Style::default().fg(color)));
+            spans.push(Span::styled(token, Style::new().fg(color)));
             continue;
         }
         let style = match ch {
-            '0'..='9' | '-' => Style::default().fg(Color::Yellow),
-            't' | 'f' | 'n' => Style::default().fg(Color::Magenta),
-            _ => Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
+            '0'..='9' | '-' => Style::new().fg(Color::Yellow),
+            't' | 'f' | 'n' => Style::new().fg(Color::Magenta),
+            _ => Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
         };
         spans.push(Span::styled(ch.to_string(), style));
     }
@@ -471,7 +438,7 @@ pub(crate) fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
 }
 
 pub(crate) fn tool_status_style(status: &str) -> Style {
-    Style::default()
+    Style::new()
         .fg(match status_tone(status) {
             Some(StatusTone::Success) => Color::Green,
             Some(StatusTone::Error) => Color::Red,
@@ -880,7 +847,7 @@ mod tests {
     #[test]
     fn ansi_to_inline_line_preserves_content_after_cr_overstrike() {
         let raw = "stale\rfresh \x1b[32mvalue\x1b[0m";
-        let line = ansi_to_inline_line(raw, Style::default());
+        let line = ansi_to_inline_line(raw, Style::new());
         let visible: String = line
             .spans
             .iter()
@@ -899,7 +866,7 @@ mod tests {
     #[test]
     fn ansi_to_inline_line_collapses_multi_line_decoded_text() {
         let raw = "alpha\x1b[31m\nbeta\x1b[0m";
-        let line = ansi_to_inline_line(raw, Style::default());
+        let line = ansi_to_inline_line(raw, Style::new());
         let visible: String = line
             .spans
             .iter()

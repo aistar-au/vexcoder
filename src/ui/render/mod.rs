@@ -4,10 +4,10 @@ use crate::ui::input_metrics::{
 use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_compact_task_layout};
 use crate::ui::tui::{
     Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Clear, Paragraph, Wrap},
 };
 
 pub use crate::ui::layout::MAX_INPUT_PANE_ROWS;
@@ -59,11 +59,9 @@ fn render_input_with_actions(
     let (action_area, inner) = if action_rows == 0 {
         (Rect::new(area.x, area.y, area.width, 0), area)
     } else {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(action_rows), Constraint::Min(1)])
-            .split(area);
-        (chunks[0], chunks[1])
+        let [action_area, inner] =
+            Layout::vertical([Constraint::Length(action_rows), Constraint::Min(1)]).areas(area);
+        (action_area, inner)
     };
 
     if action_area.height > 0 {
@@ -72,7 +70,7 @@ fn render_input_with_actions(
             [line] => Paragraph::new(line.clone()),
             _ => Paragraph::new(visible_actions.to_vec()),
         }
-        .style(Style::default().bg(Color::Rgb(24, 24, 24)))
+        .style(Style::new().bg(Color::Rgb(24, 24, 24)))
         .alignment(Alignment::Left);
         frame.render_widget(paragraph, action_area);
     }
@@ -87,18 +85,18 @@ fn render_input_with_actions(
     let visible_rows = inner.height as usize;
     let window_start = visual_window_start(cursor_row, visible_rows);
 
-    let mut rendered = Vec::with_capacity(visible_rows);
+    let mut rendered = Text::default();
     for offset in 0..visible_rows {
         let row_index = window_start + offset;
         let prefix = if row_index == 0 { "> " } else { "  " };
         let line = lines.get(row_index).cloned().unwrap_or_default();
-        rendered.push(Line::from(format!("{prefix}{line}")));
+        rendered.push_line(Line::from(format!("{prefix}{line}")));
     }
 
     frame.render_widget(
         Paragraph::new(rendered)
             .style(
-                Style::default()
+                Style::new()
                     .fg(Color::Gray)
                     .bg(Color::Rgb(24, 24, 24))
                     .add_modifier(Modifier::DIM),
@@ -132,12 +130,12 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
     let logical_rows = expand_history_rows(messages);
     let line_number_width = logical_rows.len().max(1).to_string().len();
     let content_width = history_content_width(inner.width, line_number_width);
-    let mut body: Vec<Line<'static>> = Vec::new();
+    let mut body = Text::default();
     for (index, row) in logical_rows.iter().enumerate() {
         let row_style = history_row_style(row);
         let wrapped_segments = wrap_input_lines(row, content_width);
         for (segment_index, segment) in wrapped_segments.iter().enumerate() {
-            body.push(format_history_row_segment(
+            body.push_line(format_history_row_segment(
                 index + 1,
                 line_number_width,
                 segment,
@@ -147,10 +145,9 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
         }
     }
 
-    let total_lines = body.len();
+    let total_lines = body.height();
     let scroll = total_lines.saturating_sub(inner.height as usize);
-    let paragraph =
-        Paragraph::new(Text::from(body)).scroll((scroll.min(u16::MAX as usize) as u16, 0));
+    let paragraph = Paragraph::new(body).scroll((scroll.min(u16::MAX as usize) as u16, 0));
     frame.render_widget(paragraph, inner);
 }
 
@@ -209,9 +206,7 @@ fn format_history_row_segment(
     Line::from(vec![
         Span::styled(
             line_prefix,
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
+            Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
         ),
         Span::styled(row.to_string(), style),
     ])
@@ -281,7 +276,7 @@ fn diff_line_color(kind: DiffLineKind, other_color: Color) -> Color {
 }
 
 fn history_row_style(row: &str) -> Style {
-    Style::default().fg(diff_line_color(classify_diff_line(row), Color::White))
+    Style::new().fg(diff_line_color(classify_diff_line(row), Color::White))
 }
 
 pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
@@ -289,27 +284,25 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
         return;
     }
 
-    let text = truncate_line(status, area.width as usize);
-    frame.render_widget(
-        Paragraph::new(text).style(Style::default().fg(Color::DarkGray)),
-        area,
-    );
+    let text = Text::raw(truncate_line(status, area.width as usize))
+        .style(Style::new().fg(Color::DarkGray));
+    frame.render_widget(Paragraph::new(text), area);
 }
 
 fn task_fork_action_line() -> Line<'static> {
     Line::from(vec![
         Span::styled(
             " Fork ",
-            Style::default()
+            Style::new()
                 .fg(Color::Black)
                 .bg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             " Alt+F",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM),
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
         ),
-        Span::styled(" new task-id", Style::default().fg(Color::DarkGray)),
+        Span::styled(" new task-id", Style::new().fg(Color::DarkGray)),
     ])
 }
 
@@ -338,13 +331,15 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
     frame.render_widget(Clear, frame_area);
     render_status_line(frame, layout.header, &state.status_line);
 
-    let output_lines: Vec<Line> = state.expanded_output_rows[output_start..output_end]
-        .iter()
-        .map(|row| transcript_output_line(row))
-        .collect();
-    let output_area = task_output_render_area(state, layout.output, output_lines.len());
+    let output_len = output_end - output_start;
+    let output_area = task_output_render_area(state, layout.output, output_len);
     if output_area.height > 0 {
-        frame.render_widget(Paragraph::new(Text::from(output_lines)), output_area);
+        let output_text = Text::from_iter(
+            state.expanded_output_rows[output_start..output_end]
+                .iter()
+                .map(transcript_output_line),
+        );
+        frame.render_widget(Paragraph::new(output_text), output_area);
     }
 
     render_input_with_actions(
@@ -406,9 +401,7 @@ fn render_picker_overlay(
     let area = Rect::new(composer_area.x, y, width, height);
 
     frame.render_widget(Clear, area);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(Color::DarkGray));
+    let block = Block::bordered().style(Style::new().fg(Color::DarkGray));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -421,15 +414,11 @@ fn render_picker_overlay(
         .take(inner.height as usize)
         .map(|line| {
             let style = if line.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD)
             } else if line.text.starts_with('[') || line.text.starts_with('/') {
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM)
+                Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM)
             } else {
-                Style::default().fg(Color::White)
+                Style::new().fg(Color::White)
             };
             Line::styled(truncate_line(&line.text, inner.width as usize), style)
         })
@@ -449,36 +438,28 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
 
     let preferred_height = modal_preferred_height(&modal);
     let area = centered_modal_area(anchor, preferred_height);
-    let provisional_outer = Block::default().borders(Borders::ALL);
+    let provisional_outer = Block::bordered();
     let provisional_inner = provisional_outer.inner(area);
-    let provisional_vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(1)])
-        .split(provisional_inner);
-    let provisional_body_area = provisional_vertical[0];
-    let body_block = Block::default().borders(Borders::ALL).title("Body");
+    let [provisional_body_area, _provisional_shortcuts_area] =
+        Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(provisional_inner);
+    let body_block = Block::bordered().title("Body");
     let body_inner = body_block.inner(provisional_body_area);
     let (title, accent, body, shortcuts) = modal_content(modal, body_inner.height as usize);
 
     frame.render_widget(Clear, area);
-    let outer = Block::default()
-        .borders(Borders::ALL)
+    let outer = Block::bordered()
         .title(title)
-        .style(Style::default().fg(accent));
+        .style(Style::new().fg(accent));
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(1)])
-        .split(inner);
-    let body_area = vertical[0];
-    let shortcuts_area = vertical[1];
-    let body_block = Block::default().borders(Borders::ALL).title("Body");
+    let [body_area, shortcuts_area] =
+        Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(inner);
+    let body_block = Block::bordered().title("Body");
     let body_inner = body_block.inner(body_area);
     frame.render_widget(body_block, body_area);
 
     frame.render_widget(
-        Paragraph::new(Text::from(body))
+        Paragraph::new(Text::from_iter(body))
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: false }),
         body_inner,
@@ -487,7 +468,7 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
     frame.render_widget(
         Paragraph::new(shortcuts)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::DarkGray)),
+            .style(Style::new().fg(Color::DarkGray)),
         shortcuts_area,
     );
 }
@@ -525,7 +506,7 @@ fn modal_content(
             body.push(Line::from(""));
             body.push(Line::styled(
                 "Patch",
-                Style::default().add_modifier(Modifier::BOLD),
+                Style::new().add_modifier(Modifier::BOLD),
             ));
             for line in lines.iter().skip(start).take(visible) {
                 body.push(styled_diff_line(line));
@@ -546,20 +527,18 @@ fn modal_content(
             let mut body = Vec::new();
             body.push(Line::styled(
                 format!("Tool: {tool_name}"),
-                Style::default().add_modifier(Modifier::BOLD),
+                Style::new().add_modifier(Modifier::BOLD),
             ));
             if auto_approve_enabled {
                 body.push(Line::styled(
                     "session auto-approve is ON",
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::BOLD),
+                    Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
                 ));
             }
             body.push(Line::from(""));
             body.push(Line::styled(
                 "Preview",
-                Style::default().add_modifier(Modifier::BOLD),
+                Style::new().add_modifier(Modifier::BOLD),
             ));
             let preview_lines: Vec<&str> = input_preview.lines().collect();
             let reserved_rows = if auto_approve_enabled { 4 } else { 3 };
@@ -573,9 +552,7 @@ fn modal_content(
                         "... ({} more lines)",
                         preview_lines.len() - max_preview_lines
                     ),
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::DIM),
+                    Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
                 ));
             }
             (
@@ -591,7 +568,7 @@ fn modal_content(
             vec![
                 Line::styled(
                     "Clear all saved memory notes?",
-                    Style::default().add_modifier(Modifier::BOLD),
+                    Style::new().add_modifier(Modifier::BOLD),
                 ),
                 Line::from("Type y or yes to confirm."),
                 Line::from("Any deny action leaves the notes file unchanged."),
@@ -604,7 +581,7 @@ fn modal_content(
 fn styled_diff_line(line: &str) -> Line<'static> {
     Line::styled(
         line.to_string(),
-        Style::default().fg(diff_line_color(classify_diff_line(line), Color::White)),
+        Style::new().fg(diff_line_color(classify_diff_line(line), Color::White)),
     )
 }
 

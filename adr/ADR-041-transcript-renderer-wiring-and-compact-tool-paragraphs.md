@@ -16,17 +16,21 @@ Tool output was rendered inline as raw text, producing transcript paragraphs tha
 - Delta-native streaming block buffers with bounded suffix deduplication.
 - Live input preview via incremental JSON parsing on `ToolCall` delta events.
 - Word-wrap prose at display boundary; preserve structural markers (headings, fences, lists).
-- Transcript assembly builds `Vec<Line<'static>>` and wraps via `Text::from(lines)` at the
-	flush boundary. The mutable builder pattern (`Text::push_line`, `Text::extend`) is not
-	currently used; migration is tracked as a target in `TASKS/PR-400-ratatui-api-surface-map.md`.
-- Deprecated design context (D17–D22, host-scrollback path) retained as non-active reference only.
+- Transcript row assembly builds `Line<'static>` values for the frame
+  renderer. Primary task-output rows are wrapped with `Text::from_iter(...)`;
+  fallback message rows use `Text::default()`, `push_line(...)`, and
+  `height()` before `Paragraph::scroll(...)`. The remaining text-builder gaps
+  are tracked in `TASKS/PR-400-ratatui-api-surface-map.md`.
+- Deprecated design context (D17-D22, host-scrollback path) retained as non-active reference only.
 
 ## References
 
-- [`Text::from(Vec<Line>)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html) — transcript flush pattern; `Vec<Line<'static>>` assembled then wrapped (`src/ui/render/transcript.rs`)
-- [`Line::from(Vec<Span>)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Line.html) — per-row span composition for ANSI-converted and styled transcript rows
-- [`Span::styled(str, Style)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Span.html) — span styling throughout transcript renderer
-- [`Paragraph::new(text).scroll((row, 0))`](https://docs.rs/ratatui/0.30.0/ratatui/widgets/struct.Paragraph.html) — transcript display with manual scroll offset (`src/ui/render/mod.rs:153`)
-- [`ansi_to_tui::IntoText`](https://docs.rs/ansi-to-tui) — ANSI escape sequence to ratatui `Text` conversion (`src/ui/render/transcript.rs`)
-- [`Style::default().add_modifier(Modifier::X)`](https://docs.rs/ratatui/0.30.0/ratatui/style/struct.Style.html) — inline styling for tool output, diff lines, and evidence rows
-- [`serde_json`](https://docs.rs/serde_json) — incremental ToolCall delta parsing
+- [`Text::from_iter(iter)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html#method.from_iter) - render-boundary wrapping for selected transcript rows (`src/ui/render/mod.rs:337`)
+- [`Text::push_line(line)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html#method.push_line) + [`Text::height()`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html#method.height) - fallback message assembly and scroll extent (`src/ui/render/mod.rs:133`)
+- [`Line::from(Vec<Span>)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Line.html) - per-row span composition for ANSI-converted and styled transcript rows
+- [`Span::styled(str, Style)`](https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Span.html) - span styling throughout transcript renderer
+- [`Paragraph::new(Text::from_iter(output_lines))`](https://docs.rs/ratatui/0.30.0/ratatui/widgets/struct.Paragraph.html) - primary task-output display after row windowing (`src/ui/render/mod.rs:342`)
+- [`Paragraph::new(body).scroll((row, 0))`](https://docs.rs/ratatui/0.30.0/ratatui/widgets/struct.Paragraph.html) - fallback message display with a local scroll offset (`src/ui/render/mod.rs:150`)
+- [`ansi_to_tui::IntoText`](https://docs.rs/ansi-to-tui) - ANSI escape sequence to ratatui `Text` conversion (`src/ui/render/transcript.rs`)
+- [`Style::new().add_modifier(Modifier::X)`](https://docs.rs/ratatui/0.30.0/ratatui/style/struct.Style.html#method.new) - inline styling for tool output, diff lines, and evidence rows
+- [`serde_json`](https://docs.rs/serde_json) - incremental ToolCall delta parsing

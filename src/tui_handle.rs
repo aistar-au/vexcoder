@@ -43,9 +43,8 @@ impl TuiHandle {
         }
 
         self.inner.insert_before(height, move |buf| {
-            Paragraph::new(Text::from(lines))
-                .style(Style::default())
-                .render(buf.area, buf);
+            let text = Text::from_iter(lines).style(Style::new());
+            Paragraph::new(text).render(buf.area, buf);
         })
     }
 }

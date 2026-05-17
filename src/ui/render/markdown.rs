@@ -50,7 +50,7 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
     let parser = Parser::new(input);
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut current_spans: Vec<Span<'static>> = Vec::new();
-    let mut style_stack: Vec<Style> = vec![Style::default().fg(Color::White)];
+    let mut style_stack: Vec<Style> = vec![Style::new().fg(Color::White)];
     let mut in_code_block = false;
     let mut code_lang = String::new();
     let mut code_buffer = String::new();
@@ -60,7 +60,7 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
             Event::Start(Tag::Heading { level, .. }) => {
                 flush_line(&mut current_spans, &mut lines);
                 let color = palette.heading_color(level);
-                style_stack.push(Style::default().fg(color).add_modifier(Modifier::BOLD));
+                style_stack.push(Style::new().fg(color).add_modifier(Modifier::BOLD));
             }
             Event::End(TagEnd::Heading(_)) => {
                 style_stack.pop();
@@ -93,7 +93,7 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
                 } else {
                     for source_line in code_buffer.lines() {
                         lines.push(line![
-                            span!(Style::default().fg(palette.code_fallback); "{source_line}")
+                            span!(Style::new().fg(palette.code_fallback); "{source_line}")
                         ]);
                     }
                 }
@@ -109,7 +109,7 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
             }
             Event::Code(code) => {
                 current_spans.push(span!(
-                    Style::default()
+                    Style::new()
                         .fg(palette.inline_code)
                         .add_modifier(Modifier::BOLD);
                     "`{code}`"
@@ -217,7 +217,7 @@ fn highlight_code_block(
             Err(_) => {
                 lines.push(Line::styled(
                     source_line.to_string(),
-                    Style::default().fg(markdown_semantic_palette().code_fallback),
+                    Style::new().fg(markdown_semantic_palette().code_fallback),
                 ));
             }
         }
@@ -226,7 +226,7 @@ fn highlight_code_block(
 
 fn syntect_to_ratatui_style(style: syntect::highlighting::Style) -> Style {
     let fg = Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b);
-    Style::default().fg(fg)
+    Style::new().fg(fg)
 }
 
 #[cfg(test)]
