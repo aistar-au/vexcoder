@@ -16,9 +16,15 @@ The pre-ADR-031 TUI used a fixed layout with no scrolling transcript and mixed o
 - Cross-platform resize robustness with 10×4 minimum viable surface.
 - Detail views use overlays and pagers, not permanent activity strips.
 - Batch development may proceed in parallel but batches merge in dependency order (state-first, then UI).
-- No `HostScrollbackSink` or ratatui inline viewport insertion; owned transcript only.
+- No `HostScrollbackSink`; the transcript is app-owned. Note: `Viewport::Inline`
+	and the `insert_before` streaming insert API are live in `src/tui_handle.rs` for the
+	primary-screen / host-scrollback path; this is intentional and governed by
+	the PR-400 TTY contract plan. The no-inline-viewport decision applies to the
+	full-screen owned-transcript surface, not to the inline streaming path.
 
 ## References
 
 - [`ratatui`](https://docs.rs/ratatui) — TUI framework
 - [`crossterm`](https://docs.rs/crossterm) — console backend
+- [`insert_before(height, fn)`](https://docs.rs/ratatui/0.30.0/ratatui/?search=insert_before) — streaming insert above inline viewport (`src/tui_handle.rs`)
+- [`ratatui::Viewport::Inline`](https://docs.rs/ratatui/0.30.0/ratatui/enum.Viewport.html) — primary-screen inline viewport

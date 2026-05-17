@@ -38,6 +38,11 @@ it does not propose a widget redesign or renderer rewrite.
   (`CSI ? 1049 h` / `CSI ? 1049 l`), and bracketed paste
   (`CSI ? 2004 h` / `CSI ? 2004 l`). Reference:
   <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html>.
+- [ ] `frame.set_cursor_position((x, y))` is the crossterm-backed Frame
+  method used for composer cursor placement (`src/ui/render/mod.rs:118`). It
+  is the only input-side cursor control and is distinct from the viewport
+  lifecycle APIs. Reference:
+  <https://docs.rs/ratatui/0.30.0/ratatui/struct.Frame.html#method.set_cursor_position>.
 
 ## Current repository facts
 
@@ -52,6 +57,17 @@ it does not propose a widget redesign or renderer rewrite.
   viewport sizing, wrapped-row expansion, and review-scroll math.
 - The workspace already enables ratatui `scrolling-regions` and the unstable
   rendered-line / widget-ref / backend-writer features in `Cargo.toml`.
+- `src/ui/layout.rs` owns all Layout split calls (`Layout::default().direction()
+  .constraints().split()`); this is the legacy form — `.areas()` is the 0.28+
+  replacement that returns a typed array.
+- `frame.set_cursor_position((x, y))` is called once in `src/ui/render/mod.rs`
+  for the composer cursor; it is the only input-side crossterm cursor control
+  on the active render path.
+- Five feature flags declared in `Cargo.toml` activate unstable APIs that are
+  never called: `unstable-widget-ref` (WidgetRef, StatefulWidgetRef,
+  render_widget_ref), `unstable-rendered-line-info` (paragraph.line_count),
+  and `unstable-backend-writer`. These are declared-only features pending deliberate
+  adoption decisions.
 
 ## Checklist
 
@@ -76,6 +92,12 @@ it does not propose a widget redesign or renderer rewrite.
 - [ ] Batch F: add regression coverage in `src/ui/render/tests.rs`,
   `src/app/tests/task_layout.rs`, `src/app/tests/transcript.rs`, and new
   `src/tui_handle.rs` lifecycle tests for fallback and restore behavior.
+- [ ] Batch G: document the active ratatui 0.30 API surface (101-item
+  inventory in `TASKS/PR-400-ratatui-api-surface-map.md`); verify the five
+  declared-only feature gaps (unstable-widget-ref, unstable-rendered-line-info)
+  and record migration targets for Style::default(), Layout::split(), and
+  Block::default().borders() in that file; no code changes required for this
+  batch.
 
 ## Acceptance gates
 
