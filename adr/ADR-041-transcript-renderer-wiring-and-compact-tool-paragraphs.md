@@ -12,7 +12,7 @@ Tool output was rendered inline as raw text, producing transcript paragraphs tha
 - `StreamTextNormaliser` auto-closes stale tool blocks on new function-open tag; flushes on non-text boundary.
 - Compact tool paragraph layout: pending shows header + Input only; completed shows header, Input, Result, max 3 evidence lines.
 - Overflow escalates to detail surfaces (overlays, pagers); no inline expansion beyond 3 lines.
-- `↑` / `↓` arrow labels replace `read:` / `generate:` string labels.
+- Structured tool headers and textual `progress:{processed}/{total}` suffixes replace earlier symbolic shorthand on the active transcript path.
 - Delta-native streaming block buffers with bounded suffix deduplication.
 - Live input preview via incremental JSON parsing on `ToolCall` delta events.
 - Word-wrap prose at display boundary; preserve structural markers (headings, fences, lists).

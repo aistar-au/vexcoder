@@ -25,7 +25,7 @@ Consumed by: PR-400 Batch G checklist (see
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | `Text::raw(str)` | Active | `src/ui/render/mod.rs:287` | Used for status-line text before applying a top-level `Text` style. |
 | 2 | `Text::styled(str, style)` | Gap | - | Top-level styled constructor. Not used. |
-| 3 | `Text::from(Vec<Line>)` | Gap | - | Replaced on the active render paths by `Text::from_iter` and `Text::push_line` assembly. |
+| 3 | `Text::from(Vec<Line>)` | Gap | - | ratatui 0.30 still exposes this conversion, but the repository deliberately leaves it unused at HEAD in favor of `Text::from_iter` and incremental `Text::push_line` assembly on the active render paths. |
 | 4 | `Text::from_iter(iter)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Iterator-based construction used for task-output rows, modal body text, and inline insert rows. |
 | 5 | `text.style(style)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Fluent top-level style setter used for status-line and inline insert text. |
 | 6 | `text.patch_style(style)` | Gap | - | Additive style merge. Not used. |

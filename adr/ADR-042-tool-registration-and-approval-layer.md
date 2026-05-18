@@ -9,7 +9,7 @@ Tool names varied across providers and local endpoints. Unknown tool names were 
 
 ## Decision
 
-- Local endpoint polling: `GET /props` or `GET /v1/models`; derive `max_tokens = server_n_ctx × 0.75`.
+- Local endpoint polling: `GET /props` or `GET /v1/models`; derive `max_tokens = server_n_ctx * 0.75`.
 - Expose `n_ctx`, `n_batch`, model ID in telemetry summary line.
 - Unknown tool names return a structured error; no silent discard.
 - Multi-name alias registration: `run_command` (canonical schema), `run_shell_command`, `bash`, `execute_command`, `execute_bash` (aliases).

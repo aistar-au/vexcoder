@@ -22,6 +22,13 @@ it does not propose a widget redesign or renderer rewrite.
   already enables that feature together with `crossterm_0_29` in the workspace
   dependency seam. Reference:
   <https://docs.rs/crate/ratatui/0.30.0/features>.
+- [x] ratatui 0.30 retains both `Text::from(Vec<Line>)` and
+  `Text::from_iter(iter)` in the public `Text` conversion surface. The active
+  repository policy standardizes on `Text::from_iter` for iterator-backed
+  render boundaries and on `Text::push_line` for incremental assembly so the
+  migration claims can be audited against a source-verified gap rather than an
+  upstream removal. Reference:
+  <https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html>.
 - [x] crossterm 0.29 documents `EnableBracketedPaste` /
   `DisableBracketedPaste`, and its crate reference material documents
   alternate-screen and raw-mode behavior. References:

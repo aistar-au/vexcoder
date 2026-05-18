@@ -124,7 +124,7 @@ pub fn markdown_to_lines(input: &str) -> Vec<Line<'static>> {
                 lines.push(Line::from(""));
             }
             Event::Start(Tag::Item) => {
-                current_spans.push(span!(palette.bullet; "  • "));
+                current_spans.push(span!(palette.bullet; "  - "));
             }
             Event::End(TagEnd::Item) => {
                 flush_line(&mut current_spans, &mut lines);

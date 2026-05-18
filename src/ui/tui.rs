@@ -2,6 +2,10 @@ pub mod backend {
     pub use ratatui::backend::{CrosstermBackend, TestBackend};
 }
 
+pub mod buffer {
+    pub use ratatui::buffer::Buffer;
+}
+
 pub mod input {
     pub use crossterm::event::{
         DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent as KeyStroke,
@@ -23,7 +27,7 @@ pub mod text {
 }
 
 pub mod widgets {
-    pub use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+    pub use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap};
 }
 
 pub mod terminal {

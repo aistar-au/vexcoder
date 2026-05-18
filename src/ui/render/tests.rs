@@ -1,6 +1,5 @@
 use super::*;
-use crate::ui::tui::{Terminal, backend::TestBackend};
-use ratatui::buffer::Buffer;
+use crate::ui::tui::{Terminal, backend::TestBackend, buffer::Buffer};
 
 #[test]
 fn all_modals_render_without_panic() {

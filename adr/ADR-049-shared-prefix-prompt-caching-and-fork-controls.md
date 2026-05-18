@@ -60,5 +60,5 @@ The same reasoning applies to the fork affordance. Slash commands remain necessa
 
 ## References
 
-- [Crossterm Event Module](https://docs.rs/crossterm/latest/crossterm/event/index.html)
+- [Crossterm 0.29 Event Module](https://docs.rs/crossterm/0.29.0/crossterm/event/index.html)
 

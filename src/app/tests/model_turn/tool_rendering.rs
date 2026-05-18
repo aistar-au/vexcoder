@@ -70,7 +70,7 @@ fn duplicate_tool_calls_fold_to_repeated_indicator() {
     let lines = mode.history_lines();
     let repeated = lines
         .iter()
-        .any(|l| l.contains("×") || l.contains("repeated") || l.contains("again"));
+        .any(|l| l.contains("repeated") || l.contains("again"));
     assert!(
         repeated,
         "duplicate tool calls must fold to a repeated indicator; lines: {lines:?}"

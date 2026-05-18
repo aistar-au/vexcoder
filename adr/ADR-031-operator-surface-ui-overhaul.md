@@ -13,7 +13,7 @@ The pre-ADR-031 TUI used a fixed layout with no scrolling transcript and mixed o
 - Transcript is the authoritative visible stream for status, tool activity, approvals, and orchestrator updates.
 - Scroll ownership moves to the task surface; viewport starts at top on session open.
 - Compact telemetry: six-line inspector cap; enriched tool paragraphs show 3 evidence lines + overflow indicator.
-- Cross-platform resize robustness with 10×4 minimum viable surface.
+- Cross-platform resize robustness with 10x4 minimum viable surface.
 - Detail views use overlays and pagers, not permanent activity strips.
 - Batch development may proceed in parallel but batches merge in dependency order (state-first, then UI).
 - No `HostScrollbackSink`; the transcript is app-owned. Note: `Viewport::Inline`
@@ -24,7 +24,7 @@ The pre-ADR-031 TUI used a fixed layout with no scrolling transcript and mixed o
 
 ## References
 
-- [`ratatui`](https://docs.rs/ratatui) - TUI framework
-- [`crossterm`](https://docs.rs/crossterm) - console backend
+- [`ratatui 0.30`](https://docs.rs/ratatui/0.30.0/ratatui/) - TUI framework
+- [`crossterm 0.29`](https://docs.rs/crossterm/0.29.0/crossterm/) - console backend
 - [`insert_before(height, fn)`](https://docs.rs/ratatui/0.30.0/ratatui/?search=insert_before) - streaming insert above inline viewport (`src/tui_handle.rs`)
 - [`ratatui::Viewport::Inline`](https://docs.rs/ratatui/0.30.0/ratatui/enum.Viewport.html) - primary-screen inline viewport

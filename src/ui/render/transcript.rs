@@ -11,12 +11,17 @@ use crate::ui::tui::{
 use ansi_to_tui::IntoText;
 
 const ESC: char = '\x1b';
+const WAITING_MARKER: &str = "  ... ";
+const ERROR_MARKER: &str = "  x ";
+const TOOL_MARKER: &str = "  * ";
+const EVIDENCE_MARKER: &str = "      - ";
+const LIST_MARKER: &str = "- ";
 
 pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
     match row {
         TranscriptRow::WaitingPlaceholder(_) => Line::from(vec![
             Span::styled(
-                "  ⋯ ",
+                WAITING_MARKER,
                 Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -26,7 +31,7 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
         ]),
         TranscriptRow::Error(rest) => Line::from(vec![
             Span::styled(
-                "  ✖ ",
+                ERROR_MARKER,
                 Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -36,9 +41,7 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
         ]),
         TranscriptRow::ToolHeader(rest) => render_tool_header(rest),
         TranscriptRow::ToolDetail(rest) => structured_transcript_line(rest, "    ", None),
-        TranscriptRow::Evidence(rest) => {
-            structured_transcript_line(rest, "      ", Some("\u{2727} "))
-        }
+        TranscriptRow::Evidence(rest) => structured_transcript_line(rest, "", Some(EVIDENCE_MARKER)),
         TranscriptRow::UserInput(text) => Line::from(vec![
             Span::styled(
                 "> ",
@@ -56,7 +59,7 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
 
 fn render_tool_header(rest: &str) -> Line<'static> {
     let mut spans = vec![Span::styled(
-        "  \u{2726} ",
+        TOOL_MARKER,
         Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
     )];
     if let Some((leading, status)) = split_tool_summary(rest) {
@@ -233,7 +236,7 @@ fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
     }
     if let Some(rest) = row.strip_prefix("[command session] error: ") {
         return Some(line_with_marker(
-            "  ✖ ",
+            ERROR_MARKER,
             rest,
             Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
@@ -241,7 +244,7 @@ fn render_plain_row_dispatch(row: &str) -> Option<Line<'static>> {
     }
     if let Some(rest) = row.strip_prefix("[stderr] ") {
         return Some(line_with_marker(
-            "      \u{2727} ",
+            EVIDENCE_MARKER,
             rest,
             Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
             Style::new().fg(Color::Red).add_modifier(Modifier::DIM),
@@ -323,7 +326,7 @@ pub(crate) fn structured_transcript_line(
                 format!("{indent}{}", marker.unwrap_or("")),
                 Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
             ),
-            Span::styled("• ".to_string(), Style::new().fg(Color::Yellow)),
+            Span::styled(LIST_MARKER.to_string(), Style::new().fg(Color::Yellow)),
             Span::styled(
                 rest.to_string(),
                 Style::new().fg(Color::Gray).add_modifier(Modifier::DIM),
@@ -657,10 +660,10 @@ fn transcript_row_wrap_width(row: &TranscriptRow, cols: usize) -> usize {
 
 fn transcript_row_prefix_width(row: &TranscriptRow) -> usize {
     match row {
-        TranscriptRow::ToolHeader(_) => display_width("  \u{2726} "),
+        TranscriptRow::ToolHeader(_) => display_width(TOOL_MARKER),
         TranscriptRow::ToolDetail(_) => display_width("    "),
-        TranscriptRow::Evidence(_) => display_width("      \u{2727} "),
-        TranscriptRow::Error(_) => display_width("  \u{2716} "),
+        TranscriptRow::Evidence(_) => display_width(EVIDENCE_MARKER),
+        TranscriptRow::Error(_) => display_width(ERROR_MARKER),
         TranscriptRow::UserInput(_) => display_width("> "),
         TranscriptRow::Plain(line) => plain_row_prefix_width(line),
         TranscriptRow::AssistantText { .. } | TranscriptRow::WaitingPlaceholder(_) => 0,
@@ -673,16 +676,16 @@ fn plain_row_prefix_width(line: &str) -> usize {
     } else if line.strip_prefix("[approval_detail] ").is_some() {
         display_width("    ")
     } else if parse_command_session_started(line).is_some() {
-        display_width("  \u{2726} ")
+        display_width(TOOL_MARKER)
     } else if line.strip_prefix("[command session exit: ").is_some()
         || line == "[command session cancelled]"
         || line == "[command session cancellation requested]"
     {
         display_width("    ")
     } else if line.strip_prefix("[command session] error: ").is_some() {
-        display_width("  \u{2716} ")
+        display_width(ERROR_MARKER)
     } else if line.strip_prefix("[stderr] ").is_some() {
-        display_width("      \u{2727} ")
+        display_width(EVIDENCE_MARKER)
     } else {
         0
     }
@@ -925,5 +928,42 @@ mod tests {
         assert!(render_plain_row_dispatch("[command session cancelled]").is_some());
         assert!(render_plain_row_dispatch("[command session] error: boom").is_some());
         assert!(render_plain_row_dispatch("ordinary line").is_none());
+    }
+
+    #[test]
+    fn transcript_markers_render_as_ascii_tokens() {
+        let tool_header = transcript_output_line(&TranscriptRow::ToolHeader(
+            "read_file · completed".to_string(),
+        ));
+        let evidence = transcript_output_line(&TranscriptRow::Evidence(
+            "stderr: failed to open file".to_string(),
+        ));
+        let error = transcript_output_line(&TranscriptRow::Error("failed".to_string()));
+
+        let tool_header_text = tool_header
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let evidence_text = evidence
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let error_text = error
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(tool_header_text.starts_with(TOOL_MARKER));
+        assert!(evidence_text.starts_with(EVIDENCE_MARKER));
+        assert!(error_text.starts_with(ERROR_MARKER));
+        for rendered in [tool_header_text, evidence_text, error_text] {
+            assert!(!rendered.contains('✖'));
+            assert!(!rendered.contains('✦'));
+            assert!(!rendered.contains('✧'));
+            assert!(!rendered.contains('•'));
+        }
     }
 }

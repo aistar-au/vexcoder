@@ -12,9 +12,8 @@ use crate::ui::tui::{
     terminal::{Clear, ClearType, MoveToColumn, Show, host_display_size},
     text::{Line, Text},
     try_init_with_options, try_restore,
-    widgets::Paragraph,
+    widgets::{Paragraph, Widget},
 };
-use ratatui::widgets::Widget;
 
 pub struct TuiHandle {
     inner: DefaultTerminal,
