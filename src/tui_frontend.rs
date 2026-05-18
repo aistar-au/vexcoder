@@ -710,7 +710,7 @@ fn transcript_rows_extend_append_only(
     previous: &[crate::app::TranscriptRow],
     current: &[crate::app::TranscriptRow],
 ) -> bool {
-    current.len() >= previous.len()
+    current.len() > previous.len()
         && previous
             .iter()
             .zip(current.iter())
@@ -814,6 +814,34 @@ mod tests {
 
         assert_eq!(inline_rows_to_insert(&previous, &resized), None);
         assert_eq!(inline_rows_to_insert(&previous, &same_window), None);
+    }
+
+    #[test]
+    fn inline_scrollback_skips_advancing_window_without_new_rows() {
+        let previous = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 1,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+            ]
+            .into(),
+        };
+        let current = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 2,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+            ]
+            .into(),
+        };
+
+        assert_eq!(inline_rows_to_insert(&previous, &current), None);
     }
 
     #[test]
