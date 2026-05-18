@@ -41,7 +41,9 @@ pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
         ]),
         TranscriptRow::ToolHeader(rest) => render_tool_header(rest),
         TranscriptRow::ToolDetail(rest) => structured_transcript_line(rest, "    ", None),
-        TranscriptRow::Evidence(rest) => structured_transcript_line(rest, "", Some(EVIDENCE_MARKER)),
+        TranscriptRow::Evidence(rest) => {
+            structured_transcript_line(rest, "", Some(EVIDENCE_MARKER))
+        }
         TranscriptRow::UserInput(text) => Line::from(vec![
             Span::styled(
                 "> ",
