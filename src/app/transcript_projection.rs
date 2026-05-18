@@ -117,7 +117,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[PulseEntry]) {
                     && let Some(last) = rows.get_mut(row_before..)
                     && let Some(TranscriptRow::AssistantText { text, streaming }) = last.last_mut()
                 {
-                    text.push('▌');
+                    text.push('|');
                     *streaming = true;
                 }
 
@@ -265,7 +265,7 @@ fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDoc
         if let Some(ref progress) = active.prompt_progress
             && let (Some(processed), Some(total)) = (progress.processed, progress.total)
         {
-            line.push_str(&format!(" \u{2191}:{processed}/{total}"));
+            line.push_str(&format!(" progress:{processed}/{total}"));
         }
         rows.push(TranscriptRow::WaitingPlaceholder(line));
     }
@@ -413,7 +413,7 @@ fn tool_target_summary(line: &str) -> Option<String> {
             return Some(candidate);
         }
     }
-    first_pathish_token(trimmed)
+    None
 }
 
 fn first_pathish_token(text: &str) -> Option<String> {

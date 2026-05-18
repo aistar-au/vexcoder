@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 421
+- Total tracked files: 422
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -48,6 +48,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 37 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md> |
 | 38 | `TASKS/PR-4-renderer-simplification.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-4-renderer-simplification.md> |
 | 39 | `TASKS/PR-400-ratatui-crossterm-tty-contract-plan.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-400-ratatui-crossterm-tty-contract-plan.md> |
+| 39a | `TASKS/PR-400-ratatui-api-surface-map.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-400-ratatui-api-surface-map.md> |
 | 40 | `TASKS/PR-405-permissions-overlay-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-405-permissions-overlay-followup.md> |
 | 41 | `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-cli-tui-envelope-consumer-audit.md> |
 | 42 | `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/REF-01-runtime-envelope-api-sse-normalization.md> |

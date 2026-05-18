@@ -32,7 +32,7 @@ fn stream_delta_appears_in_transcript_output_rows() {
         vec![
             TranscriptRow::UserInput("describe the project layout".to_string()),
             TranscriptRow::AssistantText {
-                text: "the project has three modules\u{258c}".to_string(),
+                text: "the project has three modules|".to_string(),
                 streaming: true
             },
         ]

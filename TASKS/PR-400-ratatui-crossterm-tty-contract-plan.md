@@ -22,6 +22,13 @@ it does not propose a widget redesign or renderer rewrite.
   already enables that feature together with `crossterm_0_29` in the workspace
   dependency seam. Reference:
   <https://docs.rs/crate/ratatui/0.30.0/features>.
+- [x] ratatui 0.30 retains both `Text::from(Vec<Line>)` and
+  `Text::from_iter(iter)` in the public `Text` conversion surface. The active
+  repository policy standardizes on `Text::from_iter` for iterator-backed
+  render boundaries and on `Text::push_line` for incremental assembly so the
+  migration claims can be audited against a source-verified gap rather than an
+  upstream removal. Reference:
+  <https://docs.rs/ratatui/0.30.0/ratatui/text/struct.Text.html>.
 - [x] crossterm 0.29 documents `EnableBracketedPaste` /
   `DisableBracketedPaste`, and its crate reference material documents
   alternate-screen and raw-mode behavior. References:
@@ -38,6 +45,11 @@ it does not propose a widget redesign or renderer rewrite.
   (`CSI ? 1049 h` / `CSI ? 1049 l`), and bracketed paste
   (`CSI ? 2004 h` / `CSI ? 2004 l`). Reference:
   <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html>.
+- [ ] `frame.set_cursor_position((x, y))` is the crossterm-backed Frame
+  method used for composer cursor placement (`src/ui/render/mod.rs:116`). It
+  is the only input-side cursor control and is distinct from the viewport
+  lifecycle APIs. Reference:
+  <https://docs.rs/ratatui/0.30.0/ratatui/struct.Frame.html#method.set_cursor_position>.
 
 ## Current repository facts
 
@@ -52,6 +64,18 @@ it does not propose a widget redesign or renderer rewrite.
   viewport sizing, wrapped-row expansion, and review-scroll math.
 - The workspace already enables ratatui `scrolling-regions` and the unstable
   rendered-line / widget-ref / backend-writer features in `Cargo.toml`.
+- `src/ui/layout.rs` and `src/ui/render/mod.rs` own the active Layout area
+  split calls through `Layout::vertical([...]).areas(area)`, which returns
+  typed arrays and allows direct destructuring.
+- `frame.set_cursor_position((x, y))` is called once in `src/ui/render/mod.rs`
+  for the composer cursor; it is the only input-side crossterm cursor control
+  on the active render path.
+- Three feature flags declared in `Cargo.toml` expose five unstable APIs or
+  access points that are not called: `unstable-widget-ref` (`WidgetRef`,
+  `StatefulWidgetRef`, `render_widget_ref`), `unstable-rendered-line-info`
+  (`paragraph.line_count`), and `unstable-backend-writer` (direct backend
+  writer access). These are declared-only APIs pending deliberate adoption
+  decisions.
 
 ## Checklist
 
@@ -76,6 +100,13 @@ it does not propose a widget redesign or renderer rewrite.
 - [ ] Batch F: add regression coverage in `src/ui/render/tests.rs`,
   `src/app/tests/task_layout.rs`, `src/app/tests/transcript.rs`, and new
   `src/tui_handle.rs` lifecycle tests for fallback and restore behavior.
+- [ ] Batch G: document the active ratatui 0.30 API surface (101-item
+  inventory in `TASKS/PR-400-ratatui-api-surface-map.md`); verify the five
+  declared-only API gaps exposed by `unstable-widget-ref`,
+  `unstable-rendered-line-info`, and `unstable-backend-writer`; implement the
+  first renderer migration batch for `Text`, `Style::new()`,
+  `Block::bordered()`, `Layout::vertical(...).areas(...)`, and composer cursor
+  documentation; and record the resulting source locations in that file.
 
 ## Acceptance gates
 
