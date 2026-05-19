@@ -1,9 +1,5 @@
 [workspace]
 members = [".", "crates/*"]
-# resolver = "3" is the default for edition = "2024" workspaces (Rust 1.84+).
-# It activates the MSRV-aware dependency resolver, which prefers crate versions
-# compatible with the declared rust-version instead of always picking the latest.
-# See docs/src/msrv.md and the Rust 2024 Edition Guide §cargo-resolver.
 resolver = "3"
 
 [workspace.package]
@@ -13,9 +9,6 @@ rust-version = "1.91"
 license = "MIT"
 
 [workspace.dependencies]
-# Direct third-party version requirements live here so `cargo upgrade` only
-# needs to touch one manifest section. Member crates inherit these entries with
-# `workspace = true`, following Cargo's workspace dependency guidance.
 crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
 ratatui = { version = "0.30", features = [
   "scrolling-regions",
@@ -33,7 +26,6 @@ axum-tracing-opentelemetry = "0.33"
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-# 0.17 is the last release compatible with Rust 1.91 (MSRV); bump when MSRV advances.
 eventsource-client = { version = "0.17", default-features = false }
 backoff = { version = "0.4", default-features = false, features = ["tokio"] }
 fs2 = "0.4"
@@ -52,28 +44,21 @@ hyper-util = { version = "0.1", features = [
 ] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
-  # RFC 9113: negotiate HTTP/2 when the remote endpoint supports it.
   "http2",
-  # RFC 7578: multipart form uploads for future media-bearing requests.
   "multipart",
   "stream",
   "rustls",
-  # RFC 1928 (SOCKS5): proxy support for SOCKS5/SOCKS4 proxy tunnelling.
   "socks",
 ] }
-# RFC 1952/7932 (DEFLATE/Brotli): async streaming de/compression for HTTP bodies.
 async-compression = { version = "0.4", default-features = false, features = [
   "tokio",
   "gzip",
   "brotli",
   "zlib",
 ] }
-# RFC 7519/7515 (JWT/JWS): JSON Web Token encoding and validation.
 jsonwebtoken = "9"
-# RFC 8252/7636/6750 (Native Apps/PKCE/Bearer): browser auth + code exchange.
 oauth2 = { version = "4", default-features = false }
 open = "5"
-# RFC 8484/6555 (DoH): DNS-over-HTTPS and dual-stack connection racing.
 hickory-resolver = { version = "0.26", default-features = false, features = [
   "https-ring",
   "tokio",
@@ -171,7 +156,6 @@ keyring = { version = "3", features = [
   "windows-native",
   "linux-native",
 ] }
-# 0.1 is the transitive requirement of eventsource-client 0.17; bump alongside it.
 launchdarkly-sdk-transport = { version = "0.1", default-features = false }
 grep-matcher = "0.1"
 grep-regex = "0.1"
@@ -192,9 +176,6 @@ assert_cmd = "2"
 rstest = "0.26"
 
 [workspace.metadata.upgrade-seams]
-# Rust crate versions are resolved at compile time, not through runtime
-# variables. To avoid broad source sweeps on upgrades, keep each crate's API
-# surface behind the local seam files listed here and update those first.
 ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
 crossterm = [
   "src/ui/tui.rs",
@@ -237,17 +218,13 @@ serde = [
   "derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs",
 ]
 arboard = ["src/clipboard.rs", "src/app/commands/session.rs"]
-# Markdown rendering stack — both crates are consumed together at one site.
 pulldown-cmark = ["src/ui/render/markdown.rs"]
 palette = ["src/ui/render/markdown.rs"]
 syntect = ["src/ui/render/markdown.rs"]
-# CLI panic/reporting polish — release panic hook and interactive task table.
 human-panic = ["src/bin/vex.rs"]
 dialoguer = ["src/bin/vex.rs"]
 tabled = ["src/bin/vex.rs"]
-# TUI text bridge — converts ANSI escape sequences to ratatui spans.
 ansi-to-tui = ["src/ui/tui.rs"]
-# Network wrappers — focused seams for transport-related helper crates.
 hickory-resolver = ["src/net/dns.rs"]
 reqwest = [
   "src/api/client/mod.rs",
@@ -271,18 +248,15 @@ opentelemetry_sdk = ["src/observability.rs"]
 tower-http = ["src/server/http.rs", "src/observability.rs"]
 tower_governor = ["src/server/http.rs"]
 tracing-opentelemetry = ["src/observability.rs", "src/api/client/mod.rs"]
-# tree-sitter grammar loading and query API — one indexing module.
 tree-sitter = ["src/tools/index.rs"]
 tree-sitter-rust = ["src/tools/index.rs"]
 tree-sitter-python = ["src/tools/index.rs"]
 tree-sitter-typescript = ["src/tools/index.rs"]
 tree-sitter-javascript = ["src/tools/index.rs"]
-# gitoxide family — pure-Rust git operations, all wired through git_rollup.
 gix = ["src/runtime/git_rollup.rs"]
 gix-discover = ["src/runtime/git_rollup.rs"]
 gix-config = ["src/runtime/git_rollup.rs"]
 gix-index = ["src/runtime/git_rollup.rs"]
-# libgit2 bindings — lower-level git tasks (commit-graph, repo discovery).
 git2 = ["src/tools/operator/git_ops.rs"]
 
 [workspace.metadata.upgrade-notes]
@@ -369,12 +343,8 @@ tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
 x509-parser.workspace = true
 ansi-to-tui.workspace = true
-# arboard: used by the /copy slash command (src/app/commands/session.rs) for
-# system clipboard access. default-features = false avoids pulling in the
-# image feature and its heavy transitive deps.
 arboard.workspace = true
 
-# --- diagnostics, path utilities, diff rendering ---
 color-eyre.workspace = true
 human-panic.workspace = true
 dialoguer.workspace = true
@@ -383,7 +353,6 @@ axum-tracing-opentelemetry.workspace = true
 tracing-appender.workspace = true
 similar.workspace = true
 
-# --- rich terminal rendering ---
 ratatui-macros.workspace = true
 pulldown-cmark.workspace = true
 palette.workspace = true
@@ -392,7 +361,6 @@ indicatif.workspace = true
 console.workspace = true
 tabled.workspace = true
 
-# --- workspace navigation and path normalization ---
 ignore.workspace = true
 globset.workspace = true
 pathdiff.workspace = true
@@ -400,107 +368,38 @@ dunce.workspace = true
 base64.workspace = true
 chrono.workspace = true
 
-# --- collections, HTTP middleware, text matching ---
 indexmap.workspace = true
 tower-http.workspace = true
 tower_governor.workspace = true
 regex-lite.workspace = true
 httpdate.workspace = true
 
-# --- filesystem events, executable location, binary search ranking ---
-# which: locates executables on PATH; used by git_rollup.rs for a clear error
-#        when the `git` binary is absent.
 which.workspace = true
-# bm25: text-ranking layer for codebase_search; sits behind the aho-corasick
-#       literal-match scoring to add term-frequency weighting.
 bm25.workspace = true
-# notify: filesystem event watching; used by git_rollup.rs watch mode to
-#         detect working-tree changes without polling.
 notify.workspace = true
 
-# --- native git operations ---
-# git2: libgit2 bindings; primary crate for low-level git tasks (repo
-#       discovery, commit-graph inspection) without spawning a subprocess.
-#       vendored-libgit2 bundles libgit2 so no system install is required.
-#       Wire point: src/tools/operator/git_ops.rs.
 git2.workspace = true
-# gix: pure-Rust gitoxide implementation; provides fast, thread-safe
-#      repository access as a complement to git2.
-#      Wire point: src/runtime/git_rollup.rs.
 gix.workspace = true
-# gix-discover: locates the .git directory when the CLI is launched from a
-#               repository subfolder using pure-Rust walk-up discovery.
-#               Wire point: src/runtime/git_rollup.rs.
 gix-discover.workspace = true
-# gix-config: reads local/global git config (user.name, user.email) so
-#             AI-generated commits are correctly attributed.
-#             Wire point: src/runtime/git_rollup.rs.
 gix-config.workspace = true
-# gix-index: reads the git staging area (.git/index) to enumerate tracked
-#            and staged files without spawning a subprocess.
-#            Wire point: src/runtime/git_rollup.rs.
 gix-index.workspace = true
-# imara-diff: high-speed backend for generating unified patches compatible
-#             with standard git diff formats.
-#             Wire point: src/edit_diff.rs.
 imara-diff.workspace = true
-# xxhash-rust: non-cryptographic high-throughput hashing; xxh3_128 provides
-#              SIMD-accelerated 128-bit output for deterministic shared-prefix
-#              fingerprinting in src/runtime/multiplex_prefix.rs.
 xxhash-rust.workspace = true
 
-# --- OS-native credential storage (Gap 38) ---
-# keyring: read/write/delete secrets in the platform-native credential store.
-# Enable the native backend feature for each supported target so Entry::new()
-# uses the real store instead of the crate's non-persistent mock fallback.
-# Linux uses the kernel keyutils store, macOS uses Keychain, and Windows uses
-# Credential Manager. MIT/Apache-2.0; satisfies the zero-licensing-cost
-# constraint. Wire point: src/config/load/mod.rs (model token fallback),
-# src/credentials.rs.
 keyring.workspace = true
 launchdarkly-sdk-transport.workspace = true
 
-# --- high-performance code search ---
-# grep-matcher: trait for pluggable regex backends used by grep-searcher.
-#               Wire point: src/tools/search.rs.
 grep-matcher.workspace = true
-# grep-regex: implements grep-matcher using Rust's regex engine; SIMD-
-#             accelerated literal searching.
-#             Wire point: src/tools/search.rs.
 grep-regex.workspace = true
-# grep-searcher: streaming line-oriented file search; integrates with the
-#                ignore-based file walker and grep-regex matcher.
-#                Wire point: src/tools/search.rs.
 grep-searcher.workspace = true
-# memmap2: memory-mapped file I/O; enables zero-copy reads of large source
-#          files during search.
-#          Wire point: src/tools/search.rs.
 memmap2.workspace = true
-# bstr: byte-string type for non-UTF-8 source files; required by
-#       grep-searcher when files contain arbitrary bytes.
-#       Wire point: src/tools/search.rs.
 bstr.workspace = true
 
-# --- parallelism and inter-thread communication ---
-# rayon: work-stealing parallelism; used to search multiple files
-#        concurrently in codebase_search.
-#        Wire point: src/tools/search.rs.
 rayon.workspace = true
-# crossbeam-channel: bounded MPMC channels for passing search results
-#                    between the file-walk and result-collection threads.
-#                    Wire point: src/tools/search.rs.
 crossbeam-channel.workspace = true
 
-# --- syntax-aware code parsing ---
-# tree-sitter-python: Python grammar for tree-sitter; enables symbol
-#                     extraction and structural search in Python files.
-#                     Wire point: src/tools/index.rs.
 tree-sitter-python.workspace = true
-# tree-sitter-typescript: TypeScript and TSX grammars for tree-sitter.
-#                         Wire point: src/tools/index.rs.
 tree-sitter-typescript.workspace = true
-# tree-sitter-javascript: JavaScript grammar for tree-sitter.
-#                         Wire point: src/tools/index.rs.
 tree-sitter-javascript.workspace = true
 
 [dev-dependencies]
@@ -515,18 +414,9 @@ assert_cmd.workspace = true
 [lints]
 workspace = true
 
-# ---------------------------------------------------------------------------
-# Workspace-wide lint policy (Rust 1.74+, RFC 3389).
-# All member crates inherit these via `[lints] workspace = true`.
-# See docs/src/linting.md for the rationale and progressive-adoption guide.
-# ---------------------------------------------------------------------------
 
 [workspace.lints.rust]
-# Any new unsafe block must carry a // SAFETY: comment.
-# Existing sites annotate with #[allow(unsafe_code)] + a rationale comment.
 unsafe_code = "warn"
 
 [workspace.lints.clippy]
-# Allow MSRV-gated API calls to compile on the declared minimum toolchain (1.91).
-# Remove this entry when rust-version advances past any previously-gated API.
 incompatible_msrv = "allow"

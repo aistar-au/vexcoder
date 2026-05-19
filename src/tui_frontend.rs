@@ -689,10 +689,6 @@ fn inline_rows_to_insert(
         return None;
     }
 
-    // Inline scrollback is only safe when newly visible rows are a strict
-    // append-only extension of the previous frame. Streaming text can still
-    // reflow or mutate earlier wrapped rows, and replaying those stale rows
-    // into scrollback duplicates or drops visible content.
     if !transcript_rows_extend_append_only(
         &previous.expanded_output_rows,
         &current.expanded_output_rows,
