@@ -689,10 +689,28 @@ fn inline_rows_to_insert(
         return None;
     }
 
+    if !transcript_rows_extend_append_only(
+        &previous.expanded_output_rows,
+        &current.expanded_output_rows,
+    ) {
+        return None;
+    }
+
     let end = current
         .visible_start
         .min(previous.expanded_output_rows.len());
     (end > previous.visible_start).then_some((previous.visible_start, end))
+}
+
+fn transcript_rows_extend_append_only(
+    previous: &[crate::app::TranscriptRow],
+    current: &[crate::app::TranscriptRow],
+) -> bool {
+    current.len() > previous.len()
+        && previous
+            .iter()
+            .zip(current.iter())
+            .all(|(prev, next)| prev == next)
 }
 
 pub(crate) mod picker;
@@ -755,7 +773,15 @@ mod tests {
             task_id: "task-1".to_string(),
             area: Rect::new(0, 0, 80, 20),
             visible_start: 4,
-            expanded_output_rows: vec![].into(),
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+                crate::app::TranscriptRow::Plain("d".to_string()),
+                crate::app::TranscriptRow::Plain("e".to_string()),
+                crate::app::TranscriptRow::Plain("f".to_string()),
+            ]
+            .into(),
         };
 
         assert_eq!(inline_rows_to_insert(&previous, &current), Some((2, 4)));
@@ -784,5 +810,77 @@ mod tests {
 
         assert_eq!(inline_rows_to_insert(&previous, &resized), None);
         assert_eq!(inline_rows_to_insert(&previous, &same_window), None);
+    }
+
+    #[test]
+    fn inline_scrollback_skips_advancing_window_without_new_rows() {
+        let previous = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 1,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+            ]
+            .into(),
+        };
+        let current = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 2,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("a".to_string()),
+                crate::app::TranscriptRow::Plain("b".to_string()),
+                crate::app::TranscriptRow::Plain("c".to_string()),
+            ]
+            .into(),
+        };
+
+        assert_eq!(inline_rows_to_insert(&previous, &current), None);
+    }
+
+    #[test]
+    fn inline_scrollback_skips_mutated_streaming_windows() {
+        let previous = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 1,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("prompt".to_string()),
+                crate::app::TranscriptRow::AssistantText {
+                    text: "partial line".to_string(),
+                    streaming: true,
+                },
+                crate::app::TranscriptRow::AssistantText {
+                    text: "stable tail".to_string(),
+                    streaming: true,
+                },
+            ]
+            .into(),
+        };
+        let current = InlineScrollbackSnapshot {
+            task_id: "task-1".to_string(),
+            area: Rect::new(0, 0, 80, 20),
+            visible_start: 2,
+            expanded_output_rows: vec![
+                crate::app::TranscriptRow::Plain("prompt".to_string()),
+                crate::app::TranscriptRow::AssistantText {
+                    text: "partial line extended".to_string(),
+                    streaming: true,
+                },
+                crate::app::TranscriptRow::AssistantText {
+                    text: "stable tail".to_string(),
+                    streaming: true,
+                },
+                crate::app::TranscriptRow::AssistantText {
+                    text: "new tail".to_string(),
+                    streaming: true,
+                },
+            ]
+            .into(),
+        };
+
+        assert_eq!(inline_rows_to_insert(&previous, &current), None);
     }
 }
