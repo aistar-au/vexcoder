@@ -23,8 +23,8 @@ Consumed by: PR-400 Batch G checklist (see
 
 | # | API | Status | Source file(s) | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | `Text::raw(str)` | Active | `src/ui/render/mod.rs:287` | Used for status-line text before applying a top-level `Text` style. |
-| 2 | `Text::styled(str, style)` | Gap | - | Top-level styled constructor. Not used. |
+| 1 | `Text::raw(str)` | Gap | - | No remaining call sites after the status-line path moved to `Text::styled`. |
+| 2 | `Text::styled(str, style)` | Active | `src/ui/render/mod.rs` | Used for the status-line text with a top-level dark-gray style. |
 | 3 | `Text::from(Vec<Line>)` | Gap | - | ratatui 0.30 still exposes this conversion, but the repository deliberately leaves it unused at HEAD in favor of `Text::from_iter` and incremental `Text::push_line` assembly on the active render paths. |
 | 4 | `Text::from_iter(iter)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Iterator-based construction used for task-output rows, modal body text, and inline insert rows. |
 | 5 | `text.style(style)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Fluent top-level style setter used for status-line and inline insert text. |
@@ -33,8 +33,8 @@ Consumed by: PR-400 Batch G checklist (see
 | 8 | `text.left_aligned()` / `.centered()` / `.right_aligned()` | Gap | - | Shorthand alignment setters (0.26+). Not used. |
 | 9 | `text.push_line(line)` | Active | `src/ui/render/mod.rs` | In-place append used for composer visual rows and fallback message rows. |
 | 10 | `text.push_span(span)` | Gap | - | Append span to last line. Not used. |
-| 11 | `text.extend(iter<Line>)` | Gap | - | Implements Extend<Line>. Useful for merging transcript chunks. Not used. |
-| 12 | `text.width()` | Gap | - | Max unicode width across lines. Not used. |
+| 11 | `text.extend(iter<Line>)` | Active | `src/ui/render/mod.rs` | Used to append wrapped history-row segments without manual push loops. |
+| 12 | `text.width()` | Active | `src/ui/render/mod.rs` | Used for unicode-width-aware picker overlay sizing. |
 | 13 | `text.height()` | Active | `src/ui/render/mod.rs:148` | Used for fallback message scroll extent after `Text::push_line` assembly. |
 | 14 | `text.iter()` / `iter_mut()` | Gap | - | Line iterators. Not used. |
 
@@ -45,7 +45,7 @@ Consumed by: PR-400 Batch G checklist (see
 | 15 | `Line::raw(str)` | Gap | - | Unstyled single-line constructor. Not used. |
 | 16 | `Line::styled(str, style)` | Partial | `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`, `src/ui/render/markdown.rs` | Used for focused rows, transcript diagnostics, and markdown rows. Not the dominant pattern. |
 | 17 | `Line::from(Vec<Span>)` | Active | `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`, `src/ui/render/markdown.rs` | Dominant multi-style line pattern. Used extensively. |
-| 18 | `Line::from_iter(iter<Span>)` | Gap | - | Iterator-based construction. Not used. |
+| 18 | `Line::from_iter(iter<Span>)` | Active | `src/ui/render/mod.rs` | Used for history-row segments and the task fork-action chip. |
 | 19 | `line.style(style)` | Gap | - | Fluent setter on an existing line. Not used. |
 | 20 | `line.patch_style(style)` | Gap | - | Additive style on line. Not used. |
 | 21 | `line.left_aligned()` / `.centered()` / `.right_aligned()` | Gap | - | Per-line alignment overrides. Not used. |
@@ -106,12 +106,12 @@ Consumed by: PR-400 Batch G checklist (see
 | # | API | Status | Source file(s) | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | 49 | `Paragraph::new(text)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Primary render widget. Used throughout frame rendering and inline insert rendering. |
-| 50 | `paragraph.block(Block)` | Gap | - | Not used. Overlays render `Block` separately and then render paragraph content into the block inner area. |
+| 50 | `paragraph.block(Block)` | Active | `src/ui/render/mod.rs` | Used for modal body rendering so the body paragraph owns the bordered block directly. |
 | 51 | `paragraph.wrap(Wrap { trim })` | Active | `src/ui/render/mod.rs` | `trim: false` used in composer and modal body renders. |
 | 52 | `paragraph.scroll((row, col))` | Active | `src/ui/render/mod.rs` | Manual vertical scroll is used in fallback `render_messages`; primary task output uses row windowing before `Paragraph::new`. |
-| 53 | `paragraph.alignment(Alignment)` / `.centered()` | Active | `src/ui/render/mod.rs` | `Alignment::Left` and `Alignment::Center` used. |
+| 53 | `paragraph.alignment(Alignment)` / `.centered()` | Active | `src/ui/render/mod.rs` | `paragraph.left_aligned()` and `.centered()` are both used on active render paths. |
 | 54 | `paragraph.style(style)` | Active | `src/ui/render/mod.rs`, `src/tui_handle.rs` | Applied to full widget including status line, picker, and inline insert rendering. |
-| 55 | `paragraph.line_count(width)` [unstable] | Declared-only feature | - | Feature `unstable-rendered-line-info` enabled in Cargo.toml. `line_count()` is not called; it remains a candidate for rendered-line extent calculation. |
+| 55 | `paragraph.line_count(width)` [unstable] | Active | `src/ui/render/mod.rs` | Used for history visual-row counting with `Wrap { trim: false }` under the `unstable-rendered-line-info` feature. |
 
 ### 2.2 Block
 
@@ -230,10 +230,10 @@ Consumed by: PR-400 Batch G checklist (see
 
 | Status | Count |
 | :--- | :--- |
-| Active | 29 |
+| Active | 34 |
 | Partial | 2 |
-| Declared-only feature | 4 |
-| Gap | 66 |
+| Declared-only feature | 3 |
+| Gap | 62 |
 | **Total** | **101** |
 
 ### Declared-only API gaps (feature already declared, adoption decision pending)
@@ -243,7 +243,6 @@ Consumed by: PR-400 Batch G checklist (see
 | `unstable-widget-ref` | `WidgetRef` | Reference widget trait for reusable widgets |
 | `unstable-widget-ref` | `render_widget_ref` | Reference-based rendering; avoids clone on every frame for transcript widgets |
 | `unstable-widget-ref` | `StatefulWidgetRef` | Reference stateful rendering |
-| `unstable-rendered-line-info` | `paragraph.line_count(width)` | Correct scroll-max calculation without manual line-count math |
 | `unstable-backend-writer` | Direct backend writer access | Custom ANSI passthrough if needed |
 
 ### Implemented migration targets in this batch
@@ -255,3 +254,6 @@ Consumed by: PR-400 Batch G checklist (see
 | `Layout::default()...split(area)` | `Layout::vertical([...]).areas(area)` | `src/ui/layout.rs`, `src/ui/render/mod.rs` |
 | `Vec<Line>` + `Text::from()` at render boundary | `Text::from_iter(...)` | `src/ui/render/mod.rs`, `src/tui_handle.rs` |
 | `Vec<Line>` fallback message assembly | `Text::default()` + `text.push_line(...)` + `text.height()` | `src/ui/render/mod.rs` |
+| Manual wrapped-row line counting | `Paragraph::line_count(width)` | `src/ui/render/mod.rs` |
+| Manual `push_line(...)` loop for wrapped history rows | `text.extend(iter<Line>)` | `src/ui/render/mod.rs` |
+| Manual block render plus inner paragraph body render | `Paragraph::new(...).block(body_block)` | `src/ui/render/mod.rs` |

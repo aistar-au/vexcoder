@@ -1,10 +1,10 @@
 use crate::ui::input_metrics::{
-    cursor_row_col, display_width, visual_row_count, visual_window_start, wrap_input_lines,
+    cursor_row_col, visual_row_count, visual_window_start, wrap_input_lines,
 };
 use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_compact_task_layout};
 use crate::ui::tui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Clear, Paragraph, Wrap},
@@ -71,7 +71,7 @@ fn render_input_with_actions(
             _ => Paragraph::new(visible_actions.to_vec()),
         }
         .style(Style::new().bg(Color::Rgb(24, 24, 24)))
-        .alignment(Alignment::Left);
+        .left_aligned();
         frame.render_widget(paragraph, action_area);
     }
 
@@ -134,15 +134,20 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
     for (index, row) in logical_rows.iter().enumerate() {
         let row_style = history_row_style(row);
         let wrapped_segments = wrap_input_lines(row, content_width);
-        for (segment_index, segment) in wrapped_segments.iter().enumerate() {
-            body.push_line(format_history_row_segment(
-                index + 1,
-                line_number_width,
-                segment,
-                row_style,
-                segment_index == 0,
-            ));
-        }
+        body.extend(
+            wrapped_segments
+                .iter()
+                .enumerate()
+                .map(|(segment_index, segment)| {
+                    format_history_row_segment(
+                        index + 1,
+                        line_number_width,
+                        segment,
+                        row_style,
+                        segment_index == 0,
+                    )
+                }),
+        );
     }
 
     let total_lines = body.height();
@@ -156,10 +161,19 @@ pub fn history_visual_line_count(messages: &[String], content_width: usize) -> u
         return 0;
     }
 
-    let content_width = content_width.max(1);
+    let content_width = content_width.max(1).min(u16::MAX as usize) as u16;
     expand_history_rows(messages)
         .iter()
-        .map(|row| wrap_input_lines(row, content_width).len().max(1))
+        .map(|row| {
+            if row.is_empty() {
+                1
+            } else {
+                Paragraph::new(row.as_str())
+                    .wrap(Wrap { trim: false })
+                    .line_count(content_width)
+                    .max(1)
+            }
+        })
         .sum()
 }
 
@@ -203,7 +217,7 @@ fn format_history_row_segment(
     } else {
         format!("{:>line_number_width$} | ", "")
     };
-    Line::from(vec![
+    Line::from_iter([
         Span::styled(
             line_prefix,
             Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
@@ -284,13 +298,15 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
         return;
     }
 
-    let text = Text::raw(truncate_line(status, area.width as usize))
-        .style(Style::new().fg(Color::DarkGray));
+    let text = Text::styled(
+        truncate_line(status, area.width as usize),
+        Style::new().fg(Color::DarkGray),
+    );
     frame.render_widget(Paragraph::new(text), area);
 }
 
 fn task_fork_action_line() -> Line<'static> {
-    Line::from(vec![
+    Line::from_iter([
         Span::styled(
             " Fork ",
             Style::new()
@@ -380,13 +396,14 @@ fn render_picker_overlay(
 
     let max_visible_rows = available_height.saturating_sub(2).max(1) as usize;
     let visible_rows = lines.len().min(max_visible_rows);
-    let content_width = lines
-        .iter()
-        .take(visible_rows)
-        .map(|line| display_width(&line.text))
-        .max()
-        .unwrap_or(0)
-        .max(1);
+    let content_width = Text::from_iter(
+        lines
+            .iter()
+            .take(visible_rows)
+            .map(|line| Line::from(line.text.as_str())),
+    )
+    .width()
+    .max(1);
     let width = (content_width as u16)
         .saturating_add(2)
         .min(composer_area.width.max(4));
@@ -455,19 +472,18 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
     let [body_area, shortcuts_area] =
         Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(inner);
     let body_block = Block::bordered().title("Body");
-    let body_inner = body_block.inner(body_area);
-    frame.render_widget(body_block, body_area);
 
     frame.render_widget(
         Paragraph::new(Text::from_iter(body))
-            .alignment(Alignment::Left)
+            .block(body_block)
+            .left_aligned()
             .wrap(Wrap { trim: false }),
-        body_inner,
+        body_area,
     );
 
     frame.render_widget(
         Paragraph::new(shortcuts)
-            .alignment(Alignment::Center)
+            .centered()
             .style(Style::new().fg(Color::DarkGray)),
         shortcuts_area,
     );

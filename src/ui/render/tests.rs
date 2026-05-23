@@ -68,9 +68,38 @@ fn task_layout_renders_fork_action_chip() {
         .expect("render");
 
     let rendered = buffer_text(tui.backend().buffer());
+    assert!(rendered.contains("ready"));
     assert!(rendered.contains("Fork"));
     assert!(rendered.contains("Alt+F"));
     assert!(rendered.contains("new task-id"));
+}
+
+#[test]
+fn task_layout_renders_picker_overlay_lines() {
+    let backend = TestBackend::new(80, 12);
+    let mut tui = Terminal::new(backend).expect("test backend");
+    let state = crate::app::TaskViewProjection {
+        status_line: "ready".to_string(),
+        composer_focused: true,
+        picker_overlay: vec![
+            crate::app::PickerOverlayLine {
+                text: "/tmp/very/long/path.rs".to_string(),
+                selected: true,
+            },
+            crate::app::PickerOverlayLine {
+                text: "[file] 2 shown".to_string(),
+                selected: false,
+            },
+        ],
+        ..crate::app::TaskViewProjection::default()
+    };
+
+    tui.draw(|frame| render_task_layout(frame, &state))
+        .expect("render");
+
+    let rendered = buffer_text(tui.backend().buffer());
+    assert!(rendered.contains("/tmp/very/long/path.rs"));
+    assert!(rendered.contains("[file] 2 shown"));
 }
 
 fn buffer_text(buffer: &Buffer) -> String {
