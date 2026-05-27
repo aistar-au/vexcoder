@@ -892,6 +892,43 @@ async fn send_message_applies_shared_prefix_cache_hint_to_user_turn() {
     );
 }
 
+#[tokio::test]
+async fn send_message_refreshes_memory_notes_before_each_pulse() -> Result<()> {
+    let temp = tempfile::tempdir().unwrap();
+    let notes_path = temp.path().join("memory.md");
+    std::fs::write(&notes_path, "first retained note\n")?;
+    let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+        vec![
+            r#"data: {"choices":[{"delta":{"content":"first"},"finish_reason":"stop"}]}"#
+                .to_string(),
+        ],
+        vec![
+            r#"data: {"choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}"#
+                .to_string(),
+        ],
+    ])));
+    let mut manager = ConversationManager::new_mock(client, HashMap::new())
+        .with_memory_notes_config(Some(notes_path.clone()), 2048);
+
+    manager.send_message("first turn".to_string(), None).await?;
+    assert!(
+        manager
+            .client()
+            .test_system_prompt()
+            .contains("first retained note")
+    );
+
+    std::fs::write(&notes_path, "second retained note\n")?;
+    manager
+        .send_message("second turn".to_string(), None)
+        .await?;
+    let prompt = manager.client().test_system_prompt();
+
+    assert!(prompt.contains("second retained note"));
+    assert!(!prompt.contains("first retained note"));
+    Ok(())
+}
+
 #[test]
 fn truncate_for_history_preserves_head_and_suffix_context() {
     let long = "head-aaaa-bbbb-cccc-dddd-eeee-ffff-gggg-suffix";

@@ -102,6 +102,8 @@ pub struct ConversationManager {
     pub(super) max_undo_checkpoints: usize,
     pub(super) undo_enabled: bool,
     pub(super) compaction_config: CompactionConfig,
+    pub(super) notes_path: Option<PathBuf>,
+    pub(super) max_memory_tokens: usize,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 }
@@ -145,6 +147,8 @@ impl ConversationManager {
             max_undo_checkpoints: 20,
             undo_enabled: true,
             compaction_config: CompactionConfig::default(),
+            notes_path: None,
+            max_memory_tokens: 0,
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -202,6 +206,16 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_memory_notes_config(
+        mut self,
+        notes_path: Option<PathBuf>,
+        max_memory_tokens: usize,
+    ) -> Self {
+        self.notes_path = notes_path;
+        self.max_memory_tokens = max_memory_tokens;
+        self
+    }
+
     pub async fn shutdown_resources(&mut self) {
         if let Some(mcp_registry) = self.mcp_registry.take() {
             mcp_registry.shutdown().await;
@@ -230,8 +244,21 @@ impl ConversationManager {
             max_undo_checkpoints: 20,
             undo_enabled: true,
             compaction_config: CompactionConfig::default(),
+            notes_path: None,
+            max_memory_tokens: 0,
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
+    }
+
+    pub(super) fn refresh_notes_content(&self) {
+        if self.max_memory_tokens == 0 {
+            return;
+        }
+        let (notes_content, _) = crate::session_notes::resolve_notes_for_injection(
+            self.notes_path.as_deref(),
+            self.max_memory_tokens,
+        );
+        self.client.set_notes_content(notes_content);
     }
 
     pub fn push_user_message(&mut self, input: String, cache_hint: Option<String>) {

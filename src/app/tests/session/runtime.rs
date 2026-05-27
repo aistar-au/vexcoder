@@ -1,6 +1,49 @@
 use super::*;
 use crate::config::CompactionConfig;
 use crate::config::UndoConfig;
+use crate::runtime::frontend::{FrontendAdapter, InputOccurrence};
+use crate::test_support::spawn_axum_server;
+use axum::Json;
+use axum::Router;
+use axum::extract::State;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
+use axum::routing::get;
+use serde_json::{Value, json};
+use std::collections::VecDeque;
+use std::sync::Mutex;
+
+type RouteLog = Arc<Mutex<Vec<String>>>;
+
+struct HeadlessFrontend {
+    inputs: VecDeque<String>,
+    render_count: usize,
+    quit_after_renders: usize,
+}
+
+impl HeadlessFrontend {
+    fn new(inputs: Vec<&str>, quit_after_renders: usize) -> Self {
+        Self {
+            inputs: inputs.into_iter().map(|value| value.to_string()).collect(),
+            render_count: 0,
+            quit_after_renders,
+        }
+    }
+}
+
+impl FrontendAdapter<TuiMode> for HeadlessFrontend {
+    fn poll_user_input(&mut self, _mode: &TuiMode) -> Option<InputOccurrence> {
+        self.inputs.pop_front().map(InputOccurrence::Text)
+    }
+
+    fn render(&mut self, _mode: &TuiMode) {
+        self.render_count += 1;
+    }
+
+    fn should_quit(&self) -> bool {
+        self.render_count >= self.quit_after_renders
+    }
+}
 
 fn make_config(temp: &std::path::Path) -> Config {
     Config {
@@ -58,6 +101,107 @@ fn build_runtime_with_resume_restores_task_and_grants() {
             .active_grants
             .get(&Capability::Network),
         Some(&ApprovalScope::Session)
+    );
+}
+
+#[tokio::test]
+async fn run_tui_session_populates_local_server_info_before_first_pulse() {
+    async fn messages_get(State(log): State<RouteLog>) -> impl IntoResponse {
+        log.lock().unwrap().push("GET /v1/messages".to_string());
+        StatusCode::NOT_FOUND
+    }
+
+    async fn messages_post(
+        State(log): State<RouteLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        let stream = payload
+            .get("stream")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        log.lock()
+            .unwrap()
+            .push(format!("POST /v1/messages stream={stream}"));
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "messages endpoint should not be used" })),
+        )
+    }
+
+    async fn chat_get(State(log): State<RouteLog>) -> impl IntoResponse {
+        log.lock()
+            .unwrap()
+            .push("GET /v1/chat/completions".to_string());
+        ([(header::CONTENT_TYPE, "text/event-stream")], "")
+    }
+
+    async fn chat_post(
+        State(log): State<RouteLog>,
+        Json(payload): Json<Value>,
+    ) -> impl IntoResponse {
+        let stream = payload
+            .get("stream")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        log.lock()
+            .unwrap()
+            .push(format!("POST /v1/chat/completions stream={stream}"));
+        Json(json!({
+            "id": "chatcmpl-runtime",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "local/test-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": { "role": "assistant", "content": "OK" },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 12,
+                "completion_tokens": 1,
+                "total_tokens": 13
+            }
+        }))
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let route_log: RouteLog = Arc::new(Mutex::new(Vec::new()));
+    let (server, addr) = spawn_axum_server(
+        Router::new()
+            .route("/v1/messages", get(messages_get).post(messages_post))
+            .route("/v1/chat/completions", get(chat_get).post(chat_post))
+            .with_state(route_log.clone()),
+    )
+    .await;
+
+    let mut config = make_config(temp.path());
+    config.model_url = format!("http://{addr}/v1");
+    config.model_protocol = crate::runtime::ModelProtocol::MessagesV1;
+
+    let mut frontend = HeadlessFrontend::new(vec!["hello"], 6);
+    run_tui_session(config, None, &mut frontend).await.unwrap();
+    server.abort();
+
+    let events = route_log.lock().unwrap().clone();
+    assert!(
+        events
+            .iter()
+            .any(|event| event == "GET /v1/chat/completions"),
+        "local runtime discovery must probe chat-compat endpoint; events: {events:?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| event.starts_with("POST /v1/chat/completions")),
+        "first pulse must route through discovered chat-compat endpoint; events: {events:?}"
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| event.starts_with("POST /v1/messages")),
+        "messages-v1 endpoint should not be used after preload; events: {events:?}"
     );
 }
 

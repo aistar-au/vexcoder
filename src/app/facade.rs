@@ -79,6 +79,7 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     .with_sandbox(sandbox)
     .with_mcp_registry(mcp_registry)
     .with_compaction_config(config.compaction.clone())
+    .with_memory_notes_config(config.notes_path.clone(), config.max_memory_tokens)
     .with_undo_enabled(config.undo.enabled)
     .with_max_undo_checkpoints(config.undo.max_checkpoints);
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
@@ -97,6 +98,7 @@ where
     F: FrontendAdapter<M>,
 {
     let (mut runtime, mut ctx, bootstrap) = build_facade_runtime(config, mode)?;
+    ctx.populate_local_server_info().await;
     runtime.run(frontend, &mut ctx).await;
     ctx.shutdown_resources().await;
     Ok(bootstrap)

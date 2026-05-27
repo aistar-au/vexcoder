@@ -29,6 +29,7 @@ impl ConversationManager {
         let original_user_input = content.clone();
         self.ensure_task_doc();
         self.begin_turn_doc(content.clone(), turn_tool_policy);
+        self.refresh_notes_content();
         let cache_hint = self.shared_prefix_cache_hint(shared_prefix_context.as_deref());
         self.push_user_message(content, cache_hint);
         if let Some(response) = builtin_supported_git_tools_response(&original_user_input) {

@@ -297,7 +297,7 @@ pub struct ApiClient {
     reasoning_budget: u32,
 
     project_instructions: Option<String>,
-    notes_content: Option<String>,
+    notes_content: Arc<RwLock<Option<String>>>,
     extra_tool_definitions: Vec<Value>,
     server_info: Arc<RwLock<Option<ServerInfo>>>,
     tls_verification_disabled: bool,
@@ -342,7 +342,7 @@ impl ApiClient {
             stop_sequences: config.model_profile.stop_sequences.clone(),
             reasoning_budget: config.model_profile.reasoning_budget,
             project_instructions: None,
-            notes_content: None,
+            notes_content: Arc::new(RwLock::new(None)),
             extra_tool_definitions: Vec::new(),
             server_info: Arc::new(RwLock::new(None)),
             tls_verification_disabled: config.model_url_skip_tls_check,
@@ -374,7 +374,7 @@ impl ApiClient {
             stop_sequences: Vec::new(),
             reasoning_budget: 0,
             project_instructions: None,
-            notes_content: None,
+            notes_content: Arc::new(RwLock::new(None)),
             extra_tool_definitions: Vec::new(),
             server_info: Arc::new(RwLock::new(None)),
             tls_verification_disabled: false,
@@ -383,9 +383,18 @@ impl ApiClient {
         }
     }
 
-    pub fn with_notes_content(mut self, content: Option<String>) -> Self {
-        self.notes_content = content;
+    pub fn with_notes_content(self, content: Option<String>) -> Self {
+        self.set_notes_content(content);
         self
+    }
+
+    pub fn set_notes_content(&self, content: Option<String>) {
+        *self
+            .notes_content
+            .write()
+            .expect("api client notes lock poisoned") = content
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
     }
 
     pub fn with_extra_tool_definitions(mut self, extra_tools: Vec<Value>) -> Self {
@@ -568,12 +577,12 @@ impl ApiClient {
             prompt.push_str("\n[project instructions: end]\n---");
         }
 
-        if let Some(notes) = self
+        let notes_content = self
             .notes_content
-            .as_deref()
-            .map(str::trim)
-            .filter(|notes| !notes.is_empty())
-        {
+            .read()
+            .expect("api client notes lock poisoned")
+            .clone();
+        if let Some(notes) = notes_content.as_deref() {
             prompt.push_str("\n\n<memory>\n");
             prompt.push_str(notes);
             prompt.push_str("\n</memory>");
