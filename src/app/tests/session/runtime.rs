@@ -18,15 +18,15 @@ type RouteLog = Arc<Mutex<Vec<String>>>;
 struct HeadlessFrontend {
     inputs: VecDeque<String>,
     render_count: usize,
-    quit_after_renders: usize,
+    ready_to_quit: bool,
 }
 
 impl HeadlessFrontend {
-    fn new(inputs: Vec<&str>, quit_after_renders: usize) -> Self {
+    fn new(inputs: Vec<&str>) -> Self {
         Self {
             inputs: inputs.into_iter().map(|value| value.to_string()).collect(),
             render_count: 0,
-            quit_after_renders,
+            ready_to_quit: false,
         }
     }
 }
@@ -38,10 +38,11 @@ impl FrontendAdapter<TuiMode> for HeadlessFrontend {
 
     fn render(&mut self, _mode: &TuiMode) {
         self.render_count += 1;
+        self.ready_to_quit = self.inputs.is_empty() && !_mode.is_pulse_in_progress();
     }
 
     fn should_quit(&self) -> bool {
-        self.render_count >= self.quit_after_renders
+        self.ready_to_quit
     }
 }
 
@@ -180,7 +181,7 @@ async fn run_tui_session_populates_local_server_info_before_first_pulse() {
     config.model_url = format!("http://{addr}/v1");
     config.model_protocol = crate::runtime::ModelProtocol::MessagesV1;
 
-    let mut frontend = HeadlessFrontend::new(vec!["hello"], 6);
+    let mut frontend = HeadlessFrontend::new(vec!["hello"]);
     run_tui_session(config, None, &mut frontend).await.unwrap();
     server.abort();
 

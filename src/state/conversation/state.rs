@@ -211,6 +211,14 @@ impl ConversationManager {
         notes_path: Option<PathBuf>,
         max_memory_tokens: usize,
     ) -> Self {
+        if max_memory_tokens == 0
+            && let Some(path) = notes_path.as_deref()
+        {
+            tracing::warn!(
+                path = %path.display(),
+                "memory notes path configured with zero token budget; note injection is disabled"
+            );
+        }
         self.notes_path = notes_path;
         self.max_memory_tokens = max_memory_tokens;
         self
@@ -223,6 +231,8 @@ impl ConversationManager {
     }
 
     #[cfg(test)]
+    /// Test helper. Call `with_memory_notes_config(...)` on the returned
+    /// manager when the test needs to exercise memory-note injection refresh.
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {
             client: Arc::new(client),
@@ -251,13 +261,13 @@ impl ConversationManager {
     }
 
     pub(super) fn refresh_notes_content(&self) {
-        if self.max_memory_tokens == 0 {
-            return;
-        }
-        let (notes_content, _) = crate::session_notes::resolve_notes_for_injection(
+        let (notes_content, notes_warning) = crate::session_notes::resolve_notes_for_injection(
             self.notes_path.as_deref(),
             self.max_memory_tokens,
         );
+        if let Some(warning) = notes_warning {
+            tracing::debug!(warning = %warning, "memory notes refresh skipped");
+        }
         self.client.set_notes_content(notes_content);
     }
 
