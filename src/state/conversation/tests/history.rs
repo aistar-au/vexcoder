@@ -894,7 +894,7 @@ async fn send_message_applies_shared_prefix_cache_hint_to_user_turn() {
 
 #[tokio::test]
 async fn send_message_refreshes_memory_notes_before_each_pulse() -> Result<()> {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir()?;
     let notes_path = temp.path().join("memory.md");
     std::fs::write(&notes_path, "first retained note\n")?;
     let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
@@ -931,7 +931,7 @@ async fn send_message_refreshes_memory_notes_before_each_pulse() -> Result<()> {
 
 #[tokio::test]
 async fn send_message_clears_memory_notes_when_budget_drops_to_zero() -> Result<()> {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir()?;
     let notes_path = temp.path().join("memory.md");
     std::fs::write(&notes_path, "retained note\n")?;
     let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![

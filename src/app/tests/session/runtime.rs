@@ -106,7 +106,7 @@ fn build_runtime_with_resume_restores_task_and_grants() {
 }
 
 #[tokio::test]
-async fn run_tui_session_populates_local_server_info_before_first_pulse() {
+async fn run_tui_session_populates_local_server_info_before_first_pulse() -> anyhow::Result<()> {
     async fn messages_get(State(log): State<RouteLog>) -> impl IntoResponse {
         log.lock().unwrap().push("GET /v1/messages".to_string());
         StatusCode::NOT_FOUND
@@ -167,7 +167,7 @@ async fn run_tui_session_populates_local_server_info_before_first_pulse() {
         }))
     }
 
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir()?;
     let route_log: RouteLog = Arc::new(Mutex::new(Vec::new()));
     let (server, addr) = spawn_axum_server(
         Router::new()
@@ -180,9 +180,10 @@ async fn run_tui_session_populates_local_server_info_before_first_pulse() {
     let mut config = make_config(temp.path());
     config.model_url = format!("http://{addr}/v1");
     config.model_protocol = crate::runtime::ModelProtocol::MessagesV1;
+    config.notes_path = Some(temp.path().join("memory.md"));
 
     let mut frontend = HeadlessFrontend::new(vec!["hello"]);
-    run_tui_session(config, None, &mut frontend).await.unwrap();
+    run_tui_session(config, None, &mut frontend).await?;
     server.abort();
 
     let events = route_log.lock().unwrap().clone();
@@ -204,6 +205,7 @@ async fn run_tui_session_populates_local_server_info_before_first_pulse() {
             .any(|event| event.starts_with("POST /v1/messages")),
         "messages-v1 endpoint should not be used after preload; events: {events:?}"
     );
+    Ok(())
 }
 
 #[test]
