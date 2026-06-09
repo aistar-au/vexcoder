@@ -111,7 +111,7 @@ fn native_protocol_overrides_configured_for_bare_base_url() {
         stop_sequences: Vec::new(),
         reasoning_budget: 0,
         project_instructions: None,
-        notes_content: None,
+        notes_content: Arc::new(RwLock::new(None)),
         extra_tool_definitions: Vec::new(),
         server_info: Arc::new(RwLock::new(Some(ServerInfo {
             n_ctx: 65536,

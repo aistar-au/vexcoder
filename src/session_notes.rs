@@ -5,9 +5,31 @@ use std::path::{Path, PathBuf};
 
 pub fn build_api_client_with_notes(config: &Config) -> Result<(ApiClient, Option<String>)> {
     let (notes_content, notes_warning) =
-        resolve_notes_for_injection(config.notes_path.as_deref(), config.max_memory_tokens);
+        resolve_notes_load(config.notes_path.as_deref(), config.max_memory_tokens).into_parts();
     let client = ApiClient::new(config)?.with_notes_content(notes_content);
     Ok((client, notes_warning))
+}
+
+pub enum NotesLoadResult {
+    Missing,
+    Loaded {
+        content: Option<String>,
+        warning: Option<String>,
+    },
+    ReadError {
+        path: PathBuf,
+        error: std::io::Error,
+    },
+}
+
+impl NotesLoadResult {
+    pub fn into_parts(self) -> (Option<String>, Option<String>) {
+        match self {
+            Self::Missing => (None, None),
+            Self::Loaded { content, warning } => (content, warning),
+            Self::ReadError { .. } => (None, None),
+        }
+    }
 }
 
 pub fn resolve_notes_path_for_read(explicit_path: Option<&Path>) -> Option<PathBuf> {
@@ -69,28 +91,44 @@ pub fn resolve_notes_for_injection(
     explicit_path: Option<&Path>,
     token_budget: usize,
 ) -> (Option<String>, Option<String>) {
+    resolve_notes_load(explicit_path, token_budget).into_parts()
+}
+
+pub fn resolve_notes_load(explicit_path: Option<&Path>, token_budget: usize) -> NotesLoadResult {
     let Some(path) = resolve_notes_path_for_read(explicit_path) else {
-        return (None, None);
+        return NotesLoadResult::Missing;
     };
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return (None, None);
+    let content = match std::fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return NotesLoadResult::Missing;
+        }
+        Err(error) => {
+            return NotesLoadResult::ReadError { path, error };
+        }
     };
     let trimmed = content.trim();
     if trimmed.is_empty() {
-        return (None, None);
+        return NotesLoadResult::Loaded {
+            content: None,
+            warning: None,
+        };
     }
 
     let estimated_tokens = trimmed.len().saturating_add(3) / 4;
     if estimated_tokens > token_budget {
-        return (
-            None,
-            Some(format!(
+        return NotesLoadResult::Loaded {
+            content: None,
+            warning: Some(format!(
                 "[memory] notes exceed token budget ({estimated_tokens} > {token_budget}), skipped"
             )),
-        );
+        };
     }
 
-    (Some(trimmed.to_string()), None)
+    NotesLoadResult::Loaded {
+        content: Some(trimmed.to_string()),
+        warning: None,
+    }
 }
 
 #[cfg(test)]
