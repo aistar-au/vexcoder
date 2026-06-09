@@ -15,6 +15,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::SystemTime;
 #[cfg(test)]
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -104,8 +105,17 @@ pub struct ConversationManager {
     pub(super) compaction_config: CompactionConfig,
     pub(super) notes_path: Option<PathBuf>,
     pub(super) max_memory_tokens: usize,
+    notes_source_path: Option<PathBuf>,
+    notes_source_fingerprint: Option<NotesFileFingerprint>,
+    notes_source_budget: usize,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NotesFileFingerprint {
+    len: u64,
+    modified: SystemTime,
 }
 
 impl ConversationManager {
@@ -149,6 +159,9 @@ impl ConversationManager {
             compaction_config: CompactionConfig::default(),
             notes_path: None,
             max_memory_tokens: 0,
+            notes_source_path: None,
+            notes_source_fingerprint: None,
+            notes_source_budget: 0,
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -256,19 +269,108 @@ impl ConversationManager {
             compaction_config: CompactionConfig::default(),
             notes_path: None,
             max_memory_tokens: 0,
+            notes_source_path: None,
+            notes_source_fingerprint: None,
+            notes_source_budget: 0,
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
     }
 
-    pub(super) fn refresh_notes_content(&self) {
-        let (notes_content, notes_warning) = crate::session_notes::resolve_notes_for_injection(
-            self.notes_path.as_deref(),
-            self.max_memory_tokens,
-        );
-        if let Some(warning) = notes_warning {
-            tracing::debug!(warning = %warning, "memory notes refresh skipped");
+    pub(super) fn refresh_notes_content(&mut self) {
+        if self.max_memory_tokens == 0 {
+            self.notes_source_budget = 0;
+            self.client.set_notes_content(None);
+            return;
         }
-        self.client.set_notes_content(notes_content);
+
+        let Some(path) = crate::session_notes::resolve_notes_path_for_read(self.notes_path.as_deref())
+        else {
+            self.notes_source_path = None;
+            self.notes_source_fingerprint = None;
+            self.notes_source_budget = self.max_memory_tokens;
+            self.client.set_notes_content(None);
+            return;
+        };
+
+        let fingerprint = match notes_file_fingerprint(&path) {
+            Ok(fingerprint) => fingerprint,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.notes_source_path = None;
+                self.notes_source_fingerprint = None;
+                self.notes_source_budget = self.max_memory_tokens;
+                self.client.set_notes_content(None);
+                return;
+            }
+            Err(error) => {
+                if !is_transient_notes_read_error(&error) {
+                    tracing::debug!(
+                        path = %path.display(),
+                        error = %error,
+                        "memory notes fingerprint cleared cached notes"
+                    );
+                    self.notes_source_path = Some(path);
+                    self.notes_source_fingerprint = None;
+                    self.notes_source_budget = self.max_memory_tokens;
+                    self.client.set_notes_content(None);
+                    return;
+                }
+                tracing::debug!(
+                    path = %path.display(),
+                    error = %error,
+                    "memory notes refresh skipped"
+                );
+                return;
+            }
+        };
+
+        let notes_changed = self.notes_source_path.as_deref() != Some(path.as_path())
+            || self.notes_source_fingerprint != Some(fingerprint)
+            || self.notes_source_budget != self.max_memory_tokens;
+        if !notes_changed {
+            return;
+        }
+
+        match crate::session_notes::resolve_notes_load(Some(path.as_path()), self.max_memory_tokens)
+        {
+            crate::session_notes::NotesLoadResult::Missing => {
+                self.notes_source_path = None;
+                self.notes_source_fingerprint = None;
+                self.notes_source_budget = self.max_memory_tokens;
+                self.client.set_notes_content(None);
+            }
+            crate::session_notes::NotesLoadResult::Loaded {
+                content,
+                warning,
+            } => {
+                if let Some(warning) = warning {
+                    tracing::debug!(warning = %warning, "memory notes refresh skipped");
+                }
+                self.notes_source_path = Some(path);
+                self.notes_source_fingerprint = Some(fingerprint);
+                self.notes_source_budget = self.max_memory_tokens;
+                self.client.set_notes_content(content);
+            }
+            crate::session_notes::NotesLoadResult::ReadError { path, error } => {
+                if is_transient_notes_read_error(&error) {
+                    tracing::debug!(
+                        path = %path.display(),
+                        error = %error,
+                        "memory notes refresh skipped"
+                    );
+                    return;
+                }
+
+                tracing::debug!(
+                    path = %path.display(),
+                    error = %error,
+                    "memory notes refresh cleared cached notes"
+                );
+                self.notes_source_path = Some(path);
+                self.notes_source_fingerprint = None;
+                self.notes_source_budget = self.max_memory_tokens;
+                self.client.set_notes_content(None);
+            }
+        }
     }
 
     pub fn push_user_message(&mut self, input: String, cache_hint: Option<String>) {
@@ -476,6 +578,23 @@ impl ConversationManager {
             previous_content: previous,
         })
     }
+}
+
+fn notes_file_fingerprint(path: &std::path::Path) -> std::io::Result<NotesFileFingerprint> {
+    let metadata = std::fs::metadata(path)?;
+    Ok(NotesFileFingerprint {
+        len: metadata.len(),
+        modified: metadata.modified()?,
+    })
+}
+
+fn is_transient_notes_read_error(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::Interrupted
+            | std::io::ErrorKind::WouldBlock
+            | std::io::ErrorKind::TimedOut
+    )
 }
 
 fn is_turn_mutation_tool(name: &str) -> bool {
