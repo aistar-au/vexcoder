@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 422
+- Total tracked files: 424
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -43,6 +43,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 32 | `TASKS/PM-03-code-search.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-03-code-search.md> |
 | 33 | `TASKS/PM-04-auto-memory.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-04-auto-memory.md> |
 | 34 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-05-crate-boundaries-and-tool-calls.md> |
+| 34a | `TASKS/PN-01-working-set-record.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PN-01-working-set-record.md> |
 | 35 | `TASKS/PR-347-ratatui-native-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-347-ratatui-native-followup.md> |
 | 36 | `TASKS/PR-348-transcript-first-debug.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-348-transcript-first-debug.md> |
 | 37 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md> |
@@ -98,6 +99,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 81 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md> |
 | 81a | `adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md> |
 | 81b | `adr/ADR-050-doc-codepath-drift-detection.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-050-doc-codepath-drift-detection.md> |
+| 81c | `adr/ADR-051-durable-working-set-record-and-context-continuity.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-051-durable-working-set-record-and-context-continuity.md> |
 | 82 | `adr/ADR-README.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 83 | `adr/completed/ADR-001-tdm-agentic-checklist-strategy.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-checklist-strategy.md> |
 | 84 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |

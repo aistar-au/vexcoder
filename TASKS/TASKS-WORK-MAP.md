@@ -16,6 +16,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
 | `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation pulses. Branch only. |
 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
+| `TASKS/PN-01-working-set-record.md` | `ADR-051` | ADR-045 Batch 1, ADR-046, ADR-049 | Versioned working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Active. |
 | `TASKS/PR-405-permissions-overlay-followup.md` | `ADR-048`, PR #405 follow-up | `src/tools/operator/policy.rs`, `ADR-022`, `ADR-024`, `ADR-042` | Overlay-permission task checklist covering evaluation order, protected-path invariants, untrusted-workspace demotion, and fail-closed non-interactive behavior. Active. |
 | `TASKS/REF-01-cli-tui-envelope-consumer-audit.md` | `REF-01`, PR #404 follow-up | `adr/ADR-047-amendment-2026-04-20.md`, `TASKS/REF-01-runtime-envelope-api-sse-normalization.md` | Runtime-owned typed tool-argument projection for CLI/TUI consumers; preserve raw block deltas only for envelope and local-API projection. Active. |
 | `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | PR #390 replacement follow-up | `AGENTS.md`, `CONTRIBUTING.md` | Local-session detached-worktree skill-bootstrap audit and repo-root anchoring. Branch only. |
@@ -43,6 +44,9 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix merged in PR #284 |
 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | Proposed | Pre-implementation invariants only |
+| `adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md` | Proposed | Shared-prefix fingerprint and fork affordance; provider-specific cache controls deferred |
+| `adr/ADR-050-doc-codepath-drift-detection.md` | Proposed | Manifest membership check still pending; count-parity remains the CI pre-check |
+| `adr/ADR-051-durable-working-set-record-and-context-continuity.md` | Proposed | Working-set record, resume hydration, hierarchical instructions, reviewable memory, peer join merge |
 
 ### Moved to completed/ (2026-03-27)
 

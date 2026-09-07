@@ -6,7 +6,7 @@ and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCompat CLI cutover, 10-flag normative table)
+Last updated: 2026-09-07 (ADR-051: durable working-set record and context continuity)
 
 ---
 
@@ -33,6 +33,9 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-045 | Proposed (Batch 1 merged) | Batches 2+ pending | Batch 1: sole-writer enforcement in streaming.rs, tool-call dedup in projection, messages-v1 default (PR #359); remaining: promote_thinking_blocks phase signals, model_update.rs TUI-layer violations, full RuntimeSignal coverage, checkpoints, rollback markers |
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
+| ADR-049 | Proposed | Provider-specific cache mapping deferred | Runtime-owned shared-prefix fingerprint and native fork affordance; transports map cache controls later |
+| ADR-050 | Proposed | Membership check pending | Canonical file-map membership vs count-parity; follow-up for `doc-ref-check.yml` |
+| ADR-051 | Proposed | Phases 1-5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 0 notes-refresh stopgap is on PR #443 |
 
 ## Implementation-Complete ADRs (moved to completed/)
 

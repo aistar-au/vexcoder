@@ -50,6 +50,9 @@ Full implementation roadmap: `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-047 amend 04-16 add](ADR-047-amendment-2026-04-16-addendum.md) | Envelope addendum | Amended |
 | [ADR-047 amend 04-20](ADR-047-amendment-2026-04-20.md) | RuntimeEnvelope consumer boundary | Amended |
 | [ADR-048](ADR-048-operator-permissions-overlay-and-mode-precedence.md) | Operator permissions overlay and mode precedence | Proposed |
+| [ADR-049](ADR-049-shared-prefix-prompt-caching-and-fork-controls.md) | Shared prefix prompt caching and fork controls | Proposed |
+| [ADR-050](ADR-050-doc-codepath-drift-detection.md) | Doc-codepath and context drift detection | Proposed |
+| [ADR-051](ADR-051-durable-working-set-record-and-context-continuity.md) | Durable working-set record and context continuity | Proposed |
 
 ## Top-Level ADRs Pending Archival
 
