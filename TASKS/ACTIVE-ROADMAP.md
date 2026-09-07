@@ -33,6 +33,8 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-045 | Proposed (Batch 1 merged) | Batches 2+ pending | Batch 1: sole-writer enforcement in streaming.rs, tool-call dedup in projection, messages-v1 default (PR #359); remaining: promote_thinking_blocks phase signals, model_update.rs TUI-layer violations, full RuntimeSignal coverage, checkpoints, rollback markers |
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
+| ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
+| ADR-051 | Proposed | Phases 1-5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Replaces the closed PR #443 stopgap with a structured, batched approach. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -234,6 +236,28 @@ contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 - Add the single pulsing-star active indicator where the renderer supports it.
 - Ensure reduced-color and plain-text fallbacks remain readable.
 
+### Tier 14 -- Durable Working-Set Record (ADR-051) -- 5 phases
+
+Replaces the closed PR #443 stopgap with a structured, batched approach to context continuity.
+
+**Phase 1 -- Record schema and persistence**
+- Define `WorkingSetRecord` with `schemars` JSON Schema generation.
+- Persist under `.vex/state/{task_id}.working-set.json`.
+- Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
+
+**Phase 2 -- Hydrate on resume and compact**
+- Remove `reset_conversation_window` in `pulse.rs`.
+- Seed the next model request from the `WorkingSetRecord` on `/resume` and `/compact`.
+
+**Phase 3 -- Hierarchical instruction loading**
+- Root-to-leaf directory walk for `AGENTS.md`/`PROJECT.md` candidates.
+- Manifest recording for skipped over-budget files.
+
+**Phase 4 -- Reviewable memory candidates**
+- Replace flat notes injection with typed `MemoryCandidate` structs (provenance, topic, accepted/pending state).
+
+**Phase 5 -- Peer-channel merge**
+- Migrate `peer_channel.rs` from JSONL append-only to `loro` CRDT state-merge protocol.
 Candidate implementation areas:
 
 | File | Scope |
