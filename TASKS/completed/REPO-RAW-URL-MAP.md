@@ -428,3 +428,4 @@ Canonical raw URL index for every tracked file in this repository.
 | 409 | `tests/signal_handling_tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
 | 410 | `tests/stream_parser_tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | 411 | `tests/tool_operator_tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 412 | `ADR-051-durable-working-set-record-and-context-continuity.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/adr/ADR-051-durable-working-set-record-and-context-continuity.md> |
