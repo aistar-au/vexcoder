@@ -9,6 +9,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 
 | Checklist | ADR source | Depends on | Scope |
 | :--- | :--- | :--- | :--- |
+| `TASKS/PN-01-working-set-record.md` | `ADR-051` | ADR-045 Batch 1, ADR-046, ADR-049 | Versioned working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Active. |
 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. Complete. |
 | `TASKS/PJ-03-memory-notes-injection.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. Complete. |
 | `TASKS/PM-01-conversation-compaction.md` | Pre-ADR | None | In-memory conversation compaction via LLM summarization. Branch only. |
@@ -43,7 +44,9 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix merged in PR #284 |
 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
 | `adr/ADR-048-operator-permissions-overlay-and-mode-precedence.md` | Proposed | Pre-implementation invariants only |
-
+| `adr/ADR-049-shared-prefix-prompt-caching-and-fork-controls.md` | Proposed | Shared-prefix fingerprint and fork affordance; provider-specific cache controls deferred |
+| `adr/ADR-050-doc-codepath-drift-detection.md` | Proposed | Manifest membership check still pending; count-parity remains the CI pre-check |
+| `adr/ADR-051-durable-working-set-record-and-context-continuity.md` | Proposed | Working-set record, resume hydration, hierarchical instructions, reviewable memory, peer join merge |
 ### Moved to completed/ (2026-03-27)
 
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to `adr/completed/`.
@@ -99,8 +102,6 @@ operator-surface lane. ADR-025, ADR-026, and ADR-027 have been moved to
 `adr/completed/` as of 2026-03-27.
 
 ## Current Next Work Batch
-
-| `TASKS/PN-01-working-set-record.md` | `ADR-051` | ADR-045 Batch 1, ADR-046, ADR-049 | Versioned working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Active. |
 
 Tiers 1–10 are complete for existing in-tree work. ADR-039 is the next
 proposed lane, starting with low-gain status anchors and semantic color
