@@ -430,5 +430,5 @@ Canonical raw URL index for every tracked file in this repository.
 | 411 | `tests/tool_operator_tests.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
 | 412 | `ADR-051-durable-working-set-record-and-context-continuity.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/adr/ADR-051-durable-working-set-record-and-context-continuity.md> |
 | 413 | `ADR-051-AGENT-GUIDE.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/f8d4b3726453e36552f3f849a771a5c458834591/TASKS/ADR-051-AGENT-GUIDE.md> | 
-| 414 | `working_set.schema.json` | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/schemas/working_set.schema.json> |
-| 415 | `PN-01-working-set-record.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/TASKS/PN-01-working-set-record.md> |
+| 414 | `working_set.schema.json` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/schemas/working_set.schema.json> |
+| 415 | `PN-01-working-set-record.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/TASKS/PN-01-working-set-record.md> |
