@@ -100,6 +100,8 @@ operator-surface lane. ADR-025, ADR-026, and ADR-027 have been moved to
 
 ## Current Next Work Batch
 
+| `TASKS/PN-01-working-set-record.md` | `ADR-051` | ADR-045 Batch 1, ADR-046, ADR-049 | Versioned working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Active. |
+
 Tiers 1–10 are complete for existing in-tree work. ADR-039 is the next
 proposed lane, starting with low-gain status anchors and semantic color
 feedback (Batch A, merged on main) before later vocabulary and transcript-model changes. The only external item in the next batch is PG-03
