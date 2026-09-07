@@ -2,7 +2,6 @@
 
 **Status:** Proposed
 **Chain:** ADR-023, ADR-024, ADR-029, ADR-033, ADR-038, ADR-045, ADR-046, ADR-049
-**PR:** #443 (`work/vexcoder-restore-memory-compaction`)
 **Implementation checklist:** `TASKS/PN-01-working-set-record.md`
 
 ## Context
@@ -34,7 +33,7 @@ Three heuristics carry more weight than they should:
   scope, provenance, or accepted/pending state, so a single stale line
   and a single verified fact are trusted equally, or dropped equally.
 
-PR #443 already lands a Phase 0 stopgap: `ApiClient.notes_content` moved
+A Phase 0 stopgap would suggest: `ApiClient.notes_content` moved
 from `Option<String>` to `Arc<RwLock<Option<String>>>` with a
 `set_notes_content` setter; `ConversationManager::refresh_notes_content`
 checks a `NotesFileFingerprint` (file length plus modified time) before
@@ -111,7 +110,7 @@ prefer local, inspectable state.
 | Area | Stays | Removed | Net change |
 | :--- | :--- | :--- | :--- |
 | Resume hydration | The on-screen task-document projection built by `task_state_bridge.rs` | `reset_conversation_window` clearing `ApiMessage` history in `TuiMode::apply_resumed_task` and after `/compact` | Load a `WorkingSetRecord` on `/resume` and after `/compact`; seed the next request from it instead of an empty window |
-| Memory / notes | The Phase 0 `Arc<RwLock<Option<String>>>` store and per-pulse fingerprint refresh (PR #443, already merged) | The flat file as the only durable memory unit, injected whole or not at all | Typed candidates (`user`, `feedback`, `project`, `reference`) carrying provenance, topic, and an accepted/pending state; only accepted candidates inject; over budget, the lowest-priority pending candidate drops first |
+| Memory / notes | The Phase 0 `Arc<RwLock<Option<String>>>` store and per-pulse fingerprint refresh (PR #443, closed unmerged) | The flat file as the only durable memory unit, injected whole or not at all | Typed candidates (`user`, `feedback`, `project`, `reference`) carrying provenance, topic, and an accepted/pending state; only accepted candidates inject; over budget, the lowest-priority pending candidate drops first |
 | Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` in both places | A `tiktoken` count on the zero-allocation `count()` path |
 | Project instructions | The three-name candidate list and its priority order | Single-directory, first-match, stop-on-over-budget loading | A root-to-leaf directory walk, one candidate per directory, closer files layered after farther ones, and a manifest recording what was skipped and why |
 | Peer channel | The append-only JSONL sidecar, its locking, and the ADR-046 read/post routes | Waiting on every child plus free-text summary concatenation on join | A `loro` document per task: per-consumer read cursors, message-id supersession, evidence references written into the working-set record |
