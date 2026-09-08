@@ -135,10 +135,10 @@ fn facade_poll_join_applies_live_handoff_and_drops_superseded_summaries() {
     let mut parent = TaskState::new(parent_id.to_string());
     let mut first = SessionTask::new(parent_id, "alpha", "first attempt", None);
     first.transition_to(SessionTaskStatus::Completed);
-    first.set_handoff_summary("first child summary");
+    first.set_handoff_summary("first session-task summary");
     let mut retry = SessionTask::new(parent_id, "alpha", "retry", None);
     retry.transition_to(SessionTaskStatus::Completed);
-    retry.set_handoff_summary("retry child summary");
+    retry.set_handoff_summary("retry session-task summary");
     parent.add_session_task(first);
     parent.add_session_task(retry);
     parent.save(&state_dir).unwrap();
@@ -149,24 +149,24 @@ fn facade_poll_join_applies_live_handoff_and_drops_superseded_summaries() {
     assert!(outcome.all_done);
     assert_eq!(outcome.summaries.len(), 1);
     assert_eq!(outcome.summaries[0].0, "alpha");
-    assert_eq!(outcome.summaries[0].1, "retry child summary");
+    assert_eq!(outcome.summaries[0].1, "retry session-task summary");
 
     let state = TaskState::load(&state_dir, parent_id).unwrap();
     let handoff = state.handoff_summary.expect("parent handoff");
-    assert!(handoff.contains("retry child summary"));
-    assert!(!handoff.contains("first child summary"));
+    assert!(handoff.contains("retry session-task summary"));
+    assert!(!handoff.contains("first session-task summary"));
     assert!(
         state_dir
-            .join(format!("{parent_id}.channel.crdt"))
+            .join(format!("{parent_id}.join.json"))
             .is_file(),
-        "facade_poll_join must persist ExportMode::Snapshot"
+        "facade_poll_join must persist JoinIndex"
     );
     let record = WorkingSetRecord::load(&state_dir, parent_id).expect("peer evidence sidecar");
     assert!(
         record
             .decisions
             .iter()
-            .any(|decision| decision.rationale.contains("retry child summary")),
+            .any(|decision| decision.rationale.contains("retry session-task summary")),
         "production join must record live evidence; got {:?}",
         record.decisions
     );
@@ -174,7 +174,7 @@ fn facade_poll_join_applies_live_handoff_and_drops_superseded_summaries() {
         record
             .decisions
             .iter()
-            .all(|decision| !decision.rationale.contains("first child summary")),
+            .all(|decision| !decision.rationale.contains("first session-task summary")),
         "superseded body must not be recorded; got {:?}",
         record.decisions
     );
