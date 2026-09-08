@@ -46,3 +46,59 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-025 | Complete — moved to completed/ | PI-09 through PI-12 all merged |
 | ADR-026 | Complete — moved to completed/ | PI-13 through PI-16 all merged |
 | ADR-027 | Accepted (complete) — moved to completed/ | Supersedes ADR-018/019 |
+
+---
+
+## Remaining Work: 2 Proposed In-Tree ADRs + 1 External Dependency (next batch planned)
+
+ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
+for human-facing transcript text, status copy, ANSI semantic roles, and the
+paragraph-oriented progress stream used during long-running tasks. Batch A is
+merged on main (PR #292): `Mapping adjacent sectors...`,
+`State synchronized.`, and the semantic status-color lane now land on existing
+surfaces. A subsequent fix in PR #293 normalizes `search.exclude` entries with
+a trailing slash so path-prefix matching enforces directory boundaries.
+Remaining work extends into the wider spatial vocabulary, then adds
+the active indicator, and only later consolidates the long-running paragraph
+stream. ADR-038 is Accepted and
+complete: context cache, disk-policy classifier, config cache, module
+decompositions (config/load, operator, context_assembler, task_state), strict
+policy CI gate, and operator-level durable access assertions are all in-tree.
+ADR-048 now records the separate permissions-overlay lane: mode precedence,
+protected-path guarantees, untrusted-workspace demotion, and fail-closed
+non-interactive behavior at the operator-policy boundary before enforcement
+code lands.
+The only external item in the next batch is ADR-024 PG-03 tap auto-release,
+which stays blocked until the separate `homebrew-vex` tap repository exists.
+
+### Tier 14 -- Durable Working-Set Record (ADR-051) -- 5 phases
+
+Five isolated batches for context continuity: schema and persist, restore on `/resume` and `/compact`, hierarchical instructions, reviewable memory candidates, and agent-join merge.
+
+**Phase 1 -- Record schema and persistence** -- merged in PR #444
+- Define `WorkingSetRecord` with `schemars` JSON Schema generation.
+- Persist under `.vex/state/{task_id}.working-set.json`.
+- Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
+
+**Phase 2 -- Restore the next request from `WorkingSetRecord` on `/resume` and `/compact`** -- merged in PR #446
+- `TuiMode::apply_resumed_task` and `handle_compact_command` no longer call `reset_conversation_window`.
+- `TaskDocumentCondenser::write_working_set` is the sole writer of `{task_id}.working-set.json`.
+- Next request system prompt receives `WorkingSetRecord::as_prompt_block` via `ApiClient::set_supplementary_system_prompt`.
+
+**Phase 3 -- Hierarchical instruction loading** -- merged in PR #445
+- Root-to-leaf directory walk for `AGENTS.md`/`PROJECT.md` candidates.
+- Manifest recording for skipped over-budget files. `/context` renders the manifest.
+
+**Phase 4 -- Reviewable memory candidates** -- merged in PR #445
+- Replace flat notes injection with typed `MemoryCandidate` structs (provenance, topic, accepted/pending state).
+- JSON sidecar `memory.candidates.json` is the source of truth; markdown is a projection.
+- Only accepted candidates inject. `/memory accept` promotes pending feedback.
+
+**Phase 5 -- Agent-join merge (`JoinIndex`)** -- this batch
+- JSONL `PeerMessage` append/read (ADR-046) stays.
+- `JoinIndex` is one typed JSON document per parent task at `.vex/state/{task_id}.join.json` (`schemars`, message-id `supersedes`, `live_entries`).
+- `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions). Independent fan-out members of different agents list none.
+- `facade_poll_join` calls `apply_join_outcome` when no session-task remains live. `handoff_summary` comes from `live_entries` after message-id supersession.
+- `TaskDocumentCondenser::record_join_evidence` writes `RecordedDecision.source_reference` as the join message id. `retain_referenced_decisions` keeps that evidence across `/compact`.
+- `StateEnvelope` plus GET `/v1/tasks/{task_id}/working-set` is the internal read API.
+- Out of this crate's join surface: `PeerMergeDoc` / `loro` / `{id}.channel.crdt`; empty `JoinSummary.supersedes` on `poll_fan_out_join`; `facade_poll_join` without `apply_join_outcome`; `PeerMessageKind` as the join replace rule.
