@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtime::{SessionTask, SessionTaskStatus, WorkingSetRecord};
+use crate::runtime::{JoinIndex, SessionTask, SessionTaskStatus, WorkingSetRecord};
 use std::path::PathBuf;
 
 fn write_agents_toml(dir: &std::path::Path, content: &str) {
@@ -176,4 +176,42 @@ fn facade_poll_join_applies_live_handoff_and_drops_superseded_summaries() {
         "superseded body must not be recorded; got {:?}",
         record.decisions
     );
+}
+
+#[test]
+fn facade_working_set_returns_envelope_without_caller_opening_sidecars() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+    let state_dir = TaskState::state_dir_from(dir.path());
+    std::fs::create_dir_all(&state_dir).unwrap();
+
+    let parent_id = "parent-envelope";
+    TaskState::new(parent_id.to_string())
+        .save(&state_dir)
+        .unwrap();
+    WorkingSetRecord::new("keep the objective")
+        .save(&state_dir, parent_id)
+        .unwrap();
+    let mut join = JoinIndex::new();
+    join.post("msg-1", "alpha", "session-task summary", &[]);
+    join.save(&state_dir, parent_id).unwrap();
+
+    let envelope = facade_working_set(dir.path(), parent_id)
+        .unwrap()
+        .expect("task present");
+    assert_eq!(envelope.task_id, parent_id);
+    assert_eq!(
+        envelope.refs.working_set,
+        format!("{parent_id}.working-set.json")
+    );
+    assert_eq!(
+        envelope.working_set.as_ref().map(|r| r.objective.as_str()),
+        Some("keep the objective")
+    );
+    assert_eq!(
+        envelope.join.as_ref().map(|index| index.live_entries().len()),
+        Some(1)
+    );
+    assert!(facade_working_set(dir.path(), "missing").unwrap().is_none());
 }
