@@ -129,10 +129,8 @@ async fn working_set_route_returns_envelope_and_404_when_missing() {
         .await
         .unwrap();
     assert_eq!(found.status(), StatusCode::OK);
-    let payload: Value = serde_json::from_slice(
-        &to_bytes(found.into_body(), usize::MAX).await.unwrap(),
-    )
-    .unwrap();
+    let payload: Value =
+        serde_json::from_slice(&to_bytes(found.into_body(), usize::MAX).await.unwrap()).unwrap();
     assert_eq!(
         payload.get("task_id"),
         Some(&Value::String("env-parent".into()))

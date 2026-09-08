@@ -210,7 +210,10 @@ fn facade_working_set_returns_envelope_without_caller_opening_sidecars() {
         Some("keep the objective")
     );
     assert_eq!(
-        envelope.join.as_ref().map(|index| index.live_entries().len()),
+        envelope
+            .join
+            .as_ref()
+            .map(|index| index.live_entries().len()),
         Some(1)
     );
     assert!(facade_working_set(dir.path(), "missing").unwrap().is_none());
