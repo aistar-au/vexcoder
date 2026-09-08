@@ -226,7 +226,7 @@ impl SubtaskOrchestrator {
         state.handoff_summary = Some(format_live_handoff(&live));
         state.touch();
         state.save(&self.state_dir)?;
-        TaskDocumentCondenser::new().record_peer_join_evidence(
+        TaskDocumentCondenser::new().record_join_evidence(
             &self.state_dir,
             parent_task_id,
             &live,
