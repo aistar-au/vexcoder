@@ -6,37 +6,39 @@ use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
 use crate::agents::TeamScheduler;
+#[cfg(test)]
 pub(super) use crate::runtime::TaskState;
+#[cfg(test)]
 pub(super) use crate::runtime::task_state::peer_channel;
 
+mod agents;
+mod envelope;
+mod peer;
 pub mod projection;
+mod query;
+mod schedule;
 #[cfg(test)]
 mod tests;
 mod types;
-mod envelope;
-mod agents;
-mod schedule;
-mod query;
-mod peer;
 
+pub use self::agents::{
+    facade_delegate_session_task, facade_list_agents, facade_release_session_task,
+    facade_watch_rollup,
+};
+pub use self::envelope::facade_working_set;
+pub use self::peer::{facade_post_peer_message, facade_read_peer_messages};
 pub use self::projection::{task_graph_rollup_path, todos_rollup_path, write_projection_rollup};
+pub use self::query::{
+    facade_get_session_task, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
+    facade_task_graph, facade_update_session_task_status,
+};
+pub use self::schedule::{facade_poll_join, facade_schedule_team};
 pub use self::types::{
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
     FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode,
     FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, PeerChannelError,
     ScheduleTeamError, SessionTaskStatusError,
 };
-pub use self::envelope::facade_working_set;
-pub use self::agents::{
-    facade_delegate_session_task, facade_list_agents, facade_release_session_task,
-    facade_watch_rollup,
-};
-pub use self::schedule::{facade_poll_join, facade_schedule_team};
-pub use self::query::{
-    facade_get_session_task, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
-    facade_task_graph, facade_update_session_task_status,
-};
-pub use self::peer::{facade_post_peer_message, facade_read_peer_messages};
 
 pub(super) const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
 const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";

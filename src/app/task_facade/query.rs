@@ -135,7 +135,7 @@ pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
     Ok(out)
 }
 
-fn session_task_to_rollup(task: SessionTask) -> FacadeSessionTaskRollup {
+pub(super) fn session_task_to_rollup(task: SessionTask) -> FacadeSessionTaskRollup {
     FacadeSessionTaskRollup {
         lifecycle_state: task.lifecycle_state.to_string(),
         worktree_path: task.worktree_path.as_ref().map(|p| p.display().to_string()),
