@@ -156,12 +156,10 @@ fn facade_poll_join_applies_live_handoff_and_drops_superseded_summaries() {
     assert!(handoff.contains("retry session-task summary"));
     assert!(!handoff.contains("first session-task summary"));
     assert!(
-        state_dir
-            .join(format!("{parent_id}.join.json"))
-            .is_file(),
+        state_dir.join(format!("{parent_id}.join.json")).is_file(),
         "facade_poll_join must persist JoinIndex"
     );
-    let record = WorkingSetRecord::load(&state_dir, parent_id).expect("peer evidence sidecar");
+    let record = WorkingSetRecord::load(&state_dir, parent_id).expect("join evidence sidecar");
     assert!(
         record
             .decisions
