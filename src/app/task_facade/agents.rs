@@ -10,8 +10,8 @@ use super::types::{
     FacadeWatchRollup,
 };
 use super::{
-    DelegateError, run_delegate_race_hook, team_scheduler_name, with_delegate_lock,
-    MAX_DELEGATE_PROMPT_BYTES,
+    DelegateError, MAX_DELEGATE_PROMPT_BYTES, run_delegate_race_hook, team_scheduler_name,
+    with_delegate_lock,
 };
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
