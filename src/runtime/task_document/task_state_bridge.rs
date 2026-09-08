@@ -145,19 +145,20 @@ impl TaskDocumentCondenser {
     ) -> anyhow::Result<WorkingSetRecord> {
         let mut record = self.project_working_set(doc);
         match WorkingSetRecord::try_load(dir, &doc.info.id) {
-            Ok(Some(prior)) => record.retain_durable_objective(&prior),
-            Ok(None) => {}
-            Err(error) => {
-                eprintln!("[state] working-set prior load failed: {error}");
+            Ok(Some(prior)) => {
+                record.retain_durable_objective(&prior);
+                record.retain_referenced_decisions(&prior);
             }
+            Ok(None) => {}
+            Err(error) => return Err(error),
         }
         record.save(dir, &doc.info.id)?;
         Ok(record)
     }
 
-    /// Condenser write of peer-join evidence. `RecordedDecision.source_reference`
-    /// is the CRDT message id. Existing `objective` stays write-once.
-    pub fn record_peer_join_evidence(
+    /// Condenser write of agent-join evidence. `RecordedDecision.source_reference`
+    /// is the JoinIndex message id. Existing `objective` stays write-once.
+    pub fn record_join_evidence(
         &self,
         dir: &Path,
         task_id: &str,
@@ -166,10 +167,7 @@ impl TaskDocumentCondenser {
         let mut record = match WorkingSetRecord::try_load(dir, task_id) {
             Ok(Some(prior)) => prior,
             Ok(None) => WorkingSetRecord::new(""),
-            Err(error) => {
-                eprintln!("[state] working-set prior load failed: {error}");
-                WorkingSetRecord::new("")
-            }
+            Err(error) => return Err(error),
         };
         for entry in entries {
             if entry.id.trim().is_empty() {
@@ -189,6 +187,15 @@ impl TaskDocumentCondenser {
         }
         record.save(dir, task_id)?;
         Ok(record)
+    }
+
+    pub fn record_peer_join_evidence(
+        &self,
+        dir: &Path,
+        task_id: &str,
+        entries: &[LivePeerEntry],
+    ) -> anyhow::Result<WorkingSetRecord> {
+        self.record_join_evidence(dir, task_id, entries)
     }
 }
 
