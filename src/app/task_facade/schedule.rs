@@ -8,7 +8,7 @@ use crate::runtime::TaskState;
 use super::projection::write_projection_rollup;
 use super::types::{FacadeJoinOutcome, FacadeScheduleTeamResult, ScheduleTeamError};
 use super::{
-    run_delegate_race_hook, team_scheduler_name, with_delegate_lock, MAX_DELEGATE_PROMPT_BYTES,
+    MAX_DELEGATE_PROMPT_BYTES, run_delegate_race_hook, team_scheduler_name, with_delegate_lock,
 };
 
 #[tracing::instrument(skip(working_dir, prompt), fields(working_dir = %working_dir.display()))]
