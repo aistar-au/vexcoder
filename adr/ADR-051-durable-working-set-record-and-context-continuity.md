@@ -1,6 +1,6 @@
 # ADR-051: Durable Working-Set Record and Context Continuity
 
-**Status:** Active (Phases 1, 3, 4 on `main`; Phase 2 in this batch; Phase 5 pending)
+**Status:** Accepted (Phases 1–4 on `main`; Phase 5 in this batch)
 **Chain:** ADR-023, ADR-024, ADR-029, ADR-033, ADR-038, ADR-045, ADR-046, ADR-049
 **Implementation checklist:** `TASKS/PN-01-working-set-record.md`
 
@@ -39,10 +39,10 @@ A notes-file fingerprint refresh (`ApiClient` notes storage plus per-pulse
 reload) was evaluated as an early continuity protocol and closed without
 merging. That path does not restore model working state on `/resume`, and
 later phases must not grow a second continuity protocol beside
-`WorkingSetRecord`. Phases 1 (schema, persist, `tiktoken`), 3 (hierarchical
-instructions), and 4 (`MemoryCandidate`) are on `main`. Phase 2 (this
-batch) restores the next request from `WorkingSetRecord` on `/resume` and
-`/compact`. Phase 5 (`loro` peer merge) remains pending.
+`WorkingSetRecord`. Phases 1 (schema, persist, `tiktoken`), 2 (`WorkingSetRecord`
+restore on `/resume` and `/compact`), 3 (hierarchical instructions), and 4
+(`MemoryCandidate`) are on `main`. Phase 5 (this batch) is the `loro` peer-join
+merge.
 
 ## Crate and API Evidence
 
@@ -79,9 +79,9 @@ prefer local, inspectable state.
   only the operations a peer is missing rather than a full log replay;
   and concurrent edits to the same container merge without a designated
   writer. This gives the peer channel a real merge rule (supersede by
-  message id, apply in causal order) instead of waiting for every child
-  to finish and concatenating free-text summaries. Source: docs.rs/loro.
-  Phase 5 only; not in this batch.
+  message id, apply in causal order) instead of concatenating every child
+  `handoff_summary`. Implemented as `PeerMergeDoc` in this batch. Source:
+  docs.rs/loro/1.16.0.
 
 - **Rejected: opaque provider-side compaction.** Some managed chat/response
   APIs pair a create call with a server-side compaction operation and a
@@ -113,7 +113,7 @@ prefer local, inspectable state.
 | Memory / notes | `notes_path` resolution and the markdown projection of the store | Flat file as the only durable unit, copied into the prompt whole or skipped whole | Typed `MemoryCandidate` / `MemoryCandidateStore` (`source`, `topic`, `body`, `status`, `source_reference`); `inject_accepted` copies only `CandidateStatus::Accepted`; over budget, the lowest-priority accepted candidate is dropped first |
 | Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` and `(len + 3) / 4` | `tiktoken::get_encoding` / `encoding_for_model` (`Option<&'static CoreBpe>`) and `CoreBpe::count` via `src/runtime/token_count.rs` |
 | Project instructions | The three-name candidate list and its same-directory priority order | Single-directory, first-match, fail-closed `LoadResult::OverBudget` | Root-to-leaf `load_hierarchical_instructions` / `load_instructions_for_workspace`; one candidate per directory; closer files layered after farther ones; `InstructionSet` manifest records skipped files |
-| Peer channel | The append-only JSONL sidecar, its locking, and the ADR-046 read/post routes | Waiting on every child plus free-text summary concatenation on join | A `loro` document per task: per-consumer read cursors, message-id supersession, evidence references written into the working-set record (Phase 5) |
+| Peer channel | ADR-046 JSONL sidecar (`append_message` / `read_messages`), two-layer locking, HTTP POST/GET `/v1/tasks/{id}/messages` | `SubtaskOrchestrator::apply_join_outcome` concatenating every child `handoff_summary` with `join("\n")` | `PeerMergeDoc` (`LoroDoc::new`, `set_peer_id`, `get_map`, `insert_container`, `export(ExportMode::Snapshot \| updates)`, `import`, `oplog_vv`). Join posts `JoinSummary` entries, keeps `live_entries` after message-id supersession, and `TaskDocumentCondenser::record_peer_join_evidence` writes `RecordedDecision.source_reference` as the CRDT message id. Snapshot path: `{task_id}.channel.crdt` |
 | API caching | ADR-049's shared-prefix fingerprint and `ApiMessage.cache_hint` | Nothing; provider-specific mapping stays deferred | The working-set record is the local fallback, so `/resume` never depends on an opaque provider continuation item |
 
 ## Decision
@@ -290,55 +290,60 @@ before use. Over budget, the lowest-priority accepted candidate is
 dropped first; nothing is silently skipped in bulk the way a single
 over-budget file was previously.
 
-### 5. Peer-channel merge
+### 5. Peer-join merge (`PeerMergeDoc`)
+
+JSONL `PeerMessage` append/read (ADR-046) stays. Join merge uses `loro`
+1.16 (`docs.rs/loro`):
 
 ```rust
-use loro::{ExportMode, LoroDoc, VersionVector};
+use anyhow::Result;
+use loro::{ExportMode, LoroDoc, LoroList, LoroMap, VersionVector};
 
-pub struct PeerChannel {
+pub struct PeerMergeDoc {
     doc: LoroDoc,
 }
 
-impl PeerChannel {
-    pub fn new(peer_id: u64) -> Self {
+impl PeerMergeDoc {
+    pub fn new(peer_id: u64) -> Result<Self> {
         let doc = LoroDoc::new();
-        doc.set_peer_id(peer_id).expect("peer id fits the configured width");
-        Self { doc }
+        doc.set_peer_id(peer_id)?; // LoroResult; PeerID is u64
+        Ok(Self { doc })
     }
 
-    /// Posts a message and marks any earlier ids it supersedes.
-    pub fn post(&self, id: &str, body: &str, supersedes: &[String]) {
+    pub fn post(&self, id: &str, agent_id: &str, body: &str, supersedes: &[String]) -> Result<()> {
         let messages = self.doc.get_map("messages");
-        let entry = messages
-            .insert_container(id, loro::LoroMap::new())
-            .expect("fresh message id");
-        entry.insert("body", body).expect("map insert");
-        entry
-            .insert("supersedes", supersedes.to_vec())
-            .expect("map insert");
+        let entry = messages.insert_container(id, LoroMap::new())?;
+        entry.insert("body", body)?;
+        entry.insert("agent_id", agent_id)?;
+        let list = entry.insert_container("supersedes", LoroList::new())?;
+        for (index, superseded_id) in supersedes.iter().enumerate() {
+            list.insert(index, superseded_id.as_str())?;
+        }
         self.doc.commit();
+        Ok(())
     }
 
-    /// Exports only the operations a peer at `since` is missing.
-    pub fn export_updates_since(&self, since: &VersionVector) -> Vec<u8> {
-        self.doc
-            .export(ExportMode::updates(since))
-            .expect("export from a committed doc")
+    pub fn export_updates_since(&self, since: &VersionVector) -> Result<Vec<u8>> {
+        Ok(self.doc.export(ExportMode::updates(since))?)
     }
 
-    pub fn import_updates(&self, bytes: &[u8]) {
-        self.doc.import(bytes).expect("well-formed peer update");
+    pub fn import_updates(&self, bytes: &[u8]) -> Result<()> {
+        self.doc.import(bytes)?;
+        Ok(())
     }
 }
 ```
 
-Join applies `supersedes` and writes an evidence reference into the
-working-set record instead of waiting for every child and concatenating
-free-text summaries. The phase 5 anchor test
-`join_applies_supersession_instead_of_concatenating_summaries` in
-`TASKS/PN-01-working-set-record.md` is the acceptance check for this
-behavior; the code above is a sketch toward that test, not a finished
-implementation.
+`live_entries` returns map entries whose ids are not listed in any
+`supersedes` array. `SubtaskOrchestrator::apply_join_outcome` posts each
+`JoinSummary`, persists `ExportMode::Snapshot` to
+`.vex/state/{task_id}.channel.crdt` via `write_bytes_safe`, sets
+`TaskState.handoff_summary` from live entries only, and calls
+`TaskDocumentCondenser::record_peer_join_evidence` so the condenser remains
+the sole writer of `{task_id}.working-set.json`. The phase 5 anchor test is
+`join_applies_supersession_instead_of_concatenating_summaries`.
+`poll_fan_out_join` still reports `all_done` when no session task remains
+live; the merge rule is supersession, not concatenation.
 
 ## Pros and Cons
 
@@ -407,8 +412,8 @@ implementation.
 
 ## Validation
 
-Phases 1, 3, and 4 are on `main` (PR #444, PR #445). Phase 2 is this
-batch. Phase 5 remains pending.
+Phases 1–4 are on `main` (PR #444, PR #445, PR #446). Phase 5 is this
+batch.
 
 - `working_set_record_round_trips_through_persist`
 - `working_set_schema_matches_checked_in_file`
@@ -421,7 +426,10 @@ batch. Phase 5 remains pending.
 - `resume_surfaces_corrupt_working_set_without_dropping_task`
 - `instruction_walk_falls_back_when_higher_file_is_over_budget`
 - `pending_memory_candidates_are_not_injected`
-- `join_applies_supersession_instead_of_concatenating_summaries` (Phase 5)
+- `join_applies_supersession_instead_of_concatenating_summaries`
+- `live_entries_drop_superseded_ids`
+- `snapshot_round_trips_through_persist`
+- `export_updates_import_on_second_peer`
 
 Alongside those, a schema-diff step regenerates
 `schema_for!(WorkingSetRecord)` and `schema_for!(MemoryCandidateStore)`
@@ -436,8 +444,9 @@ contract cannot change without a reviewed diff.
 - `schemars` 1.2.2 — JSON Schema 2020-12 generation from Rust types via
   `#[derive(JsonSchema)]` and `schema_for!`:
   <https://docs.rs/schemars/1.2.2>
-- `loro` — CRDT framework for local-first documents, version-vector
-  incremental sync: <https://docs.rs/loro>
+- `loro` 1.16.0 — `LoroDoc::{new,set_peer_id,get_map,export,import,oplog_vv,from_snapshot}`,
+  `ExportMode::{Snapshot,updates}`, `LoroMap::insert_container`,
+  `LoroList::insert`: <https://docs.rs/loro/1.16.0>
 - `ratatui` — immediate-mode rendering with intermediate buffers
   (existing project dependency, cited here for the resume-source
   rationale): <https://docs.rs/ratatui>

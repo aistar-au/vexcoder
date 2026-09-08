@@ -77,8 +77,8 @@ pub use task_document::{
 };
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
-    InterruptedCommand, PathChange, RecordedDecision, SessionNote, TaskId, TaskState, TaskStatus,
-    WorkingSetRecord,
+    InterruptedCommand, LivePeerEntry, PathChange, PeerMergeDoc, RecordedDecision, SessionNote,
+    TaskId, TaskState, TaskStatus, WorkingSetRecord,
 };
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;

@@ -16,7 +16,7 @@ When working on any phase of ADR-051, agents must consult:
 2. **The Crate Documentation:**
    - `tiktoken` 4.1.2 (`docs.rs/tiktoken/4.1.2`): `get_encoding` / `encoding_for_model` return `Option<&'static CoreBpe>`; `CoreBpe::count` is the zero-allocation BPE count.
    - `schemars` 1.2.2 (`docs.rs/schemars/1.2.2`): `#[derive(JsonSchema)]` and `schema_for!` (JSON Schema 2020-12).
-   - `loro` (`docs.rs/loro`): `LoroDoc`, `VersionVector`, and causal merge semantics (Phase 5).
+   - `loro` 1.16 (`docs.rs/loro`): `LoroDoc`, `ExportMode::Snapshot` / `ExportMode::updates`, `VersionVector`, `LoroMap::insert_container`.
 3. **The Active Roadmap:** `TASKS/ACTIVE-ROADMAP.md` (Tier 14) for phase dependencies.
 
 ## 3. Net Changes Matrix (Retained / Superseded / Added APIs)
@@ -29,7 +29,7 @@ This matrix names the APIs each batch retains, supersedes, and adds.
 | **Compaction** | Append-only `ApiMessage` log and bounded excerpts. `ContextCompactionRecord`. | `handle_compact_command` calling `reset_conversation_window` after `completed_turns.clear()`. | `TaskDocumentCondenser::write_working_set` before pulse clear; next request uses `WorkingSetRecord::as_prompt_block`. `objective` is write-once via `retain_durable_objective`. |
 | **Instructions** | `project_instructions.rs` candidate-name list. | First-file-only loader that returned `OverBudget` and failed closed. | Root-to-leaf `load_hierarchical_instructions` using `std::fs` with `InstructionSet` manifest recording for skipped files. |
 | **Memory / Notes** | The `notes_path` configuration and disk storage. | Flat file all-or-nothing copy into the prompt that hit a silent budget cliff. | Typed `MemoryCandidate` struct with `source`, `topic`, and `status` (pending/accepted). `inject_accepted` copies only `Accepted`. |
-| **Peer Channel** | `peer_channel.rs` facade validation and ADR-046 routes. | Free-text summary concatenation on subagent `join`. | CRDT-based state-merge protocol via `loro` (supersession cursors, evidence links). Later batch. |
+| **Peer Channel** | `peer_channel.rs` JSONL `append_message` / `read_messages` and ADR-046 HTTP routes. | `apply_join_outcome` concatenating every child `handoff_summary`. | `PeerMergeDoc` (`LoroDoc`, `ExportMode::updates`, `VersionVector`). `live_entries` after message-id supersession. `record_peer_join_evidence` writes `RecordedDecision.source_reference`. |
 | **Schema Validation** | `serde_json` persistence. | Ad-hoc, untyped JSON serialization for task state extensions. | `schemars` `#[derive(JsonSchema)]` with a CI schema-diff guard. |
 
 ## 4. Architectural Reasoning (Pros & Cons based on API Research)
@@ -61,5 +61,5 @@ To keep CI green and changes reviewable, ADR-051 is divided into 5 PR batches. *
 
 1.  **Batch 1 (PR #444, merged):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
 2.  **Batch 2 (PR #445, merged):** Hierarchical Instructions & Memory Candidates.
-3.  **Batch 3 (this PR):** Restore the next request from `WorkingSetRecord` on `/resume` and `/compact` (`reset_conversation_window` is no longer called on those paths).
-4.  **Batch 4:** Peer Channel CRDT Migration (`loro`).
+3.  **Batch 3 (PR #446, merged):** Restore the next request from `WorkingSetRecord` on `/resume` and `/compact` (`reset_conversation_window` is no longer called on those paths).
+4.  **Batch 4 (this PR):** Peer-join merge via `PeerMergeDoc` (`loro`). JSONL ADR-046 routes stay.

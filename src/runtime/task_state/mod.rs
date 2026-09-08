@@ -11,10 +11,12 @@ pub(crate) mod header_cache;
 #[cfg(test)]
 pub(crate) mod lazy_task_handle;
 pub(crate) mod peer_channel;
+pub(crate) mod peer_merge;
 mod persist;
 pub(crate) mod task_header;
 pub(crate) mod working_set;
 
+pub use peer_merge::{LivePeerEntry, PeerMergeDoc, peer_id_from_task, peer_merge_path};
 pub use persist::TaskStateFile;
 pub use working_set::{
     PathChange, RecordedDecision, WORKING_SET_SCHEMA_VERSION, WorkingSetRecord, working_set_path,

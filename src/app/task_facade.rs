@@ -376,7 +376,11 @@ pub fn facade_poll_join(
         completed: o.completed,
         failed: o.failed,
         cancelled: o.cancelled,
-        summaries: o.summaries,
+        summaries: o
+            .summaries
+            .into_iter()
+            .map(|summary| (summary.agent_id, summary.summary))
+            .collect(),
     }))
 }
 

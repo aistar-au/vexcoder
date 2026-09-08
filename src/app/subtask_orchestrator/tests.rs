@@ -88,3 +88,67 @@ fn corrupt_parent_state_propagates_error() {
         "got: {err:#}"
     );
 }
+
+#[test]
+fn join_applies_supersession_instead_of_concatenating_summaries() {
+    let (_dir, orc) = setup_orchestrator();
+    let parent_id = "parent-join-1";
+    let parent = TaskState::new(parent_id.to_string());
+    parent.save(orc.state_dir.as_path()).unwrap();
+
+    let first = JoinSummary {
+        message_id: "child-a".to_string(),
+        agent_id: "alpha".to_string(),
+        summary: "first child summary".to_string(),
+        supersedes: Vec::new(),
+    };
+    let second = JoinSummary {
+        message_id: "child-b".to_string(),
+        agent_id: "beta".to_string(),
+        summary: "corrected child summary".to_string(),
+        supersedes: vec!["child-a".to_string()],
+    };
+    let outcome = JoinOutcome {
+        all_done: true,
+        completed: 2,
+        failed: 0,
+        cancelled: 0,
+        summaries: vec![first, second],
+    };
+    orc.apply_join_outcome(parent_id, &outcome).unwrap();
+
+    let state = TaskState::load(orc.state_dir.as_path(), parent_id).unwrap();
+    let handoff = state.handoff_summary.expect("live handoff");
+    assert!(
+        handoff.contains("corrected child summary"),
+        "live CRDT body must appear; got {handoff}"
+    );
+    assert!(
+        !handoff.contains("first child summary"),
+        "superseded body must not appear; got {handoff}"
+    );
+    assert!(
+        !handoff.contains("[alpha]: first child summary\n[beta]: corrected child summary"),
+        "join must not concatenate every child summary; got {handoff}"
+    );
+
+    let record = crate::runtime::WorkingSetRecord::load(orc.state_dir.as_path(), parent_id)
+        .expect("peer evidence sidecar");
+    assert!(
+        record
+            .decisions
+            .iter()
+            .any(|decision| decision.source_reference == "child-b"
+                && decision.rationale.contains("corrected child summary")),
+        "condenser must record live message id as source_reference; got {:?}",
+        record.decisions
+    );
+    assert!(
+        record
+            .decisions
+            .iter()
+            .all(|decision| decision.source_reference != "child-a"),
+        "superseded message id must not be recorded; got {:?}",
+        record.decisions
+    );
+}

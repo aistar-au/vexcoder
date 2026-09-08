@@ -60,7 +60,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 ## Phase 2 — restore the next request from `WorkingSetRecord` on `/resume` and `/compact`
 
-**Status:** Batch 3 (this PR). Do not fold `loro` / peer join into this change.
+**Status:** Merged in PR #446. Do not fold `loro` / peer join into this change.
 
 ### Net change
 
@@ -141,4 +141,31 @@ Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `W
 
 Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
 
-## Phase 5 — peer join merge
+## Phase 5 — peer-join merge (`PeerMergeDoc`)
+
+**Status:** Batch 4 (this PR). ADR-046 JSONL routes stay. Do not rewrite
+`src/state/conversation/history.rs` in this change.
+
+### Net change
+
+| Surface | Retained API | Superseded API | Added API |
+| :--- | :--- | :--- | :--- |
+| JSONL channel | `append_message`, `read_messages`, two-layer lock, ADR-046 HTTP routes | Free-text `join("\n")` of every child `handoff_summary` | `PeerMergeDoc` wrapping `LoroDoc` (`docs.rs/loro` 1.16) |
+| Join apply | `poll_fan_out_join` reports `all_done` when no session task remains live | `apply_join_outcome` concatenating all summaries | `JoinSummary` with `message_id` / `supersedes`; `PeerMergeDoc::post` + `live_entries`; `handoff_summary` from live entries only |
+| Working-set evidence | Condenser as sole writer of `{id}.working-set.json` | No peer evidence on the sidecar | `TaskDocumentCondenser::record_peer_join_evidence` appends `RecordedDecision` with `source_reference` = CRDT message id |
+| Persist | `{id}.channel.jsonl` | Nothing; JSONL stays | `{id}.channel.crdt` via `export(ExportMode::Snapshot)` + `write_bytes_safe`; incremental sync via `ExportMode::updates` + `import` |
+
+### Files
+
+- Inserted: `src/runtime/task_state/peer_merge.rs`
+- Updated: `src/app/subtask_orchestrator/mod.rs`, `src/app/subtask_orchestrator/tests.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/mod.rs`, `src/runtime.rs`, `src/app/task_facade.rs`, `src/util.rs`, `Cargo.toml`
+
+### Acceptance tests
+
+- `join_applies_supersession_instead_of_concatenating_summaries`
+- `live_entries_drop_superseded_ids`
+- `snapshot_round_trips_through_persist`
+- `export_updates_import_on_second_peer`
+
+Crate APIs used (docs.rs only): `loro::LoroDoc::{new,set_peer_id,get_map,export,import,oplog_vv,from_snapshot,commit}`; `LoroMap::{insert,insert_container}`; `LoroList::insert`; `ExportMode::{Snapshot,updates}`.
+

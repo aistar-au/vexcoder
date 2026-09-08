@@ -181,6 +181,7 @@ tiktoken = { version = "4", default-features = false, features = [
   "vocab-o200k_base",
 ] }
 schemars = { version = "1", features = ["chrono04"] }
+loro = "1"
 
 [workspace.metadata.upgrade-seams]
 ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
@@ -269,6 +270,7 @@ schemars = [
   "src/runtime/task_state/working_set.rs",
   "src/runtime/memory_candidates.rs",
 ]
+loro = ["src/runtime/task_state/peer_merge.rs"]
 git2 = ["src/tools/operator/git_ops.rs"]
 
 [workspace.metadata.upgrade-notes]
@@ -381,6 +383,7 @@ base64.workspace = true
 chrono.workspace = true
 tiktoken.workspace = true
 schemars.workspace = true
+loro.workspace = true
 
 indexmap.workspace = true
 tower-http.workspace = true

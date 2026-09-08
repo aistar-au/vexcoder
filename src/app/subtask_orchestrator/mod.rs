@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow, bail};
 use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
-use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
+use crate::runtime::{
+    LivePeerEntry, PeerMergeDoc, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
+    WorktreeLeaseManager,
+};
 
 #[derive(Debug, Clone)]
 pub struct TeamDecomposition {
@@ -11,6 +14,14 @@ pub struct TeamDecomposition {
     pub session_task_ids: Vec<String>,
 
     pub scheduler: TeamScheduler,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JoinSummary {
+    pub message_id: String,
+    pub agent_id: String,
+    pub summary: String,
+    pub supersedes: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,7 +34,7 @@ pub struct JoinOutcome {
 
     pub cancelled: usize,
 
-    pub summaries: Vec<(String, String)>,
+    pub summaries: Vec<JoinSummary>,
 }
 
 #[derive(Debug, Clone)]
@@ -108,7 +119,12 @@ impl SubtaskOrchestrator {
                 SessionTaskStatus::Completed => {
                     completed += 1;
                     if let Some(summary) = &task.handoff_summary {
-                        summaries.push((task.agent_id.clone(), summary.clone()));
+                        summaries.push(JoinSummary {
+                            message_id: task.id.clone(),
+                            agent_id: task.agent_id.clone(),
+                            summary: summary.clone(),
+                            supersedes: Vec::new(),
+                        });
                     }
                 }
                 SessionTaskStatus::Failed => {
@@ -188,16 +204,26 @@ impl SubtaskOrchestrator {
         if outcome.summaries.is_empty() {
             return Ok(());
         }
+        let merge = PeerMergeDoc::load_or_new(&self.state_dir, parent_task_id)?;
+        for summary in &outcome.summaries {
+            merge.post(
+                &summary.message_id,
+                &summary.agent_id,
+                &summary.summary,
+                &summary.supersedes,
+            )?;
+        }
+        merge.save(&self.state_dir, parent_task_id)?;
+        let live = merge.live_entries();
         let mut state = TaskState::load(&self.state_dir, parent_task_id)?;
-        let merged = outcome
-            .summaries
-            .iter()
-            .map(|(agent_id, summary)| format!("[{agent_id}]: {summary}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        state.handoff_summary = Some(merged);
+        state.handoff_summary = Some(format_live_handoff(&live));
         state.touch();
         state.save(&self.state_dir)?;
+        TaskDocumentCondenser::new().record_peer_join_evidence(
+            &self.state_dir,
+            parent_task_id,
+            &live,
+        )?;
         Ok(())
     }
 
@@ -233,6 +259,20 @@ fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentPro
         .iter()
         .find(|a| a.name == name)
         .ok_or_else(|| anyhow!("agent '{}' not found in provided agent list", name))
+}
+
+fn format_live_handoff(entries: &[LivePeerEntry]) -> String {
+    entries
+        .iter()
+        .map(|entry| {
+            if entry.agent_id.is_empty() {
+                entry.body.clone()
+            } else {
+                format!("[{}]: {}", entry.agent_id, entry.body)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]

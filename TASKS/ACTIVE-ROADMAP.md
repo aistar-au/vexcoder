@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Active | Phase 2 in this batch; Phase 5 pending | Durable working-set record, `WorkingSetRecord` restore on `/resume`, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 1 merged in PR #444. Phases 3/4 merged in PR #445. |
+| ADR-051 | Accepted | 0 (Phase 5 in this batch) | Durable working-set record, `WorkingSetRecord` restore on `/resume`, hierarchical instruction loading, reviewable memory candidates, and `PeerMergeDoc` join merge. Phase 1 merged in PR #444. Phases 3/4 merged in PR #445. Phase 2 merged in PR #446. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -245,7 +245,7 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 - Persist under `.vex/state/{task_id}.working-set.json`.
 - Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
 
-**Phase 2 -- Restore the next request from `WorkingSetRecord` on `/resume` and `/compact`** -- this batch
+**Phase 2 -- Restore the next request from `WorkingSetRecord` on `/resume` and `/compact`** -- merged in PR #446
 - `TuiMode::apply_resumed_task` and `handle_compact_command` no longer call `reset_conversation_window`.
 - `TaskDocumentCondenser::write_working_set` is the sole writer of `{task_id}.working-set.json`.
 - Next request system prompt receives `WorkingSetRecord::as_prompt_block` via `ApiClient::set_supplementary_system_prompt`.
@@ -259,8 +259,13 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 - JSON sidecar `memory.candidates.json` is the source of truth; markdown is a projection.
 - Only accepted candidates inject. `/memory accept` promotes pending feedback.
 
-**Phase 5 -- Peer-channel merge**
-- Migrate `peer_channel.rs` from JSONL append-only to `loro` CRDT state-merge protocol.
+**Phase 5 -- Peer-join merge (`PeerMergeDoc`)** -- this batch
+- JSONL `PeerMessage` append/read (ADR-046) stays.
+- `PeerMergeDoc` wraps `LoroDoc` (`set_peer_id`, `get_map`, `insert_container`, `export(ExportMode::Snapshot | updates)`, `import`).
+- `apply_join_outcome` posts `JoinSummary` entries and sets `handoff_summary` from `live_entries` after message-id supersession.
+- `TaskDocumentCondenser::record_peer_join_evidence` writes `RecordedDecision.source_reference` as the CRDT message id.
+- Snapshot path: `.vex/state/{task_id}.channel.crdt`.
+
 Candidate implementation areas:
 
 | File | Scope |
