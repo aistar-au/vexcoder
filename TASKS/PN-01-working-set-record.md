@@ -27,7 +27,7 @@ instead. Do not revive the stopgap as a second continuity protocol.
 
 ## Phase 1 — record schema and persistence
 
-**Status:** Batch 1 (this PR). Do not fold later phases into this change.
+**Status:** Merged in PR #444. Do not fold later phases into this change.
 
 ### Net change
 
@@ -57,6 +57,60 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 
 ## Phase 2 — hydrate on resume and compact
+
+**Status:** Later batch. Do not fold into Phase 3/4.
+
 ## Phase 3 — hierarchical instruction loading
+
+**Status:** Batch 2 (this PR). Do not fold resume hydration or `loro` into this change.
+
+### Net change
+
+| Surface | Stays | Removed | Inserted |
+| :--- | :--- | :--- | :--- |
+| Candidate names | Three-name list `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md` and same-directory first match | Single-directory loader that returned `OverBudget` and stopped the walk | Root-to-leaf walk, one file per directory, closer files layered after farther ones |
+| Over-budget file | Per-file token count via `token_count` | Fail-closed `LoadResult::OverBudget` that dropped the whole instruction layer | Skip that file, record it in the manifest, continue to the next directory |
+| Call sites | `build_facade_client`, `resolve_batch_project_instructions` | Match on `LoadResult::{Loaded, OverBudget, NotFound}` | `load_instructions_for_workspace` + `InstructionSet` content/manifest |
+| `/context` | Session, git, token summary | Inferring skipped files from prompt size | Instruction manifest (loaded vs skipped with token counts) |
+
+### Files
+
+- Updated: `src/runtime/project_instructions.rs`, `src/app/facade.rs`, `src/batch_mode.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/app/commands/run.rs`
+- Types inserted: `InstructionSource`, `InstructionSet`, `load_hierarchical_instructions`, `load_instructions_for_workspace`
+
+### Acceptance tests
+
+- `instruction_walk_falls_back_when_higher_file_is_over_budget`
+- `instruction_walk_layers_root_before_leaf`
+- Existing same-directory priority / fallback tests kept against `InstructionSet`
+
 ## Phase 4 — reviewable memory candidates
+
+**Status:** Batch 2 (this PR). Do not attach candidates to `WorkingSetRecord` in this change (condenser/resume is Phase 2).
+
+### Net change
+
+| Surface | Stays | Removed | Inserted |
+| :--- | :--- | :--- | :--- |
+| Notes path | `notes_path` / XDG `memory.md` resolution | Whole-file all-or-nothing injection | Typed `MemoryCandidate` store (`source`, `topic`, `body`, `status`, `source_reference`) |
+| Provenance | Markdown `[auto]` tag as a projection | Treating auto-extracted and operator notes as equal prompt text | `CandidateSource::{User, Feedback, Project, Reference}` + `CandidateStatus::{Pending, Accepted}` |
+| Injection | Token budget call site in `resolve_notes_for_injection` | Silent skip of the entire notes file | Only `Accepted` inject; over budget drops lowest-priority accepted first |
+| Operator commands | `/memory`, `/memory add`, `/memory clear`, `/memory auto *` | Auto extract writing `Accepted` prompt text | `/memory accept <n\|topic>`; auto extract writes `Feedback` + `Pending`; add writes `User` + `Accepted` |
+| Persistence | Markdown notes file for existing readers | Markdown as the only durable unit | JSON sidecar `memory.candidates.json` via `write_json_safe` (no durable-access assert; path is user-config) |
+| Schema | `schemars` already in-tree from Phase 1 | Ad-hoc notes JSON | `schemas/memory_candidates.schema.json` from `schema_for!(MemoryCandidateStore)` |
+
+### Files
+
+- Inserted: `src/runtime/memory_candidates.rs`, `schemas/memory_candidates.schema.json`
+- Updated: `src/session_notes.rs`, `src/auto_memory.rs` (extract helpers stay; TUI writes through the store), `src/app/commands/memory.rs`, `src/app/slash_commands.rs`, `src/app/commands/mod.rs`, `src/app/pulse.rs`, `src/app/tests/memory.rs`, `src/runtime.rs`, `Cargo.toml`
+
+### Acceptance tests
+
+- `pending_memory_candidates_are_not_injected`
+- `pending_auto_notes_are_not_injected_from_markdown`
+- `memory_candidates_schema_matches_checked_in_file`
+- `memory_accept_promotes_pending_candidate`
+
+Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
+
 ## Phase 5 — peer join merge

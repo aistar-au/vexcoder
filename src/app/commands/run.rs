@@ -155,6 +155,32 @@ impl TuiMode {
             "  tokens    : ~{}",
             ctx.estimated_conversation_tokens()
         ));
+        let repo_root = crate::workspace::workspace_root(&self.working_dir);
+        let instructions = crate::runtime::project_instructions::load_hierarchical_instructions(
+            &repo_root,
+            &self.working_dir,
+            self.max_project_instructions_tokens,
+        );
+        self.push_history_line("  instructions:".to_string());
+        if instructions.manifest.is_empty() {
+            self.push_history_line("    (none)".to_string());
+        } else {
+            for source in &instructions.manifest {
+                if source.included {
+                    self.push_history_line(format!(
+                        "    loaded  {} ({} tokens)",
+                        source.path.display(),
+                        source.estimated_tokens
+                    ));
+                } else {
+                    self.push_history_line(format!(
+                        "    skipped {} ({} tokens, over budget)",
+                        source.path.display(),
+                        source.estimated_tokens
+                    ));
+                }
+            }
+        }
     }
     pub(crate) fn resolve_context_git_summary(&self) -> String {
         let defaults = self.context_assembler.clone();

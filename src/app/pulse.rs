@@ -267,7 +267,7 @@ impl TuiMode {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        match crate::auto_memory::append_auto_notes(&formatted_notes, &path) {
+        match crate::runtime::memory_candidates::append_feedback_notes(&path, &formatted_notes) {
             Ok(()) => {
                 let turn_index = self.task_doc.completed_turns.len();
                 for note in &formatted_notes {

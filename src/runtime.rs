@@ -11,6 +11,7 @@ pub mod git_parse;
 pub mod git_rollup;
 pub mod json_handoff;
 pub mod r#loop;
+pub mod memory_candidates;
 pub mod mode;
 pub mod multiplex_prefix;
 pub mod policy;
@@ -54,6 +55,10 @@ pub(crate) use git_rollup::{
 pub use json_handoff::{
     RuntimeEnvelope, RuntimeEnvelopeSource, RuntimeRequest, RuntimeSignal, TokenUsageEnvelope,
     ValidationOutputEnvelope,
+};
+pub use memory_candidates::{
+    CandidateSource, CandidateStatus, MEMORY_CANDIDATES_SCHEMA_VERSION, MemoryCandidate,
+    MemoryCandidateStore,
 };
 pub use rate_limit::{
     RetryHint, RetryHintSource, looks_like_rate_limit, parse_retry_after_header,

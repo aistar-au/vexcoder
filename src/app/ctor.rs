@@ -55,6 +55,7 @@ impl TuiMode {
             working_dir: config.working_dir.clone(),
             model_url: config.model_url.clone(),
             search_config: config.search.clone(),
+            max_project_instructions_tokens: config.max_project_instructions_tokens,
             context_assembler,
             sandbox: ConfiguredSandbox::default(),
             file_prompt_entries: RefCell::new(None),

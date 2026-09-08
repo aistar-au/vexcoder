@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 428
+- Total tracked files: 430
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -434,3 +434,5 @@ Canonical raw URL index for every tracked file in this repository.
 | 415 | `PN-01-working-set-record.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/TASKS/PN-01-working-set-record.md> |
 | 416 | `src/runtime/token_count.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/token_count.rs> |
 | 417 | `src/runtime/task_state/working_set.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state/working_set.rs> |
+| 418 | `src/runtime/memory_candidates.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/memory_candidates.rs> |
+| 419 | `memory_candidates.schema.json` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/schemas/memory_candidates.schema.json> |

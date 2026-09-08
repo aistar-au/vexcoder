@@ -2,6 +2,7 @@ use super::*;
 use crate::api::ApiClient;
 use crate::mcp::{McpRegistry, McpRegistryRollup};
 use crate::runtime::frontend::FrontendAdapter;
+use crate::runtime::project_instructions::load_instructions_for_workspace;
 use crate::runtime::{ConfiguredSandbox, resolve_configured_sandbox};
 
 #[derive(Clone, Debug, Default)]
@@ -14,28 +15,13 @@ pub struct FacadeBootstrap {
 }
 
 pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBootstrap)> {
-    let (instructions_text, instructions_path) = match load_project_instructions(
+    let set = load_instructions_for_workspace(
         &config.working_dir,
         config.max_project_instructions_tokens,
-    ) {
-        LoadResult::Loaded(project_instructions) => {
-            let display = project_instructions.path.to_string_lossy().into_owned();
-            (Some(project_instructions.content), Some(display))
-        }
-        LoadResult::OverBudget {
-            path,
-            estimated_tokens,
-        } => {
-            eprintln!(
-                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
-                path.display(),
-                estimated_tokens,
-                config.max_project_instructions_tokens,
-            );
-            (None, None)
-        }
-        LoadResult::NotFound => (None, None),
-    };
+    );
+    set.emit_skip_warnings(config.max_project_instructions_tokens);
+    let instructions_text = set.included_content();
+    let instructions_path = set.display_path();
 
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     Ok((

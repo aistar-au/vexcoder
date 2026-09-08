@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Proposed | Phase 1 in this batch; phases 2-5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Replaces the closed PR #443 stopgap with a structured, batched approach. |
+| ADR-051 | Proposed | Phase 3/4 in this batch; phases 2 and 5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 1 (schema, persist, BPE count) merged in PR #444. Replaces the closed PR #443 stopgap with a structured, batched approach. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -240,7 +240,7 @@ contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 
 Replaces the closed PR #443 stopgap with a structured, batched approach to context continuity.
 
-**Phase 1 -- Record schema and persistence** -- this batch
+**Phase 1 -- Record schema and persistence** -- merged in PR #444
 - Define `WorkingSetRecord` with `schemars` JSON Schema generation.
 - Persist under `.vex/state/{task_id}.working-set.json`.
 - Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
@@ -249,12 +249,14 @@ Replaces the closed PR #443 stopgap with a structured, batched approach to conte
 - Remove `reset_conversation_window` in `pulse.rs`.
 - Seed the next model request from the `WorkingSetRecord` on `/resume` and `/compact`.
 
-**Phase 3 -- Hierarchical instruction loading**
+**Phase 3 -- Hierarchical instruction loading** -- this batch
 - Root-to-leaf directory walk for `AGENTS.md`/`PROJECT.md` candidates.
-- Manifest recording for skipped over-budget files.
+- Manifest recording for skipped over-budget files. `/context` renders the manifest.
 
-**Phase 4 -- Reviewable memory candidates**
+**Phase 4 -- Reviewable memory candidates** -- this batch
 - Replace flat notes injection with typed `MemoryCandidate` structs (provenance, topic, accepted/pending state).
+- JSON sidecar `memory.candidates.json` is the source of truth; markdown is a projection.
+- Only accepted candidates inject. `/memory accept` promotes pending feedback.
 
 **Phase 5 -- Peer-channel merge**
 - Migrate `peer_channel.rs` from JSONL append-only to `loro` CRDT state-merge protocol.

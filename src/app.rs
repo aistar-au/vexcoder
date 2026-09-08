@@ -18,7 +18,6 @@ use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{InputOccurrence, ScrollAction, ScrollTarget};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
-use crate::runtime::project_instructions::{LoadResult, load_project_instructions};
 use crate::runtime::task_state::SessionNote;
 use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
@@ -45,7 +44,6 @@ use crate::types::ModelProfile;
 use crate::ui::tui::input::{KeyCode, KeyModifiers};
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
-use std::io::Write;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -391,6 +389,7 @@ pub struct TuiMode {
     working_dir: PathBuf,
     model_url: String,
     search_config: crate::config::SearchConfig,
+    max_project_instructions_tokens: usize,
     context_assembler: ContextAssembler,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,

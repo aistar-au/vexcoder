@@ -46,6 +46,15 @@ impl TuiMode {
                         self.handle_memory_add(args.to_string());
                     }
                 }
+                SlashCommandId::MemoryAccept => {
+                    if args.is_empty() {
+                        self.push_history_line(
+                            "[memory] usage: /memory accept <n|topic>".to_string(),
+                        );
+                    } else {
+                        self.handle_memory_accept(args);
+                    }
+                }
                 SlashCommandId::MemoryClear => {
                     self.overlay_state.pending_memory_clear = true;
                     self.push_history_line(

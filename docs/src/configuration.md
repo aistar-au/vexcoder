@@ -56,10 +56,12 @@ These keys are read by the current runtime from config files:
 `XDG_CONFIG_HOME/vex/memory.md` file and otherwise an existing
 `~/.config/vex/memory.md` file. New notes are written to the same XDG path when
 `XDG_CONFIG_HOME` is set, or to `~/.config/vex/memory.md` when it is not set.
-The legacy `~/.vex/memory.md` path is not consulted. Notes are appended to the
-model prompt only when their estimated token count is within
-`max_memory_tokens`; over-budget notes remain on disk and are omitted from that
-session's prompt.
+The legacy `~/.vex/memory.md` path is not consulted. A JSON sidecar
+(`memory.candidates.json`) next to the notes file is the source of truth.
+Only accepted candidates inject into the model prompt, and only when their
+combined token count is within `max_memory_tokens`. Pending candidates stay
+on disk until `/memory accept`. Over-budget accepted candidates drop from
+lowest priority first; omitted notes remain on disk.
 
 When `model_profile` is set, the runtime loads the profile at startup and uses
 its request parameters (`temperature`, `top_p`, `max_tokens`, stop sequences,

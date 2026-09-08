@@ -59,7 +59,7 @@ The decisions in ADR-051 are directly informed by researching managed provider A
 
 To ensure CI remains green and changes are reviewable, ADR-051 is strictly divided into 5 PR batches. **Do not combine these phases into a single PR.**
 
-1.  **Batch 1 (PR 1):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
-2.  **Batch 2 (PR 2):** Hierarchical Instructions & Memory Candidates.
+1.  **Batch 1 (PR #444, merged):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
+2.  **Batch 2 (this PR):** Hierarchical Instructions & Memory Candidates.
 3.  **Batch 3 (PR 3):** Resume Hydration & Compaction Rewrite (removing `reset_conversation_window`).
 4.  **Batch 4 (PR 4):** Peer Channel CRDT Migration (`loro`).

@@ -42,6 +42,36 @@ fn memory_add_appends_to_file_and_rejects_clear_without_confirmation() {
 }
 
 #[test]
+fn memory_accept_promotes_pending_candidate() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let notes_path = temp.path().join("memory.md");
+    let state_dir = temp.path().join("state");
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", state_dir.as_os_str());
+
+    crate::runtime::memory_candidates::append_feedback_notes(
+        &notes_path,
+        &["[9] [auto] extracted pending fact".to_string()],
+    )
+    .unwrap();
+
+    let mut ctx = setup_ctx();
+    let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+    mode.on_user_input("/memory accept 1".to_string(), &mut ctx);
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|l| l.contains("[memory] accepted: extracted pending fact")),
+        "accept should promote the pending candidate"
+    );
+    let store = crate::runtime::memory_candidates::load_or_migrate(&notes_path).unwrap();
+    assert_eq!(
+        store.candidates[0].status,
+        crate::runtime::memory_candidates::CandidateStatus::Accepted
+    );
+}
+
+#[test]
 fn build_runtime_auto_index_warms_codebase_search_index() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::state::clear_codebase_index_for_tests();
