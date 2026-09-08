@@ -175,7 +175,11 @@ mod tests {
     #[test]
     fn try_load_returns_none_when_sidecar_is_absent() {
         let dir = TempDir::new().unwrap();
-        assert!(JoinIndex::try_load(dir.path(), "missing").unwrap().is_none());
+        assert!(
+            JoinIndex::try_load(dir.path(), "missing")
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
@@ -206,8 +210,8 @@ mod tests {
     #[test]
     fn join_index_schema_matches_checked_in_file() {
         let generated = join_index_json_schema_pretty();
-        let schema_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("schemas/join_index.schema.json");
+        let schema_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/join_index.schema.json");
         if std::env::var_os("UPDATE_JOIN_INDEX_SCHEMA").is_some() {
             std::fs::write(&schema_path, &generated).expect("write generated schema");
         }
