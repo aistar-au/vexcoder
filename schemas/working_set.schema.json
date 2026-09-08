@@ -1,1 +1,101 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkingSetRecord",
+  "description": "Durable unit of continuity, persisted next to the task-state file.",
+  "type": "object",
+  "properties": {
+    "active_plan": {
+      "type": "string"
+    },
+    "changed_paths": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PathChange"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RecordedDecision"
+      }
+    },
+    "next_action": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verified_results": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "updated_at",
+    "objective",
+    "constraints",
+    "decisions",
+    "changed_paths",
+    "verified_results",
+    "unresolved_questions",
+    "active_plan",
+    "next_action"
+  ],
+  "$defs": {
+    "PathChange": {
+      "type": "object",
+      "properties": {
+        "git_identity": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "git_identity"
+      ]
+    },
+    "RecordedDecision": {
+      "type": "object",
+      "properties": {
+        "rationale": {
+          "type": "string"
+        },
+        "source_reference": {
+          "description": "File location or a peer-channel message id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rationale",
+        "source_reference"
+      ]
+    }
+  }
+}

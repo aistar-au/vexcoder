@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Proposed | Phases 1-5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Replaces the closed PR #443 stopgap with a structured, batched approach. |
+| ADR-051 | Proposed | Phase 1 in this batch; phases 2-5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Replaces the closed PR #443 stopgap with a structured, batched approach. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -240,7 +240,7 @@ contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 
 Replaces the closed PR #443 stopgap with a structured, batched approach to context continuity.
 
-**Phase 1 -- Record schema and persistence**
+**Phase 1 -- Record schema and persistence** -- this batch
 - Define `WorkingSetRecord` with `schemars` JSON Schema generation.
 - Persist under `.vex/state/{task_id}.working-set.json`.
 - Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.

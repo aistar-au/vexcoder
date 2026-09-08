@@ -257,13 +257,7 @@ where
 {
     std::env::var("VEX_MODEL_TOKEN")
         .ok()
-        .and_then(|value| {
-            if value.trim().is_empty() {
-                None
-            } else {
-                Some(value)
-            }
-        })
+        .filter(|value| !value.trim().is_empty())
         .or_else(
             || match keyring_read(crate::credentials::ACCOUNT_MODEL_TOKEN) {
                 Ok(value) => value,

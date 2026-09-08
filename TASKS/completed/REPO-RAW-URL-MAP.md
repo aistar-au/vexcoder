@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 426
+- Total tracked files: 428
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -432,3 +432,5 @@ Canonical raw URL index for every tracked file in this repository.
 | 413 | `ADR-051-AGENT-GUIDE.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/f8d4b3726453e36552f3f849a771a5c458834591/TASKS/ADR-051-AGENT-GUIDE.md> | 
 | 414 | `working_set.schema.json` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/schemas/working_set.schema.json> |
 | 415 | `PN-01-working-set-record.md` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/refs/heads/main/TASKS/PN-01-working-set-record.md> |
+| 416 | `src/runtime/token_count.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/token_count.rs> |
+| 417 | `src/runtime/task_state/working_set.rs` | ~ | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state/working_set.rs> |
