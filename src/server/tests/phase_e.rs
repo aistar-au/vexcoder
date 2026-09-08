@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::{TaskState, WorkingSetRecord};
 
 pub(super) fn agents_toml_shared() -> &'static str {
     r#"
@@ -101,6 +102,58 @@ async fn list_tasks_returns_parent_and_session_task_endpoints() {
             .iter()
             .any(|t| t.get("id") == Some(&Value::String(st_id.clone())))
     );
+}
+
+#[tokio::test]
+async fn working_set_route_returns_envelope_and_404_when_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+    let state_dir = TaskState::state_dir_from(temp.path());
+    std::fs::create_dir_all(&state_dir).unwrap();
+    TaskState::new("env-parent".to_string())
+        .save(&state_dir)
+        .unwrap();
+    WorkingSetRecord::new("keep the objective")
+        .save(&state_dir, "env-parent")
+        .unwrap();
+
+    let router = setup_phase_e_router(temp.path());
+    let found = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/tasks/env-parent/working-set")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(found.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(
+        &to_bytes(found.into_body(), usize::MAX).await.unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        payload.get("task_id"),
+        Some(&Value::String("env-parent".into()))
+    );
+    assert_eq!(
+        payload
+            .pointer("/working_set/objective")
+            .and_then(Value::as_str),
+        Some("keep the objective")
+    );
+
+    let missing = router
+        .oneshot(
+            Request::builder()
+                .uri("/v1/tasks/missing/working-set")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
