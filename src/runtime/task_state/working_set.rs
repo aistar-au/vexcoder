@@ -51,7 +51,7 @@ pub fn working_set_path(dir: &Path, task_id: &str) -> PathBuf {
 }
 
 pub fn is_working_set_filename(name: &str) -> bool {
-    name.ends_with(".working-set.json")
+    name.ends_with(".working-set.json") || super::join_index::is_join_index_filename(name)
 }
 
 impl WorkingSetRecord {
@@ -277,6 +277,7 @@ mod tests {
         let path = working_set_path(Path::new(".vex/state"), "task-9");
         assert_eq!(path, PathBuf::from(".vex/state/task-9.working-set.json"));
         assert!(is_working_set_filename("task-9.working-set.json"));
+        assert!(is_working_set_filename("task-9.join.json"));
         assert!(!is_working_set_filename("task-9.json"));
     }
 
