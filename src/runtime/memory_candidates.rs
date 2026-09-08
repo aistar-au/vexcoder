@@ -198,23 +198,21 @@ pub fn inject_accepted(
     store: &MemoryCandidateStore,
     token_budget: usize,
 ) -> (Option<String>, Option<String>) {
-    let mut selected: Vec<&MemoryCandidate> = store
+    let mut selected: Vec<(&MemoryCandidate, usize)> = store
         .candidates
         .iter()
         .filter(|candidate| candidate.status == CandidateStatus::Accepted)
+        .map(|candidate| (candidate, token_count(&candidate.body)))
         .collect();
-    selected.sort_by_key(|candidate| source_priority(candidate.source));
+    selected.sort_by_key(|(candidate, _)| source_priority(candidate.source));
 
+    let mut total: usize = selected.iter().map(|(_, tokens)| *tokens).sum();
     let mut dropped = 0usize;
-    while !selected.is_empty() {
-        let total: usize = selected
-            .iter()
-            .map(|candidate| token_count(&candidate.body))
-            .sum();
-        if total <= token_budget {
+    while total > token_budget {
+        let Some((_, tokens)) = selected.pop() else {
             break;
-        }
-        selected.pop();
+        };
+        total = total.saturating_sub(tokens);
         dropped += 1;
     }
 
@@ -232,7 +230,7 @@ pub fn inject_accepted(
 
     let content = selected
         .iter()
-        .map(|candidate| candidate.body.as_str())
+        .map(|(candidate, _)| candidate.body.as_str())
         .collect::<Vec<_>>()
         .join("\n");
     let warning = if dropped > 0 {

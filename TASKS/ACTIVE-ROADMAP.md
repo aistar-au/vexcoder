@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Proposed | Phase 3/4 in this batch; phases 2 and 5 pending | Durable working-set record, resume hydration, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 1 (schema, persist, BPE count) merged in PR #444. Replaces the closed PR #443 stopgap with a structured, batched approach. |
+| ADR-051 | Proposed | Phase 3/4 in this batch; phases 2 and 5 pending | Durable working-set record, `WorkingSetRecord` restore on `/resume`, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 1 (schema, persist, BPE count) merged in PR #444. Replaces the closed PR #443 stopgap with a structured, batched approach. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -245,7 +245,7 @@ Replaces the closed PR #443 stopgap with a structured, batched approach to conte
 - Persist under `.vex/state/{task_id}.working-set.json`.
 - Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
 
-**Phase 2 -- Hydrate on resume and compact**
+**Phase 2 -- Seed the next request from `WorkingSetRecord` on `/resume` and `/compact`**
 - Remove `reset_conversation_window` in `pulse.rs`.
 - Seed the next model request from the `WorkingSetRecord` on `/resume` and `/compact`.
 

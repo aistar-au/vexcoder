@@ -3,7 +3,7 @@
 **Target files:**
 - `src/runtime/task_state/` — persist and load the working-set record
 - `src/runtime/task_document/` — project the record from pulse evidence
-- `src/app/pulse.rs` — hydrate on resume instead of clearing the live window
+- `src/app/pulse.rs` — load `WorkingSetRecord` into the next request on `/resume` instead of clearing the live `ApiMessage` window
 - `src/app/commands/session.rs` — `/resume` and `/compact` write and restore the record
 - `src/runtime/project_instructions.rs` — hierarchical load with budget fallback
 - `src/session_notes.rs`, `src/auto_memory.rs` — typed reviewable candidates
@@ -56,13 +56,13 @@ instead. Do not revive the stopgap as a second continuity protocol.
 Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_for_model`, `CoreBpe::count`; `schemars::JsonSchema`, `schemars::schema_for!`.
 
 
-## Phase 2 — hydrate on resume and compact
+## Phase 2 — seed the next request from `WorkingSetRecord` on `/resume` and `/compact`
 
 **Status:** Later batch. Do not fold into Phase 3/4.
 
 ## Phase 3 — hierarchical instruction loading
 
-**Status:** Batch 2 (this PR). Do not fold resume hydration or `loro` into this change.
+**Status:** Batch 2 (this PR). Do not fold `WorkingSetRecord` restore on `/resume` or `loro` into this change.
 
 ### Net change
 
@@ -71,11 +71,11 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 | Candidate names | Three-name list `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md` and same-directory first match | Single-directory loader that returned `OverBudget` and stopped the walk | Root-to-leaf walk, one file per directory, closer files layered after farther ones |
 | Over-budget file | Per-file token count via `token_count` | Fail-closed `LoadResult::OverBudget` that dropped the whole instruction layer | Skip that file, record it in the manifest, continue to the next directory |
 | Call sites | `build_facade_client`, `resolve_batch_project_instructions` | Match on `LoadResult::{Loaded, OverBudget, NotFound}` | `load_instructions_for_workspace` + `InstructionSet` content/manifest |
-| `/context` | Session, git, token summary | Inferring skipped files from prompt size | Instruction manifest (loaded vs skipped with token counts) |
+| `/context` | Session, git, token summary | Inferring skipped files from prompt size; a second disk walk at `/context` time | Session-start `InstructionSet` manifest copied from `build_facade_client` (loaded vs skipped with token counts) |
 
 ### Files
 
-- Updated: `src/runtime/project_instructions.rs`, `src/app/facade.rs`, `src/batch_mode.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/app/commands/run.rs`
+- Updated: `src/runtime/project_instructions.rs`, `src/app/facade.rs`, `src/batch_mode.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/app/runtime_build.rs`, `src/app/commands/run.rs`
 - Types inserted: `InstructionSource`, `InstructionSet`, `load_hierarchical_instructions`, `load_instructions_for_workspace`
 
 ### Acceptance tests

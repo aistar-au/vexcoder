@@ -122,9 +122,11 @@ mod tests {
                 git_identity: "token-count-batch1".to_string(),
             }],
             verified_results: vec!["round-trip through persist".to_string()],
-            unresolved_questions: vec!["resume hydration in a later batch".to_string()],
+            unresolved_questions: vec![
+                "seed the next request from the record in a later batch".to_string(),
+            ],
             active_plan: "schema, persist, token count".to_string(),
-            next_action: "hydrate on resume".to_string(),
+            next_action: "load WorkingSetRecord on /resume".to_string(),
         }
     }
 

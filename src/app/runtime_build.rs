@@ -4,6 +4,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let mode = TuiMode::new_with_config(config.notes_path.clone(), config.clone());
     let (mut runtime, ctx, bootstrap) = build_facade_runtime(&config, mode)?;
     runtime.mode.instructions_path = bootstrap.instructions_path;
+    runtime.mode.instruction_manifest = bootstrap.instruction_manifest;
     runtime.mode.sandbox = bootstrap.sandbox;
     runtime.mode.mcp_rollup = bootstrap.mcp_rollup;
     runtime.mode.task_doc.info.instructions_path = runtime.mode.instructions_path.clone();

@@ -155,30 +155,34 @@ impl TuiMode {
             "  tokens    : ~{}",
             ctx.estimated_conversation_tokens()
         ));
-        let repo_root = crate::workspace::workspace_root(&self.working_dir);
-        let instructions = crate::runtime::project_instructions::load_hierarchical_instructions(
-            &repo_root,
-            &self.working_dir,
-            self.max_project_instructions_tokens,
-        );
+        // Render the session-start snapshot copied from `build_facade_client`,
+        // not a fresh disk walk. Mid-session edits to instruction files are
+        // invisible here until the next process start, matching `ApiClient`.
         self.push_history_line("  instructions:".to_string());
-        if instructions.manifest.is_empty() {
+        if self.instruction_manifest.is_empty() {
             self.push_history_line("    (none)".to_string());
         } else {
-            for source in &instructions.manifest {
-                if source.included {
-                    self.push_history_line(format!(
-                        "    loaded  {} ({} tokens)",
-                        source.path.display(),
-                        source.estimated_tokens
-                    ));
-                } else {
-                    self.push_history_line(format!(
-                        "    skipped {} ({} tokens, over budget)",
-                        source.path.display(),
-                        source.estimated_tokens
-                    ));
-                }
+            let instruction_lines: Vec<String> = self
+                .instruction_manifest
+                .iter()
+                .map(|source| {
+                    if source.included {
+                        format!(
+                            "    loaded  {} ({} tokens)",
+                            source.path.display(),
+                            source.estimated_tokens
+                        )
+                    } else {
+                        format!(
+                            "    skipped {} ({} tokens, over budget)",
+                            source.path.display(),
+                            source.estimated_tokens
+                        )
+                    }
+                })
+                .collect();
+            for line in instruction_lines {
+                self.push_history_line(line);
             }
         }
     }

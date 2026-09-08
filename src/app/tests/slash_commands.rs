@@ -66,3 +66,35 @@ async fn context_command_renders_without_model_turn() {
         "context output must include token info; lines: {lines:?}"
     );
 }
+
+#[tokio::test]
+async fn context_command_renders_session_instruction_manifest() {
+    let mut mode = TuiMode::new();
+    mode.instruction_manifest = vec![
+        crate::runtime::project_instructions::InstructionSource {
+            path: std::path::PathBuf::from("AGENTS.md"),
+            included: true,
+            estimated_tokens: 12,
+        },
+        crate::runtime::project_instructions::InstructionSource {
+            path: std::path::PathBuf::from("crate/AGENTS.md"),
+            included: false,
+            estimated_tokens: 8000,
+        },
+    ];
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/context".to_string(), &mut ctx);
+    let lines = mode.history_lines();
+    assert!(
+        lines.iter().any(|line| line.contains("loaded")
+            && line.contains("AGENTS.md")
+            && line.contains("12")),
+        "session-start included file must appear; lines: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| {
+            line.contains("skipped") && line.contains("crate/AGENTS.md") && line.contains("8000")
+        }),
+        "session-start skipped file must appear; lines: {lines:?}"
+    );
+}

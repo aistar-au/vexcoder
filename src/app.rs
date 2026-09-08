@@ -18,6 +18,7 @@ use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{InputOccurrence, ScrollAction, ScrollTarget};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
+use crate::runtime::project_instructions::InstructionSource;
 use crate::runtime::task_state::SessionNote;
 use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
@@ -375,6 +376,7 @@ pub struct TuiMode {
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
+    instruction_manifest: Vec<InstructionSource>,
     mcp_rollup: Option<McpRegistryRollup>,
 
     display_column_width: Cell<usize>,
@@ -389,7 +391,6 @@ pub struct TuiMode {
     working_dir: PathBuf,
     model_url: String,
     search_config: crate::config::SearchConfig,
-    max_project_instructions_tokens: usize,
     context_assembler: ContextAssembler,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
