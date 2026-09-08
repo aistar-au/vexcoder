@@ -58,11 +58,34 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 ## Phase 2 — seed the next request from `WorkingSetRecord` on `/resume` and `/compact`
 
-**Status:** Later batch. Do not fold into Phase 3/4.
+**Status:** Batch 3 (this PR). Do not fold `loro` / peer join into this change.
+
+### Net change
+
+| Surface | Retained API | Superseded API | Added API |
+| :--- | :--- | :--- | :--- |
+| `/resume` TUI restore | `TaskDocumentCondenser::restore_from_snapshot` and `task_state_bridge.rs` on-screen projection | `TuiMode::apply_resumed_task` calling `reset_conversation_window` → `RuntimeContext::clear_conversation` → `ConversationManager::clear_messages` (`api_messages.clear()`) with no continuity source | `WorkingSetRecord::load_from_search_dirs_from` then `ConversationManager::seed_from_working_set` copies `WorkingSetRecord::as_prompt_block` onto `ApiClient::set_supplementary_system_prompt` |
+| `/compact` | `ContextCompactionRecord` append, `completed_turns.clear()`, `persist_task_document`, task id and grants | `handle_compact_command` calling `reset_conversation_window` after clearing pulses, so the next request has an empty `ApiMessage` window | `TaskDocumentCondenser::write_working_set` before `completed_turns.clear()`; then `seed_from_working_set` so the next request carries the sidecar |
+| Conversation window | `reset_conversation_window` on `/new` and `/fork` | Using that helper as the `/resume` and `/compact` path | `TuiMode::reset_session_surface` for TUI chrome; `/resume` and `/compact` no longer call `reset_conversation_window` |
+| Next request assembly | `RuntimeContext::start_turn_with_system_prompt` / `set_runtime_prompt` | Passing `None` and overwriting a previously set supplementary prompt | `set_runtime_prompt` merges `ConversationManager::working_set_prompt_block` with any extra coding prompt |
+| Condenser write | `TaskDocumentCondenser::persistable_snapshot` for `{id}.json` | No writer for `{id}.working-set.json` at compact/turn-complete | `project_working_set` / `write_working_set` (sole writer) on compact (before pulse clear) and on `commit_completed_turn` |
+
+### Files
+
+- Updated: `src/app/pulse.rs`, `src/app/commands/session.rs`, `src/app/runtime_build.rs`, `src/runtime/context.rs`, `src/state/conversation/state.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/working_set.rs`, `src/app/tests/session/compact.rs`, `src/app/tests/session/mod.rs`, `docs/src/commands.md`
+- Unchanged in this batch: `src/state/conversation/history.rs` (local byte heuristic is a later rewrite), `loro`, `MemoryCandidate` attachment to the record
+
+### Acceptance tests
+
+- `resume_injects_working_set_into_next_request`
+- `compact_writes_working_set_before_clearing_pulses`
+
+Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `WorkingSetRecord::{save,load,as_prompt_block}`; `TaskDocumentCondenser::{project_working_set,write_working_set}`; `ConversationManager::{clear_messages,seed_from_working_set}`.
+
 
 ## Phase 3 — hierarchical instruction loading
 
-**Status:** Batch 2 (this PR). Do not fold `WorkingSetRecord` restore on `/resume` or `loro` into this change.
+**Status:** Merged in PR #445. Do not fold `WorkingSetRecord` restore on `/resume` or `loro` into this change.
 
 ### Net change
 
@@ -86,7 +109,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 ## Phase 4 — reviewable memory candidates
 
-**Status:** Batch 2 (this PR). Do not attach candidates to `WorkingSetRecord` in this change (condenser/resume is Phase 2).
+**Status:** Merged in PR #445. Do not attach candidates to `WorkingSetRecord` in this change (condenser/resume is Phase 2 / Batch 3).
 
 ### Net change
 

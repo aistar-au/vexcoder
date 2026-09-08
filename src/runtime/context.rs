@@ -270,6 +270,14 @@ impl RuntimeContext {
     }
 
     #[cfg(test)]
+    pub fn test_system_prompt_try_lock(&self) -> Option<String> {
+        self.conversation
+            .try_lock()
+            .ok()
+            .map(|manager| manager.client().test_system_prompt())
+    }
+
+    #[cfg(test)]
     pub async fn test_system_prompt(&self) -> String {
         let manager = self.conversation.lock().await;
         manager.client().test_system_prompt()
@@ -336,6 +344,25 @@ impl RuntimeContext {
         self.conversation.blocking_lock().clear_messages();
     }
 
+    pub fn seed_from_working_set(&self, record: crate::runtime::WorkingSetRecord) {
+        if let Ok(mut conversation) = self.conversation.try_lock() {
+            conversation.seed_from_working_set(record);
+            return;
+        }
+
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let conversation = Arc::clone(&self.conversation);
+            tokio::spawn(async move {
+                conversation.lock().await.seed_from_working_set(record);
+            });
+            return;
+        }
+
+        self.conversation
+            .blocking_lock()
+            .seed_from_working_set(record);
+    }
+
     pub fn pop_undo_checkpoint(&self) -> Option<crate::state::UndoCheckpoint> {
         if let Ok(mut conversation) = self.conversation.try_lock() {
             return conversation.pop_undo_checkpoint();
@@ -395,11 +422,14 @@ async fn set_runtime_prompt(
     conversation: &Arc<Mutex<ConversationManager>>,
     supplementary_system_prompt: Option<String>,
 ) {
-    let client = {
+    let (client, working_set_block) = {
         let manager = conversation.lock().await;
-        manager.client()
+        (manager.client(), manager.working_set_prompt_block())
     };
-    client.set_supplementary_system_prompt(supplementary_system_prompt);
+    client.set_supplementary_system_prompt(merge_supplementary_prompt(
+        supplementary_system_prompt,
+        working_set_block,
+    ));
 }
 
 fn set_runtime_prompt_now(
@@ -407,9 +437,36 @@ fn set_runtime_prompt_now(
     supplementary_system_prompt: Option<String>,
 ) {
     if let Ok(manager) = conversation.try_lock() {
+        let working_set_block = manager.working_set_prompt_block();
         manager
             .client()
-            .set_supplementary_system_prompt(supplementary_system_prompt);
+            .set_supplementary_system_prompt(merge_supplementary_prompt(
+                supplementary_system_prompt,
+                working_set_block,
+            ));
+    }
+}
+
+fn merge_supplementary_prompt(
+    extra: Option<String>,
+    working_set_block: Option<String>,
+) -> Option<String> {
+    let extra = extra
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let working_set_block = working_set_block
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    match (extra, working_set_block) {
+        (Some(extra), Some(working_set_block)) => {
+            let mut merged = extra;
+            merged.push_str("\n\n");
+            merged.push_str(&working_set_block);
+            Some(merged)
+        }
+        (Some(extra), None) => Some(extra),
+        (None, Some(working_set_block)) => Some(working_set_block),
+        (None, None) => None,
     }
 }
 

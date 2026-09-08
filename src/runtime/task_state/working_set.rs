@@ -1,10 +1,12 @@
-//! Durable working-set record (ADR-051 Batch 1).
+//! Durable working-set record (ADR-051).
 //!
 //! The condenser is the sole writer. Persist path:
 //! `.vex/state/{task_id}.working-set.json` via [`crate::util::write_json_safe`].
 //! Schema is derived with `schemars::schema_for!` (`docs.rs/schemars`).
+//! `as_prompt_block` is the serialized form copied onto
+//! `ApiClient::set_supplementary_system_prompt` for the next request.
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -88,6 +90,86 @@ impl WorkingSetRecord {
         })?;
         Ok(record)
     }
+
+    pub fn load_from_search_dirs_from(working_dir: &Path, task_id: &str) -> Result<Self> {
+        for dir in super::TaskState::state_search_dirs_from(working_dir) {
+            if working_set_path(&dir, task_id).is_file() {
+                return Self::load(&dir, task_id);
+            }
+        }
+        Err(anyhow!(
+            "working-set record for '{task_id}' not found in state search dirs"
+        ))
+    }
+
+    /// Serialized record copied onto the next request's system prompt.
+    /// Field labels match the `serde` `snake_case` names on this type.
+    pub fn as_prompt_block(&self) -> String {
+        let mut out = String::from("[working-set record: start]\n");
+        push_labeled_line(&mut out, "objective", &self.objective);
+        push_string_list(&mut out, "constraints", &self.constraints);
+        if !self.decisions.is_empty() {
+            out.push_str("decisions:\n");
+            for decision in &self.decisions {
+                out.push_str("- ");
+                out.push_str(decision.rationale.trim());
+                if !decision.source_reference.trim().is_empty() {
+                    out.push_str(" (");
+                    out.push_str(decision.source_reference.trim());
+                    out.push(')');
+                }
+                out.push('\n');
+            }
+        }
+        if !self.changed_paths.is_empty() {
+            out.push_str("changed_paths:\n");
+            for change in &self.changed_paths {
+                out.push_str("- ");
+                out.push_str(&change.path.display().to_string());
+                if !change.git_identity.trim().is_empty() {
+                    out.push_str(" (");
+                    out.push_str(change.git_identity.trim());
+                    out.push(')');
+                }
+                out.push('\n');
+            }
+        }
+        push_string_list(&mut out, "verified_results", &self.verified_results);
+        push_string_list(&mut out, "unresolved_questions", &self.unresolved_questions);
+        push_labeled_line(&mut out, "active_plan", &self.active_plan);
+        push_labeled_line(&mut out, "next_action", &self.next_action);
+        out.push_str("[working-set record: end]");
+        out
+    }
+}
+
+fn push_labeled_line(out: &mut String, label: &str, value: &str) {
+    let value = value.trim();
+    if value.is_empty() {
+        return;
+    }
+    out.push_str(label);
+    out.push_str(": ");
+    out.push_str(value);
+    out.push('\n');
+}
+
+fn push_string_list(out: &mut String, label: &str, values: &[String]) {
+    let values: Vec<&str> = values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .collect();
+    if values.is_empty() {
+        return;
+    }
+    out.push_str(label);
+    out.push_str(":\n");
+    for value in values {
+        out.push_str("- ");
+        out.push_str(value);
+        out.push('\n');
+    }
 }
 
 /// Pretty JSON Schema generated from the Rust type. Used by the drift test.
@@ -161,5 +243,21 @@ mod tests {
         assert_eq!(path, PathBuf::from(".vex/state/task-9.working-set.json"));
         assert!(is_working_set_filename("task-9.working-set.json"));
         assert!(!is_working_set_filename("task-9.json"));
+    }
+
+    #[test]
+    fn as_prompt_block_uses_serde_field_names() {
+        let block = sample_record().as_prompt_block();
+        assert!(block.starts_with("[working-set record: start]\n"));
+        assert!(block.contains("objective: persist the working-set record"));
+        assert!(block.contains("constraints:\n- local inspectable file"));
+        assert!(block.contains(
+            "decisions:\n- derive schema from the Rust type (src/runtime/task_state/working_set.rs:1)"
+        ));
+        assert!(
+            block.contains("changed_paths:\n- src/runtime/token_count.rs (token-count-batch1)")
+        );
+        assert!(block.contains("next_action: load WorkingSetRecord on /resume"));
+        assert!(block.ends_with("[working-set record: end]"));
     }
 }

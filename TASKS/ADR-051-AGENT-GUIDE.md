@@ -1,6 +1,6 @@
 # ADR-051 Agent Implementation Guide: Context Continuity
 
-This document details the active work for **ADR-051: Durable Working-Set Record and Context Continuity**. It serves as the authoritative guide for agents and contributors to understand the insertions, removals, net changes, and the researched API/crate reasoning driving this architectural shift.
+This document details the active work for **ADR-051: Durable Working-Set Record and Context Continuity**. It serves as the authoritative guide for agents and contributors to understand the retained, superseded, and added APIs, and the researched crate reasoning driving this architectural shift.
 
 ## 1. Active Work Overview
 
@@ -19,17 +19,17 @@ When working on any phase of ADR-051, agents must consult:
    - `loro` (docs.rs/loro) for `LoroDoc`, `VersionVector`, and causal merge semantics.
 3. **The Active Roadmap:** `TASKS/ACTIVE-ROADMAP.md` (Tier 14) for phase dependencies.
 
-## 3. Net Changes Matrix (Insertions, Removals, Additions)
+## 3. Net Changes Matrix (Retained / Superseded / Added APIs)
 
-This matrix defines exactly what code is being removed, what is staying, and what is being added.
+This matrix names the APIs each batch retains, supersedes, and adds.
 
-| Component | What Stays | What is Removed (Faulty Code) | Net Change (Additions) |
+| Component | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| **Working-set restore on `/resume`** | `task_state_bridge.rs` TUI snapshot projection for UI surface. | `reset_conversation_window` in `pulse.rs` that dropped `ApiMessage` history. | Injection of serialized `WorkingSetRecord` block into the system prompt on `/resume`. |
-| **Compaction** | Append-only `ApiMessage` log and bounded excerpts. | `history.rs` byte-division heuristic (`len/4`) and `user`-first-line summarizer. | Accurate BPE token counting via `tiktoken` + deterministic local fallback via the `WorkingSetRecord`. |
+| **Working-set restore on `/resume`** | `task_state_bridge.rs` TUI snapshot projection (`TaskDocumentCondenser::restore_from_snapshot`). | `reset_conversation_window` in `pulse.rs` calling `ConversationManager::clear_messages` (`api_messages.clear()`) with no continuity source. | `WorkingSetRecord::load` / `as_prompt_block` copied onto `ApiClient::set_supplementary_system_prompt` via `ConversationManager::seed_from_working_set`. |
+| **Compaction** | Append-only `ApiMessage` log and bounded excerpts. `ContextCompactionRecord`. | `handle_compact_command` calling `reset_conversation_window` after `completed_turns.clear()`. | `TaskDocumentCondenser::write_working_set` before pulse clear; next request uses `WorkingSetRecord::as_prompt_block`. |
 | **Instructions** | `project_instructions.rs` file discovery logic. | First-file-only loader that returned `OverBudget` and failed closed. | Root-to-leaf directory walk using `std::fs` with manifest recording for skipped files. |
-| **Memory / Notes** | The `notes_path` configuration and disk storage. | Flat file all-or-nothing injection that hit a silent budget cliff. | Typed `MemoryCandidate` struct with `provenance`, `topic`, and `status` (pending/accepted). |
-| **Peer Channel** | `peer_channel.rs` facade validation and ADR-046 routes. | Free-text summary concatenation on subagent `join`. | CRDT-based state-merge protocol via `loro` (supersession cursors, evidence links). |
+| **Memory / Notes** | The `notes_path` configuration and disk storage. | Flat file all-or-nothing copy into the prompt that hit a silent budget cliff. | Typed `MemoryCandidate` struct with `provenance`, `topic`, and `status` (pending/accepted). |
+| **Peer Channel** | `peer_channel.rs` facade validation and ADR-046 routes. | Free-text summary concatenation on subagent `join`. | CRDT-based state-merge protocol via `loro` (supersession cursors, evidence links). Later batch. |
 | **Schema Validation** | `serde_json` persistence. | Ad-hoc, untyped JSON serialization for task state extensions. | `schemars` `#[derive(JsonSchema)]` with a CI schema-diff guard. |
 
 ## 4. Architectural Reasoning (Pros & Cons based on API Research)
@@ -60,6 +60,6 @@ The decisions in ADR-051 are directly informed by researching managed provider A
 To ensure CI remains green and changes are reviewable, ADR-051 is strictly divided into 5 PR batches. **Do not combine these phases into a single PR.**
 
 1.  **Batch 1 (PR #444, merged):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
-2.  **Batch 2 (this PR):** Hierarchical Instructions & Memory Candidates.
-3.  **Batch 3 (PR 3):** Seed the next request from `WorkingSetRecord` on `/resume` and `/compact` (removing `reset_conversation_window`).
+2.  **Batch 2 (PR #445, merged):** Hierarchical Instructions & Memory Candidates.
+3.  **Batch 3 (this PR):** Seed the next request from `WorkingSetRecord` on `/resume` and `/compact` (`reset_conversation_window` is no longer called on those paths).
 4.  **Batch 4 (PR 4):** Peer Channel CRDT Migration (`loro`).

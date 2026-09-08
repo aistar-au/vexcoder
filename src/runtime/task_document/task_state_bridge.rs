@@ -1,8 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
 
 use crate::pulse_evidence::{ToolInvocationSummary, TurnEvidenceState};
 use crate::runtime::ModelBackendKind;
-use crate::runtime::task_state::{CacheUsageStats, ConversationCheckpoint, TaskState};
+use crate::runtime::task_state::{
+    CacheUsageStats, ConversationCheckpoint, PathChange, TaskState, WorkingSetRecord,
+};
 use crate::state::ToolStatus;
 
 use super::{
@@ -116,6 +119,115 @@ impl TaskDocumentCondenser {
             last_error: None,
         }
     }
+
+    /// Project the live task document into a `WorkingSetRecord`.
+    /// The condenser is the sole writer of that sidecar.
+    pub fn project_working_set(&self, doc: &TaskDocument) -> WorkingSetRecord {
+        let mut record = WorkingSetRecord::new(first_user_input(doc));
+        record.constraints = doc
+            .session_notes
+            .iter()
+            .map(|note| note.content.trim().to_string())
+            .filter(|content| !content.is_empty())
+            .collect();
+        record.changed_paths = unique_changed_paths(doc);
+        record.verified_results = verified_results(doc);
+        record.active_plan = active_plan(doc);
+        record.next_action = last_user_input(doc);
+        record
+    }
+
+    pub fn write_working_set(
+        &self,
+        doc: &TaskDocument,
+        dir: &Path,
+    ) -> anyhow::Result<WorkingSetRecord> {
+        let record = self.project_working_set(doc);
+        record.save(dir, &doc.info.id)?;
+        Ok(record)
+    }
+}
+
+fn first_user_input(doc: &TaskDocument) -> String {
+    doc.completed_turns
+        .iter()
+        .map(|pulse| pulse.input.trim())
+        .find(|input| !input.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| nonempty_active_input(doc))
+        .unwrap_or_default()
+}
+
+fn last_user_input(doc: &TaskDocument) -> String {
+    nonempty_active_input(doc)
+        .or_else(|| {
+            doc.completed_turns
+                .iter()
+                .rev()
+                .map(|pulse| pulse.input.trim())
+                .find(|input| !input.is_empty())
+                .map(ToString::to_string)
+        })
+        .unwrap_or_default()
+}
+
+fn nonempty_active_input(doc: &TaskDocument) -> Option<String> {
+    doc.active_pulse.as_ref().and_then(|pulse| {
+        let input = pulse.input.trim();
+        (!input.is_empty()).then(|| input.to_string())
+    })
+}
+
+fn unique_changed_paths(doc: &TaskDocument) -> Vec<PathChange> {
+    let mut by_path = BTreeMap::new();
+    for pulse in &doc.completed_turns {
+        for path in &pulse.changed_files {
+            let path = PathBuf::from(path);
+            by_path.entry(path).or_default();
+        }
+    }
+    if let Some(active) = &doc.active_pulse {
+        for path in &active.changed_files {
+            let path = PathBuf::from(path);
+            by_path.entry(path).or_default();
+        }
+    }
+    by_path
+        .into_iter()
+        .map(|(path, git_identity)| PathChange { path, git_identity })
+        .collect()
+}
+
+fn verified_results(doc: &TaskDocument) -> Vec<String> {
+    let mut results = Vec::new();
+    for pulse in &doc.completed_turns {
+        let text = extract_final_text(&pulse.entries);
+        if !text.trim().is_empty() {
+            results.push(text);
+        }
+    }
+    if let Some(active) = &doc.active_pulse {
+        let text = extract_final_text(&active.entries);
+        if !text.trim().is_empty() {
+            results.push(text);
+        }
+    }
+    results
+}
+
+fn active_plan(doc: &TaskDocument) -> String {
+    doc.session_notes
+        .iter()
+        .rev()
+        .find_map(|note| {
+            note.content
+                .trim()
+                .strip_prefix("[plan]")
+                .map(|plan| plan.trim().to_string())
+                .filter(|plan| !plan.is_empty())
+        })
+        .or_else(|| verified_results(doc).into_iter().next_back())
+        .unwrap_or_default()
 }
 
 fn extract_final_text(entries: &[PulseEntry]) -> String {

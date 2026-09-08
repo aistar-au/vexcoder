@@ -5,7 +5,7 @@ use crate::runtime::ConfiguredSandbox;
 use crate::runtime::json_handoff::RuntimeSignal;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_document::{PulseOutcome, TaskDocument, TaskDocumentCondenser, TaskInfo};
-use crate::runtime::task_state::TaskStatus;
+use crate::runtime::task_state::{TaskStatus, WorkingSetRecord};
 use crate::runtime::{ModelBackendKind, TaskMutationSummary};
 use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
@@ -102,6 +102,7 @@ pub struct ConversationManager {
     pub(super) max_undo_checkpoints: usize,
     pub(super) undo_enabled: bool,
     pub(super) compaction_config: CompactionConfig,
+    pub(super) working_set: Option<WorkingSetRecord>,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 }
@@ -145,6 +146,7 @@ impl ConversationManager {
             max_undo_checkpoints: 20,
             undo_enabled: true,
             compaction_config: CompactionConfig::default(),
+            working_set: None,
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -230,6 +232,7 @@ impl ConversationManager {
             max_undo_checkpoints: 20,
             undo_enabled: true,
             compaction_config: CompactionConfig::default(),
+            working_set: None,
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
     }
@@ -264,6 +267,21 @@ impl ConversationManager {
         self.tool_call_started_at.clear();
         self.last_turn_tokens = PulseTokens::default();
         self.read_file_history_cache = ReadFileRollupCache::default();
+        self.working_set = None;
+        self.client.set_supplementary_system_prompt(None);
+    }
+
+    pub fn seed_from_working_set(&mut self, record: WorkingSetRecord) {
+        self.clear_messages();
+        let block = record.as_prompt_block();
+        self.working_set = Some(record);
+        self.client.set_supplementary_system_prompt(Some(block));
+    }
+
+    pub(crate) fn working_set_prompt_block(&self) -> Option<String> {
+        self.working_set
+            .as_ref()
+            .map(WorkingSetRecord::as_prompt_block)
     }
 
     pub fn model_name(&self) -> String {

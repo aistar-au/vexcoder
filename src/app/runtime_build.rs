@@ -37,5 +37,10 @@ pub fn build_runtime_with_resume(
     runtime
         .mode
         .push_history_line(format!("[resumed: {restored_id} status={status}]"));
+    if let Ok(record) =
+        WorkingSetRecord::load_from_search_dirs_from(&runtime.mode.working_dir, &restored_id)
+    {
+        ctx.seed_from_working_set(record);
+    }
     Ok((runtime, ctx))
 }

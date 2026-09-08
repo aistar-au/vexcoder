@@ -301,6 +301,8 @@ impl TuiMode {
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
 
+        let written = self.write_working_set_sidecar();
+
         self.task_doc
             .context_compaction
             .push(ContextCompactionRecord {
@@ -312,7 +314,12 @@ impl TuiMode {
 
         self.task_doc.completed_turns.clear();
         self.persist_task_document();
-        self.reset_conversation_window(ctx);
+        if let Some(record) = written {
+            ctx.seed_from_working_set(record);
+        } else {
+            ctx.clear_conversation();
+        }
+        self.reset_session_surface();
         self.push_history_line(format!(
             "[compacted: {turns_before} pulse(s) cleared; task {task_id} continues]"
         ));

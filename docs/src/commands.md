@@ -162,8 +162,8 @@ Commands entered inside the interactive UI start with `/`.
 ### Session and task state
 
 - `/new` — save the current task and start a fresh session with a new task ID.
-- `/resume [task-id]` — restore a previously saved task. Lists recent tasks when no ID is given.
-- `/compact` — reset conversation history, pulse evidence, and token counters while keeping the current task ID and permission grants. Use this to recover from context-window overflow or to free up context budget.
+- `/resume [task-id]` — restore a previously saved task and seed the next request from `WorkingSetRecord` via `ApiClient::set_supplementary_system_prompt`. Lists recent tasks when no ID is given.
+- `/compact` — `TaskDocumentCondenser::write_working_set` persists `.vex/state/{task_id}.working-set.json` from completed pulses, then clears pulse evidence and the live `ApiMessage` window and copies `WorkingSetRecord::as_prompt_block` onto the next request. Task id and permission grants are unchanged. Use this to recover from context-window overflow or to free context budget.
 - `/fork [label]` — save the current task and start a new task seeded with the same grants.
 - `/undo` — revert the last file-modifying tool call from the in-memory checkpoint stack. Binary-safe: restores raw bytes for text and binary files and removes rename destinations when applicable. Returns a diagnostic when the stack is empty or when undo is disabled via `[undo] enabled = false`.
 - `/quit` / `/exit` — end the session.
