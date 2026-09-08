@@ -88,7 +88,7 @@
           "type": "string"
         },
         "source_reference": {
-          "description": "File location or a peer-channel message id.",
+          "description": "File location or a join-index message id.",
           "type": "string"
         }
       },
