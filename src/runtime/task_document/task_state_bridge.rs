@@ -142,7 +142,14 @@ impl TaskDocumentCondenser {
         doc: &TaskDocument,
         dir: &Path,
     ) -> anyhow::Result<WorkingSetRecord> {
-        let record = self.project_working_set(doc);
+        let mut record = self.project_working_set(doc);
+        match WorkingSetRecord::try_load(dir, &doc.info.id) {
+            Ok(Some(prior)) => record.retain_durable_objective(&prior),
+            Ok(None) => {}
+            Err(error) => {
+                eprintln!("[state] working-set prior load failed: {error}");
+            }
+        }
         record.save(dir, &doc.info.id)?;
         Ok(record)
     }

@@ -118,3 +118,58 @@ fn compact_writes_working_set_before_clearing_pulses() {
 
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
+
+#[test]
+fn compact_retains_objective_across_later_writes() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
+
+    let mut mode = TuiMode::new();
+    let task_id = mode.current_task_id();
+    mode.task_doc.completed_turns.push(completed_turn(
+        "original durable objective",
+        "first window result",
+        "src/app/pulse.rs",
+    ));
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/compact".to_string(), &mut ctx);
+    assert!(mode.task_doc.completed_turns.is_empty());
+
+    mode.task_doc.completed_turns.push(completed_turn(
+        "post-compact unrelated input",
+        "second window result",
+        "src/app/commands/session.rs",
+    ));
+    mode.on_user_input("/compact".to_string(), &mut ctx);
+
+    let loaded = WorkingSetRecord::load(temp.path(), &task_id).expect("working-set sidecar");
+    assert_eq!(
+        loaded.objective, "original durable objective",
+        "objective is write-once; later compact windows must not overwrite it"
+    );
+    assert_eq!(loaded.next_action, "post-compact unrelated input");
+    assert!(
+        loaded
+            .verified_results
+            .iter()
+            .any(|result| result.contains("second window result")),
+        "episodic verified_results still come from the current window; got {:?}",
+        loaded.verified_results
+    );
+    assert!(
+        loaded
+            .changed_paths
+            .iter()
+            .any(|change| change.path.ends_with("src/app/commands/session.rs")),
+        "episodic changed_paths still come from the current window; got {:?}",
+        loaded.changed_paths
+    );
+    let prompt = ctx
+        .test_system_prompt_try_lock()
+        .expect("conversation lock");
+    assert!(prompt.contains("original durable objective"));
+    assert!(prompt.contains("post-compact unrelated input"));
+
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+}

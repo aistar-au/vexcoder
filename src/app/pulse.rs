@@ -44,11 +44,29 @@ impl TuiMode {
         ctx: &RuntimeContext,
         task_id: &str,
     ) {
-        match WorkingSetRecord::load_from_search_dirs_from(&self.working_dir, task_id) {
-            Ok(record) => ctx.seed_from_working_set(record),
-            Err(_) => ctx.clear_conversation(),
-        }
+        let load_error =
+            match WorkingSetRecord::try_load_from_search_dirs_from(&self.working_dir, task_id) {
+                Ok(Some(record)) => {
+                    ctx.seed_from_working_set(record);
+                    None
+                }
+                Ok(None) => {
+                    ctx.clear_conversation();
+                    None
+                }
+                Err(error) => {
+                    eprintln!("[state] working-set load failed: {error}");
+                    ctx.clear_conversation();
+                    Some(error)
+                }
+            };
         self.reset_session_surface();
+        if let Some(error) = load_error {
+            self.push_document_notice(
+                format!("[resume] working-set load failed: {error}"),
+                crate::runtime::NoticeSeverity::Warning,
+            );
+        }
     }
 
     pub(super) fn write_working_set_sidecar(&mut self) -> Option<WorkingSetRecord> {

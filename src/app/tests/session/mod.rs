@@ -118,6 +118,50 @@ fn resume_injects_working_set_into_next_request() {
 }
 
 #[test]
+fn resume_surfaces_corrupt_working_set_without_dropping_task() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
+
+    let mut state = TaskState::new("resume-ws-corrupt".to_string());
+    state.status = crate::runtime::TaskStatus::Running;
+    state.save(temp.path()).unwrap();
+    std::fs::write(
+        temp.path().join("resume-ws-corrupt.working-set.json"),
+        "{not-valid-json",
+    )
+    .unwrap();
+
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/resume resume-ws-corrupt".to_string(), &mut ctx);
+    assert_eq!(mode.current_task_id(), "resume-ws-corrupt");
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("working-set load failed")),
+        "deserialize failure must be visible; lines: {:?}",
+        mode.history_lines()
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[resumed: resume-ws-corrupt")),
+        "TUI snapshot restore must still run; lines: {:?}",
+        mode.history_lines()
+    );
+    let prompt = ctx
+        .test_system_prompt_try_lock()
+        .expect("conversation lock");
+    assert!(
+        !prompt.contains("[working-set record: start]"),
+        "corrupt sidecar must not seed the next request; got {prompt}"
+    );
+
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+}
+
+#[test]
 fn quit_command_requests_quit() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();

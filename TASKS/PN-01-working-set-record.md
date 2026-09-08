@@ -68,7 +68,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 | `/compact` | `ContextCompactionRecord` append, `completed_turns.clear()`, `persist_task_document`, task id and grants | `handle_compact_command` calling `reset_conversation_window` after clearing pulses, so the next request has an empty `ApiMessage` window | `TaskDocumentCondenser::write_working_set` before `completed_turns.clear()`; then `seed_from_working_set` so the next request carries the sidecar |
 | Conversation window | `reset_conversation_window` on `/new` and `/fork` | Using that helper as the `/resume` and `/compact` path | `TuiMode::reset_session_surface` for TUI chrome; `/resume` and `/compact` no longer call `reset_conversation_window` |
 | Next request assembly | `RuntimeContext::start_turn_with_system_prompt` / `set_runtime_prompt` | Passing `None` and overwriting a previously set supplementary prompt | `set_runtime_prompt` merges `ConversationManager::working_set_prompt_block` with any extra coding prompt |
-| Condenser write | `TaskDocumentCondenser::persistable_snapshot` for `{id}.json` | No writer for `{id}.working-set.json` at compact/turn-complete | `project_working_set` / `write_working_set` (sole writer) on compact (before pulse clear) and on `commit_completed_turn` |
+| Condenser write | `TaskDocumentCondenser::persistable_snapshot` for `{id}.json` | No writer for `{id}.working-set.json` at compact/turn-complete | `project_working_set` / `write_working_set` (sole writer) on compact (before pulse clear) and on `commit_completed_turn`. `objective` is write-once via `WorkingSetRecord::retain_durable_objective` against `try_load`; episodic fields still come from the current pulse window |
 
 ### Files
 
@@ -79,8 +79,11 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 - `resume_injects_working_set_into_next_request`
 - `compact_writes_working_set_before_clearing_pulses`
+- `write_working_set_keeps_prior_objective`
+- `compact_retains_objective_across_later_writes`
+- `resume_surfaces_corrupt_working_set_without_dropping_task`
 
-Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `WorkingSetRecord::{save,load,as_prompt_block}`; `TaskDocumentCondenser::{project_working_set,write_working_set}`; `ConversationManager::{clear_messages,seed_from_working_set}`.
+Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `WorkingSetRecord::{save,load,try_load,try_load_from_search_dirs_from,as_prompt_block,retain_durable_objective}`; `TaskDocumentCondenser::{project_working_set,write_working_set}`; `ConversationManager::{clear_messages,seed_from_working_set}`.
 
 
 ## Phase 3 — hierarchical instruction loading

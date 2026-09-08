@@ -91,15 +91,46 @@ impl WorkingSetRecord {
         Ok(record)
     }
 
+    /// `Ok(None)` when the sidecar is absent. `Err` when a file exists but
+    /// durable-access, read, or `serde_json` deserialize fails.
+    pub fn try_load(dir: &Path, task_id: &str) -> Result<Option<Self>> {
+        if !working_set_path(dir, task_id).is_file() {
+            return Ok(None);
+        }
+        Self::load(dir, task_id).map(Some)
+    }
+
     pub fn load_from_search_dirs_from(working_dir: &Path, task_id: &str) -> Result<Self> {
+        match Self::try_load_from_search_dirs_from(working_dir, task_id)? {
+            Some(record) => Ok(record),
+            None => Err(anyhow!(
+                "working-set record for '{task_id}' not found in state search dirs"
+            )),
+        }
+    }
+
+    /// Walks `TaskState::state_search_dirs_from`. Missing sidecar is `Ok(None)`;
+    /// a present file that fails to load is `Err`.
+    pub fn try_load_from_search_dirs_from(
+        working_dir: &Path,
+        task_id: &str,
+    ) -> Result<Option<Self>> {
         for dir in super::TaskState::state_search_dirs_from(working_dir) {
             if working_set_path(&dir, task_id).is_file() {
-                return Self::load(&dir, task_id);
+                return Self::load(&dir, task_id).map(Some);
             }
         }
-        Err(anyhow!(
-            "working-set record for '{task_id}' not found in state search dirs"
-        ))
+        Ok(None)
+    }
+
+    /// `objective` is the durable once-set anchor. Later condenser writes keep
+    /// the first non-empty value. Episodic fields (`verified_results`,
+    /// `changed_paths`) still come from the current pulse window.
+    pub fn retain_durable_objective(&mut self, prior: &WorkingSetRecord) {
+        let prior_objective = prior.objective.trim();
+        if !prior_objective.is_empty() {
+            self.objective = prior.objective.clone();
+        }
     }
 
     /// Serialized record copied onto the next request's system prompt.
@@ -259,5 +290,39 @@ mod tests {
         );
         assert!(block.contains("next_action: load WorkingSetRecord on /resume"));
         assert!(block.ends_with("[working-set record: end]"));
+    }
+
+    #[test]
+    fn try_load_returns_none_when_sidecar_is_absent() {
+        let dir = TempDir::new().unwrap();
+        let loaded = WorkingSetRecord::try_load(dir.path(), "missing-task").expect("absent is ok");
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn try_load_errors_when_sidecar_fails_to_deserialize() {
+        let dir = TempDir::new().unwrap();
+        let path = working_set_path(dir.path(), "corrupt-task");
+        std::fs::write(&path, "{not-valid-json").unwrap();
+        let err = WorkingSetRecord::try_load(dir.path(), "corrupt-task")
+            .expect_err("corrupt sidecar is Err, not Ok(None)");
+        let message = err.to_string();
+        assert!(
+            message.contains("deserialize"),
+            "error must name deserialize failure; got {message}"
+        );
+    }
+
+    #[test]
+    fn retain_durable_objective_keeps_first_non_empty_value() {
+        let mut later = WorkingSetRecord::new("post-compact unrelated input");
+        let prior = WorkingSetRecord::new("original durable objective");
+        later.retain_durable_objective(&prior);
+        assert_eq!(later.objective, "original durable objective");
+
+        let mut first = WorkingSetRecord::new("first window objective");
+        let empty_prior = WorkingSetRecord::new("");
+        first.retain_durable_objective(&empty_prior);
+        assert_eq!(first.objective, "first window objective");
     }
 }

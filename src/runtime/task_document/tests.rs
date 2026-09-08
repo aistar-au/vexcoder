@@ -93,3 +93,47 @@ fn project_working_set_copies_pulse_fields() {
         vec!["verified projection".to_string()]
     );
 }
+
+#[test]
+fn write_working_set_keeps_prior_objective() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
+    condenser.begin_turn(
+        &mut doc,
+        "original durable objective".to_string(),
+        2000,
+        PulseToolPolicy::Default,
+    );
+    condenser.finish_turn(
+        &mut doc,
+        PulseOutcome::Completed,
+        PulseTokens::default(),
+        3000,
+    );
+    condenser
+        .write_working_set(&doc, dir.path())
+        .expect("first write");
+
+    doc.completed_turns.clear();
+    condenser.begin_turn(
+        &mut doc,
+        "post-compact unrelated input".to_string(),
+        4000,
+        PulseToolPolicy::Default,
+    );
+    condenser.finish_turn(
+        &mut doc,
+        PulseOutcome::Completed,
+        PulseTokens::default(),
+        5000,
+    );
+    let written = condenser
+        .write_working_set(&doc, dir.path())
+        .expect("second write");
+    assert_eq!(written.objective, "original durable objective");
+    assert_eq!(written.next_action, "post-compact unrelated input");
+    let loaded =
+        crate::runtime::WorkingSetRecord::load(dir.path(), &doc.info.id).expect("reload sidecar");
+    assert_eq!(loaded.objective, "original durable objective");
+}
