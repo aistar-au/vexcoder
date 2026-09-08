@@ -10,13 +10,17 @@ use crate::runtime::{ApprovalScope, Capability};
 pub(crate) mod header_cache;
 #[cfg(test)]
 pub(crate) mod lazy_task_handle;
+pub(crate) mod envelope;
+pub(crate) mod join_index;
 pub(crate) mod peer_channel;
-pub(crate) mod peer_merge;
 mod persist;
 pub(crate) mod task_header;
 pub(crate) mod working_set;
 
-pub use peer_merge::{LivePeerEntry, PeerMergeDoc, peer_id_from_task, peer_merge_path};
+pub use envelope::{STATE_ENVELOPE_SCHEMA_VERSION, StateEnvelope, StateRefs};
+pub use join_index::{
+    JOIN_INDEX_SCHEMA_VERSION, JoinIndex, LiveJoinEntry, LivePeerEntry, join_index_path,
+};
 pub use persist::TaskStateFile;
 pub use working_set::{
     PathChange, RecordedDecision, WORKING_SET_SCHEMA_VERSION, WorkingSetRecord, working_set_path,

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
 use crate::runtime::{
-    LivePeerEntry, PeerMergeDoc, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
+    JoinIndex, LivePeerEntry, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
     WorktreeLeaseManager,
 };
 
@@ -211,14 +211,14 @@ impl SubtaskOrchestrator {
         if outcome.summaries.is_empty() {
             return Ok(Vec::new());
         }
-        let merge = PeerMergeDoc::load_or_new(&self.state_dir, parent_task_id)?;
+        let mut merge = JoinIndex::load_or_new(&self.state_dir, parent_task_id)?;
         for summary in &outcome.summaries {
             merge.post(
                 &summary.message_id,
                 &summary.agent_id,
                 &summary.summary,
                 &summary.supersedes,
-            )?;
+            );
         }
         merge.save(&self.state_dir, parent_task_id)?;
         let live = merge.live_entries();
@@ -268,10 +268,6 @@ fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentPro
         .ok_or_else(|| anyhow!("agent '{}' not found in provided agent list", name))
 }
 
-/// Production supersession: spawn-declared ids plus same-agent earlier
-/// completed tasks. Sequential continuation is stamped at spawn
-/// (`stamp_join_supersedes`); poll still unions same-agent priors so a
-/// retry that skipped the stamp is not concatenated.
 fn production_supersedes(task: &SessionTask, all: &[SessionTask]) -> Vec<String> {
     let mut ids = task.supersedes.clone();
     let Some(index) = all.iter().position(|candidate| candidate.id == task.id) else {
