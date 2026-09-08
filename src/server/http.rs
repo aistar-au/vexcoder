@@ -30,7 +30,7 @@ use super::handlers::{
     list_todos_handler, post_peer_message_handler, privacy_handler, projection_handler,
     read_peer_messages_handler, release_session_task_handler, schedule_team_handler,
     schema_handler, task_graph_handler, turns_handler, update_session_task_status_handler,
-    watch_handler, watch_session_task_handler,
+    watch_handler, watch_session_task_handler, working_set_handler,
 };
 use super::util::ProblemDetailsResponse;
 use super::{HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
@@ -67,6 +67,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
             post(schedule_team_handler),
         )
         .route("/v1/tasks/{task_id}/join-status", get(join_status_handler))
+        .route("/v1/tasks/{task_id}/working-set", get(working_set_handler))
         .route("/v1/tasks", get(list_tasks_handler))
         .route("/v1/session-tasks", get(list_session_tasks_handler))
         .route("/v1/session-tasks/{id}", get(get_session_task_handler))
