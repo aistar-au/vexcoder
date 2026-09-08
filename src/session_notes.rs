@@ -80,7 +80,7 @@ pub fn resolve_notes_for_injection(
         return (None, None);
     }
 
-    let estimated_tokens = trimmed.len().saturating_add(3) / 4;
+    let estimated_tokens = crate::runtime::token_count::token_count(trimmed);
     if estimated_tokens > token_budget {
         return (
             None,
@@ -157,7 +157,11 @@ mod tests {
     fn test_resolve_notes_for_injection_uses_passed_budget() {
         let temp = tempfile::tempdir().unwrap();
         let notes_path = temp.path().join("memory.md");
-        std::fs::write(&notes_path, "12345").unwrap();
+        std::fs::write(
+            &notes_path,
+            "a much longer notes body that exceeds a one-token budget under BPE counting",
+        )
+        .unwrap();
 
         let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()), 1);
 

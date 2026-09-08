@@ -125,7 +125,7 @@ globset = "0.4"
 pathdiff = "0.2"
 dunce = "1"
 base64 = "0.22"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 indexmap = { version = "2", features = ["serde"] }
 tower-http = { version = "0.6", default-features = false, features = [
   "request-id",
@@ -174,6 +174,8 @@ tower = "0.5"
 pretty_assertions = "1"
 assert_cmd = "2"
 rstest = "0.26"
+tiktoken = { version = "4", default-features = false, features = ["vocab-o200k_base"] }
+schemars = { version = "1", features = ["chrono04"] }
 
 [workspace.metadata.upgrade-seams]
 ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
@@ -257,6 +259,8 @@ gix = ["src/runtime/git_rollup.rs"]
 gix-discover = ["src/runtime/git_rollup.rs"]
 gix-config = ["src/runtime/git_rollup.rs"]
 gix-index = ["src/runtime/git_rollup.rs"]
+tiktoken = ["src/runtime/token_count.rs"]
+schemars = ["src/runtime/task_state/working_set.rs"]
 git2 = ["src/tools/operator/git_ops.rs"]
 
 [workspace.metadata.upgrade-notes]
@@ -367,6 +371,8 @@ pathdiff.workspace = true
 dunce.workspace = true
 base64.workspace = true
 chrono.workspace = true
+tiktoken.workspace = true
+schemars.workspace = true
 
 indexmap.workspace = true
 tower-http.workspace = true

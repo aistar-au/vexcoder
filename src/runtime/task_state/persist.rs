@@ -79,6 +79,12 @@ fn visit_state_files_in_dir(dir: &Path, mut visit: impl FnMut(TaskStateFile)) {
         if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
             continue;
         }
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if super::working_set::is_working_set_filename(file_name) {
+            continue;
+        }
         let Some(id) = path
             .file_stem()
             .and_then(|stem| stem.to_str())
@@ -788,5 +794,28 @@ mod tests {
         let files = TaskState::state_files_from_with_limit(&nested, Some(1));
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].dir, legacy_state_dir);
+    }
+
+    #[test]
+    fn state_files_skip_working_set_sidecar() {
+        let _guard = ENV_LOCK.blocking_lock();
+        let dir = TempDir::new().unwrap();
+        let state_dir = dir.path().join(".vex/state");
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        TaskState::new("task-keep".to_string())
+            .save(&state_dir)
+            .unwrap();
+        crate::runtime::task_state::WorkingSetRecord::new("sidecar")
+            .save(&state_dir, "task-keep")
+            .unwrap();
+
+        crate::test_support::test_set_var(&_guard, "VEX_STATE_DIR", state_dir.to_str().unwrap());
+        let files = TaskState::state_files_from(dir.path());
+        crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].id, "task-keep");
+        assert!(super::super::working_set::working_set_path(&state_dir, "task-keep").is_file());
     }
 }

@@ -13,8 +13,12 @@ pub(crate) mod lazy_task_handle;
 pub(crate) mod peer_channel;
 mod persist;
 pub(crate) mod task_header;
+pub(crate) mod working_set;
 
 pub use persist::TaskStateFile;
+pub use working_set::{
+    PathChange, RecordedDecision, WORKING_SET_SCHEMA_VERSION, WorkingSetRecord, working_set_path,
+};
 
 pub type TaskId = String;
 

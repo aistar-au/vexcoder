@@ -22,6 +22,7 @@ pub mod session_task;
 pub mod task_document;
 pub mod task_state;
 pub mod text_util;
+pub mod token_count;
 pub mod tokio;
 pub mod update;
 pub mod validation;
@@ -71,7 +72,8 @@ pub use task_document::{
 };
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
-    InterruptedCommand, SessionNote, TaskId, TaskState, TaskStatus,
+    InterruptedCommand, PathChange, RecordedDecision, SessionNote, TaskId, TaskState, TaskStatus,
+    WorkingSetRecord,
 };
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;

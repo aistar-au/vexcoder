@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 const SEARCH_PATHS: &[&str] = &[".vex/AGENTS.md", "AGENTS.md", ".vex/PROJECT.md"];
 
 fn estimate_tokens(content: &str) -> usize {
-    (content.len() / 4).max(1)
+    crate::runtime::token_count::token_count(content)
 }
 
 pub struct ProjectInstructions {
@@ -63,9 +63,13 @@ mod tests {
     #[test]
     fn test_over_budget_is_skipped() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("AGENTS.md"), "x".repeat(4096 * 5)).unwrap();
+        fs::write(
+            dir.path().join("AGENTS.md"),
+            "distinct-token-alpha distinct-token-beta distinct-token-gamma",
+        )
+        .unwrap();
         assert!(matches!(
-            load_project_instructions(dir.path(), 4096),
+            load_project_instructions(dir.path(), 1),
             LoadResult::OverBudget { .. }
         ));
     }
