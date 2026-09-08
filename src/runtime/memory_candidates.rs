@@ -469,5 +469,9 @@ mod tests {
             expected, generated,
             "schemas/memory_candidates.schema.json drifted from schema_for!(MemoryCandidateStore); rerun with UPDATE_MEMORY_CANDIDATES_SCHEMA=1"
         );
+        assert!(
+            generated.contains("https://json-schema.org/draft/2020-12/schema"),
+            "schemars 1.2.2 schema_for! emits JSON Schema 2020-12 (docs.rs/schemars/1.2.2)"
+        );
     }
 }

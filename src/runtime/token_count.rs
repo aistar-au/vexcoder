@@ -66,6 +66,27 @@ mod tests {
     }
 
     #[test]
+    fn get_encoding_o200k_base_count_matches_encode_len() {
+        // docs.rs/tiktoken/4.1.2 CoreBpe::count: count equals encode(text).len()
+        // without allocating the token-id vector. Feature vocab-o200k_base.
+        let enc = tiktoken::get_encoding("o200k_base").expect("bundled vocabulary");
+        let text = "The quick brown fox.";
+        assert_eq!(enc.count(text), enc.encode(text).len());
+    }
+
+    #[test]
+    fn get_encoding_unknown_name_returns_none() {
+        // docs.rs/tiktoken/4.1.2: get_encoding(name) -> Option<&'static CoreBpe>
+        assert!(tiktoken::get_encoding("not-a-bundled-encoding").is_none());
+    }
+
+    #[test]
+    fn encoding_for_model_unknown_name_returns_none() {
+        // docs.rs/tiktoken/4.1.2: encoding_for_model(model) -> Option<&'static CoreBpe>
+        assert!(tiktoken::encoding_for_model("not-a-known-model-id").is_none());
+    }
+
+    #[test]
     fn token_count_with_matches_held_encoder() {
         let encoding = default_encoder();
         let text = "budget-check sample";

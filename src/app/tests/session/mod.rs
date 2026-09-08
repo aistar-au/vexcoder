@@ -70,7 +70,7 @@ fn resume_restores_active_grants_and_rejects_unknown_id() {
 }
 
 #[test]
-fn resume_injects_working_set_into_next_request() {
+fn resume_restores_working_set_into_next_request() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
@@ -155,7 +155,7 @@ fn resume_surfaces_corrupt_working_set_without_dropping_task() {
         .expect("conversation lock");
     assert!(
         !prompt.contains("[working-set record: start]"),
-        "corrupt sidecar must not seed the next request; got {prompt}"
+        "corrupt sidecar must not restore the next request; got {prompt}"
     );
 
     crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");

@@ -236,7 +236,7 @@ mod tests {
             }],
             verified_results: vec!["round-trip through persist".to_string()],
             unresolved_questions: vec![
-                "seed the next request from the record in a later batch".to_string(),
+                "restore the next request from the record on /resume".to_string(),
             ],
             active_plan: "schema, persist, token count".to_string(),
             next_action: "load WorkingSetRecord on /resume".to_string(),
@@ -265,6 +265,10 @@ mod tests {
         assert_eq!(
             expected, generated,
             "schemas/working_set.schema.json drifted from schema_for!(WorkingSetRecord); rerun with UPDATE_WORKING_SET_SCHEMA=1"
+        );
+        assert!(
+            generated.contains("https://json-schema.org/draft/2020-12/schema"),
+            "schemars 1.2.2 schema_for! emits JSON Schema 2020-12 (docs.rs/schemars/1.2.2)"
         );
     }
 

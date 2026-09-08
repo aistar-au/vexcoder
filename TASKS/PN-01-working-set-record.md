@@ -3,7 +3,7 @@
 **Target files:**
 - `src/runtime/task_state/` — persist and load the working-set record
 - `src/runtime/task_document/` — project the record from pulse evidence
-- `src/app/pulse.rs` — load `WorkingSetRecord` into the next request on `/resume` instead of clearing the live `ApiMessage` window
+- `src/app/pulse.rs` — restore `WorkingSetRecord` into the next request on `/resume` instead of clearing the live `ApiMessage` window
 - `src/app/commands/session.rs` — `/resume` and `/compact` write and restore the record
 - `src/runtime/project_instructions.rs` — hierarchical load with budget fallback
 - `src/session_notes.rs`, `src/auto_memory.rs` — typed reviewable candidates
@@ -18,12 +18,13 @@ channel), ADR-049 shared-prefix contract.
 
 ---
 
-## Phase 0 — notes refresh stopgap — CLOSED, NOT MERGED
+## Phase 0 — notes-file fingerprint refresh — CLOSED, NOT MERGED
 
-The Phase 0 stopgap previously drafted on PR #443 (shared `ApiClient` notes
-storage, per-pulse reload, local server-info preload) was closed without
-merging. The notes-refresh problem is solved by Phase 4 typed candidates
-instead. Do not revive the stopgap as a second continuity protocol.
+A notes-file fingerprint refresh (`ApiClient` notes storage, per-pulse
+reload, local server-info preload) was evaluated and closed without
+merging. That path does not restore model working state on `/resume`.
+The notes-refresh problem is solved by Phase 4 typed candidates instead.
+Do not revive it as a second continuity protocol beside `WorkingSetRecord`.
 
 ## Phase 1 — record schema and persistence
 
@@ -31,14 +32,14 @@ instead. Do not revive the stopgap as a second continuity protocol.
 
 ### Net change
 
-| Surface | Stays | Removed | Inserted |
+| Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
 | Working-set file | `TaskState` `{id}.json` persist, `write_json_safe`, durable-access policy | Ad-hoc untyped extras on the task-state JSON | `WorkingSetRecord` at `.vex/state/{task_id}.working-set.json` |
 | Schema | `serde_json` for task state | Hand-written continuity JSON | `schemars` `#[derive(JsonSchema)]` + checked-in `schemas/working_set.schema.json` |
-| Token budget | Call sites in `session_notes` and `project_instructions` | `len / 4` and `(len + 3) / 4` heuristics | `tiktoken` `CoreBpe::count` via `src/runtime/token_count.rs` |
+| Token budget | Call sites in `session_notes` and `project_instructions` | `len / 4` and `(len + 3) / 4` heuristics | `tiktoken` `CoreBpe::count` via `src/runtime/token_count.rs` (`get_encoding` / `encoding_for_model` return `Option<&'static CoreBpe>`) |
 | Task-state scan | `{id}.json` membership | Accidental scan of `*.working-set.json` as a task id | Skip sidecar filenames in `visit_state_files_in_dir` |
 | Instruction loader | Single-directory first-match `load_project_instructions` | Nothing in this batch (walk is Phase 3) | Token count only |
-| Memory | Flat notes file injection | Byte-quarter budget on notes | Token count only (typed candidates are Phase 4) |
+| Memory | Flat notes file copy into the prompt | Byte-quarter budget on notes | Token count only (typed candidates are Phase 4) |
 
 ### Files
 
@@ -52,11 +53,12 @@ instead. Do not revive the stopgap as a second continuity protocol.
 - `working_set_schema_matches_checked_in_file`
 - `state_files_skip_working_set_sidecar`
 - `token_count_is_not_byte_quarter_heuristic`
+- `get_encoding_o200k_base_count_matches_encode_len`
 
 Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_for_model`, `CoreBpe::count`; `schemars::JsonSchema`, `schemars::schema_for!`.
 
 
-## Phase 2 — seed the next request from `WorkingSetRecord` on `/resume` and `/compact`
+## Phase 2 — restore the next request from `WorkingSetRecord` on `/resume` and `/compact`
 
 **Status:** Batch 3 (this PR). Do not fold `loro` / peer join into this change.
 
@@ -64,7 +66,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 | Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| `/resume` TUI restore | `TaskDocumentCondenser::restore_from_snapshot` and `task_state_bridge.rs` on-screen projection | `TuiMode::apply_resumed_task` calling `reset_conversation_window` → `RuntimeContext::clear_conversation` → `ConversationManager::clear_messages` (`api_messages.clear()`) with no continuity source | `WorkingSetRecord::load_from_search_dirs_from` then `ConversationManager::seed_from_working_set` copies `WorkingSetRecord::as_prompt_block` onto `ApiClient::set_supplementary_system_prompt` |
+| `/resume` TUI restore | `TaskDocumentCondenser::restore_from_snapshot` and `task_state_bridge.rs` on-screen projection | `TuiMode::apply_resumed_task` calling `reset_conversation_window` → `RuntimeContext::clear_conversation` → `ConversationManager::clear_messages` (`api_messages.clear()`) with no continuity source | `WorkingSetRecord::try_load_from_search_dirs_from` then `ConversationManager::seed_from_working_set` copies `WorkingSetRecord::as_prompt_block` onto `ApiClient::set_supplementary_system_prompt` |
 | `/compact` | `ContextCompactionRecord` append, `completed_turns.clear()`, `persist_task_document`, task id and grants | `handle_compact_command` calling `reset_conversation_window` after clearing pulses, so the next request has an empty `ApiMessage` window | `TaskDocumentCondenser::write_working_set` before `completed_turns.clear()`; then `seed_from_working_set` so the next request carries the sidecar |
 | Conversation window | `reset_conversation_window` on `/new` and `/fork` | Using that helper as the `/resume` and `/compact` path | `TuiMode::reset_session_surface` for TUI chrome; `/resume` and `/compact` no longer call `reset_conversation_window` |
 | Next request assembly | `RuntimeContext::start_turn_with_system_prompt` / `set_runtime_prompt` | Passing `None` and overwriting a previously set supplementary prompt | `set_runtime_prompt` merges `ConversationManager::working_set_prompt_block` with any extra coding prompt |
@@ -77,7 +79,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 ### Acceptance tests
 
-- `resume_injects_working_set_into_next_request`
+- `resume_restores_working_set_into_next_request`
 - `compact_writes_working_set_before_clearing_pulses`
 - `write_working_set_keeps_prior_objective`
 - `compact_retains_objective_across_later_writes`
@@ -92,7 +94,7 @@ Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `W
 
 ### Net change
 
-| Surface | Stays | Removed | Inserted |
+| Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
 | Candidate names | Three-name list `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md` and same-directory first match | Single-directory loader that returned `OverBudget` and stopped the walk | Root-to-leaf walk, one file per directory, closer files layered after farther ones |
 | Over-budget file | Per-file token count via `token_count` | Fail-closed `LoadResult::OverBudget` that dropped the whole instruction layer | Skip that file, record it in the manifest, continue to the next directory |
@@ -116,11 +118,11 @@ Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `W
 
 ### Net change
 
-| Surface | Stays | Removed | Inserted |
+| Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| Notes path | `notes_path` / XDG `memory.md` resolution | Whole-file all-or-nothing injection | Typed `MemoryCandidate` store (`source`, `topic`, `body`, `status`, `source_reference`) |
+| Notes path | `notes_path` / XDG `memory.md` resolution | Whole-file all-or-nothing copy into the prompt | Typed `MemoryCandidate` store (`source`, `topic`, `body`, `status`, `source_reference`) |
 | Provenance | Markdown `[auto]` tag as a projection | Treating auto-extracted and operator notes as equal prompt text | `CandidateSource::{User, Feedback, Project, Reference}` + `CandidateStatus::{Pending, Accepted}` |
-| Injection | Token budget call site in `resolve_notes_for_injection` | Silent skip of the entire notes file | Only `Accepted` inject; over budget drops lowest-priority accepted first |
+| Prompt copy | Token budget call site in `resolve_notes_for_injection` | Silent skip of the entire notes file | Only `Accepted` via `inject_accepted`; over budget drops lowest-priority accepted first |
 | Operator commands | `/memory`, `/memory add`, `/memory clear`, `/memory auto *` | Auto extract writing `Accepted` prompt text | `/memory accept <n\|topic>`; auto extract writes `Feedback` + `Pending`; add writes `User` + `Accepted` |
 | Persistence | Markdown notes file for existing readers | Markdown as the only durable unit | JSON sidecar `memory.candidates.json` via `write_json_safe` (no durable-access assert; path is user-config) |
 | Schema | `schemars` already in-tree from Phase 1 | Ad-hoc notes JSON | `schemas/memory_candidates.schema.json` from `schema_for!(MemoryCandidateStore)` |
