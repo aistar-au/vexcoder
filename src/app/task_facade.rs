@@ -112,3 +112,44 @@ pub enum DelegateError {
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
+
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
+pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
+    let config = load_agents_config(working_dir)?;
+    let Some(config) = config else {
+        return Ok(FacadeAgentsListing {
+            available: false,
+            agents: Vec::new(),
+            teams: Vec::new(),
+        });
+    };
+
+    let mut live_counts = TaskState::live_session_task_counts_from(working_dir)?;
+
+    Ok(FacadeAgentsListing {
+        available: true,
+        agents: config
+            .agent_profiles
+            .into_iter()
+            .map(|agent| FacadeAgentDescriptor {
+                live_session_tasks: live_counts.remove(&agent.name).unwrap_or_default(),
+                max_parallel_tasks: agent.max_parallel_tasks,
+                name: agent.name,
+                profile: agent.profile,
+                isolation: match agent.isolation {
+                    IsolationPolicy::Worktree => "worktree".to_string(),
+                    IsolationPolicy::Shared => "shared".to_string(),
+                },
+            })
+            .collect(),
+        teams: config
+            .team_definitions
+            .into_iter()
+            .map(|team| FacadeTeamDescriptor {
+                name: team.name,
+                members: team.members,
+                scheduler: team_scheduler_name(team.scheduler).to_string(),
+            })
+            .collect(),
+    })
+}
