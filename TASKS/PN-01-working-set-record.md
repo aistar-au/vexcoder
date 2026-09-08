@@ -8,7 +8,8 @@
 - `src/runtime/project_instructions.rs` — hierarchical load with budget fallback
 - `src/session_notes.rs`, `src/auto_memory.rs` — typed reviewable candidates
 - `src/runtime/task_state/peer_channel.rs` — ADR-046 JSONL `append_message` / `read_messages` (retained; not the join replace rule)
-- `src/runtime/task_state/peer_merge.rs` — `PeerMergeDoc` snapshot join merge
+- `src/runtime/task_state/join_index.rs` — `JoinIndex` typed JSON join sidecar
+- `src/runtime/task_state/envelope.rs` — `StateEnvelope` internal read API
 - `src/runtime/session_task.rs` — `SessionTask.supersedes` spawn stamp
 - `src/app/subtask_orchestrator/mod.rs` — `poll_fan_out_join` writes `JoinSummary.supersedes`; `apply_join_outcome` posts live entries
 - `src/app/task_facade.rs` — `facade_poll_join` calls `apply_join_outcome`; `facade_delegate_session_task` stamps same-agent priors
@@ -63,7 +64,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 
 ## Phase 2 — restore the next request from `WorkingSetRecord` on `/resume` and `/compact`
 
-**Status:** Merged in PR #446. Do not fold `loro` / peer join into this change.
+**Status:** Merged in PR #446. Do not fold `JoinIndex` / agent join into this change.
 
 ### Net change
 
@@ -78,7 +79,7 @@ Crate APIs used (docs.rs only): `tiktoken::get_encoding`, `tiktoken::encoding_fo
 ### Files
 
 - Updated: `src/app/pulse.rs`, `src/app/commands/session.rs`, `src/app/runtime_build.rs`, `src/runtime/context.rs`, `src/state/conversation/state.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/working_set.rs`, `src/app/tests/session/compact.rs`, `src/app/tests/session/mod.rs`, `docs/src/commands.md`
-- Unchanged in this batch: `src/state/conversation/history.rs` (local byte heuristic is a later rewrite), `loro`, `MemoryCandidate` attachment to the record
+- Unchanged in this batch: `src/state/conversation/history.rs` (local byte heuristic is a later rewrite), `JoinIndex`, `MemoryCandidate` attachment to the record
 
 ### Acceptance tests
 
@@ -93,7 +94,7 @@ Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `W
 
 ## Phase 3 — hierarchical instruction loading
 
-**Status:** Merged in PR #445. Do not fold `WorkingSetRecord` restore on `/resume` or `loro` into this change.
+**Status:** Merged in PR #445. Do not fold `WorkingSetRecord` restore on `/resume` or `JoinIndex` into this change.
 
 ### Net change
 
@@ -144,7 +145,7 @@ Crate APIs used (docs.rs only): `ApiClient::set_supplementary_system_prompt`; `W
 
 Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
 
-## Phase 5 — peer-join merge (`PeerMergeDoc`)
+## Phase 5 — agent-join merge (`JoinIndex`)
 
 **Status:** Batch 4 (this PR). ADR-046 JSONL routes stay. Do not rewrite
 `src/state/conversation/history.rs` in this change.
@@ -153,28 +154,31 @@ Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
 
 | Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| JSONL channel | `append_message`, `read_messages`, two-layer lock, ADR-046 HTTP routes | Free-text `join("\n")` of every child `handoff_summary` | `PeerMergeDoc` wrapping one in-process `LoroDoc` (`docs.rs/loro` 1.16) |
-| Join apply | `poll_fan_out_join` reports `all_done` when no session task remains live | `apply_join_outcome` concatenating all summaries; empty `JoinSummary.supersedes` on the production path; `LoroMap::insert_container`; `PeerMergeDoc::{export_updates_since,import_updates,oplog_vv}` | `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions); `facade_poll_join` calls `apply_join_outcome`; `ensure_mergeable_map` / `ensure_mergeable_list`; `handoff_summary` from `live_entries` only |
-| Working-set evidence | Condenser as sole writer of `{id}.working-set.json` | No peer evidence on the sidecar | `TaskDocumentCondenser::record_peer_join_evidence` appends `RecordedDecision` with `source_reference` = CRDT message id |
-| Persist | `{id}.channel.jsonl` | Nothing; JSONL stays | `{id}.channel.crdt` via `export(ExportMode::Snapshot)` + `write_bytes_safe`. Incremental `ExportMode::updates` / `import` / `oplog_vv` are not wrapped |
+| JSONL channel | `append_message`, `read_messages`, two-layer lock, ADR-046 HTTP routes | Free-text `join("\n")` of every session-task `handoff_summary` | `JoinIndex` typed JSON (`schemars`) at `{id}.join.json` |
+| Join apply | `poll_fan_out_join` reports `all_done` when no session-task remains live | `apply_join_outcome` concatenating all summaries; empty `JoinSummary.supersedes` on the production path; `PeerMergeDoc` / `loro` / `{id}.channel.crdt` | `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions); `facade_poll_join` calls `apply_join_outcome`; `handoff_summary` from `live_entries` only |
+| Working-set evidence | Condenser as sole writer of `{id}.working-set.json` | No agent-join evidence on the sidecar; overwrite on corrupt load | `TaskDocumentCondenser::record_join_evidence` appends `RecordedDecision` with `source_reference` = join message id; `retain_referenced_decisions` keeps it across `/compact`; corrupt sidecar is `Err` |
+| Envelope | Disk sidecars | Internal consumers opening sidecar files | `StateEnvelope` + GET `/v1/tasks/{id}/working-set` |
+| Persist | `{id}.channel.jsonl` | Accidental persist-scan of `.join.json` as a task id | Persist scan skips `.working-set.json` and `.join.json` |
 
 ### Files
 
-- Inserted: `src/runtime/task_state/peer_merge.rs`
-- Updated: `src/app/subtask_orchestrator/mod.rs`, `src/app/subtask_orchestrator/tests.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/mod.rs`, `src/runtime.rs`, `src/app/task_facade.rs`, `src/app/task_facade/tests.rs`, `src/runtime/session_task.rs`, `src/util.rs`, `Cargo.toml`
+- Inserted: `src/runtime/task_state/join_index.rs`, `src/runtime/task_state/envelope.rs`, `schemas/join_index.schema.json`
+- Updated: `src/app/subtask_orchestrator/mod.rs`, `src/app/subtask_orchestrator/tests.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/mod.rs`, `src/runtime/task_state/working_set.rs`, `src/runtime/task_state/persist.rs`, `src/runtime.rs`, `src/app/task_facade.rs`, `src/app/task_facade/tests.rs`, `src/server/handlers/mod.rs`, `src/server/http.rs`, `src/runtime/session_task.rs`, `Cargo.toml`
+- Removed: `src/runtime/task_state/peer_merge.rs`, `loro` workspace dependency
 
 ### Acceptance tests
 
 - `join_applies_supersession_instead_of_concatenating_summaries`
 - `live_entries_drop_superseded_ids`
 - `snapshot_round_trips_through_persist`
-- `ensure_mergeable_repost_unions_supersedes_and_keeps_latest_body`
+- `repost_unions_supersedes_and_keeps_latest_body`
+- `join_index_schema_matches_checked_in_file`
 - `poll_fan_out_join_decides_sequential_supersession`
 - `poll_fan_out_join_keeps_independent_fan_out_summaries`
 - `poll_fan_out_join_same_agent_later_completion_replaces_earlier`
 - `facade_poll_join_applies_live_handoff_and_drops_superseded_summaries`
 
-Crate APIs used (docs.rs only): `loro::LoroDoc::{new,set_peer_id,get_map,export,from_snapshot,commit}`; `LoroMap::{insert,ensure_mergeable_map,ensure_mergeable_list}`; `LoroList::push`; `ExportMode::Snapshot`. `insert_container`, `get_or_create_container`, `ExportMode::updates`, `import`, and `oplog_vv` are not part of this crate's join surface.
+Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`. `loro` is not a dependency.
 
 ### Do not reintroduce
 
@@ -184,22 +188,16 @@ restore them:
 
 - Empty `JoinSummary.supersedes` in `poll_fan_out_join`. Poll is the
   production writer (spawn stamp plus same-agent earlier completions).
-- `facade_poll_join` mapping child tuples without
+- `facade_poll_join` mapping session-task tuples without
   `apply_join_outcome`. HTTP `join_status_handler` and `/watch` are the
-  production callers; they must post, persist `{id}.channel.crdt`, set
+  production callers; they must post, persist `{id}.join.json`, set
   parent `handoff_summary` from `live_entries`, and call
-  `record_peer_join_evidence`.
-- `LoroMap::insert_container` / `get_or_create_container` for nested
-  message maps. Crate docs (`docs.rs/loro/1.16.0`): concurrent same-key
-  inserts overwrite. Use `ensure_mergeable_map` / `ensure_mergeable_list`.
-- `PeerMergeDoc::{export_updates_since,import_updates,oplog_vv}` and the
-  two-peer test `export_updates_import_on_second_peer`. `LoroDoc::import`
-  / `ExportMode::updates` / `oplog_vv` serve independent writers
-  exchanging missing ops. Production join is one in-process document.
+  `record_join_evidence`.
+- `PeerMergeDoc` / `loro` / `{id}.channel.crdt`. Production join is one
+  in-process document; the CRDT graph failed `cargo deny`.
 - `PeerMessageKind` (`Observation` / `Correction` / …) as the join
   replace rule. That enum is ADR-046 JSONL, keyed per
   `session_task_id`. Join reads `SessionTask.handoff_summary`.
 - A notes-file fingerprint refresh as a second continuity protocol
   (Phase 0, closed). `history.rs` local byte heuristic stays out of
   this change.
-
