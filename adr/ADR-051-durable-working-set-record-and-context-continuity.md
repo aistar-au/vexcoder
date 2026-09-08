@@ -109,7 +109,7 @@ prefer local, inspectable state.
 
 | Area | Stays | Removed | Net change |
 | :--- | :--- | :--- | :--- |
-| Resume hydration | The on-screen task-document projection built by `task_state_bridge.rs` | `reset_conversation_window` clearing `ApiMessage` history in `TuiMode::apply_resumed_task` and after `/compact` | Load a `WorkingSetRecord` on `/resume` and after `/compact`; seed the next request from it instead of an empty window |
+| Working-set restore on `/resume` | The on-screen task-document projection built by `task_state_bridge.rs` | `reset_conversation_window` clearing `ApiMessage` history in `TuiMode::apply_resumed_task` and after `/compact` | Load a `WorkingSetRecord` on `/resume` and after `/compact`; seed the next request from it instead of an empty window |
 | Memory / notes | The Phase 0 `Arc<RwLock<Option<String>>>` store and per-pulse fingerprint refresh (PR #443, closed unmerged) | The flat file as the only durable memory unit, injected whole or not at all | Typed candidates (`user`, `feedback`, `project`, `reference`) carrying provenance, topic, and an accepted/pending state; only accepted candidates inject; over budget, the lowest-priority pending candidate drops first |
 | Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` in both places | A `tiktoken` count on the zero-allocation `count()` path |
 | Project instructions | The three-name candidate list and its priority order | Single-directory, first-match, stop-on-over-budget loading | A root-to-leaf directory walk, one candidate per directory, closer files layered after farther ones, and a manifest recording what was skipped and why |

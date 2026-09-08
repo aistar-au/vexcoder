@@ -171,12 +171,13 @@ Commands entered inside the interactive UI start with `/`.
 
 ### Memory
 
-- `/memory`
-- `/memory add <note>`
+- `/memory` — show accepted notes and numbered pending candidates.
+- `/memory add <note>` — append an accepted user note.
+- `/memory accept <n|topic>` — promote a pending candidate so it injects on the next session.
 - `/memory clear`
-- `/memory auto on` — enable automatic memory extraction for the current session. After each assistant pulse, short factual notes are extracted and appended to the notes file with `[auto]` tags.
+- `/memory auto on` — enable automatic memory extraction for the current session. After each assistant pulse, short factual notes are extracted as pending feedback candidates (markdown projection keeps `[auto]` tags).
 - `/memory auto off` — disable automatic memory extraction for the current session.
-- `/memory auto clear` — remove all `[auto]`-tagged notes from the notes file.
+- `/memory auto clear` — remove all feedback (auto-extracted) candidates from the notes store.
 
 ### Permissions
 
@@ -218,7 +219,7 @@ Commands entered inside the interactive UI start with `/`.
 - `/init [environment]`
   - Scaffolds `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` in the current workspace.
   - Reports the selected environment label in the transcript when one is supplied.
-- `/context`
+- `/context` — session status, git state, token summary, and the hierarchical instruction manifest (loaded vs skipped files).
 - `/mcp [list|show <server>]`
   - Zero-pulse MCP inspection surface.
   - `/mcp` and `/mcp list` show loaded servers, transports, and tool counts.

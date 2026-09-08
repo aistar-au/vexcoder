@@ -44,6 +44,7 @@ impl TuiMode {
             repo_label: resolve_repo_label(),
             git_branch: util::resolve_git_branch(),
             instructions_path: None,
+            instruction_manifest: Vec::new(),
             mcp_rollup: None,
             display_column_width: Cell::new(DISPLAY_COLUMN_WIDTH_FALLBACK),
             pending_quit: false,

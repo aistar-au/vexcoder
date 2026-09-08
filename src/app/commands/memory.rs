@@ -4,11 +4,36 @@ impl TuiMode {
     pub(crate) fn handle_memory_display(&mut self) {
         let content = self
             .resolved_existing_notes_path()
-            .and_then(|path| std::fs::read_to_string(path).ok());
+            .and_then(|path| crate::runtime::memory_candidates::load_or_migrate(&path).ok());
         match content {
-            Some(content) if !content.trim().is_empty() => {
-                for line in content.lines() {
-                    self.push_history_line(line.to_string());
+            Some(store) if !store.candidates.is_empty() => {
+                let accepted: Vec<_> = store
+                    .candidates
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.status
+                            == crate::runtime::memory_candidates::CandidateStatus::Accepted
+                    })
+                    .collect();
+                let pending: Vec<_> = store
+                    .candidates
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.status
+                            == crate::runtime::memory_candidates::CandidateStatus::Pending
+                    })
+                    .collect();
+                if !accepted.is_empty() {
+                    self.push_history_line("[memory] accepted".to_string());
+                    for candidate in accepted {
+                        self.push_history_line(format!("  - {}", candidate.body));
+                    }
+                }
+                if !pending.is_empty() {
+                    self.push_history_line("[memory] pending (use /memory accept <n>)".to_string());
+                    for (index, candidate) in pending.iter().enumerate() {
+                        self.push_history_line(format!("  {}. {}", index + 1, candidate.body));
+                    }
                 }
             }
             _ => {
@@ -28,19 +53,8 @@ impl TuiMode {
             self.push_history_line("[memory] error resolving notes path".to_string());
             return;
         };
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        match std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-        {
-            Ok(mut f) => {
-                if let Err(e) = writeln!(f, "{}", note) {
-                    self.push_history_line(format!("[memory] error writing: {e}"));
-                    return;
-                }
+        match crate::runtime::memory_candidates::add_user_note(&path, &note) {
+            Ok(()) => {
                 self.task_doc.session_notes.push(SessionNote {
                     content: note,
                     created_at_turn: self.task_doc.completed_turns.len(),
@@ -49,7 +63,32 @@ impl TuiMode {
                 self.push_history_line("[memory: note added]".to_string());
             }
             Err(e) => {
-                self.push_history_line(format!("[memory] error opening file: {e}"));
+                self.push_history_line(format!("[memory] error writing: {e}"));
+            }
+        }
+    }
+    pub(crate) fn handle_memory_accept(&mut self, selector: &str) {
+        let selector = selector.trim();
+        if selector.is_empty() {
+            self.push_history_line("[memory] usage: /memory accept <n|topic>".to_string());
+            return;
+        }
+        let path = self
+            .resolved_existing_notes_path()
+            .or_else(|| self.resolved_notes_path());
+        let Some(path) = path else {
+            self.push_history_line("[memory] error resolving notes path".to_string());
+            return;
+        };
+        match crate::runtime::memory_candidates::accept_pending(&path, selector) {
+            Ok(Some(body)) => {
+                self.push_history_line(format!("[memory] accepted: {body}"));
+            }
+            Ok(None) => {
+                self.push_history_line("[memory] no matching pending candidate".to_string());
+            }
+            Err(e) => {
+                self.push_history_line(format!("[memory] error accepting: {e}"));
             }
         }
     }
@@ -64,9 +103,7 @@ impl TuiMode {
                     self.push_history_line("[memory] error resolving notes path".to_string());
                     return;
                 };
-                if path.exists()
-                    && let Err(e) = std::fs::write(&path, "")
-                {
+                if let Err(e) = crate::runtime::memory_candidates::clear_store(&path) {
                     self.push_history_line(format!("[memory] error clearing: {e}"));
                     return;
                 }
@@ -144,7 +181,7 @@ impl TuiMode {
             self.push_history_line("[memory] no notes file to clear auto entries from".to_string());
             return;
         };
-        match crate::auto_memory::remove_auto_notes(&path) {
+        match crate::runtime::memory_candidates::remove_feedback_candidates(&path) {
             Ok(removed) if removed > 0 => {
                 self.task_doc
                     .session_notes

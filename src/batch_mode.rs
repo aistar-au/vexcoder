@@ -15,7 +15,7 @@ use crate::runtime::{
     frontend::{FrontendAdapter, InputOccurrence},
     r#loop::Runtime,
     mode::RuntimeMode,
-    project_instructions::{LoadResult, load_project_instructions},
+    project_instructions::load_instructions_for_workspace,
     resolve_configured_sandbox,
     task_state::{CommandEvidence, TaskId, TaskStatus},
 };
@@ -279,25 +279,12 @@ impl BatchMode {
 }
 
 fn resolve_batch_project_instructions(config: &Config) -> (Option<String>, Option<String>) {
-    match load_project_instructions(&config.working_dir, config.max_project_instructions_tokens) {
-        LoadResult::Loaded(project_instructions) => {
-            let display = project_instructions.path.to_string_lossy().into_owned();
-            (Some(project_instructions.content), Some(display))
-        }
-        LoadResult::OverBudget {
-            path,
-            estimated_tokens,
-        } => {
-            eprintln!(
-                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
-                path.display(),
-                estimated_tokens,
-                config.max_project_instructions_tokens,
-            );
-            (None, None)
-        }
-        LoadResult::NotFound => (None, None),
-    }
+    let set = load_instructions_for_workspace(
+        &config.working_dir,
+        config.max_project_instructions_tokens,
+    );
+    set.emit_skip_warnings(config.max_project_instructions_tokens);
+    (set.included_content(), set.display_path())
 }
 
 impl RuntimeMode for BatchMode {

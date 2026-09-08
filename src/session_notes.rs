@@ -59,8 +59,12 @@ pub fn resolve_notes_path_for_write(explicit_path: Option<&Path>) -> Option<Path
 pub fn clear_notes_file(explicit_path: Option<&Path>) -> std::io::Result<()> {
     let path = resolve_notes_path_for_read(explicit_path)
         .or_else(|| resolve_notes_path_for_write(explicit_path));
-    if let Some(path) = path.filter(|path| path.exists()) {
-        std::fs::write(path, "")?;
+    if let Some(path) = path {
+        let json_path = crate::runtime::memory_candidates::candidates_path(&path);
+        if path.exists() || json_path.exists() {
+            crate::runtime::memory_candidates::clear_store(&path)
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+        }
     }
     Ok(())
 }
@@ -72,25 +76,10 @@ pub fn resolve_notes_for_injection(
     let Some(path) = resolve_notes_path_for_read(explicit_path) else {
         return (None, None);
     };
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return (None, None);
-    };
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return (None, None);
+    match crate::runtime::memory_candidates::load_or_migrate(&path) {
+        Ok(store) => crate::runtime::memory_candidates::inject_accepted(&store, token_budget),
+        Err(_) => (None, None),
     }
-
-    let estimated_tokens = crate::runtime::token_count::token_count(trimmed);
-    if estimated_tokens > token_budget {
-        return (
-            None,
-            Some(format!(
-                "[memory] notes exceed token budget ({estimated_tokens} > {token_budget}), skipped"
-            )),
-        );
-    }
-
-    (Some(trimmed.to_string()), None)
 }
 
 #[cfg(test)]
@@ -171,5 +160,23 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("notes exceed token budget"))
         );
+    }
+
+    #[test]
+    fn pending_auto_notes_are_not_injected_from_markdown() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(
+            &notes_path,
+            "[42] [auto] extracted pending convention\noperator accepted fact\n",
+        )
+        .unwrap();
+
+        let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()), 4096);
+
+        let content = content.expect("accepted user note should inject");
+        assert!(content.contains("operator accepted fact"));
+        assert!(!content.contains("extracted pending convention"));
+        assert!(warning.is_none());
     }
 }

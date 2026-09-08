@@ -18,7 +18,7 @@ use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{InputOccurrence, ScrollAction, ScrollTarget};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
-use crate::runtime::project_instructions::{LoadResult, load_project_instructions};
+use crate::runtime::project_instructions::InstructionSource;
 use crate::runtime::task_state::SessionNote;
 use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
@@ -45,7 +45,6 @@ use crate::types::ModelProfile;
 use crate::ui::tui::input::{KeyCode, KeyModifiers};
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
-use std::io::Write;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -377,6 +376,7 @@ pub struct TuiMode {
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
+    instruction_manifest: Vec<InstructionSource>,
     mcp_rollup: Option<McpRegistryRollup>,
 
     display_column_width: Cell<usize>,

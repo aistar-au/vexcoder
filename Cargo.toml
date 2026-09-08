@@ -265,7 +265,10 @@ gix-discover = ["src/runtime/git_rollup.rs"]
 gix-config = ["src/runtime/git_rollup.rs"]
 gix-index = ["src/runtime/git_rollup.rs"]
 tiktoken = ["src/runtime/token_count.rs"]
-schemars = ["src/runtime/task_state/working_set.rs"]
+schemars = [
+  "src/runtime/task_state/working_set.rs",
+  "src/runtime/memory_candidates.rs",
+]
 git2 = ["src/tools/operator/git_ops.rs"]
 
 [workspace.metadata.upgrade-notes]

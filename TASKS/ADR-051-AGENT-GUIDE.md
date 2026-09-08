@@ -25,7 +25,7 @@ This matrix defines exactly what code is being removed, what is staying, and wha
 
 | Component | What Stays | What is Removed (Faulty Code) | Net Change (Additions) |
 | :--- | :--- | :--- | :--- |
-| **Resume Hydration** | `task_state_bridge.rs` TUI snapshot projection for UI surface. | `reset_conversation_window` in `pulse.rs` that dropped `ApiMessage` history. | Injection of serialized `WorkingSetRecord` block into the system prompt on `/resume`. |
+| **Working-set restore on `/resume`** | `task_state_bridge.rs` TUI snapshot projection for UI surface. | `reset_conversation_window` in `pulse.rs` that dropped `ApiMessage` history. | Injection of serialized `WorkingSetRecord` block into the system prompt on `/resume`. |
 | **Compaction** | Append-only `ApiMessage` log and bounded excerpts. | `history.rs` byte-division heuristic (`len/4`) and `user`-first-line summarizer. | Accurate BPE token counting via `tiktoken` + deterministic local fallback via the `WorkingSetRecord`. |
 | **Instructions** | `project_instructions.rs` file discovery logic. | First-file-only loader that returned `OverBudget` and failed closed. | Root-to-leaf directory walk using `std::fs` with manifest recording for skipped files. |
 | **Memory / Notes** | The `notes_path` configuration and disk storage. | Flat file all-or-nothing injection that hit a silent budget cliff. | Typed `MemoryCandidate` struct with `provenance`, `topic`, and `status` (pending/accepted). |
@@ -42,7 +42,7 @@ The decisions in ADR-051 are directly informed by researching managed provider A
 *   **Cons:** Adds a dependency and embedded vocabulary tables (mitigated by feature flags).
 
 ### Why `schemars` over hand-written JSON schemas?
-*   **Research:** Provider APIs enforce strict JSON schemas for tool calls. If our local continuity record drifts, resume hydration fails silently.
+*   **Research:** Provider APIs enforce strict JSON schemas for tool calls. If the persisted `WorkingSetRecord` drifts from the Rust type, `/resume` cannot deserialize the record and the next request starts from an empty `ApiMessage` window.
 *   **Pros:** `schemars` ties the Rust struct directly to a checked-in schema file (`schemas/working_set.schema.json`), allowing CI to fail the build on drift.
 *   **Cons:** Requires maintaining the schema generation step in CI.
 
@@ -59,7 +59,7 @@ The decisions in ADR-051 are directly informed by researching managed provider A
 
 To ensure CI remains green and changes are reviewable, ADR-051 is strictly divided into 5 PR batches. **Do not combine these phases into a single PR.**
 
-1.  **Batch 1 (PR 1):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
-2.  **Batch 2 (PR 2):** Hierarchical Instructions & Memory Candidates.
-3.  **Batch 3 (PR 3):** Resume Hydration & Compaction Rewrite (removing `reset_conversation_window`).
+1.  **Batch 1 (PR #444, merged):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
+2.  **Batch 2 (this PR):** Hierarchical Instructions & Memory Candidates.
+3.  **Batch 3 (PR 3):** Seed the next request from `WorkingSetRecord` on `/resume` and `/compact` (removing `reset_conversation_window`).
 4.  **Batch 4 (PR 4):** Peer Channel CRDT Migration (`loro`).

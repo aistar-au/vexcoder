@@ -155,6 +155,36 @@ impl TuiMode {
             "  tokens    : ~{}",
             ctx.estimated_conversation_tokens()
         ));
+        // Render the session-start snapshot copied from `build_facade_client`,
+        // not a fresh disk walk. Mid-session edits to instruction files are
+        // invisible here until the next process start, matching `ApiClient`.
+        self.push_history_line("  instructions:".to_string());
+        if self.instruction_manifest.is_empty() {
+            self.push_history_line("    (none)".to_string());
+        } else {
+            let instruction_lines: Vec<String> = self
+                .instruction_manifest
+                .iter()
+                .map(|source| {
+                    if source.included {
+                        format!(
+                            "    loaded  {} ({} tokens)",
+                            source.path.display(),
+                            source.estimated_tokens
+                        )
+                    } else {
+                        format!(
+                            "    skipped {} ({} tokens, over budget)",
+                            source.path.display(),
+                            source.estimated_tokens
+                        )
+                    }
+                })
+                .collect();
+            for line in instruction_lines {
+                self.push_history_line(line);
+            }
+        }
     }
     pub(crate) fn resolve_context_git_summary(&self) -> String {
         let defaults = self.context_assembler.clone();

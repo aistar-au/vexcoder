@@ -6,6 +6,7 @@ pub(super) enum SlashCommandId {
     MemoryShow,
     MemoryAdd,
     MemoryClear,
+    MemoryAccept,
     MemoryAutoOn,
     MemoryAutoOff,
     MemoryAutoClear,
@@ -272,7 +273,7 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
     SlashCommandSpec::new(
         SlashCommandId::MemoryShow,
         SlashCommandPattern::Exact("/memory"),
-        "/memory [add <note>|clear]",
+        "/memory [add <note>|accept <n>|clear]",
         "view or edit persistent user notes",
     ),
     SlashCommandSpec::new(
@@ -281,13 +282,22 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             exact: "/memory add",
             prefix: "/memory add ",
         },
-        "/memory [add <note>|clear]",
+        "/memory [add <note>|accept <n>|clear]",
+        "view or edit persistent user notes",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryAccept,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/memory accept",
+            prefix: "/memory accept ",
+        },
+        "/memory [add <note>|accept <n>|clear]",
         "view or edit persistent user notes",
     ),
     SlashCommandSpec::new(
         SlashCommandId::MemoryClear,
         SlashCommandPattern::Exact("/memory clear"),
-        "/memory [add <note>|clear]",
+        "/memory [add <note>|accept <n>|clear]",
         "view or edit persistent user notes",
     ),
     SlashCommandSpec::new(
@@ -415,6 +425,7 @@ pub(super) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Help
         | SlashCommandId::MemoryShow
         | SlashCommandId::MemoryAdd
+        | SlashCommandId::MemoryAccept
         | SlashCommandId::MemoryClear
         | SlashCommandId::MemoryAutoOn
         | SlashCommandId::MemoryAutoOff
@@ -454,9 +465,10 @@ pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         }
         SlashCommandId::Usage => "show last-pulse and session token counts",
         SlashCommandId::Commands | SlashCommandId::Help => "show grouped operator command menu",
-        SlashCommandId::MemoryShow | SlashCommandId::MemoryAdd | SlashCommandId::MemoryClear => {
-            "view or update persistent notes"
-        }
+        SlashCommandId::MemoryShow
+        | SlashCommandId::MemoryAdd
+        | SlashCommandId::MemoryAccept
+        | SlashCommandId::MemoryClear => "view or update persistent notes",
         SlashCommandId::MemoryAutoOn
         | SlashCommandId::MemoryAutoOff
         | SlashCommandId::MemoryAutoClear => "toggle automatic note extraction after each pulse",

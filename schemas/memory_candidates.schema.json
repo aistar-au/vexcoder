@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryCandidateStore",
+  "type": "object",
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MemoryCandidate"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidates"
+  ],
+  "$defs": {
+    "CandidateSource": {
+      "type": "string",
+      "enum": [
+        "user",
+        "feedback",
+        "project",
+        "reference"
+      ]
+    },
+    "CandidateStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted"
+      ]
+    },
+    "MemoryCandidate": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/CandidateSource"
+        },
+        "source_reference": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CandidateStatus"
+        },
+        "topic": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "topic",
+        "body",
+        "status",
+        "source_reference"
+      ]
+    }
+  }
+}
