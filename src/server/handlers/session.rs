@@ -6,11 +6,12 @@ use crate::app::runtime_tokio::{
 use crate::app::{
     PeerChannelError, SessionTaskStatusError, facade_get_session_task, facade_list_session_tasks,
     facade_list_tasks, facade_list_todos, facade_post_peer_message, facade_read_peer_messages,
-    facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
-    todos_rollup_path, write_projection_rollup,
+    facade_task_graph, facade_update_session_task_status, facade_working_set,
+    task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
 use crate::http_facade::{HeaderName, HeaderValue, header};
 use crate::local_api::LocalApiState;
+use crate::runtime::StateEnvelope;
 use crate::server::util::{ProblemDetailsResponse, bad_request, conflict, not_found};
 use crate::server::{
     SSE_CACHE_CONTROL_HEADER, SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT,
@@ -55,6 +56,17 @@ pub struct SessionTaskRollupResponse {
 #[derive(Debug, Deserialize)]
 pub struct UpdateSessionTaskStatusRequest {
     pub status: String,
+}
+
+#[tracing::instrument(skip_all, fields(task_id = %task_id))]
+pub async fn working_set_handler(
+    State(state): State<LocalApiState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<StateEnvelope>, ProblemDetailsResponse> {
+    match facade_working_set(&state.config.working_dir, &task_id).map_err(internal_anyhow)? {
+        Some(envelope) => Ok(Json(envelope)),
+        None => Err(not_found("task_not_found")),
+    }
 }
 
 #[tracing::instrument(skip_all)]
