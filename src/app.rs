@@ -89,7 +89,8 @@ pub use self::task_facade::{
     facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_poll_join,
     facade_post_peer_message, facade_read_peer_messages, facade_release_session_task,
     facade_schedule_team, facade_task_graph, facade_update_session_task_status,
-    facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
+    facade_watch_rollup, facade_working_set, task_graph_rollup_path, todos_rollup_path,
+    write_projection_rollup,
 };
 pub use crate::runtime::UiUpdate;
 pub use crate::runtime::tokio as runtime_tokio;
