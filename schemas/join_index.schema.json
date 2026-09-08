@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JoinIndex",
+  "description": "Typed join document persisted at `{task_id}.join.json`.",
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/LiveJoinEntry"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schema_version",
+    "entries"
+  ],
+  "$defs": {
+    "LiveJoinEntry": {
+      "description": "One live (not superseded) agent handoff after join.",
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "supersedes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "agent_id",
+        "body"
+      ]
+    }
+  }
+}
