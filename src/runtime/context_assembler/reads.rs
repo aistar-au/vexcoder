@@ -154,7 +154,8 @@ fn infer_python_import_path(line: &str) -> Option<PathBuf> {
     let module = if let Some(value) = line.strip_prefix("from ") {
         let (module, _) = value.split_once(" import ")?;
         module.trim()
-    } else if let Some(value) = line.strip_prefix("import ") {
+    } else {
+        let value = line.strip_prefix("import ")?;
         if value.contains(" from ") || value.contains('"') || value.contains('\'') {
             return None;
         }
@@ -163,8 +164,6 @@ fn infer_python_import_path(line: &str) -> Option<PathBuf> {
             .next()
             .and_then(|entry| entry.split_whitespace().next())?
             .trim()
-    } else {
-        return None;
     };
 
     if module.is_empty() || module.starts_with('.') {

@@ -39,6 +39,18 @@ reason = "backoff 0.4.0 is intentionally used for bounded local-startup connecti
 id = "RUSTSEC-2024-0384"
 reason = "instant 0.1.13 is pulled transitively by backoff 0.4.0 for the same local-startup retry path. The crate is not used directly by this repository. Resolution: remove this exception when the bounded retry implementation moves off backoff and instant leaves the graph."
 
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0183"
+reason = "git2 Remote::list unsoundness is patched in git2 0.21; this workspace pins git2 0.20 with vendored-libgit2. Operator git_ops does not call Remote::list on empty remotes. Resolution: remove when git2 moves to 0.21 in a dedicated upgrade."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0184"
+reason = "git2 BlameHunk Signature unsoundness is patched in git2 0.21; this workspace pins git2 0.20. Blame buffer APIs are not used on the operator git path. Resolution: remove when git2 moves to 0.21 in a dedicated upgrade."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0173"
+reason = "proc-macro-error2 is unmaintained; pulled transitively via tabled_derive for compile-time table macros only, with no runtime exposure. Resolution: remove when tabled switches off proc-macro-error2."
+
 [bans]
 multiple-versions = "allow"
 
