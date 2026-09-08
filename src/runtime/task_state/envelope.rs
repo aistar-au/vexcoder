@@ -98,7 +98,10 @@ mod tests {
             envelope.working_set.as_ref().map(|r| r.objective.as_str()),
             Some("keep the objective")
         );
-        assert_eq!(envelope.join.as_ref().map(|i| i.live_entries().len()), Some(1));
+        assert_eq!(
+            envelope.join.as_ref().map(|i| i.live_entries().len()),
+            Some(1)
+        );
     }
 
     #[test]

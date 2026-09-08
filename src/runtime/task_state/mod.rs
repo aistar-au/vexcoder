@@ -7,11 +7,11 @@ use crate::pulse_evidence::TurnEvidenceState;
 use crate::runtime::session_task::{SessionTask, SessionTaskStatus, now_millis};
 use crate::runtime::{ApprovalScope, Capability};
 
+pub(crate) mod envelope;
 pub(crate) mod header_cache;
+pub(crate) mod join_index;
 #[cfg(test)]
 pub(crate) mod lazy_task_handle;
-pub(crate) mod envelope;
-pub(crate) mod join_index;
 pub(crate) mod peer_channel;
 mod persist;
 pub(crate) mod task_header;
