@@ -261,10 +261,12 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 
 **Phase 5 -- Peer-join merge (`PeerMergeDoc`)** -- this batch
 - JSONL `PeerMessage` append/read (ADR-046) stays.
-- `PeerMergeDoc` wraps `LoroDoc` (`set_peer_id`, `get_map`, `insert_container`, `export(ExportMode::Snapshot | updates)`, `import`).
-- `apply_join_outcome` posts `JoinSummary` entries and sets `handoff_summary` from `live_entries` after message-id supersession.
+- `PeerMergeDoc` wraps one in-process `LoroDoc` (`set_peer_id`, `get_map`, `ensure_mergeable_map`, `ensure_mergeable_list`, `export(ExportMode::Snapshot)`, `from_snapshot`).
+- `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions). Independent fan-out members of different agents list none.
+- `facade_poll_join` calls `apply_join_outcome` when no session task remains live. `handoff_summary` comes from `live_entries` after message-id supersession.
 - `TaskDocumentCondenser::record_peer_join_evidence` writes `RecordedDecision.source_reference` as the CRDT message id.
 - Snapshot path: `.vex/state/{task_id}.channel.crdt`.
+- Out of this crate's join surface: `LoroMap::insert_container` / `get_or_create_container`; `PeerMergeDoc` wrappers for `ExportMode::updates` / `import` / `oplog_vv`; empty `JoinSummary.supersedes` on `poll_fan_out_join`; `facade_poll_join` without `apply_join_outcome`; `PeerMessageKind` as the join replace rule.
 
 Candidate implementation areas:
 

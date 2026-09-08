@@ -1,13 +1,24 @@
 //! Peer-join merge document (ADR-051 Phase 5).
 //!
-//! `LoroDoc` is the CRDT surface (`docs.rs/loro`): `get_map`,
-//! `insert_container`, `export(ExportMode::…)`, `import`, `oplog_vv`.
-//! ADR-046 JSONL `PeerMessage` routes stay in `peer_channel.rs`. This
-//! type is the join merge rule: message-id supersession instead of
-//! concatenating every child `handoff_summary`.
+//! One `LoroDoc` per parent task, persisted as `ExportMode::Snapshot` at
+//! `{task_id}.channel.crdt`. Join posts child summaries through
+//! `LoroMap::ensure_mergeable_map` / `ensure_mergeable_list`
+//! (`docs.rs/loro/1.16.0`). Those APIs give a deterministic child id for
+//! `(parent map, key, container type)`, so a re-post of the same message
+//! id merges instead of overwriting. `LoroMap::insert_container` is not
+//! used: crate docs warn that concurrent same-key container inserts can
+//! overwrite rather than merge. `get_or_create_container` is deprecated
+//! for the same reason and is not used.
+//!
+//! Production join is a single-process orchestrator
+//! (`poll_fan_out_join` → `apply_join_outcome`). Incremental
+//! `ExportMode::updates` / `import` / `oplog_vv` are LoroDoc APIs for
+//! independent writers exchanging missing ops. This crate does not wrap
+//! them: no second process holds a peer document, and ADR-046 JSONL
+//! `PeerMessage` remains the inter-agent log.
 
 use anyhow::{Context, Result, anyhow};
-use loro::{ExportMode, LoroDoc, LoroList, LoroMap, VersionVector};
+use loro::{ExportMode, LoroDoc};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -56,8 +67,8 @@ impl PeerMergeDoc {
     pub fn post(&self, id: &str, agent_id: &str, body: &str, supersedes: &[String]) -> Result<()> {
         let messages = self.doc.get_map(MESSAGES_MAP);
         let entry = messages
-            .insert_container(id, LoroMap::new())
-            .map_err(|error| anyhow!("LoroMap::insert_container({id}) failed: {error}"))?;
+            .ensure_mergeable_map(id)
+            .map_err(|error| anyhow!("LoroMap::ensure_mergeable_map({id}) failed: {error}"))?;
         entry
             .insert(FIELD_BODY, body)
             .map_err(|error| anyhow!("LoroMap::insert(body) failed: {error}"))?;
@@ -65,13 +76,23 @@ impl PeerMergeDoc {
             .insert(FIELD_AGENT_ID, agent_id)
             .map_err(|error| anyhow!("LoroMap::insert(agent_id) failed: {error}"))?;
         let list = entry
-            .insert_container(FIELD_SUPERSEDES, LoroList::new())
-            .map_err(|error| anyhow!("LoroMap::insert_container(supersedes) failed: {error}"))?;
-        for (index, superseded_id) in supersedes.iter().enumerate() {
-            list.insert(index, superseded_id.as_str())
-                .map_err(|error| {
-                    anyhow!("LoroList::insert(supersedes[{index}]) failed: {error}")
-                })?;
+            .ensure_mergeable_list(FIELD_SUPERSEDES)
+            .map_err(|error| {
+                anyhow!("LoroMap::ensure_mergeable_list(supersedes) failed: {error}")
+            })?;
+        let mut existing = HashSet::new();
+        for index in 0..list.len() {
+            if let Some(item) = list_item_as_string(&list, index) {
+                existing.insert(item);
+            }
+        }
+        for superseded_id in supersedes {
+            if existing.contains(superseded_id) {
+                continue;
+            }
+            list.push(superseded_id.as_str())
+                .map_err(|error| anyhow!("LoroList::push(supersedes) failed: {error}"))?;
+            existing.insert(superseded_id.clone());
         }
         self.doc.commit();
         Ok(())
@@ -103,23 +124,6 @@ impl PeerMergeDoc {
             .map_err(|error| anyhow!("LoroDoc::export(Snapshot) failed: {error}"))
     }
 
-    pub fn export_updates_since(&self, since: &VersionVector) -> Result<Vec<u8>> {
-        self.doc
-            .export(ExportMode::updates(since))
-            .map_err(|error| anyhow!("LoroDoc::export(Updates) failed: {error}"))
-    }
-
-    pub fn import_updates(&self, bytes: &[u8]) -> Result<()> {
-        self.doc
-            .import(bytes)
-            .map_err(|error| anyhow!("LoroDoc::import failed: {error}"))?;
-        Ok(())
-    }
-
-    pub fn oplog_vv(&self) -> VersionVector {
-        self.doc.oplog_vv()
-    }
-
     pub fn save(&self, dir: &Path, task_id: &str) -> Result<()> {
         let path = peer_merge_path(dir, task_id);
         crate::tools::operator::policy::assert_durable_access(&path)?;
@@ -149,6 +153,12 @@ impl PeerMergeDoc {
             None => Self::new(peer_id),
         }
     }
+}
+
+fn list_item_as_string(list: &loro::LoroList, index: usize) -> Option<String> {
+    let value = list.get(index)?;
+    let json = serde_json::to_value(value.get_deep_value()).ok()?;
+    json.as_str().map(str::to_string)
 }
 
 fn root_messages_object(doc: &LoroDoc) -> Option<serde_json::Map<String, serde_json::Value>> {
@@ -235,22 +245,30 @@ mod tests {
     }
 
     #[test]
-    fn export_updates_import_on_second_peer() {
-        let alpha = PeerMergeDoc::new(11).unwrap();
-        let beta = PeerMergeDoc::new(22).unwrap();
-        alpha.post("msg-a", "alpha", "from alpha", &[]).unwrap();
-        let since = beta.oplog_vv();
-        let updates = alpha.export_updates_since(&since).unwrap();
-        beta.import_updates(&updates).unwrap();
-        let live = beta.live_entries();
-        assert_eq!(live.len(), 1);
-        assert_eq!(live[0].body, "from alpha");
-    }
-
-    #[test]
     fn try_load_returns_none_when_sidecar_is_absent() {
         let dir = TempDir::new().unwrap();
         let loaded = PeerMergeDoc::try_load(dir.path(), "missing", 1).unwrap();
         assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn ensure_mergeable_repost_unions_supersedes_and_keeps_latest_body() {
+        let doc = PeerMergeDoc::new(1).unwrap();
+        doc.post("msg-b", "beta", "first body", &["msg-a".to_string()])
+            .unwrap();
+        doc.post(
+            "msg-b",
+            "beta",
+            "corrected body",
+            &["msg-a".to_string(), "msg-c".to_string()],
+        )
+        .unwrap();
+        let live = doc.live_entries();
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].id, "msg-b");
+        assert_eq!(live[0].body, "corrected body");
+        assert!(live[0].supersedes.contains(&"msg-a".to_string()));
+        assert!(live[0].supersedes.contains(&"msg-c".to_string()));
+        assert_eq!(live[0].supersedes.len(), 2);
     }
 }

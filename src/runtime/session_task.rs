@@ -55,6 +55,11 @@ pub struct SessionTask {
     pub last_heartbeat: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handoff_summary: Option<String>,
+    /// Session-task ids this completion replaces at join. Sequential
+    /// continuation lists every earlier member; fan-out and single-agent
+    /// delegate list earlier tasks of the same agent only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supersedes: Vec<String>,
 }
 
 impl SessionTask {
@@ -85,7 +90,28 @@ impl SessionTask {
             updated_at: now,
             last_heartbeat: None,
             handoff_summary: None,
+            supersedes: Vec::new(),
         }
+    }
+
+    /// Record which earlier session-task ids this task replaces at join.
+    ///
+    /// Sequential continuation replaces every earlier member. Fan-out and
+    /// single-agent delegate replace only earlier tasks of the same agent.
+    pub fn stamp_join_supersedes(
+        &mut self,
+        existing: &[SessionTask],
+        sequential_continuation: bool,
+    ) {
+        self.supersedes = if sequential_continuation {
+            existing.iter().map(|task| task.id.clone()).collect()
+        } else {
+            existing
+                .iter()
+                .filter(|task| task.agent_id == self.agent_id)
+                .map(|task| task.id.clone())
+                .collect()
+        };
     }
 
     #[tracing::instrument(skip(self), fields(id = %self.id, from = %self.lifecycle_state, to = %status))]
@@ -134,6 +160,7 @@ mod tests {
 
         task.set_handoff_summary("summary");
         assert_eq!(task.handoff_summary.as_deref(), Some("summary"));
+        assert!(task.supersedes.is_empty());
     }
 
     #[test]
@@ -154,5 +181,24 @@ mod tests {
         assert!(!SessionTaskStatus::Failed.is_live());
         assert!(!SessionTaskStatus::Cancelled.is_live());
         assert!(!SessionTaskStatus::Completed.is_live());
+    }
+
+    #[test]
+    fn stamp_join_supersedes_lists_all_priors_for_sequential_continuation() {
+        let alpha = SessionTask::new("parent", "alpha", "first", None);
+        let beta_existing = SessionTask::new("parent", "beta", "mid", None);
+        let mut gamma = SessionTask::new("parent", "gamma", "last", None);
+        gamma.stamp_join_supersedes(&[alpha.clone(), beta_existing.clone()], true);
+        assert_eq!(gamma.supersedes, vec![alpha.id, beta_existing.id]);
+    }
+
+    #[test]
+    fn stamp_join_supersedes_lists_same_agent_only_for_fan_out() {
+        let alpha = SessionTask::new("parent", "alpha", "first", None);
+        let beta = SessionTask::new("parent", "beta", "other", None);
+        let mut alpha_retry = SessionTask::new("parent", "alpha", "retry", None);
+        alpha_retry.stamp_join_supersedes(&[alpha.clone(), beta.clone()], false);
+        assert_eq!(alpha_retry.supersedes, vec![alpha.id]);
+        assert!(!alpha_retry.supersedes.contains(&beta.id));
     }
 }

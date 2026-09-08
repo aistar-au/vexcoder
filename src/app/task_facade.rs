@@ -193,6 +193,7 @@ pub fn facade_delegate_session_task(
             .unwrap_or_else(|_| TaskState::new(parent_task_id.clone()));
 
         let mut session_task = SessionTask::new(parent_task_id.clone(), agent_id, prompt, None);
+        session_task.stamp_join_supersedes(&parent_state.session_tasks, false);
         let session_task_id = session_task.id.clone();
 
         if isolation == IsolationPolicy::Worktree {
@@ -370,16 +371,22 @@ pub fn facade_poll_join(
 ) -> Result<Option<FacadeJoinOutcome>> {
     let state_dir = TaskState::state_dir_from(working_dir);
     let orchestrator = SubtaskOrchestrator::new(&state_dir);
-    let outcome = orchestrator.poll_fan_out_join(parent_task_id)?;
-    Ok(outcome.map(|o| FacadeJoinOutcome {
-        all_done: o.all_done,
-        completed: o.completed,
-        failed: o.failed,
-        cancelled: o.cancelled,
-        summaries: o
-            .summaries
+    let Some(outcome) = orchestrator.poll_fan_out_join(parent_task_id)? else {
+        return Ok(None);
+    };
+    let live = if outcome.all_done {
+        orchestrator.apply_join_outcome(parent_task_id, &outcome)?
+    } else {
+        Vec::new()
+    };
+    Ok(Some(FacadeJoinOutcome {
+        all_done: outcome.all_done,
+        completed: outcome.completed,
+        failed: outcome.failed,
+        cancelled: outcome.cancelled,
+        summaries: live
             .into_iter()
-            .map(|summary| (summary.agent_id, summary.summary))
+            .map(|entry| (entry.agent_id, entry.body))
             .collect(),
     }))
 }

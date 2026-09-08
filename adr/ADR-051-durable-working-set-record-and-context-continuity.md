@@ -71,16 +71,23 @@ prefer local, inspectable state.
   contract instead of a hand-maintained one, without changing how the
   record is written to disk. Source: docs.rs/schemars/1.2.2.
 
-- **Peer-channel merge — `loro`.** A CRDT (conflict-free replicated data
-  type) document library. `LoroDoc::new()` creates a document;
-  `get_map`/`get_list`/`get_text` attach named containers to it;
-  `set_peer_id` gives each writer a stable identifier;
-  `export(ExportMode::updates(&version_vector))` plus `import` exchange
-  only the operations a peer is missing rather than a full log replay;
-  and concurrent edits to the same container merge without a designated
-  writer. This gives the peer channel a real merge rule (supersede by
-  message id, apply in causal order) instead of concatenating every child
-  `handoff_summary`. Implemented as `PeerMergeDoc` in this batch. Source:
+- **Peer-join merge — `loro` 1.16.0.** A CRDT document library
+  (`docs.rs/loro/1.16.0`). Production join is a single-process
+  orchestrator: `poll_fan_out_join` decides each child's replace set,
+  `apply_join_outcome` posts those entries into one `LoroDoc`, and
+  `export(ExportMode::Snapshot)` / `LoroDoc::from_snapshot` persist and
+  restore `.vex/state/{task_id}.channel.crdt`. Nested children use
+  `LoroMap::ensure_mergeable_map` and `ensure_mergeable_list`: crate docs
+  state that those APIs create a deterministic child id for
+  `(parent map, key, container type)`, so a re-post of the same message
+  id merges. `LoroMap::insert_container` is not the join primitive —
+  crate docs warn that concurrent same-key container inserts can
+  overwrite rather than merge. `LoroMap::get_or_create_container` is
+  deprecated for the same reason. `LoroDoc` also exposes
+  `export(ExportMode::updates(&VersionVector))`, `import`, and
+  `oplog_vv` for independent writers exchanging missing ops. This crate
+  does not wrap those methods: no second process holds a peer document,
+  and ADR-046 JSONL `PeerMessage` remains the inter-agent log. Source:
   docs.rs/loro/1.16.0.
 
 - **Rejected: opaque provider-side compaction.** Some managed chat/response
@@ -113,7 +120,7 @@ prefer local, inspectable state.
 | Memory / notes | `notes_path` resolution and the markdown projection of the store | Flat file as the only durable unit, copied into the prompt whole or skipped whole | Typed `MemoryCandidate` / `MemoryCandidateStore` (`source`, `topic`, `body`, `status`, `source_reference`); `inject_accepted` copies only `CandidateStatus::Accepted`; over budget, the lowest-priority accepted candidate is dropped first |
 | Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` and `(len + 3) / 4` | `tiktoken::get_encoding` / `encoding_for_model` (`Option<&'static CoreBpe>`) and `CoreBpe::count` via `src/runtime/token_count.rs` |
 | Project instructions | The three-name candidate list and its same-directory priority order | Single-directory, first-match, fail-closed `LoadResult::OverBudget` | Root-to-leaf `load_hierarchical_instructions` / `load_instructions_for_workspace`; one candidate per directory; closer files layered after farther ones; `InstructionSet` manifest records skipped files |
-| Peer channel | ADR-046 JSONL sidecar (`append_message` / `read_messages`), two-layer locking, HTTP POST/GET `/v1/tasks/{id}/messages` | `SubtaskOrchestrator::apply_join_outcome` concatenating every child `handoff_summary` with `join("\n")` | `PeerMergeDoc` (`LoroDoc::new`, `set_peer_id`, `get_map`, `insert_container`, `export(ExportMode::Snapshot \| updates)`, `import`, `oplog_vv`). Join posts `JoinSummary` entries, keeps `live_entries` after message-id supersession, and `TaskDocumentCondenser::record_peer_join_evidence` writes `RecordedDecision.source_reference` as the CRDT message id. Snapshot path: `{task_id}.channel.crdt` |
+| Peer channel | ADR-046 JSONL sidecar (`append_message` / `read_messages`), two-layer locking, HTTP POST/GET `/v1/tasks/{id}/messages` | `SubtaskOrchestrator::apply_join_outcome` concatenating every child `handoff_summary` with `join("\n")`; empty `JoinSummary.supersedes` on `poll_fan_out_join`; `facade_poll_join` returning child tuples without `apply_join_outcome`; `LoroMap::insert_container` / `get_or_create_container`; `PeerMergeDoc` wrappers around `export(ExportMode::updates)`, `import`, and `oplog_vv` | `PeerMergeDoc` (`LoroDoc::new`, `set_peer_id`, `get_map`, `ensure_mergeable_map`, `ensure_mergeable_list`, `export(ExportMode::Snapshot)`, `from_snapshot`). `poll_fan_out_join` is the production writer of `JoinSummary.supersedes`. `facade_poll_join` calls `apply_join_outcome` when no session task remains live. `live_entries` after message-id supersession. `TaskDocumentCondenser::record_peer_join_evidence` writes `RecordedDecision.source_reference` as the CRDT message id. Snapshot path: `{task_id}.channel.crdt` |
 | API caching | ADR-049's shared-prefix fingerprint and `ApiMessage.cache_hint` | Nothing; provider-specific mapping stays deferred | The working-set record is the local fallback, so `/resume` never depends on an opaque provider continuation item |
 
 ## Decision
@@ -292,12 +299,99 @@ over-budget file was previously.
 
 ### 5. Peer-join merge (`PeerMergeDoc`)
 
-JSONL `PeerMessage` append/read (ADR-046) stays. Join merge uses `loro`
-1.16 (`docs.rs/loro`):
+JSONL `PeerMessage` append/read (ADR-046) stays as the inter-agent log.
+Join merge uses one `loro` 1.16 `LoroDoc` per parent task
+(`docs.rs/loro/1.16.0`).
+
+**Production call graph.** Join has three production writers of
+`SessionTask` rows, one production writer of `JoinSummary.supersedes`,
+and one production caller of `apply_join_outcome`:
+
+| Function | Role | Replace set |
+| :--- | :--- | :--- |
+| `SubtaskOrchestrator::schedule_team` | Inserts fan-out members, or the first sequential member | `stamp_join_supersedes(..., sequential)` |
+| `SubtaskOrchestrator::advance_sequential` | Inserts the next sequential member after no prior member remains live | `stamp_join_supersedes(..., true)` — every earlier `SessionTask.id` |
+| `facade_delegate_session_task` | Inserts a single-agent child | `stamp_join_supersedes(..., false)` — earlier tasks of the same `agent_id` |
+| `poll_fan_out_join` | Sole production writer of `JoinSummary.supersedes` | Spawn stamp union same-agent earlier `Completed` rows that have `handoff_summary` |
+| `facade_poll_join` | Sole production caller of `apply_join_outcome` | HTTP `join_status_handler`; `/watch` in `commands/info.rs` (two sites) |
+
+`SessionTask::new` does not choose a replace set. Independent fan-out
+members of different agents list none, so both summaries remain live.
+`TeamScheduler` is not stored on `TaskState`; sequential versus fan-out
+intent is the spawn stamp on `SessionTask.supersedes`.
+
+**Why `PeerMessageKind` is not the join replace rule.** ADR-046 JSONL
+(`Observation` / `Correction` / `Question` / `Acknowledgement`) is a
+live inter-agent log keyed per `session_task_id`
+(`.vex/state/{session_task_id}.channel.jsonl`). Join reads completed
+`SessionTask.handoff_summary` on the parent task. A `Correction` row on
+the JSONL log is not a child handoff and is not posted into
+`PeerMergeDoc`. Using `PeerMessageKind` as the join rule would invent a
+second protocol that never fires unless a peer message was posted.
+
+**Why this crate does not wrap incremental multi-writer APIs.**
+`LoroDoc` publishes `export(ExportMode::updates(&VersionVector))`,
+`export(ExportMode::all_updates())`, `import` / `import_with`, and
+`oplog_vv` for independent writers exchanging missing ops
+(`docs.rs/loro/1.16.0`: `import` returns `ImportStatus`; a non-empty
+`pending` set means fetch those ranges with
+`export(ExportMode::updates(&doc.oplog_vv()))`). Production join never
+has a second writer: child session tasks finish in the parent process,
+`poll_fan_out_join` reads their `handoff_summary` values, and
+`apply_join_outcome` posts every entry into a single in-process
+document. Wrapping those incremental methods on `PeerMergeDoc` documents
+a sync protocol the runtime does not call. The first Batch 4 revision
+added `PeerMergeDoc::{export_updates_since,import_updates,oplog_vv}` and
+a two-peer test (`export_updates_import_on_second_peer`); those wrappers
+and that test are removed. Persist is `export(ExportMode::Snapshot)` to
+`.vex/state/{task_id}.channel.crdt` and restore is
+`LoroDoc::from_snapshot`.
+
+**Do not reintroduce these join-surface items.**
+
+| Item | Crate role (`docs.rs/loro/1.16.0`) | This crate |
+| :--- | :--- | :--- |
+| `LoroMap::insert_container` | Nested child with op-id identity. Crate docs: concurrent same-key inserts on different peers can overwrite rather than merge. | Not used. Nested children use `ensure_mergeable_map` / `ensure_mergeable_list`. |
+| `LoroMap::get_or_create_container` | Deprecated. Regular op-id children; concurrent first creation at the same key can fork child state. | Not used. |
+| `PeerMergeDoc::export_updates_since` | Wrapper around `export(ExportMode::updates(&VersionVector))` | Removed. |
+| `PeerMergeDoc::import_updates` | Wrapper around `LoroDoc::import` | Removed. |
+| `PeerMergeDoc::oplog_vv` | Wrapper around `LoroDoc::oplog_vv` | Removed. |
+| Empty `JoinSummary.supersedes` on `poll_fan_out_join` | First Batch 4 revision always wrote `Vec::new()` | Removed. Poll is the production writer of the replace set. |
+| `facade_poll_join` returning child tuples without `apply_join_outcome` | First Batch 4 revision. HTTP `/watch` never posted into `LoroDoc`, never wrote `{id}.channel.crdt`, never called `record_peer_join_evidence` | Removed. `facade_poll_join` calls `apply_join_outcome` when no session task remains live. |
+
+JSONL ADR-046 routes stay (`append_message`, `read_messages`, HTTP
+POST/GET `/v1/tasks/{id}/messages`). Snapshot persist stays.
+
+**Why `ensure_mergeable_*` and not `insert_container`.** Crate docs for
+`LoroMap::insert_container`: concurrently inserting different containers
+at the same map key on different peers can result in one overwriting the
+other rather than merging. Prefer `ensure_mergeable_*` when the child
+should be identified by `(parent map, key, type)`. Join keys messages
+by id, so `ensure_mergeable_map(id)` and
+`ensure_mergeable_list("supersedes")` are the nested-child constructors.
+`ensure_mergeable_*` creates a deterministic child id; a re-post of the
+same message id (HTTP join polled twice) merges. Scalar `insert` of
+`body` / `agent_id` remains last-write-wins on the mergeable map.
+`LoroList::push` appends a superseded id that is not already present.
+
+**Production supersession.** `JoinSummary.supersedes` has one production
+writer: `poll_fan_out_join`. The replace set is:
+
+1. Spawn-declared ids on `SessionTask.supersedes`. Sequential
+   continuation (`advance_sequential`, `schedule_team` with
+   `TeamScheduler::Sequential`) stamps every earlier member. Fan-out and
+   single-agent delegate stamp earlier tasks of the same agent only.
+2. Same-agent earlier completed tasks, unioned at poll so a retry that
+   skipped the stamp is not concatenated.
+
+Independent fan-out members of different agents list none, so all remain
+live. `facade_poll_join` (`/watch`, HTTP join) calls `apply_join_outcome`
+when no session task remains live, so the snapshot, parent
+`handoff_summary`, and condenser evidence run on the production path.
 
 ```rust
 use anyhow::Result;
-use loro::{ExportMode, LoroDoc, LoroList, LoroMap, VersionVector};
+use loro::{ExportMode, LoroDoc};
 
 pub struct PeerMergeDoc {
     doc: LoroDoc,
@@ -312,24 +406,20 @@ impl PeerMergeDoc {
 
     pub fn post(&self, id: &str, agent_id: &str, body: &str, supersedes: &[String]) -> Result<()> {
         let messages = self.doc.get_map("messages");
-        let entry = messages.insert_container(id, LoroMap::new())?;
+        let entry = messages.ensure_mergeable_map(id)?;
         entry.insert("body", body)?;
         entry.insert("agent_id", agent_id)?;
-        let list = entry.insert_container("supersedes", LoroList::new())?;
-        for (index, superseded_id) in supersedes.iter().enumerate() {
-            list.insert(index, superseded_id.as_str())?;
+        let list = entry.ensure_mergeable_list("supersedes")?;
+        for superseded_id in supersedes {
+            // Re-post unions; skip ids already present on the mergeable list.
+            list.push(superseded_id.as_str())?;
         }
         self.doc.commit();
         Ok(())
     }
 
-    pub fn export_updates_since(&self, since: &VersionVector) -> Result<Vec<u8>> {
-        Ok(self.doc.export(ExportMode::updates(since))?)
-    }
-
-    pub fn import_updates(&self, bytes: &[u8]) -> Result<()> {
-        self.doc.import(bytes)?;
-        Ok(())
+    pub fn export_snapshot(&self) -> Result<Vec<u8>> {
+        Ok(self.doc.export(ExportMode::Snapshot)?)
     }
 }
 ```
@@ -340,10 +430,12 @@ impl PeerMergeDoc {
 `.vex/state/{task_id}.channel.crdt` via `write_bytes_safe`, sets
 `TaskState.handoff_summary` from live entries only, and calls
 `TaskDocumentCondenser::record_peer_join_evidence` so the condenser remains
-the sole writer of `{task_id}.working-set.json`. The phase 5 anchor test is
-`join_applies_supersession_instead_of_concatenating_summaries`.
-`poll_fan_out_join` still reports `all_done` when no session task remains
-live; the merge rule is supersession, not concatenation.
+the sole writer of `{task_id}.working-set.json`. Phase 5 tests cover both
+the merge document and the production poll writer
+(`poll_fan_out_join_decides_sequential_supersession`,
+`poll_fan_out_join_keeps_independent_fan_out_summaries`,
+`poll_fan_out_join_same_agent_later_completion_replaces_earlier`,
+`facade_poll_join_applies_live_handoff_and_drops_superseded_summaries`).
 
 ## Pros and Cons
 
@@ -367,9 +459,9 @@ live; the merge rule is supersession, not concatenation.
   cost, not a one-time one.
 - The accepted/pending split on memory candidates adds a manual step
   compared to the previous silent whole-file copy into the prompt.
-- `loro` is a new, non-trivial dependency; the peer channel's merge logic
-  moves from "append and read" to a real CRDT surface, which is a larger
-  change to reason about and test than the JSONL sidecar it replaces.
+- `loro` is a new, non-trivial dependency; join merge moves from
+  concatenating child summaries to a snapshot-backed `LoroDoc`. ADR-046
+  JSONL append/read is unchanged.
 - Three additional dependencies (`tiktoken`, `schemars`, `loro`) each
   bring their own version and vocabulary-data footprint; the tokenizer's
   per-encoding feature flags keep this bounded but do not remove it.
@@ -391,6 +483,28 @@ live; the merge rule is supersession, not concatenation.
   no conflict rule, so two children editing related state produce a
   summary that is only as good as whichever text happened to be
   concatenated last.
+- **Wrap `ExportMode::updates` / `import` / `oplog_vv` on `PeerMergeDoc`
+  as the join surface.** Rejected: those LoroDoc APIs serve independent
+  writers exchanging missing ops. Production join posts every child into
+  one in-process document and persists a snapshot. Documenting the
+  incremental APIs as current made unused methods look load-bearing.
+- **Use `LoroMap::insert_container` for nested message maps.** Rejected:
+  crate docs (`docs.rs/loro/1.16.0`) state that concurrent same-key
+  container inserts can overwrite rather than merge.
+  `ensure_mergeable_map` / `ensure_mergeable_list` are the mergeable
+  constructors for this keying.
+- **Use `LoroMap::get_or_create_container`.** Rejected: crate docs
+  deprecate it for the same reason as `insert_container` (regular op-id
+  children; concurrent first creation can fork).
+- **Drive join supersession from `PeerMessageKind`.** Rejected: ADR-046
+  JSONL kinds are a live inter-agent log per `session_task_id`. Join
+  reads `SessionTask.handoff_summary`. A `Correction` row is not a child
+  handoff.
+- **Leave `JoinSummary.supersedes` empty on `poll_fan_out_join` and
+  apply only from unit tests.** Rejected: production then concatenates
+  every child summary the way `join("\n")` did. Poll is the production
+  writer; `facade_poll_join` is the production caller of
+  `apply_join_outcome`.
 - **Adopt opaque provider-side compaction as the primary continuity
   unit.** Rejected for the reasons in Crate and API Evidence above: it
   trades away local inspection and portability for a convenience this
@@ -429,7 +543,11 @@ batch.
 - `join_applies_supersession_instead_of_concatenating_summaries`
 - `live_entries_drop_superseded_ids`
 - `snapshot_round_trips_through_persist`
-- `export_updates_import_on_second_peer`
+- `ensure_mergeable_repost_unions_supersedes_and_keeps_latest_body`
+- `poll_fan_out_join_decides_sequential_supersession`
+- `poll_fan_out_join_keeps_independent_fan_out_summaries`
+- `poll_fan_out_join_same_agent_later_completion_replaces_earlier`
+- `facade_poll_join_applies_live_handoff_and_drops_superseded_summaries`
 
 Alongside those, a schema-diff step regenerates
 `schema_for!(WorkingSetRecord)` and `schema_for!(MemoryCandidateStore)`
@@ -444,9 +562,11 @@ contract cannot change without a reviewed diff.
 - `schemars` 1.2.2 — JSON Schema 2020-12 generation from Rust types via
   `#[derive(JsonSchema)]` and `schema_for!`:
   <https://docs.rs/schemars/1.2.2>
-- `loro` 1.16.0 — `LoroDoc::{new,set_peer_id,get_map,export,import,oplog_vv,from_snapshot}`,
-  `ExportMode::{Snapshot,updates}`, `LoroMap::insert_container`,
-  `LoroList::insert`: <https://docs.rs/loro/1.16.0>
+- `loro` 1.16.0 — `LoroDoc::{new,set_peer_id,get_map,export,from_snapshot,commit}`,
+  `ExportMode::Snapshot`, `LoroMap::{insert,ensure_mergeable_map,ensure_mergeable_list}`,
+  `LoroList::push`. `insert_container` and `get_or_create_container` are
+  documented by the crate as non-mergeable and are not used:
+  <https://docs.rs/loro/1.16.0>
 - `ratatui` — immediate-mode rendering with intermediate buffers
   (existing project dependency, cited here for the resume-source
   rationale): <https://docs.rs/ratatui>

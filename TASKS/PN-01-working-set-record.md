@@ -7,8 +7,11 @@
 - `src/app/commands/session.rs` — `/resume` and `/compact` write and restore the record
 - `src/runtime/project_instructions.rs` — hierarchical load with budget fallback
 - `src/session_notes.rs`, `src/auto_memory.rs` — typed reviewable candidates
-- `src/runtime/task_state/peer_channel.rs` — cursors, supersession, evidence links
-- `src/app/subtask_orchestrator/mod.rs` — join merge against the record
+- `src/runtime/task_state/peer_channel.rs` — ADR-046 JSONL `append_message` / `read_messages` (retained; not the join replace rule)
+- `src/runtime/task_state/peer_merge.rs` — `PeerMergeDoc` snapshot join merge
+- `src/runtime/session_task.rs` — `SessionTask.supersedes` spawn stamp
+- `src/app/subtask_orchestrator/mod.rs` — `poll_fan_out_join` writes `JoinSummary.supersedes`; `apply_join_outcome` posts live entries
+- `src/app/task_facade.rs` — `facade_poll_join` calls `apply_join_outcome`; `facade_delegate_session_task` stamps same-agent priors
 - `src/state/conversation/history.rs` — local compaction fallback from the record
 
 **ADR:** ADR-051
@@ -150,22 +153,53 @@ Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
 
 | Surface | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| JSONL channel | `append_message`, `read_messages`, two-layer lock, ADR-046 HTTP routes | Free-text `join("\n")` of every child `handoff_summary` | `PeerMergeDoc` wrapping `LoroDoc` (`docs.rs/loro` 1.16) |
-| Join apply | `poll_fan_out_join` reports `all_done` when no session task remains live | `apply_join_outcome` concatenating all summaries | `JoinSummary` with `message_id` / `supersedes`; `PeerMergeDoc::post` + `live_entries`; `handoff_summary` from live entries only |
+| JSONL channel | `append_message`, `read_messages`, two-layer lock, ADR-046 HTTP routes | Free-text `join("\n")` of every child `handoff_summary` | `PeerMergeDoc` wrapping one in-process `LoroDoc` (`docs.rs/loro` 1.16) |
+| Join apply | `poll_fan_out_join` reports `all_done` when no session task remains live | `apply_join_outcome` concatenating all summaries; empty `JoinSummary.supersedes` on the production path; `LoroMap::insert_container`; `PeerMergeDoc::{export_updates_since,import_updates,oplog_vv}` | `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions); `facade_poll_join` calls `apply_join_outcome`; `ensure_mergeable_map` / `ensure_mergeable_list`; `handoff_summary` from `live_entries` only |
 | Working-set evidence | Condenser as sole writer of `{id}.working-set.json` | No peer evidence on the sidecar | `TaskDocumentCondenser::record_peer_join_evidence` appends `RecordedDecision` with `source_reference` = CRDT message id |
-| Persist | `{id}.channel.jsonl` | Nothing; JSONL stays | `{id}.channel.crdt` via `export(ExportMode::Snapshot)` + `write_bytes_safe`; incremental sync via `ExportMode::updates` + `import` |
+| Persist | `{id}.channel.jsonl` | Nothing; JSONL stays | `{id}.channel.crdt` via `export(ExportMode::Snapshot)` + `write_bytes_safe`. Incremental `ExportMode::updates` / `import` / `oplog_vv` are not wrapped |
 
 ### Files
 
 - Inserted: `src/runtime/task_state/peer_merge.rs`
-- Updated: `src/app/subtask_orchestrator/mod.rs`, `src/app/subtask_orchestrator/tests.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/mod.rs`, `src/runtime.rs`, `src/app/task_facade.rs`, `src/util.rs`, `Cargo.toml`
+- Updated: `src/app/subtask_orchestrator/mod.rs`, `src/app/subtask_orchestrator/tests.rs`, `src/runtime/task_document/task_state_bridge.rs`, `src/runtime/task_state/mod.rs`, `src/runtime.rs`, `src/app/task_facade.rs`, `src/app/task_facade/tests.rs`, `src/runtime/session_task.rs`, `src/util.rs`, `Cargo.toml`
 
 ### Acceptance tests
 
 - `join_applies_supersession_instead_of_concatenating_summaries`
 - `live_entries_drop_superseded_ids`
 - `snapshot_round_trips_through_persist`
-- `export_updates_import_on_second_peer`
+- `ensure_mergeable_repost_unions_supersedes_and_keeps_latest_body`
+- `poll_fan_out_join_decides_sequential_supersession`
+- `poll_fan_out_join_keeps_independent_fan_out_summaries`
+- `poll_fan_out_join_same_agent_later_completion_replaces_earlier`
+- `facade_poll_join_applies_live_handoff_and_drops_superseded_summaries`
 
-Crate APIs used (docs.rs only): `loro::LoroDoc::{new,set_peer_id,get_map,export,import,oplog_vv,from_snapshot,commit}`; `LoroMap::{insert,insert_container}`; `LoroList::insert`; `ExportMode::{Snapshot,updates}`.
+Crate APIs used (docs.rs only): `loro::LoroDoc::{new,set_peer_id,get_map,export,from_snapshot,commit}`; `LoroMap::{insert,ensure_mergeable_map,ensure_mergeable_list}`; `LoroList::push`; `ExportMode::Snapshot`. `insert_container`, `get_or_create_container`, `ExportMode::updates`, `import`, and `oplog_vv` are not part of this crate's join surface.
+
+### Do not reintroduce
+
+Phase 5 removes fragments that looked load-bearing and were not on the
+production path. Keep this list in the ADR so a later sketch cannot
+restore them:
+
+- Empty `JoinSummary.supersedes` in `poll_fan_out_join`. Poll is the
+  production writer (spawn stamp plus same-agent earlier completions).
+- `facade_poll_join` mapping child tuples without
+  `apply_join_outcome`. HTTP `join_status_handler` and `/watch` are the
+  production callers; they must post, persist `{id}.channel.crdt`, set
+  parent `handoff_summary` from `live_entries`, and call
+  `record_peer_join_evidence`.
+- `LoroMap::insert_container` / `get_or_create_container` for nested
+  message maps. Crate docs (`docs.rs/loro/1.16.0`): concurrent same-key
+  inserts overwrite. Use `ensure_mergeable_map` / `ensure_mergeable_list`.
+- `PeerMergeDoc::{export_updates_since,import_updates,oplog_vv}` and the
+  two-peer test `export_updates_import_on_second_peer`. `LoroDoc::import`
+  / `ExportMode::updates` / `oplog_vv` serve independent writers
+  exchanging missing ops. Production join is one in-process document.
+- `PeerMessageKind` (`Observation` / `Correction` / …) as the join
+  replace rule. That enum is ADR-046 JSONL, keyed per
+  `session_task_id`. Join reads `SessionTask.handoff_summary`.
+- A notes-file fingerprint refresh as a second continuity protocol
+  (Phase 0, closed). `history.rs` local byte heuristic stays out of
+  this change.
 
