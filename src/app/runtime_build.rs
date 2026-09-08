@@ -37,5 +37,16 @@ pub fn build_runtime_with_resume(
     runtime
         .mode
         .push_history_line(format!("[resumed: {restored_id} status={status}]"));
+    match WorkingSetRecord::try_load_from_search_dirs_from(&runtime.mode.working_dir, &restored_id)
+    {
+        Ok(Some(record)) => ctx.seed_from_working_set(record),
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("[state] working-set load failed: {error}");
+            runtime
+                .mode
+                .push_history_line(format!("[resume] working-set load failed: {error}"));
+        }
+    }
     Ok((runtime, ctx))
 }

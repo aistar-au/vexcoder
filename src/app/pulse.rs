@@ -4,6 +4,10 @@ use crate::runtime::session_task::now_millis;
 impl TuiMode {
     pub(super) fn reset_conversation_window(&mut self, ctx: &RuntimeContext) {
         ctx.clear_conversation();
+        self.reset_session_surface();
+    }
+
+    pub(super) fn reset_session_surface(&mut self) {
         self.pre_session_notices.clear();
         if let Some(t) = self.task_doc.active_pulse.as_mut() {
             t.command_sessions.clear();
@@ -28,11 +32,55 @@ impl TuiMode {
         }
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
-        self.reset_conversation_window(ctx);
+        self.seed_next_request_from_working_set(ctx, &restored_id);
         self.push_document_notice(
             format!("[resumed: {restored_id} status={status}]"),
             crate::runtime::NoticeSeverity::Info,
         );
+    }
+
+    pub(super) fn seed_next_request_from_working_set(
+        &mut self,
+        ctx: &RuntimeContext,
+        task_id: &str,
+    ) {
+        let load_error =
+            match WorkingSetRecord::try_load_from_search_dirs_from(&self.working_dir, task_id) {
+                Ok(Some(record)) => {
+                    ctx.seed_from_working_set(record);
+                    None
+                }
+                Ok(None) => {
+                    ctx.clear_conversation();
+                    None
+                }
+                Err(error) => {
+                    eprintln!("[state] working-set load failed: {error}");
+                    ctx.clear_conversation();
+                    Some(error)
+                }
+            };
+        self.reset_session_surface();
+        if let Some(error) = load_error {
+            self.push_document_notice(
+                format!("[resume] working-set load failed: {error}"),
+                crate::runtime::NoticeSeverity::Warning,
+            );
+        }
+    }
+
+    pub(super) fn write_working_set_sidecar(&mut self) -> Option<WorkingSetRecord> {
+        let dir = TaskState::state_dir_from(&self.working_dir);
+        match self
+            .task_doc_condenser
+            .write_working_set(&self.task_doc, &dir)
+        {
+            Ok(record) => Some(record),
+            Err(error) => {
+                eprintln!("[state] working-set save failed: {error}");
+                None
+            }
+        }
     }
 
     pub(super) fn reset_turn_capture(&mut self) {
@@ -225,6 +273,7 @@ impl TuiMode {
         );
 
         self.persist_task_document();
+        let _ = self.write_working_set_sidecar();
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.reset_turn_capture();

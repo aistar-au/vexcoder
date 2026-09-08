@@ -1,76 +1,75 @@
 # ADR-051: Durable Working-Set Record and Context Continuity
 
-**Status:** Proposed
+**Status:** Active (Phases 1, 3, 4 on `main`; Phase 2 in this batch; Phase 5 pending)
 **Chain:** ADR-023, ADR-024, ADR-029, ADR-033, ADR-038, ADR-045, ADR-046, ADR-049
 **Implementation checklist:** `TASKS/PN-01-working-set-record.md`
 
 ## Context
 
-Context sources are fragmented across a saved task document, an on-screen
+Context sources were fragmented across a saved task document, an on-screen
 TUI projection, a pulse-evidence snapshot, a peer JSONL log, and a flat
-notes file. A saved task can restore the visible TUI surface, but
-`TuiMode::apply_resumed_task` calls `reset_conversation_window` after
-rebuilding the task document, which clears the live `ApiMessage` history.
-`/compact` does the same after clearing completed pulses. The snapshot
-bridge in `task_state_bridge.rs` is presentation-oriented — pulse input,
-final text, changed files, tool summaries — not a serialized model
-conversation, so it cannot stand in as the resume source.
+notes file. A saved task could restore the visible TUI surface via
+`TaskDocumentCondenser::restore_from_snapshot`, but
+`TuiMode::apply_resumed_task` previously called `reset_conversation_window`
+after rebuilding the task document, which cleared the live `ApiMessage`
+history. `/compact` did the same after clearing completed pulses. The
+snapshot bridge in `task_state_bridge.rs` is presentation-oriented — pulse
+input, final text, changed files, tool summaries — not a serialized model
+conversation, so it cannot stand in as the resume source by itself.
 
-Three heuristics carry more weight than they should:
+Three heuristics carried more weight than they should:
 
-- **Token budgeting** is `content.len() / 4` in both
+- **Token budgeting** was `content.len() / 4` in both
   `session_notes::resolve_notes_load` and
   `project_instructions::estimate_tokens`. A byte count is not a token
-  count for any real vocabulary, so the budget check itself is
-  approximate exactly where it decides whether something survives.
-- **Project instructions** (`load_project_instructions`) checks a fixed
+  count for any BPE vocabulary, so the budget check itself was
+  approximate exactly where it decided whether something survived.
+- **Project instructions** (`load_project_instructions`) checked a fixed
   three-name list — `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md` — in
-  a single directory and stops at the first match. If that first match is
-  over budget, the loader returns `OverBudget` immediately; it never
-  tries the next candidate, and it never looks at a parent or child
+  a single directory and stopped at the first match. If that first match
+  was over budget, the loader returned `OverBudget` immediately; it never
+  tried the next candidate, and it never looked at a parent or child
   directory.
-- **Memory** is one file, injected whole or skipped whole. There is no
-  scope, provenance, or accepted/pending state, so a single stale line
-  and a single verified fact are trusted equally, or dropped equally.
+- **Memory** was one file, copied into the prompt whole or skipped whole.
+  There was no scope, provenance, or accepted/pending state, so a single
+  stale line and a single verified fact were trusted equally, or dropped
+  equally.
 
-A Phase 0 stopgap would suggest: `ApiClient.notes_content` moved
-from `Option<String>` to `Arc<RwLock<Option<String>>>` with a
-`set_notes_content` setter; `ConversationManager::refresh_notes_content`
-checks a `NotesFileFingerprint` (file length plus modified time) before
-each `send_message` call and only re-reads when the file has actually
-changed; and `populate_local_server_info` runs before the first pulse so
-compaction sees the real context window instead of a default. This keeps
-the notes file current in the system prompt. It does not restore model
-working state on resume, and it is not a replacement for a durable
-working-set record — later phases must not grow a second continuity
-protocol beside it.
+A notes-file fingerprint refresh (`ApiClient` notes storage plus per-pulse
+reload) was evaluated as an early continuity protocol and closed without
+merging. That path does not restore model working state on `/resume`, and
+later phases must not grow a second continuity protocol beside
+`WorkingSetRecord`. Phases 1 (schema, persist, `tiktoken`), 3 (hierarchical
+instructions), and 4 (`MemoryCandidate`) are on `main`. Phase 2 (this
+batch) restores the next request from `WorkingSetRecord` on `/resume` and
+`/compact`. Phase 5 (`loro` peer merge) remains pending.
 
 ## Crate and API Evidence
 
 Three upstream crates close the gaps above with primitives this codebase
-does not currently have, and one class of managed provider API is
+did not previously have, and one class of managed provider API is
 evaluated and rejected on the same grounds ADR-023/024 already used to
 prefer local, inspectable state.
 
-- **Token counting — `tiktoken`.** A pure-Rust byte-pair-encoding
-  tokenizer. `tiktoken::get_encoding("o200k_base")` (or
-  `encoding_for_model(name)` for a specific model family) returns an
-  encoder; `encoder.count(text)` returns a token count on a path that
-  does not allocate the token-id vector `encode` would produce, and
-  `count_with_special_tokens` extends that to text containing special
-  tokens. This replaces `content.len() / 4` with the number the model
-  context window is actually measured in, at the cost of one dependency
-  and a small embedded vocabulary table (selectable per encoding via
-  feature flags, so a build can carry only the vocabularies it uses).
-  Source: docs.rs/tiktoken.
+- **Token counting — `tiktoken` 4.1.2.** A pure-Rust byte-pair-encoding
+  tokenizer. Published signatures (`docs.rs/tiktoken/4.1.2`):
+  `tiktoken::get_encoding(name: &str) -> Option<&'static CoreBpe>` and
+  `tiktoken::encoding_for_model(model: &str) -> Option<&'static CoreBpe>`.
+  An encoding whose vocabulary is not compiled in is absent:
+  `get_encoding` returns `None`. `CoreBpe::count(&self, text: &str) -> usize`
+  returns a token count on a path that does not allocate the token-id
+  vector `encode` would produce; `count_with_special_tokens` extends that
+  to text containing special tokens. This crate's default encoding is
+  `o200k_base`, compiled in via `default-features = false` plus
+  `features = ["vocab-o200k_base"]`. Source: docs.rs/tiktoken.
 
-- **Schema validation — `schemars`.** `#[derive(JsonSchema)]` plus the
-  `schema_for!` macro generate a JSON Schema document from a Rust type,
-  and schemars reads a type's `#[serde(...)]` attributes so the schema
-  matches what `serde_json` actually produces. This gives the
-  `WorkingSetRecord` a checked contract instead of a hand-maintained one,
-  without changing how the record is written to disk. Source:
-  docs.rs/schemars, crates.io/schemars.
+- **Schema validation — `schemars` 1.2.2.** `#[derive(JsonSchema)]` plus
+  the `schema_for!($type:ty)` macro generate a `Schema` document from a
+  Rust type (JSON Schema 2020-12). schemars reads a type's `#[serde(...)]`
+  attributes so the schema matches what `serde_json` actually produces.
+  This gives `WorkingSetRecord` and `MemoryCandidateStore` a checked
+  contract instead of a hand-maintained one, without changing how the
+  record is written to disk. Source: docs.rs/schemars/1.2.2.
 
 - **Peer-channel merge — `loro`.** A CRDT (conflict-free replicated data
   type) document library. `LoroDoc::new()` creates a document;
@@ -82,6 +81,7 @@ prefer local, inspectable state.
   writer. This gives the peer channel a real merge rule (supersede by
   message id, apply in causal order) instead of waiting for every child
   to finish and concatenating free-text summaries. Source: docs.rs/loro.
+  Phase 5 only; not in this batch.
 
 - **Rejected: opaque provider-side compaction.** Some managed chat/response
   APIs pair a create call with a server-side compaction operation and a
@@ -105,16 +105,16 @@ prefer local, inspectable state.
   projection of state the application already owns, not a second copy of
   that state.
 
-## Stay / Removed / Net Change
+## Retained / Superseded / Added
 
-| Area | Stays | Removed | Net change |
+| Area | Retained API | Superseded API | Added API |
 | :--- | :--- | :--- | :--- |
-| Working-set restore on `/resume` | The on-screen task-document projection built by `task_state_bridge.rs` | `reset_conversation_window` clearing `ApiMessage` history in `TuiMode::apply_resumed_task` and after `/compact` | Load a `WorkingSetRecord` on `/resume` and after `/compact`; seed the next request from it instead of an empty window |
-| Memory / notes | The Phase 0 `Arc<RwLock<Option<String>>>` store and per-pulse fingerprint refresh (PR #443, closed unmerged) | The flat file as the only durable memory unit, injected whole or not at all | Typed candidates (`user`, `feedback`, `project`, `reference`) carrying provenance, topic, and an accepted/pending state; only accepted candidates inject; over budget, the lowest-priority pending candidate drops first |
-| Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` in both places | A `tiktoken` count on the zero-allocation `count()` path |
-| Project instructions | The three-name candidate list and its priority order | Single-directory, first-match, stop-on-over-budget loading | A root-to-leaf directory walk, one candidate per directory, closer files layered after farther ones, and a manifest recording what was skipped and why |
-| Peer channel | The append-only JSONL sidecar, its locking, and the ADR-046 read/post routes | Waiting on every child plus free-text summary concatenation on join | A `loro` document per task: per-consumer read cursors, message-id supersession, evidence references written into the working-set record |
-| API caching | ADR-049's shared-prefix fingerprint and `ApiMessage.cache_hint` | Nothing; provider-specific mapping stays deferred | The working-set record is the local fallback, so resume never depends on an opaque provider continuation item |
+| Working-set restore on `/resume` | `TaskDocumentCondenser::restore_from_snapshot` and the on-screen projection in `task_state_bridge.rs` | `TuiMode::apply_resumed_task` and `handle_compact_command` calling `reset_conversation_window` → `RuntimeContext::clear_conversation` → `ConversationManager::clear_messages` (`api_messages.clear()`) with no continuity source | `WorkingSetRecord::{save,load,try_load,try_load_from_search_dirs_from,as_prompt_block,retain_durable_objective}`; `ConversationManager::seed_from_working_set` copies `as_prompt_block` onto `ApiClient::set_supplementary_system_prompt`; `TaskDocumentCondenser::write_working_set` is the sole sidecar writer. `reset_conversation_window` remains on `/new` and `/fork` |
+| Memory / notes | `notes_path` resolution and the markdown projection of the store | Flat file as the only durable unit, copied into the prompt whole or skipped whole | Typed `MemoryCandidate` / `MemoryCandidateStore` (`source`, `topic`, `body`, `status`, `source_reference`); `inject_accepted` copies only `CandidateStatus::Accepted`; over budget, the lowest-priority accepted candidate is dropped first |
+| Token budgeting | The budget-check call sites in `session_notes` and `project_instructions` | `content.len() / 4` and `(len + 3) / 4` | `tiktoken::get_encoding` / `encoding_for_model` (`Option<&'static CoreBpe>`) and `CoreBpe::count` via `src/runtime/token_count.rs` |
+| Project instructions | The three-name candidate list and its same-directory priority order | Single-directory, first-match, fail-closed `LoadResult::OverBudget` | Root-to-leaf `load_hierarchical_instructions` / `load_instructions_for_workspace`; one candidate per directory; closer files layered after farther ones; `InstructionSet` manifest records skipped files |
+| Peer channel | The append-only JSONL sidecar, its locking, and the ADR-046 read/post routes | Waiting on every child plus free-text summary concatenation on join | A `loro` document per task: per-consumer read cursors, message-id supersession, evidence references written into the working-set record (Phase 5) |
+| API caching | ADR-049's shared-prefix fingerprint and `ApiMessage.cache_hint` | Nothing; provider-specific mapping stays deferred | The working-set record is the local fallback, so `/resume` never depends on an opaque provider continuation item |
 
 ## Decision
 
@@ -127,8 +127,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Durable unit of continuity, persisted under
-/// `.vex/state/{task_id}.working-set.json` via the existing
-/// durable-write helper. The condenser is the sole writer.
+/// `.vex/state/{task_id}.working-set.json` via `write_json_safe` and
+/// `assert_durable_access`. The condenser is the sole writer.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct WorkingSetRecord {
@@ -147,7 +147,7 @@ pub struct WorkingSetRecord {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RecordedDecision {
     pub rationale: String,
-    /// e.g. `src/foo.rs:42` or a peer-channel message id.
+    /// File location or a peer-channel message id.
     pub source_reference: String,
 }
 
@@ -158,38 +158,56 @@ pub struct PathChange {
 }
 ```
 
-A lint step regenerates `schema_for!(WorkingSetRecord)` and fails the
-build if a checked-in `working-set.schema.json` has drifted, so the
-on-disk contract cannot go stale without a reviewed change.
+Persist and restore (implemented):
+
+- `save` / `load` write and read the sidecar through `serde_json`.
+- `try_load` / `try_load_from_search_dirs_from` return `Ok(None)` when the
+  sidecar is absent and `Err` when a present file fails durable-access,
+  read, or `serde_json` deserialize.
+- `retain_durable_objective` keeps the first non-empty `objective` across
+  later condenser writes. Episodic fields (`verified_results`,
+  `changed_paths`, `next_action`) still come from the current pulse window.
+- `as_prompt_block` serializes the `serde` `snake_case` field names for
+  `ApiClient::set_supplementary_system_prompt`.
+
+A test regenerates `schema_for!(WorkingSetRecord)` and fails if the
+checked-in `schemas/working_set.schema.json` has drifted, so the on-disk
+contract cannot go stale without a reviewed change.
 
 ### 2. Real token counts for every budget check
+
+Published `tiktoken` 4.1.2 API (`docs.rs/tiktoken`): both lookup functions
+return `Option<&'static CoreBpe>`, not `Result` and not an owned
+`CoreBpe`. `CoreBpe::count` is the zero-allocation path.
 
 ```rust
 use tiktoken::CoreBpe;
 
-/// Replaces the `content.len() / 4` estimate used today in
-/// `session_notes::resolve_notes_load` and
-/// `project_instructions::estimate_tokens`.
+/// Replaces the `content.len() / 4` estimate previously used in
+/// `session_notes` and `project_instructions`.
 fn token_count(encoding: &CoreBpe, text: &str) -> usize {
     encoding.count(text) // zero-allocation path; no token vector built
 }
 
-fn encoder_for_model(model_name: &str) -> CoreBpe {
-    tiktoken::encoding_for_model(model_name)
-        .unwrap_or_else(|_| tiktoken::get_encoding("o200k_base").expect("bundled vocabulary"))
+fn encoder_for_model(model_name: &str) -> &'static CoreBpe {
+    tiktoken::encoding_for_model(model_name).unwrap_or_else(|| {
+        tiktoken::get_encoding("o200k_base").expect("bundled vocabulary")
+    })
 }
 ```
 
 The encoder is cheap to hold for the life of a `ConversationManager` and
-reused across pulses rather than rebuilt per call.
+reused across pulses rather than rebuilt per call. The in-tree wrapper is
+`src/runtime/token_count.rs`.
 
 ### 3. Hierarchical instruction loading
 
 Walk from the repository root to the working directory. At each
-directory, try the same fixed candidate names `load_project_instructions`
-already checks. Concatenate root-first so closer files override farther
-ones. A file that does not fit the remaining budget is skipped and
-recorded in a manifest; the walk continues instead of stopping.
+directory, try the same fixed candidate names the previous
+single-directory loader checked. Concatenate root-first so closer files
+override farther ones. A file that does not fit the remaining budget is
+skipped and recorded in a manifest; the walk continues instead of
+stopping. Token counts use `token_count` (default `o200k_base` encoder).
 
 ```rust
 use std::path::{Path, PathBuf};
@@ -210,7 +228,6 @@ pub struct InstructionSet {
 pub fn load_hierarchical_instructions(
     repo_root: &Path,
     cwd: &Path,
-    encoding: &tiktoken::CoreBpe,
     token_budget: usize,
 ) -> InstructionSet {
     let mut sections = Vec::new();
@@ -221,7 +238,7 @@ pub fn load_hierarchical_instructions(
         let Some((path, content)) = first_existing(&dir, CANDIDATE_FILES) else {
             continue;
         };
-        let estimated = token_count(encoding, &content);
+        let estimated = crate::runtime::token_count::token_count(&content);
         let included = estimated <= remaining;
         if included {
             remaining -= estimated;
@@ -232,31 +249,11 @@ pub fn load_hierarchical_instructions(
 
     InstructionSet { content: sections.join("\n\n"), manifest }
 }
-
-fn directories_root_to_leaf(repo_root: &Path, cwd: &Path) -> Vec<PathBuf> {
-    let relative = cwd.strip_prefix(repo_root).unwrap_or(cwd);
-    let mut out = vec![repo_root.to_path_buf()];
-    let mut acc = repo_root.to_path_buf();
-    for component in relative.components() {
-        acc = acc.join(component);
-        out.push(acc.clone());
-    }
-    out
-}
-
-fn first_existing(dir: &Path, names: &[&str]) -> Option<(PathBuf, String)> {
-    names
-        .iter()
-        .find_map(|name| {
-            let candidate = dir.join(name);
-            std::fs::read_to_string(&candidate).ok().map(|c| (candidate, c))
-        })
-}
 ```
 
-`/context` renders `manifest` so an operator can see which files loaded
-and which were skipped for budget, rather than inferring it from prompt
-size.
+`/context` renders the session-start `InstructionSet` manifest so an
+operator can see which files loaded and which were skipped for budget,
+rather than inferring it from prompt size or walking the disk again.
 
 ### 4. Typed, reviewable memory candidates
 
@@ -287,10 +284,11 @@ pub struct MemoryCandidate {
 }
 ```
 
-Only `Accepted` candidates are read into the record. `Pending` candidates
-need an operator `/memory accept` (or equivalent) before use. Over
-budget, the lowest-priority `Pending` candidate is dropped first; nothing
-is silently skipped in bulk the way a single over-budget file is today.
+Only `Accepted` candidates are read into the prompt, via
+`inject_accepted`. `Pending` candidates need an operator `/memory accept`
+before use. Over budget, the lowest-priority accepted candidate is
+dropped first; nothing is silently skipped in bulk the way a single
+over-budget file was previously.
 
 ### 5. Peer-channel merge
 
@@ -363,7 +361,7 @@ implementation.
   for continuity — and keeping them from drifting apart is an ongoing
   cost, not a one-time one.
 - The accepted/pending split on memory candidates adds a manual step
-  compared to today's silent whole-file injection.
+  compared to the previous silent whole-file copy into the prompt.
 - `loro` is a new, non-trivial dependency; the peer channel's merge logic
   moves from "append and read" to a real CRDT surface, which is a larger
   change to reason about and test than the JSONL sidecar it replaces.
@@ -393,40 +391,51 @@ implementation.
   trades away local inspection and portability for a convenience this
   project does not need, having already chosen a local-first design in
   ADR-023 and ADR-038.
-- **Load a single project-instructions file, as today.** Rejected: an
+- **Load a single project-instructions file, as previously.** Rejected: an
   over-budget file silently disables the whole layer, and a single file
   cannot express directory-scoped conventions in a larger repository.
 - **Treat the on-screen TUI projection as the resume source.** Rejected:
   ratatui's immediate-mode rendering means that view is reconstructed
   from application state every frame and is not itself a second copy of
   that state — ADR-045 reaches the same conclusion for snapshot replay.
+- **Notes-file fingerprint refresh as the continuity protocol.** Rejected:
+  re-reading a flat notes file before each pulse keeps that file current
+  in the system prompt; it does not restore model working state on
+  `/resume` or `/compact`. Phase 4 typed candidates cover the notes
+  problem. Do not grow a second continuity protocol beside
+  `WorkingSetRecord`.
 
 ## Validation
 
-Phases 1 through 5 in `TASKS/PN-01-working-set-record.md` name the
-acceptance tests for this decision:
+Phases 1, 3, and 4 are on `main` (PR #444, PR #445). Phase 2 is this
+batch. Phase 5 remains pending.
 
 - `working_set_record_round_trips_through_persist`
-- `resume_injects_working_set_into_next_request`
+- `working_set_schema_matches_checked_in_file`
+- `token_count_is_not_byte_quarter_heuristic`
+- `get_encoding_o200k_base_count_matches_encode_len`
+- `resume_restores_working_set_into_next_request`
 - `compact_writes_working_set_before_clearing_pulses`
+- `write_working_set_keeps_prior_objective`
+- `compact_retains_objective_across_later_writes`
+- `resume_surfaces_corrupt_working_set_without_dropping_task`
 - `instruction_walk_falls_back_when_higher_file_is_over_budget`
 - `pending_memory_candidates_are_not_injected`
-- `join_applies_supersession_instead_of_concatenating_summaries`
+- `join_applies_supersession_instead_of_concatenating_summaries` (Phase 5)
 
 Alongside those, a schema-diff step regenerates
-`schema_for!(WorkingSetRecord)` and fails if the checked-in schema file
-does not match, so the persisted contract cannot change without a
-reviewed diff. None of the above is implemented in the Phase 0 slice
-already on this branch; Phase 0 is notes refresh only and must not grow
-into a second continuity protocol ahead of Phase 1.
+`schema_for!(WorkingSetRecord)` and `schema_for!(MemoryCandidateStore)`
+and fails if the checked-in schema files do not match, so the persisted
+contract cannot change without a reviewed diff.
 
 ## References
 
-- `tiktoken` — pure-Rust BPE tokenizer, zero-allocation `count()` path:
-  <https://docs.rs/tiktoken>
-- `schemars` — JSON Schema generation from Rust types via
-  `#[derive(JsonSchema)]`: <https://docs.rs/schemars>,
-  <https://crates.io/crates/schemars>
+- `tiktoken` 4.1.2 — `get_encoding` / `encoding_for_model` return
+  `Option<&'static CoreBpe>`; `CoreBpe::count` is the zero-allocation
+  path: <https://docs.rs/tiktoken/4.1.2>
+- `schemars` 1.2.2 — JSON Schema 2020-12 generation from Rust types via
+  `#[derive(JsonSchema)]` and `schema_for!`:
+  <https://docs.rs/schemars/1.2.2>
 - `loro` — CRDT framework for local-first documents, version-vector
   incremental sync: <https://docs.rs/loro>
 - `ratatui` — immediate-mode rendering with intermediate buffers

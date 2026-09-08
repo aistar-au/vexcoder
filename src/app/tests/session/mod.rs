@@ -70,6 +70,98 @@ fn resume_restores_active_grants_and_rejects_unknown_id() {
 }
 
 #[test]
+fn resume_restores_working_set_into_next_request() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
+
+    let mut state = TaskState::new("resume-ws-01".to_string());
+    state.status = crate::runtime::TaskStatus::Running;
+    state.save(temp.path()).unwrap();
+
+    let mut record = crate::runtime::WorkingSetRecord::new("resume distinctive objective");
+    record.next_action = "continue from the serialized record".to_string();
+    record
+        .save(temp.path(), "resume-ws-01")
+        .expect("save working-set");
+
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/resume resume-ws-01".to_string(), &mut ctx);
+    assert_eq!(mode.current_task_id(), "resume-ws-01");
+
+    let prompt = ctx
+        .test_system_prompt_try_lock()
+        .expect("conversation lock");
+    assert!(
+        prompt.contains("resume distinctive objective"),
+        "ApiClient::set_supplementary_system_prompt must receive WorkingSetRecord::as_prompt_block; got {prompt}"
+    );
+    assert!(prompt.contains("continue from the serialized record"));
+    assert!(prompt.contains("[working-set record: start]"));
+    assert_eq!(
+        ctx.test_message_count_try_lock(),
+        Some(0),
+        "live ApiMessage window is cleared; continuity is the system-prompt block"
+    );
+
+    mode.on_user_input("/new".to_string(), &mut ctx);
+    let after_new = ctx
+        .test_system_prompt_try_lock()
+        .expect("conversation lock");
+    assert!(
+        !after_new.contains("resume distinctive objective"),
+        "/new must call reset_conversation_window and drop the working-set prompt; got {after_new}"
+    );
+
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+}
+
+#[test]
+fn resume_surfaces_corrupt_working_set_without_dropping_task() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
+
+    let mut state = TaskState::new("resume-ws-corrupt".to_string());
+    state.status = crate::runtime::TaskStatus::Running;
+    state.save(temp.path()).unwrap();
+    std::fs::write(
+        temp.path().join("resume-ws-corrupt.working-set.json"),
+        "{not-valid-json",
+    )
+    .unwrap();
+
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/resume resume-ws-corrupt".to_string(), &mut ctx);
+    assert_eq!(mode.current_task_id(), "resume-ws-corrupt");
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("working-set load failed")),
+        "deserialize failure must be visible; lines: {:?}",
+        mode.history_lines()
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[resumed: resume-ws-corrupt")),
+        "TUI snapshot restore must still run; lines: {:?}",
+        mode.history_lines()
+    );
+    let prompt = ctx
+        .test_system_prompt_try_lock()
+        .expect("conversation lock");
+    assert!(
+        !prompt.contains("[working-set record: start]"),
+        "corrupt sidecar must not restore the next request; got {prompt}"
+    );
+
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+}
+
+#[test]
 fn quit_command_requests_quit() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();

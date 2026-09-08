@@ -25,9 +25,9 @@ use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
     DefaultCommandRunner, EditLoopOutcome, PulseOutcome, SandboxDriver, TaskDocument,
-    TaskDocumentCondenser, TaskState, TaskStatus, format_command_session_cancelled,
-    format_command_session_exit, format_command_session_output, format_command_session_started,
-    truncate_head_bytes,
+    TaskDocumentCondenser, TaskState, TaskStatus, WorkingSetRecord,
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started, truncate_head_bytes,
 };
 use crate::runtime::{
     AssembledContext, ContextAssembler, block_on_context_task, resolve_git_timeout_ms,

@@ -5,7 +5,9 @@ use crate::runtime::task_state::TaskStatus;
 use crate::state::PulseToolPolicy;
 use crate::usage::PulseTokens;
 
-use super::{PulseEntry, PulseOutcome, TaskDocumentCondenser, TaskInfo};
+use super::{
+    AssistantBlockEntry, AssistantPhase, PulseEntry, PulseOutcome, TaskDocumentCondenser, TaskInfo,
+};
 
 fn test_meta() -> TaskInfo {
     TaskInfo {
@@ -52,4 +54,86 @@ fn task_document_lifecycle_begin_turn_finish_and_tool_tracking() {
     assert!(doc.active_pulse.is_none());
     assert_eq!(doc.completed_turns.len(), 1);
     assert!(summary.active_turn_changed && summary.task_status_changed);
+}
+
+#[test]
+fn project_working_set_copies_pulse_fields() {
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
+    condenser.begin_turn(
+        &mut doc,
+        "distinctive project objective".to_string(),
+        2000,
+        PulseToolPolicy::Default,
+    );
+    if let Some(active) = doc.active_pulse.as_mut() {
+        active.changed_files.insert("src/app/pulse.rs".to_string());
+        active.entries.push(PulseEntry::AssistantBlock {
+            step_id: 99,
+            block: AssistantBlockEntry {
+                block_index: 0,
+                phase: AssistantPhase::Final,
+                content: "verified projection".to_string(),
+                collapsed: false,
+                streaming: false,
+            },
+        });
+    }
+    let record = condenser.project_working_set(&doc);
+    assert_eq!(record.objective, "distinctive project objective");
+    assert_eq!(record.next_action, "distinctive project objective");
+    assert!(
+        record
+            .changed_paths
+            .iter()
+            .any(|change| change.path.ends_with("src/app/pulse.rs"))
+    );
+    assert_eq!(
+        record.verified_results,
+        vec!["verified projection".to_string()]
+    );
+}
+
+#[test]
+fn write_working_set_keeps_prior_objective() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
+    condenser.begin_turn(
+        &mut doc,
+        "original durable objective".to_string(),
+        2000,
+        PulseToolPolicy::Default,
+    );
+    condenser.finish_turn(
+        &mut doc,
+        PulseOutcome::Completed,
+        PulseTokens::default(),
+        3000,
+    );
+    condenser
+        .write_working_set(&doc, dir.path())
+        .expect("first write");
+
+    doc.completed_turns.clear();
+    condenser.begin_turn(
+        &mut doc,
+        "post-compact unrelated input".to_string(),
+        4000,
+        PulseToolPolicy::Default,
+    );
+    condenser.finish_turn(
+        &mut doc,
+        PulseOutcome::Completed,
+        PulseTokens::default(),
+        5000,
+    );
+    let written = condenser
+        .write_working_set(&doc, dir.path())
+        .expect("second write");
+    assert_eq!(written.objective, "original durable objective");
+    assert_eq!(written.next_action, "post-compact unrelated input");
+    let loaded =
+        crate::runtime::WorkingSetRecord::load(dir.path(), &doc.info.id).expect("reload sidecar");
+    assert_eq!(loaded.objective, "original durable objective");
 }
