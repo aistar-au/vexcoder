@@ -98,3 +98,5 @@ pub use crate::runtime::tokio as runtime_tokio;
 pub use crate::runtime::{JoinIndex, StateEnvelope, TaskState, WorkingSetRecord};
 
 use self::overlay::summarize_tool_approval_context;
+
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest.rs"));
