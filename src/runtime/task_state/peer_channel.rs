@@ -98,7 +98,10 @@ fn with_channel_shared_lock<T>(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PeerMessageKind {
-    Observation,
+    /// Agent status note posted on the ADR-046 JSONL channel.
+    /// Wire token remains `Observation` so existing `{id}.messages.jsonl` rows stay valid.
+    #[serde(rename = "Observation", alias = "StatusNote")]
+    StatusNote,
 
     Correction,
 
@@ -110,7 +113,7 @@ pub enum PeerMessageKind {
 impl std::fmt::Display for PeerMessageKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Observation => f.write_str("observation"),
+            Self::StatusNote => f.write_str("observation"),
             Self::Correction => f.write_str("correction"),
             Self::Question => f.write_str("question"),
             Self::Acknowledgement => f.write_str("acknowledgement"),
@@ -285,7 +288,9 @@ fn count_lines(path: &Path) -> Result<usize> {
 
 pub fn parse_peer_message_kind(s: &str) -> Option<PeerMessageKind> {
     match s {
-        "observation" | "Observation" => Some(PeerMessageKind::Observation),
+        "observation" | "Observation" | "status-note" | "StatusNote" => {
+            Some(PeerMessageKind::StatusNote)
+        }
         "correction" | "Correction" => Some(PeerMessageKind::Correction),
         "question" | "Question" => Some(PeerMessageKind::Question),
         "acknowledgement" | "Acknowledgement" => Some(PeerMessageKind::Acknowledgement),
@@ -321,7 +326,7 @@ mod tests {
         let msg = make_msg(
             "parent-1",
             "rust-fixer",
-            PeerMessageKind::Observation,
+            PeerMessageKind::StatusNote,
             "*",
             "nonce check is load-bearing",
         );
@@ -329,13 +334,13 @@ mod tests {
         let read = read_messages(dir.path(), "parent-1", 0, None).unwrap();
         assert_eq!(read.len(), 1);
         assert_eq!(read[0].content, "nonce check is load-bearing");
-        assert_eq!(read[0].kind, PeerMessageKind::Observation);
+        assert_eq!(read[0].kind, PeerMessageKind::StatusNote);
     }
 
     #[test]
     fn after_ms_cursor_excludes_earlier_messages() {
         let dir = TempDir::new().unwrap();
-        let mut msg1 = make_msg("p", "a1", PeerMessageKind::Observation, "*", "first");
+        let mut msg1 = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "first");
         msg1.sent_at = 1000;
         let mut msg2 = make_msg("p", "a2", PeerMessageKind::Correction, "*", "second");
         msg2.sent_at = 2000;
@@ -350,7 +355,7 @@ mod tests {
     #[test]
     fn recipient_filter_delivers_broadcast_and_targeted() {
         let dir = TempDir::new().unwrap();
-        let broadcast = make_msg("p", "a1", PeerMessageKind::Observation, "*", "for all");
+        let broadcast = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "for all");
         let targeted = make_msg(
             "p",
             "a1",
@@ -361,7 +366,7 @@ mod tests {
         let other = make_msg(
             "p",
             "a1",
-            PeerMessageKind::Observation,
+            PeerMessageKind::StatusNote,
             "fixer",
             "not for reviewer",
         );
@@ -382,11 +387,11 @@ mod tests {
     fn channel_full_error_at_depth_cap() {
         let dir = TempDir::new().unwrap();
         for i in 0..MAX_CHANNEL_DEPTH {
-            let mut msg = make_msg("p", "a1", PeerMessageKind::Observation, "*", "fill");
+            let mut msg = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "fill");
             msg.id = format!("id-{i}");
             append_message(dir.path(), &msg).unwrap();
         }
-        let overflow = make_msg("p", "a1", PeerMessageKind::Observation, "*", "overflow");
+        let overflow = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "overflow");
         let err = append_message(dir.path(), &overflow).unwrap_err();
         assert!(matches!(err, AppendMessageError::ChannelFull));
     }
@@ -402,7 +407,7 @@ mod tests {
     fn read_batch_is_capped_at_max() {
         let dir = TempDir::new().unwrap();
         for i in 0..MAX_CHANNEL_READ_BATCH + 10 {
-            let mut msg = make_msg("p", "a1", PeerMessageKind::Observation, "*", "x");
+            let mut msg = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "x");
             msg.id = format!("id-{i}");
             msg.sent_at = i as u64 + 1;
             append_message(dir.path(), &msg).unwrap();
@@ -429,7 +434,15 @@ mod tests {
     fn parse_peer_message_kind_handles_all_variants() {
         assert_eq!(
             parse_peer_message_kind("observation"),
-            Some(PeerMessageKind::Observation)
+            Some(PeerMessageKind::StatusNote)
+        );
+        assert_eq!(
+            parse_peer_message_kind("status-note"),
+            Some(PeerMessageKind::StatusNote)
+        );
+        assert_eq!(
+            parse_peer_message_kind("StatusNote"),
+            Some(PeerMessageKind::StatusNote)
         );
         assert_eq!(
             parse_peer_message_kind("Correction"),
@@ -455,7 +468,7 @@ mod tests {
         let big_content = "x".repeat(MAX_CHANNEL_FILE_BYTES as usize + 1);
         std::fs::write(&path, big_content).unwrap();
 
-        let msg = make_msg("p", "a1", PeerMessageKind::Observation, "*", "rejected");
+        let msg = make_msg("p", "a1", PeerMessageKind::StatusNote, "*", "rejected");
         let err = append_message(dir.path(), &msg).unwrap_err();
         assert!(matches!(err, AppendMessageError::ChannelFull));
     }
@@ -471,7 +484,7 @@ mod tests {
             sender_id: "s".into(),
             sender_agent_id: "a".into(),
             recipient: "*".into(),
-            kind: PeerMessageKind::Observation,
+            kind: PeerMessageKind::StatusNote,
             content: "first".into(),
             parent_task_id: "p".into(),
         })
