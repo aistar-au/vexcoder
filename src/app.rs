@@ -96,3 +96,5 @@ pub use crate::runtime::UiUpdate;
 pub use crate::runtime::task_state::peer_channel::PeerMessage;
 pub use crate::runtime::tokio as runtime_tokio;
 pub use crate::runtime::{JoinIndex, StateEnvelope, TaskState, WorkingSetRecord};
+
+use self::overlay::summarize_tool_approval_context;
