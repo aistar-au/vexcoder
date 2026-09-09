@@ -28,9 +28,6 @@ pub struct LiveJoinEntry {
     pub supersedes: Vec<String>,
 }
 
-/// Compatibility alias used by the orchestrator and facade.
-pub type LivePeerEntry = LiveJoinEntry;
-
 /// Typed join document persisted at `{task_id}.join.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
