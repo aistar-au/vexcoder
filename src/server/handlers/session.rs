@@ -4,10 +4,10 @@ use crate::app::runtime_tokio::{
     sync::{broadcast, mpsc},
 };
 use crate::app::{
-    PeerChannelError, SessionTaskStatusError, facade_get_session_task, facade_list_session_tasks,
-    facade_list_tasks, facade_list_todos, facade_post_peer_message, facade_read_peer_messages,
-    facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
-    todos_rollup_path, write_projection_rollup,
+    PeerChannelError, PeerMessage, SessionTaskStatusError, StateEnvelope, facade_get_session_task,
+    facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_post_peer_message,
+    facade_read_peer_messages, facade_task_graph, facade_update_session_task_status,
+    facade_working_set, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
 use crate::http_facade::{HeaderName, HeaderValue, header};
 use crate::local_api::LocalApiState;
@@ -55,6 +55,27 @@ pub struct SessionTaskRollupResponse {
 #[derive(Debug, Deserialize)]
 pub struct UpdateSessionTaskStatusRequest {
     pub status: String,
+}
+
+#[tracing::instrument(skip_all, fields(task_id = %task_id))]
+pub async fn working_set_handler(
+    State(state): State<LocalApiState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<StateEnvelope>, ProblemDetailsResponse> {
+    match facade_working_set(&state.config.working_dir, &task_id) {
+        Ok(Some(envelope)) => Ok(Json(envelope)),
+        Ok(None) => Err(not_found("task_not_found")),
+        Err(err) => {
+            let detail = format!("{err:#}");
+            if detail.contains("working-set load failed")
+                || detail.contains("join index load failed")
+            {
+                Err(conflict("state_sidecar_corrupt"))
+            } else {
+                Err(internal_anyhow(err))
+            }
+        }
+    }
 }
 
 #[tracing::instrument(skip_all)]
@@ -395,9 +416,7 @@ pub async fn read_peer_messages_handler(
     ))
 }
 
-fn peer_message_to_response(
-    msg: crate::runtime::task_state::peer_channel::PeerMessage,
-) -> PeerMessageResponse {
+fn peer_message_to_response(msg: PeerMessage) -> PeerMessageResponse {
     PeerMessageResponse {
         id: msg.id,
         sent_at: msg.sent_at,

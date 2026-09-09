@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::pulse_evidence::{ToolInvocationSummary, TurnEvidenceState};
 use crate::runtime::ModelBackendKind;
 use crate::runtime::task_state::{
-    CacheUsageStats, ConversationCheckpoint, PathChange, TaskState, WorkingSetRecord,
+    CacheUsageStats, ConversationCheckpoint, LiveJoinEntry, PathChange, RecordedDecision,
+    TaskState, WorkingSetRecord,
 };
 use crate::state::ToolStatus;
 
@@ -144,13 +145,47 @@ impl TaskDocumentCondenser {
     ) -> anyhow::Result<WorkingSetRecord> {
         let mut record = self.project_working_set(doc);
         match WorkingSetRecord::try_load(dir, &doc.info.id) {
-            Ok(Some(prior)) => record.retain_durable_objective(&prior),
-            Ok(None) => {}
-            Err(error) => {
-                eprintln!("[state] working-set prior load failed: {error}");
+            Ok(Some(prior)) => {
+                record.retain_durable_objective(&prior);
+                record.retain_referenced_decisions(&prior);
             }
+            Ok(None) => {}
+            Err(error) => return Err(error),
         }
         record.save(dir, &doc.info.id)?;
+        Ok(record)
+    }
+
+    /// Condenser write of agent-join evidence. `RecordedDecision.source_reference`
+    /// is the JoinIndex message id. Existing `objective` stays write-once.
+    pub fn record_join_evidence(
+        &self,
+        dir: &Path,
+        task_id: &str,
+        entries: &[LiveJoinEntry],
+    ) -> anyhow::Result<WorkingSetRecord> {
+        let mut record = match WorkingSetRecord::try_load(dir, task_id) {
+            Ok(Some(prior)) => prior,
+            Ok(None) => WorkingSetRecord::new(""),
+            Err(error) => return Err(error),
+        };
+        for entry in entries {
+            if entry.id.trim().is_empty() {
+                continue;
+            }
+            if record
+                .decisions
+                .iter()
+                .any(|decision| decision.source_reference == entry.id)
+            {
+                continue;
+            }
+            record.decisions.push(RecordedDecision {
+                rationale: entry.body.clone(),
+                source_reference: entry.id.clone(),
+            });
+        }
+        record.save(dir, task_id)?;
         Ok(record)
     }
 }

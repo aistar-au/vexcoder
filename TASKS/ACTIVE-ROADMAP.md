@@ -6,7 +6,7 @@ and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 Updated by the merge workflow after each ADR-scoped PR is merged on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCompat CLI cutover, 10-flag normative table)
+Last updated: 2026-09-09 (ADR-051 Phase 5: JoinIndex, StateEnvelope, GET working-set HTTP contract)
 
 ---
 
@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Active | Phase 2 in this batch; Phase 5 pending | Durable working-set record, `WorkingSetRecord` restore on `/resume`, hierarchical instruction loading, reviewable memory candidates, and peer join merge. Phase 1 merged in PR #444. Phases 3/4 merged in PR #445. |
+| ADR-051 | Active | Phase 5 in this batch | Durable working-set record, `WorkingSetRecord` restore on `/resume` and `/compact`, hierarchical instruction loading, reviewable memory candidates, and agent-join merge via `JoinIndex`. Phases 1–4 merged in PRs #444–#446. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -71,181 +71,16 @@ code lands.
 The only external item in the next batch is ADR-024 PG-03 tap auto-release,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
 
-Fullscreen transcript-first parity hardening is active under ADR-031,
-ADR-040, and ADR-041. Scope: richer footer budgeting, stronger multiline
-composer ergonomics, overlay or pager detail surfaces, transient timeline
-discoverability, and active or fallback fullscreen convergence without
-introducing a permanent telemetry pane. Parser work remains limited to
-normalisation hardening unless ADR-043 adoption gates are satisfied.
-
-ADR-041 D5/D6/D7 (delta types, delta-native draw methods, bounded suffix
-deduplication) merged in PR #331 (commit e1dd681) on 2026-04-03.
-ADR-041 D8/D9/D10/D11/D12/D13 (pending-row replacement, live input preview,
-ordered streamed-text segmentation, bounded-suffix reuse in
-conversation streaming, accumulator drain cleanup, and chunk-safe
-normalisation hardening for wrapper-tagged deltas) merged in PR #332
-(commit 7638619) on 2026-04-03.
-ADR-041 D15 (word-wrap plain-text rows to display width, `expand_rows_for_display`,
-`transcript_window_rows`) merged in PR #333 on 2026-04-04.
-ADR-041 D17-D22 (host scrollback sink abstraction, committed/live viewport
-split, restricted main-surface scroll state, width-aware wrapping for new
-rendering paths, pulse-boundary reset semantics, idle u16 cap removal) defined
-in the 2026-04-08 ADR amendment; initial wiring landed in PR #363 and resize
-hardening plus ratatui `scrolling-regions` enablement landed in PR #364.
-
-### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
-
-PRs 231, 232, 233, 234 all merged to main.
-
-### ~~Tier 2 -- Sandbox and MCP Completion (ADR-024)~~ (cleared 2026-03-27)
-
-PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), and PI-06/PI-07 are complete.
-
-### ~~Tier 3 -- Workspace Tools and MCP Extensions (ADR-024)~~ (cleared 2026-03-27)
-
-PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) is complete.
-PM-02 (MCP HTTP headers env-var substitution) merged in PR 236.
-PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
-
-### ~~Tier 4 -- Security Hardening (ADR-021 P1)~~ (cleared 2026-03-27)
-
-- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor/mod.rs
-- Item 26: SSE buffer renamed to MAX_SSE_BUFFER_BYTES; overflow now emits
-  StreamEvent::Error instead of bail!, surfacing cleanly to UiUpdate::Error
-- Item 19: parse_frame_bytes emits StreamEvent::Error on failure;
-  ConversationStreamUpdate::StreamError added; context.rs forwards to
-  UiUpdate::Error
-- Item 8: stale REF-07/EL-0X task-ID comments removed from production source
-
-### ~~Tier 5 -- Verification and Governance~~ (cleared 2026-03-28)
-
-All 4 verification items confirmed in-tree:
-- ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
-- ADR-030: All 6 coverage requirements have named tests in the tree
-- ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/render/mod.rs
-- ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for current display row/column resize and snapped display layouts
-
-### ~~Tier 6 -- Code Quality (ADR-021 P2)~~ (cleared 2026-03-28)
-
-All 13 tracked items complete.
-
-- ~~Item 9: Tool error routing block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
-- ~~Item 10: Scroll handling duplication~~ (done 2026-03-28; `apply_bounded_scroll` extracted; patch overlay and inspector scroll delegate to it)
-- ~~Item 11: Approval input parsing duplicated~~ (addressed; `parse_approval_selection` already centralized; per-handler response logic is not reducible further without a callback interface)
-- ~~Item 12: Diff row styling logic duplicated~~ (done 2026-03-28; `diff_line_color` helper centralized; both callers delegate to it)
-- ~~Item 13: required_tool_string variants overlapping~~ (done 2026-03-28; `required_tool_string` delegates to `required_tool_string_any`)
-- ~~Item 14: Auto-follow behavior duplication~~ (done 2026-03-28; `apply_auto_follow_or_clamp` helper extracted; both sites in model_update.rs delegate to it)
-- ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the current display viewport)
-- ~~Item 20: edit_file TOCTOU race condition~~ (done 2026-03-28; TOCTOU risk documented with structured comment)
-- ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
-- ~~Item 24: Startup event draining heuristics~~ (done 2026-03-28; `VEX_DISABLE_STARTUP_FILTER=1` env gate added)
-- ~~Item 25: Late StreamDelta dropped~~ (done 2026-03-28; debug observability added under `#[cfg(debug_assertions)]`)
-- ~~Item 28: Read-only intent heuristic false positives~~ (done 2026-03-28; `VEX_FORCE_MUTATING_TURN=1` env gate added)
-- ~~Item 32: KeyEventKind::Release filtering~~ (done earlier; confirmed 2026-03-28; filter in tui_frontend.rs)
-
-### Tier 7 -- Tuning (ADR-021 P3) -- 1 item (done)
-
-- ~~Item 33: IDLE_LOOP_BACKOFF tuning~~ (done 2026-03-28; tuning comment added noting 62Hz practical cap)
-
-### ~~Tier 8 -- Post-Phase-1 (ADR-024 G/H + ADR-022)~~ (cleared 2026-03-28) -- 0 items
-
-PG-01 and PG-02 are complete (2026-03-28). PG-03, PH-01, PH-02, PH-03 complete 2026-03-28.
-ADR-022 Decision 11 maps to PH-01/PH-02/PH-03 and is satisfied by the Phase H implementation.
-The tap auto-release update (sending a repository trigger to homebrew-vex on tag push) is
-next batch planned per ADR-024 §PG-03 — it requires the homebrew-vex tap repo to be created
-first and is not a blocker for the Phase H distribution gate.
-
-- ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
-- ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
-- ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-release next batch planned)
-- ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens the macOS CLI host app with bundled vex binary)
-- ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
-- ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
-- ~~ADR-022 Decision 11: Native packaging (second stage)~~ (satisfied by PH-01/PH-02/PH-03 above)
-
-### ~~Tier 9 -- Housekeeping~~ (cleared 2026-03-28) -- 0 items (all 8 cleared)
-
-ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
-ADR-031 status updated to Accepted (Batches A-E merged).
-ADR-033 status updated to Accepted (Phases 1-4 merged).
-ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; grouped, multiline, and relative `super::` `server`/`bin` import coverage now closes the remaining known boundary-test bypasses for inner layers.
-
-### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 0 items
-
-- Phase 1 complete: bounded in-memory context rollup cache and opt-in automatic git context merged.
-- Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
-- Batch C complete: `src/config/load.rs` extracted into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
-- Batch D complete: `src/tools/operator.rs` extracted into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
-- Batch E complete: `src/runtime/context_assembler.rs` extracted into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
-- Batch F complete: `src/disk_policy.rs` gains `enforce()` / `enforce_runtime()`, `tests/disk_policy_tests.rs` adds strict/warn/off coverage, `make check-disk-policy` is wired into `arch-contracts.yml` in PR #281.
-- Batch G complete: `src/tools/operator/policy.rs` wraps `disk_policy::enforce` for operator-level durable-access assertions; `TaskState::save()` and `TaskState::load()` wired through `assert_durable_access()`; cross-platform `check_path()` fix for Windows backslash separators in PR #282.
-- Batch H complete: `src/runtime/task_state.rs` (807 lines) extracted into `src/runtime/task_state/{mod.rs, persist.rs}` in PR #283. WAL evaluation concluded: not warranted because task-state saves are per-session and `write_json_safe` already performs crash-safe writes (temp + fsync + rename).
-
-#### ~~Planned remaining batches (ADR-038)~~ (all complete)
-
-**Batch G -- operator/search policy wiring (Phase 3 completion)** -- MERGED in PR #282
-- ~~Add `src/tools/operator/policy.rs` wrapper around `src/disk_policy.rs`~~ Done
-- ~~Route operator file/git/search surfaces and durable search/task-state writes through declared policy checks~~ Done (task-state save/load wired)
-- ~~Keep `.vex/index/` and `.vex/state/` as the only deliberate durable layers under strict mode~~ Enforced
-- ~~Depends on the Batch F harness in PR #281~~ Merged
-
-**Batch H -- task-state persist extraction + WAL evaluation** -- MERGED in PR #283
-- ~~Evaluate whether `.vex/state/` writes need a write-ahead log for crash safety~~ Evaluated: not warranted (per-session saves, crash-safe writes via write_json_safe)
-- ~~Extract `src/runtime/task_state/{mod.rs,persist.rs}`~~ Done (807L -> 248L mod.rs + 583L persist.rs)
-- ~~Gate any WAL-backed writes behind `VEX_TASK_WAL=1` until recovery semantics are stable~~ Not needed (WAL not warranted)
-- ~~Depends on Batch G completing the durable-surface inventory~~ Merged
-
-### Tier 11 -- CLI Voice and Status Surface (ADR-039) -- 3 items
-
-The next operator-facing lane standardizes the human-facing CLI voice
-without changing machine-facing lifecycle values or diff color semantics.
-
-**Batch A -- status anchors and semantic color feedback** -- merged on main (PR #292)
-- `Mapping adjacent sectors...` is now the default human-facing in-progress
-  phrase when a more specific display string is unavailable.
-- `State synchronized.` now appears on human-facing completion surfaces.
-- Tool-call, orchestrator, and agent-enrichment status text now use the
-  deep-nebula-violet semantic lane while accepted machine lifecycle strings
-  such as `completed` remain unchanged.
-
-**Batch B -- vocabulary normalization**
-- Normalize operator-facing copy to spatial terms such as `adjacent`,
-  `internal`, `external`, `upper`, `lower`, and `unused` where the wording is
-  display-only.
-- Do not rename code symbols, persisted schema fields, or JSON payload keys.
-
-Concrete targets (6 display-facing strings across 3 files):
-
-| File | Count | Terms to normalize |
-| :--- | :--- | :--- |
-| `src/app/commands/mod.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
-| `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
-| `src/app/input.rs` | 2 | `busy` -> `occupied` in pulse-in-progress status lines |
-
-Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
-contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
-`parent directory` -> `containing directory` (`src/server/socket.rs`, `src/util.rs`).
-
-### Tier 13 -- Permissions Overlay Invariants (ADR-048) -- 1 item
-
-- Record the operator-policy evaluation order, protected-path guarantees,
-  untrusted-workspace demotion, interactive inspection surface, and
-  non-interactive fail-closed behavior before enforcement code lands.
-
-**Batch C -- active indicator affordance**
-- Add the single pulsing-star active indicator where the renderer supports it.
-- Ensure reduced-color and plain-text fallbacks remain readable.
-
 ### Tier 14 -- Durable Working-Set Record (ADR-051) -- 5 phases
 
-Five isolated batches for context continuity: schema and persist, restore on `/resume` and `/compact`, hierarchical instructions, reviewable memory candidates, and peer-join merge.
+Five isolated batches for context continuity: schema and persist, restore on `/resume` and `/compact`, hierarchical instructions, reviewable memory candidates, and agent-join merge.
 
 **Phase 1 -- Record schema and persistence** -- merged in PR #444
 - Define `WorkingSetRecord` with `schemars` JSON Schema generation.
 - Persist under `.vex/state/{task_id}.working-set.json`.
 - Replace `content.len() / 4` heuristic with `tiktoken` zero-allocation counting in `session_notes` and `project_instructions`.
 
-**Phase 2 -- Restore the next request from `WorkingSetRecord` on `/resume` and `/compact`** -- this batch
+**Phase 2 -- Restore the next request from `WorkingSetRecord` on `/resume` and `/compact`** -- merged in PR #446
 - `TuiMode::apply_resumed_task` and `handle_compact_command` no longer call `reset_conversation_window`.
 - `TaskDocumentCondenser::write_working_set` is the sole writer of `{task_id}.working-set.json`.
 - Next request system prompt receives `WorkingSetRecord::as_prompt_block` via `ApiClient::set_supplementary_system_prompt`.
@@ -259,140 +94,13 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 - JSON sidecar `memory.candidates.json` is the source of truth; markdown is a projection.
 - Only accepted candidates inject. `/memory accept` promotes pending feedback.
 
-**Phase 5 -- Peer-channel merge**
-- Migrate `peer_channel.rs` from JSONL append-only to `loro` CRDT state-merge protocol.
-Candidate implementation areas:
-
-| File | Scope |
-| :--- | :--- |
-| `src/ui/render/mod.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
-| `src/ui/render/transcript.rs` | Ratatui transcript rendering with static glyph support |
-| `src/status_contract.rs` | `ACTIVE_INDICATOR_GLYPH` constant and accessibility fallback string |
-
-**Batch D -- paragraph progress stream**
-- Consolidate long-running tool and agent updates into one paragraph-oriented
-  progress lane.
-- Add active counters such as files processed and active agents where the runtime
-  already knows those values.
-- Keep code / diff output visually dominant over status text.
-
-Candidate implementation areas:
-
-| File | Scope |
-| :--- | :--- |
-| `src/ui/render/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ratatui renderer |
-| `src/ui/render/mod.rs` | ratatui paragraph widget for orchestrator progress lane |
-| `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
-| `src/runtime/core.rs` | Expose active file-count and active-agent-count to the UI update channel |
-
-**Previously planned ANSI semantic-role work is now part of merged Batch A**
-- Keep default transcript and code text phosphor white.
-- Preserve green insertions and red deletions.
-- Reserve deep nebula violet for tool-call, orchestrator, and agent-enrichment
-  status text, with reduced-color fallbacks.
-
-### Tier 12 -- Crate Expansion (next batch planned) -- 4 items
-
-Grounded in comparable open-source Rust CLI patterns without reusing external
-wording or implementation material. Each crate either fills a gap in vexcoder's
-current dependency tree or is rejected with design rationale.
-Full decisions documented in
-`TASKS/PM-05-crate-boundaries-and-tool-calls.md`.
-
-These design decisions are active now. Crates are added only when the runtime
-path and tests exist, so accepted next-batch candidates do not become unused
-dependencies.
-
-| Crate | Target module | Status | Notes |
-| :--- | :--- | :--- | :--- |
-| `bm25` | `codebase_search` ranking layer | Next batch planned | Ranked retrieval for ADR-033 Phase 5; sits behind `aho-corasick` literal match |
-| `similar` | Transcript diff renderer | Active (replaces `diffy` in `edit_diff.rs`) | Generic diff algorithm, no branding dependency |
-| `which` | `git_rollup.rs` | Next batch planned | Clear error when `git` binary is not on `$PATH` |
-| `notify` | `git_rollup.rs` watch mode | Next batch planned | Filesystem event watching replaces polling for working-tree changes |
-
-**Rejected:** `walkdir` -- vexcoder uses `ignore` (ripgrep ecosystem) which
-already provides recursive git-aware directory traversal.  Adding `walkdir`
-would duplicate traversal logic.
-
----
-
-## Active Feature Branches
-
-### Open / In-Progress
-
-| Task | Branch | PR | Status | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| REF-01 consumer hardening | `work/vexcoder-remove-tagged-xml-fallback` | -- | **In Progress** | Post-PR #404 follow-up that removes the reintroduced tagged/XML fallback and keeps the CLI/TUI stack on runtime-owned typed tool-call updates plus raw block deltas only where envelope or local-API projection still needs them |
-| Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it. API surface inventory (101 items): `TASKS/PR-400-ratatui-api-surface-map.md` |
-| TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce the shared `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
-| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
-
-### Recently Merged / Closed
-
-| Task | Branch | PR | Status | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| REF-01 follow-up | `work/vexcoder-api-stream-structural-extraction` | #404 | **Merged** | Provider-edge parsing, compatibility ingress handling, and normalized envelope emission now live in focused `src/api/stream/` modules while direct internal consumers stay downstream of `RuntimeEnvelope` |
-| Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
-| Tier13-crate | `work/vexcoder-tier13-crate-expansion` | #344 | **Merged** | Tier 13 crate expansion: 11 crates wired, unused-code suppression removed, seam functions wired into production |
-| EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | ~~Closed~~ | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
-| Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
-| Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
-| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | ~~Closed~~ | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
-| ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
-| ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
-| ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
-| PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
-| PM-01 | `work/vexcoder-conversation-compaction` | #271 | **Merged** | In-memory summarization of older pulses when token count exceeds threshold |
-| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | **Merged** | `/undo` slash command and per-change checkpoint stack |
-| PM-03 | `work/vexcoder-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
-| PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation pulses |
-| ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
-| ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
-| ADR-041-D17D22 | PR #363 / #364 | #363, #364 | **Merged** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus inline viewport wiring, ratatui `scrolling-regions` enablement, and resize hardening for committed-history insertion |
-
-Each branch had a task checklist in `TASKS/` defining scope, constraints, and anchor tests.
-
----
-
-## Dependency Graph
-
-```
-ADR-022 (Roadmap, initial validation passed)
-  +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
-  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-release next batch planned, pending tap repo creation)
-  |     +-- ADR-025 (Handoff Contract) -- COMPLETE
-  |     +-- ADR-026 (Transport Binding) -- COMPLETE
-  +-- ADR-027 (Command Sessions) -- COMPLETE
-  +-- ADR-031 (UI Overhaul) -- Batches A-E merged
-        +-- ADR-032 (Prompt/Context Guard) -- items 4-5 verified; fullscreen auto-fit docs synced
-              +-- ADR-033 (Hybrid Retrieval) -- Phases 1-4 merged
-
-ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031
-ADR-028 (Facade) --> ADR-030 --> ADR-031
-ADR-034 (Multi-Agent) --> ADR-028, ADR-030
-ADR-038 (Memory-first TTFC) --> ADR-029, ADR-030, ADR-033, ADR-034
-ADR-039 (CLI voice) --> ADR-023, ADR-030, ADR-031, ADR-034
-```
-
----
-
-## Completed ADRs (reference only)
-
-| ADR | Completed | Notes |
-| :--- | :--- | :--- |
-| ADR-001 through ADR-020 | See adr/completed/ | Full history in completed/ directory |
-| ADR-025 | 2026-03-27 | PI-09 through PI-12 all merged; moved to completed/ |
-| ADR-026 | 2026-03-27 | PI-13 through PI-16 all merged; moved to completed/ |
-| ADR-027 | 2026-03-27 | Command sessions complete; supersedes ADR-018/019; moved to completed/ |
-
----
-
-## How this file is updated
-
-After each ADR-scoped PR merges to main, the subsequent PR updates:
-
-1. This file -- current phase / remaining items for the relevant ADR
-2. Nothing else -- do not touch onboarding or work map in the same edit
-
-The PR body for a roadmap update uses the motivation template from
-vex-local-bash/SKILL.md with ADR reference pointing to this file.
+**Phase 5 -- Agent-join merge (`JoinIndex`)** -- this batch
+- JSONL `PeerMessage` append/read (ADR-046) stays.
+- `JoinIndex` is one typed JSON document per parent task at `.vex/state/{task_id}.join.json` (`schemars`, message-id `supersedes`, `live_entries`).
+- `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions). Independent fan-out members of different agents list none.
+- `facade_poll_join` calls `apply_join_outcome` when no session-task remains live. `handoff_summary` comes from `live_entries` after message-id supersession.
+- `TaskDocumentCondenser::record_join_evidence` writes `RecordedDecision.source_reference` as the join message id. `retain_referenced_decisions` keeps that evidence across `/compact`.
+- `StateEnvelope` plus GET `/v1/tasks/{task_id}/working-set` is the internal read API so consumers do not open sidecar files directly. The envelope is the only HTTP read of live `JoinIndex` ids/`supersedes`. `GET /v1/tasks/{task_id}/join-status` returns agent summaries from `facade_poll_join`, not the raw index.
+- Missing working-set task → `404 task_not_found`. Present-but-corrupt sidecar → `409 state_sidecar_corrupt`. No write route for either sidecar.
+- ADR-046 JSONL kind `Observation` stays on the wire; the Rust variant is `PeerMessageKind::StatusNote` (parse accepts both).
+- Out of this crate's join surface: `PeerMergeDoc` / `loro` / `{id}.channel.crdt`; empty `JoinSummary.supersedes` on `poll_fan_out_join`; `facade_poll_join` without `apply_join_outcome`; `PeerMessageKind` as the join replace rule.

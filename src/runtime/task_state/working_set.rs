@@ -35,7 +35,7 @@ pub struct WorkingSetRecord {
 #[serde(rename_all = "snake_case")]
 pub struct RecordedDecision {
     pub rationale: String,
-    /// File location or a peer-channel message id.
+    /// File location or a join-index message id.
     pub source_reference: String,
 }
 
@@ -51,7 +51,7 @@ pub fn working_set_path(dir: &Path, task_id: &str) -> PathBuf {
 }
 
 pub fn is_working_set_filename(name: &str) -> bool {
-    name.ends_with(".working-set.json")
+    name.ends_with(".working-set.json") || super::join_index::is_join_index_filename(name)
 }
 
 impl WorkingSetRecord {
@@ -130,6 +130,25 @@ impl WorkingSetRecord {
         let prior_objective = prior.objective.trim();
         if !prior_objective.is_empty() {
             self.objective = prior.objective.clone();
+        }
+    }
+
+    /// Keep join-evidence decisions whose `source_reference` is a message id.
+    /// `/compact` rebuilds episodic fields from the current pulse window and
+    /// would otherwise drop `record_join_evidence` rows.
+    pub fn retain_referenced_decisions(&mut self, prior: &WorkingSetRecord) {
+        for decision in &prior.decisions {
+            if decision.source_reference.trim().is_empty() {
+                continue;
+            }
+            if self
+                .decisions
+                .iter()
+                .any(|existing| existing.source_reference == decision.source_reference)
+            {
+                continue;
+            }
+            self.decisions.push(decision.clone());
         }
     }
 
@@ -277,6 +296,7 @@ mod tests {
         let path = working_set_path(Path::new(".vex/state"), "task-9");
         assert_eq!(path, PathBuf::from(".vex/state/task-9.working-set.json"));
         assert!(is_working_set_filename("task-9.working-set.json"));
+        assert!(is_working_set_filename("task-9.join.json"));
         assert!(!is_working_set_filename("task-9.json"));
     }
 
@@ -328,5 +348,34 @@ mod tests {
         let empty_prior = WorkingSetRecord::new("");
         first.retain_durable_objective(&empty_prior);
         assert_eq!(first.objective, "first window objective");
+    }
+
+    #[test]
+    fn retain_referenced_decisions_keeps_join_evidence_across_compact() {
+        let mut later = WorkingSetRecord::new("post-compact window");
+        later.decisions.push(RecordedDecision {
+            rationale: "same id later body".to_string(),
+            source_reference: "msg-keep".to_string(),
+        });
+        let mut prior = WorkingSetRecord::new("original durable objective");
+        prior.decisions = vec![
+            RecordedDecision {
+                rationale: "session-task summary".to_string(),
+                source_reference: "msg-keep".to_string(),
+            },
+            RecordedDecision {
+                rationale: "corrected session-task summary".to_string(),
+                source_reference: "msg-join".to_string(),
+            },
+            RecordedDecision {
+                rationale: "no id".to_string(),
+                source_reference: String::new(),
+            },
+        ];
+        later.retain_referenced_decisions(&prior);
+        assert_eq!(later.decisions.len(), 2);
+        assert_eq!(later.decisions[0].source_reference, "msg-keep");
+        assert_eq!(later.decisions[0].rationale, "same id later body");
+        assert_eq!(later.decisions[1].source_reference, "msg-join");
     }
 }

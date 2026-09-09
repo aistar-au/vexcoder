@@ -6,6 +6,12 @@ use std::io::Write;
 use std::path::Path;
 
 pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
+    let json = serde_json::to_vec_pretty(value)
+        .with_context(|| format!("failed to serialize {label}: {}", path.display()))?;
+    write_bytes_safe(path, &json, label)
+}
+
+pub fn write_bytes_safe(path: &Path, bytes: &[u8], label: &str) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {
         anyhow!(
             "missing parent directory for {} '{}'",
@@ -27,11 +33,9 @@ pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Res
         .ok_or_else(|| anyhow!("invalid file name for {} '{}'", label, path.display()))?;
     let temp_path = dir.join(format!("{file_name}.tmp"));
 
-    let json = serde_json::to_vec_pretty(value)
-        .with_context(|| format!("failed to serialize {label}: {}", path.display()))?;
     let mut file = std::fs::File::create(&temp_path)
         .with_context(|| format!("failed to create temp {}: {}", label, temp_path.display()))?;
-    file.write_all(&json)
+    file.write_all(bytes)
         .with_context(|| format!("failed to write temp {}: {}", label, temp_path.display()))?;
     file.sync_all()
         .with_context(|| format!("failed to flush temp {}: {}", label, temp_path.display()))?;

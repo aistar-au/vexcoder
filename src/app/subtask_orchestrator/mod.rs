@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow, bail};
 use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
-use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
+use crate::runtime::{
+    JoinIndex, LiveJoinEntry, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
+    WorktreeLeaseManager,
+};
 
 #[derive(Debug, Clone)]
 pub struct TeamDecomposition {
@@ -11,6 +14,14 @@ pub struct TeamDecomposition {
     pub session_task_ids: Vec<String>,
 
     pub scheduler: TeamScheduler,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JoinSummary {
+    pub message_id: String,
+    pub agent_id: String,
+    pub summary: String,
+    pub supersedes: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,7 +34,7 @@ pub struct JoinOutcome {
 
     pub cancelled: usize,
 
-    pub summaries: Vec<(String, String)>,
+    pub summaries: Vec<JoinSummary>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,11 +75,13 @@ impl SubtaskOrchestrator {
 
         let lease_manager = WorktreeLeaseManager::new(&self.state_dir);
         let mut session_task_ids = Vec::with_capacity(members_to_create.len());
+        let sequential = matches!(team.scheduler, TeamScheduler::Sequential);
 
         for member_name in members_to_create {
             let agent = find_agent(agents, member_name)?;
             let mut session_task =
                 SessionTask::new(parent_task_id, member_name.as_str(), prompt, None);
+            session_task.stamp_join_supersedes(&parent_state.session_tasks, sequential);
             let task_id = session_task.id.clone();
 
             if agent.isolation == IsolationPolicy::Worktree {
@@ -108,7 +121,12 @@ impl SubtaskOrchestrator {
                 SessionTaskStatus::Completed => {
                     completed += 1;
                     if let Some(summary) = &task.handoff_summary {
-                        summaries.push((task.agent_id.clone(), summary.clone()));
+                        summaries.push(JoinSummary {
+                            message_id: task.id.clone(),
+                            agent_id: task.agent_id.clone(),
+                            summary: summary.clone(),
+                            supersedes: production_supersedes(task, &state.session_tasks),
+                        });
                     }
                 }
                 SessionTaskStatus::Failed => {
@@ -170,6 +188,7 @@ impl SubtaskOrchestrator {
         let agent = find_agent(agents, member_name)?;
         let lease_manager = WorktreeLeaseManager::new(&self.state_dir);
         let mut session_task = SessionTask::new(parent_task_id, member_name, prompt, None);
+        session_task.stamp_join_supersedes(&parent_state.session_tasks, true);
         let task_id = session_task.id.clone();
 
         if agent.isolation == IsolationPolicy::Worktree {
@@ -184,21 +203,35 @@ impl SubtaskOrchestrator {
     }
 
     #[tracing::instrument(skip(self, outcome))]
-    pub fn apply_join_outcome(&self, parent_task_id: &str, outcome: &JoinOutcome) -> Result<()> {
+    pub fn apply_join_outcome(
+        &self,
+        parent_task_id: &str,
+        outcome: &JoinOutcome,
+    ) -> Result<Vec<LiveJoinEntry>> {
         if outcome.summaries.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
+        let mut merge = JoinIndex::load_or_new(&self.state_dir, parent_task_id)?;
+        for summary in &outcome.summaries {
+            merge.post(
+                &summary.message_id,
+                &summary.agent_id,
+                &summary.summary,
+                &summary.supersedes,
+            );
+        }
+        merge.save(&self.state_dir, parent_task_id)?;
+        let live = merge.live_entries();
         let mut state = TaskState::load(&self.state_dir, parent_task_id)?;
-        let merged = outcome
-            .summaries
-            .iter()
-            .map(|(agent_id, summary)| format!("[{agent_id}]: {summary}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        state.handoff_summary = Some(merged);
+        state.handoff_summary = Some(format_live_handoff(&live));
         state.touch();
         state.save(&self.state_dir)?;
-        Ok(())
+        TaskDocumentCondenser::new().record_join_evidence(
+            &self.state_dir,
+            parent_task_id,
+            &live,
+        )?;
+        Ok(live)
     }
 
     #[tracing::instrument(skip(self))]
@@ -233,6 +266,44 @@ fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentPro
         .iter()
         .find(|a| a.name == name)
         .ok_or_else(|| anyhow!("agent '{}' not found in provided agent list", name))
+}
+
+fn production_supersedes(task: &SessionTask, all: &[SessionTask]) -> Vec<String> {
+    // Spawn already stamps `SessionTask.supersedes` via `stamp_join_supersedes`.
+    // This poll-time union is a backward-compat fallback for pre-migration
+    // sidecars whose `supersedes` deserialized as empty (`#[serde(default)]`).
+    // For tasks spawned through the current path the extra ids are already
+    // present and `ids.contains` short-circuits.
+    let mut ids = task.supersedes.clone();
+    let Some(index) = all.iter().position(|candidate| candidate.id == task.id) else {
+        return ids;
+    };
+    for prior in &all[..index] {
+        if prior.lifecycle_state != SessionTaskStatus::Completed {
+            continue;
+        }
+        if prior.handoff_summary.is_none() {
+            continue;
+        }
+        if prior.agent_id == task.agent_id && !ids.contains(&prior.id) {
+            ids.push(prior.id.clone());
+        }
+    }
+    ids
+}
+
+fn format_live_handoff(entries: &[LiveJoinEntry]) -> String {
+    entries
+        .iter()
+        .map(|entry| {
+            if entry.agent_id.is_empty() {
+                entry.body.clone()
+            } else {
+                format!("[{}]: {}", entry.agent_id, entry.body)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]

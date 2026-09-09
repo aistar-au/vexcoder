@@ -25,9 +25,9 @@ use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
     DefaultCommandRunner, EditLoopOutcome, PulseOutcome, SandboxDriver, TaskDocument,
-    TaskDocumentCondenser, TaskState, TaskStatus, WorkingSetRecord,
-    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
-    format_command_session_started, truncate_head_bytes,
+    TaskDocumentCondenser, TaskStatus, format_command_session_cancelled,
+    format_command_session_exit, format_command_session_output, format_command_session_started,
+    truncate_head_bytes,
 };
 use crate::runtime::{
     AssembledContext, ContextAssembler, block_on_context_task, resolve_git_timeout_ms,
@@ -89,10 +89,13 @@ pub use self::task_facade::{
     facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_poll_join,
     facade_post_peer_message, facade_read_peer_messages, facade_release_session_task,
     facade_schedule_team, facade_task_graph, facade_update_session_task_status,
-    facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
+    facade_watch_rollup, facade_working_set, task_graph_rollup_path, todos_rollup_path,
+    write_projection_rollup,
 };
 pub use crate::runtime::UiUpdate;
+pub use crate::runtime::task_state::peer_channel::PeerMessage;
 pub use crate::runtime::tokio as runtime_tokio;
+pub use crate::runtime::{JoinIndex, StateEnvelope, TaskState, WorkingSetRecord};
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]

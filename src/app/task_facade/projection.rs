@@ -7,7 +7,8 @@ use crate::runtime::TaskState;
 use crate::runtime::session_task::now_millis;
 use crate::util::write_json_safe;
 
-use super::{FacadeSessionTaskRollup, FacadeTaskGraphNode, session_task_to_rollup};
+use super::query::session_task_to_rollup;
+use super::types::{FacadeSessionTaskRollup, FacadeTaskGraphNode};
 
 const PROJECTIONS_SUBDIR: &str = "projections";
 const TASK_GRAPH_FILE: &str = "task-graph.json";
