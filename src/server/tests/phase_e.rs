@@ -198,7 +198,11 @@ async fn working_set_route_returns_conflict_when_sidecar_is_corrupt() {
     let temp = tempfile::tempdir().unwrap();
     seed_working_set_task(temp.path(), "corrupt-parent", "keep the objective");
     let state_dir = TaskState::state_dir_from(temp.path());
-    std::fs::write(state_dir.join("corrupt-parent.working-set.json"), "{not-json").unwrap();
+    std::fs::write(
+        state_dir.join("corrupt-parent.working-set.json"),
+        "{not-json",
+    )
+    .unwrap();
 
     let response = setup_phase_e_router(temp.path())
         .oneshot(
