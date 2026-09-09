@@ -90,11 +90,9 @@ pub fn facade_poll_join(
     let Some(outcome) = orchestrator.poll_fan_out_join(parent_task_id)? else {
         return Ok(None);
     };
-    let live = if outcome.all_done {
-        orchestrator.apply_join_outcome(parent_task_id, &outcome)?
-    } else {
-        Vec::new()
-    };
+    // poll_fan_out_join only returns Some when every session-task is terminal
+    // (`all_done` is therefore always true here).
+    let live = orchestrator.apply_join_outcome(parent_task_id, &outcome)?;
     Ok(Some(FacadeJoinOutcome {
         all_done: outcome.all_done,
         completed: outcome.completed,
