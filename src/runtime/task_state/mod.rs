@@ -18,9 +18,7 @@ pub(crate) mod task_header;
 pub(crate) mod working_set;
 
 pub use envelope::{STATE_ENVELOPE_SCHEMA_VERSION, StateEnvelope, StateRefs};
-pub use join_index::{
-    JOIN_INDEX_SCHEMA_VERSION, JoinIndex, LiveJoinEntry, LivePeerEntry, join_index_path,
-};
+pub use join_index::{JOIN_INDEX_SCHEMA_VERSION, JoinIndex, LiveJoinEntry, join_index_path};
 pub use persist::TaskStateFile;
 pub use working_set::{
     PathChange, RecordedDecision, WORKING_SET_SCHEMA_VERSION, WorkingSetRecord, working_set_path,
