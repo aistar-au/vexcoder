@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
 use crate::runtime::{
-    JoinIndex, LivePeerEntry, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
+    JoinIndex, LiveJoinEntry, SessionTask, SessionTaskStatus, TaskDocumentCondenser, TaskState,
     WorktreeLeaseManager,
 };
 
@@ -207,7 +207,7 @@ impl SubtaskOrchestrator {
         &self,
         parent_task_id: &str,
         outcome: &JoinOutcome,
-    ) -> Result<Vec<LivePeerEntry>> {
+    ) -> Result<Vec<LiveJoinEntry>> {
         if outcome.summaries.is_empty() {
             return Ok(Vec::new());
         }
@@ -226,7 +226,7 @@ impl SubtaskOrchestrator {
         state.handoff_summary = Some(format_live_handoff(&live));
         state.touch();
         state.save(&self.state_dir)?;
-        TaskDocumentCondenser::new().record_peer_join_evidence(
+        TaskDocumentCondenser::new().record_join_evidence(
             &self.state_dir,
             parent_task_id,
             &live,
@@ -269,6 +269,11 @@ fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentPro
 }
 
 fn production_supersedes(task: &SessionTask, all: &[SessionTask]) -> Vec<String> {
+    // Spawn already stamps `SessionTask.supersedes` via `stamp_join_supersedes`.
+    // This poll-time union is a backward-compat fallback for pre-migration
+    // sidecars whose `supersedes` deserialized as empty (`#[serde(default)]`).
+    // For tasks spawned through the current path the extra ids are already
+    // present and `ids.contains` short-circuits.
     let mut ids = task.supersedes.clone();
     let Some(index) = all.iter().position(|candidate| candidate.id == task.id) else {
         return ids;
@@ -287,7 +292,7 @@ fn production_supersedes(task: &SessionTask, all: &[SessionTask]) -> Vec<String>
     ids
 }
 
-fn format_live_handoff(entries: &[LivePeerEntry]) -> String {
+fn format_live_handoff(entries: &[LiveJoinEntry]) -> String {
     entries
         .iter()
         .map(|entry| {
