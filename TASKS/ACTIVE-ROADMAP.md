@@ -6,7 +6,7 @@ and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 Updated by the merge workflow after each ADR-scoped PR is merged on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCompat CLI cutover, 10-flag normative table)
+Last updated: 2026-09-09 (ADR-051 Phase 5: JoinIndex, StateEnvelope, GET working-set HTTP contract)
 
 ---
 
@@ -34,7 +34,7 @@ Last updated: 2026-04-20 (ADR-022 amendment: normalized CLI flag surface, ChatCo
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Accepted | 0 (Phase 5 in this batch) | Durable working-set record, `WorkingSetRecord` restore on `/resume`, hierarchical instruction loading, reviewable memory candidates, and `JoinIndex` agent-join. Phase 1 merged in PR #444. Phases 3/4 merged in PR #445. Phase 2 merged in PR #446. |
+| ADR-051 | Active | Phase 5 in this batch | Durable working-set record, `WorkingSetRecord` restore on `/resume` and `/compact`, hierarchical instruction loading, reviewable memory candidates, and agent-join merge via `JoinIndex`. Phases 1–4 merged in PRs #444–#446. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -100,5 +100,7 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 - `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions). Independent fan-out members of different agents list none.
 - `facade_poll_join` calls `apply_join_outcome` when no session-task remains live. `handoff_summary` comes from `live_entries` after message-id supersession.
 - `TaskDocumentCondenser::record_join_evidence` writes `RecordedDecision.source_reference` as the join message id. `retain_referenced_decisions` keeps that evidence across `/compact`.
-- `StateEnvelope` plus GET `/v1/tasks/{task_id}/working-set` is the internal read API.
+- `StateEnvelope` plus GET `/v1/tasks/{task_id}/working-set` is the internal read API so consumers do not open sidecar files directly. The envelope is the only HTTP read of live `JoinIndex` ids/`supersedes`. `GET /v1/tasks/{task_id}/join-status` returns agent summaries from `facade_poll_join`, not the raw index.
+- Missing working-set task → `404 task_not_found`. Present-but-corrupt sidecar → `409 state_sidecar_corrupt`. No write route for either sidecar.
+- ADR-046 JSONL kind `Observation` stays on the wire; the Rust variant is `PeerMessageKind::StatusNote` (parse accepts both).
 - Out of this crate's join surface: `PeerMergeDoc` / `loro` / `{id}.channel.crdt`; empty `JoinSummary.supersedes` on `poll_fan_out_join`; `facade_poll_join` without `apply_join_outcome`; `PeerMessageKind` as the join replace rule.
