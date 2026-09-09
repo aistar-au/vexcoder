@@ -50,9 +50,6 @@ enum ApprovalSelection {
 
 const DISPLAY_COLUMN_WIDTH_FALLBACK: usize = usize::MAX;
 
-mod slash_commands;
-use self::slash_commands::*;
-
 #[derive(Debug, Default, PartialEq, Eq)]
 struct GenerateTestsArgs {
     path: Option<String>,
@@ -146,4 +143,3 @@ pub struct TaskLayoutState {
 
     pub model_url: String,
 }
-

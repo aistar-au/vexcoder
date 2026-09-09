@@ -26,8 +26,8 @@ use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
     DefaultCommandRunner, EditLoopOutcome, PulseOutcome, SandboxDriver, TaskDocument,
     TaskDocumentCondenser, TaskStatus, format_command_session_cancelled,
-    format_command_session_exit, format_command_session_output,
-    format_command_session_started, truncate_head_bytes,
+    format_command_session_exit, format_command_session_output, format_command_session_started,
+    truncate_head_bytes,
 };
 use crate::runtime::{
     AssembledContext, ContextAssembler, block_on_context_task, resolve_git_timeout_ms,
@@ -63,6 +63,7 @@ mod queries;
 mod runtime_build;
 mod scroll;
 mod shell;
+mod slash_commands;
 pub(crate) mod subtask_orchestrator;
 pub(crate) mod task_facade;
 #[cfg(test)]
@@ -98,6 +99,7 @@ pub use crate::runtime::tokio as runtime_tokio;
 pub use crate::runtime::{JoinIndex, StateEnvelope, TaskState, WorkingSetRecord};
 
 use self::overlay::summarize_tool_approval_context;
+use self::slash_commands::*;
 
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_1.rs"));
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_2.rs"));
