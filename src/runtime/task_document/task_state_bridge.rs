@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::pulse_evidence::{ToolInvocationSummary, TurnEvidenceState};
 use crate::runtime::ModelBackendKind;
 use crate::runtime::task_state::{
-    CacheUsageStats, ConversationCheckpoint, LivePeerEntry, PathChange, RecordedDecision,
+    CacheUsageStats, ConversationCheckpoint, LiveJoinEntry, PathChange, RecordedDecision,
     TaskState, WorkingSetRecord,
 };
 use crate::state::ToolStatus;
@@ -162,7 +162,7 @@ impl TaskDocumentCondenser {
         &self,
         dir: &Path,
         task_id: &str,
-        entries: &[LivePeerEntry],
+        entries: &[LiveJoinEntry],
     ) -> anyhow::Result<WorkingSetRecord> {
         let mut record = match WorkingSetRecord::try_load(dir, task_id) {
             Ok(Some(prior)) => prior,
@@ -187,15 +187,6 @@ impl TaskDocumentCondenser {
         }
         record.save(dir, task_id)?;
         Ok(record)
-    }
-
-    pub fn record_peer_join_evidence(
-        &self,
-        dir: &Path,
-        task_id: &str,
-        entries: &[LivePeerEntry],
-    ) -> anyhow::Result<WorkingSetRecord> {
-        self.record_join_evidence(dir, task_id, entries)
     }
 }
 
