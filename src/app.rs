@@ -99,4 +99,7 @@ pub use crate::runtime::{JoinIndex, StateEnvelope, TaskState, WorkingSetRecord};
 
 use self::overlay::summarize_tool_approval_context;
 
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest.rs"));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_1.rs"));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_2.rs"));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_3.rs"));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app_rest_4.rs"));
