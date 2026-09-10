@@ -147,8 +147,8 @@ Crate APIs used (docs.rs only): `schemars::JsonSchema`, `schemars::schema_for!`.
 
 ## Phase 5 — agent-join merge (`JoinIndex`)
 
-**Status:** Batch 4 (this PR). ADR-046 JSONL routes stay. Do not rewrite
-`src/state/conversation/history.rs` in this change.
+**Status:** Merged in PR #447. ADR-046 JSONL routes stay. Do not rewrite
+`src/state/conversation/history.rs` as part of this phase.
 
 ### Net change
 
