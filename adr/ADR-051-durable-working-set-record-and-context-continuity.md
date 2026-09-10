@@ -127,29 +127,175 @@ prefer local, inspectable state.
 
 ### 1. `WorkingSetRecord` with a generated schema
 
-See `src/runtime/task_state/working_set.rs`. Persist is `save` / `load` /
-`try_load` / `try_load_from_search_dirs_from` through `write_json_safe`.
-`retain_durable_objective` keeps the first non-empty `objective`.
-`as_prompt_block` is the resume seed. A test regenerates
-`schema_for!(WorkingSetRecord)` against `schemas/working_set.schema.json`.
+```rust
+use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+/// Durable unit of continuity, persisted under
+/// `.vex/state/{task_id}.working-set.json` via `write_json_safe` and
+/// `assert_durable_access`. The condenser is the sole writer.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkingSetRecord {
+    pub schema_version: u32,
+    pub updated_at: DateTime<Utc>,
+    pub objective: String,
+    pub constraints: Vec<String>,
+    pub decisions: Vec<RecordedDecision>,
+    pub changed_paths: Vec<PathChange>,
+    pub verified_results: Vec<String>,
+    pub unresolved_questions: Vec<String>,
+    pub active_plan: String,
+    pub next_action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RecordedDecision {
+    pub rationale: String,
+    /// File location or a peer-channel message id.
+    pub source_reference: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PathChange {
+    pub path: PathBuf,
+    pub git_identity: String,
+}
+```
+
+Persist and restore (implemented):
+
+- `save` / `load` write and read the sidecar through `serde_json`.
+- `try_load` / `try_load_from_search_dirs_from` return `Ok(None)` when the
+  sidecar is absent and `Err` when a present file fails durable-access,
+  read, or `serde_json` deserialize.
+- `retain_durable_objective` keeps the first non-empty `objective` across
+  later condenser writes. Episodic fields (`verified_results`,
+  `changed_paths`, `next_action`) still come from the current pulse window.
+- `as_prompt_block` serializes the `serde` `snake_case` field names for
+  `ApiClient::set_supplementary_system_prompt`.
+
+A test regenerates `schema_for!(WorkingSetRecord)` and fails if the
+checked-in `schemas/working_set.schema.json` has drifted, so the on-disk
+contract cannot go stale without a reviewed change.
 
 ### 2. Real token counts for every budget check
 
-`tiktoken` 4.1.2: `encoding_for_model` / `get_encoding` return
-`Option<&'static CoreBpe>`. `CoreBpe::count` is the zero-allocation path.
-Wrapper: `src/runtime/token_count.rs`. Default encoding `o200k_base`.
+Published `tiktoken` 4.1.2 API (`docs.rs/tiktoken`): both lookup functions
+return `Option<&'static CoreBpe>`, not `Result` and not an owned
+`CoreBpe`. `CoreBpe::count` is the zero-allocation path.
+
+```rust
+use tiktoken::CoreBpe;
+
+/// Replaces the `content.len() / 4` estimate previously used in
+/// `session_notes` and `project_instructions`.
+fn token_count(encoding: &CoreBpe, text: &str) -> usize {
+    encoding.count(text) // zero-allocation path; no token vector built
+}
+
+fn encoder_for_model(model_name: &str) -> &'static CoreBpe {
+    tiktoken::encoding_for_model(model_name).unwrap_or_else(|| {
+        tiktoken::get_encoding("o200k_base").expect("bundled vocabulary")
+    })
+}
+```
+
+The encoder is cheap to hold for the life of a `ConversationManager` and
+reused across pulses rather than rebuilt per call. The in-tree wrapper is
+`src/runtime/token_count.rs`.
 
 ### 3. Hierarchical instruction loading
 
-Walk repository root to cwd. Same three candidate names per directory.
-Root-first concatenate; skip over-budget files and record them in the
-`InstructionSet` manifest. Token counts use `token_count`.
+Walk from the repository root to the working directory. At each
+directory, try the same fixed candidate names the previous
+single-directory loader checked. Concatenate root-first so closer files
+override farther ones. A file that does not fit the remaining budget is
+skipped and recorded in a manifest; the walk continues instead of
+stopping. Token counts use `token_count` (default `o200k_base` encoder).
+
+```rust
+use std::path::{Path, PathBuf};
+
+const CANDIDATE_FILES: &[&str] = &[".vex/AGENTS.md", "AGENTS.md", ".vex/PROJECT.md"];
+
+pub struct InstructionSource {
+    pub path: PathBuf,
+    pub included: bool,
+    pub estimated_tokens: usize,
+}
+
+pub struct InstructionSet {
+    pub content: String,
+    pub manifest: Vec<InstructionSource>,
+}
+
+pub fn load_hierarchical_instructions(
+    repo_root: &Path,
+    cwd: &Path,
+    token_budget: usize,
+) -> InstructionSet {
+    let mut sections = Vec::new();
+    let mut manifest = Vec::new();
+    let mut remaining = token_budget;
+
+    for dir in directories_root_to_leaf(repo_root, cwd) {
+        let Some((path, content)) = first_existing(&dir, CANDIDATE_FILES) else {
+            continue;
+        };
+        let estimated = crate::runtime::token_count::token_count(&content);
+        let included = estimated <= remaining;
+        if included {
+            remaining -= estimated;
+            sections.push(content);
+        }
+        manifest.push(InstructionSource { path, included, estimated_tokens: estimated });
+    }
+
+    InstructionSet { content: sections.join("\n\n"), manifest }
+}
+```
+
+`/context` renders the session-start `InstructionSet` manifest so an
+operator can see which files loaded and which were skipped for budget,
+rather than inferring it from prompt size or walking the disk again.
 
 ### 4. Typed, reviewable memory candidates
 
-`MemoryCandidate` + `MemoryCandidateStore`. Only `Accepted` candidates
-inject. Pending needs `/memory accept`. Over budget, drop lowest-priority
-accepted first.
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateSource {
+    User,
+    Feedback,
+    Project,
+    Reference,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateStatus {
+    Pending,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MemoryCandidate {
+    pub source: CandidateSource,
+    pub topic: String,
+    pub body: String,
+    pub status: CandidateStatus,
+    pub source_reference: String,
+}
+```
+
+Only `Accepted` candidates are read into the prompt, via
+`inject_accepted`. `Pending` candidates need an operator `/memory accept`
+before use. Over budget, the lowest-priority accepted candidate is
+dropped first; nothing is silently skipped in bulk the way a single
+over-budget file was previously.
 
 ### 5. Agent-join merge (`JoinIndex` / `StateEnvelope`)
 
@@ -175,16 +321,25 @@ members of different agents list none, so both summaries remain live.
 `TeamScheduler` is not stored on `TaskState`; sequential versus fan-out
 intent is the spawn stamp on `SessionTask.supersedes`.
 
-**Why `PeerMessageKind` is not the join replace rule.** ADR-046 JSONL is a
-live inter-agent log keyed per `session_task_id`. Join reads completed
+**Why `PeerMessageKind` is not the join replace rule.** ADR-046 JSONL
+(`StatusNote` / `Correction` / `Question` / `Acknowledgement`; wire
+alias `Observation` parses as `StatusNote`) is a live inter-agent log
+keyed per `session_task_id`
+(`.vex/state/{session_task_id}.channel.jsonl`). Join reads completed
 `SessionTask.handoff_summary` on the parent task. A `Correction` row on
-the JSONL log is not a child handoff and is not posted into `JoinIndex`.
+the JSONL log is not a child handoff and is not posted into
+`JoinIndex`. Using `PeerMessageKind` as the join rule would invent a
+second protocol that never fires unless a peer message was posted.
 
 **Why this crate does not depend on `loro`.** A first Batch 4 sketch
-wrapped `LoroDoc` as `PeerMergeDoc` and persisted `{id}.channel.crdt`.
-That path is rejected: production join never has a second writer, and the
-`loro` graph failed `cargo deny` (MPL-2.0). Persist is `JoinIndex::save`
-to `{id}.join.json`.
+wrapped `LoroDoc` as `PeerMergeDoc` and persisted
+`{id}.channel.crdt`. That path is rejected: production join never has a
+second writer (child session tasks finish in the parent process,
+`poll_fan_out_join` reads `handoff_summary`, `apply_join_outcome` posts
+every entry into one in-process document), and the `loro` graph failed
+`cargo deny` (MPL-2.0). Incremental Loro APIs (`ExportMode::updates`,
+`import`, `oplog_vv`) document a sync protocol the runtime does not
+call. Persist is `JoinIndex::save` to `{id}.join.json`.
 
 **Do not reintroduce these join-surface items.**
 
@@ -192,19 +347,82 @@ to `{id}.join.json`.
 | :--- | :--- | :--- |
 | `PeerMergeDoc` / `loro` / `{id}.channel.crdt` | Early Batch 4 CRDT sketch | Removed. Typed JSON `JoinIndex` is the join document. |
 | Empty `JoinSummary.supersedes` on `poll_fan_out_join` | First Batch 4 revision always wrote `Vec::new()` | Removed. Poll is the production writer of the replace set. |
-| `facade_poll_join` returning child tuples without `apply_join_outcome` | First Batch 4 revision. HTTP `/watch` never posted | Removed. `facade_poll_join` calls `apply_join_outcome` when no session-task remains live. |
+| `facade_poll_join` returning child tuples without `apply_join_outcome` | First Batch 4 revision. HTTP `/watch` never posted, never wrote `{id}.join.json`, never called `record_join_evidence` | Removed. `facade_poll_join` calls `apply_join_outcome` when no session-task remains live. |
 | `PeerMessageKind` as the join replace rule | ADR-046 JSONL kinds look like a conflict protocol | Not used. Join reads `SessionTask.handoff_summary`. |
 
 JSONL ADR-046 routes stay (`append_message`, `read_messages`, HTTP
 POST/GET `/v1/tasks/{id}/messages`).
+
+**Production supersession.** `JoinSummary.supersedes` has one production
+writer: `poll_fan_out_join`. The replace set is:
+
+1. Spawn-declared ids on `SessionTask.supersedes`. Sequential
+   continuation (`advance_sequential`, `schedule_team` with
+   `TeamScheduler::Sequential`) stamps every earlier member. Fan-out and
+   single-agent delegate stamp earlier tasks of the same agent only.
+2. Same-agent earlier completed tasks, unioned at poll so a retry that
+   skipped the stamp is not concatenated.
+
+Independent fan-out members of different agents list none, so all remain
+live. `facade_poll_join` (`/watch`, HTTP join) calls `apply_join_outcome`
+when no session-task remains live, so the join sidecar, parent
+`handoff_summary`, and condenser evidence run on the production path.
+
+```rust
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct LiveJoinEntry {
+    pub id: String,
+    pub agent_id: String,
+    pub body: String,
+    #[serde(default)]
+    pub supersedes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct JoinIndex {
+    pub schema_version: u32,
+    pub entries: BTreeMap<String, LiveJoinEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StateRefs {
+    pub task_id: String,
+    pub task_state: String,
+    pub working_set: String,
+    pub join_index: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StateEnvelope {
+    pub schema_version: u32,
+    pub task_id: String,
+    pub refs: StateRefs,
+    pub working_set: Option<WorkingSetRecord>,
+    pub join: Option<JoinIndex>,
+}
+```
 
 `JoinIndex::post` inserts or updates by message id and unions
 `supersedes`. `live_entries` returns entries whose ids are not listed in
 any `supersedes` array. `SubtaskOrchestrator::apply_join_outcome` posts
 each `JoinSummary`, persists `{task_id}.join.json` via `write_json_safe`,
 sets `TaskState.handoff_summary` from live entries only, and calls
-`TaskDocumentCondenser::record_join_evidence`. `StateEnvelope::load_for_task`
-is the internal read of both sidecars.
+`TaskDocumentCondenser::record_join_evidence` so the condenser remains
+the sole writer of `{task_id}.working-set.json`. `StateEnvelope::load_for_task`
+is the internal read of both sidecars. Phase 5 tests cover the join
+document and the production poll writer
+(`poll_fan_out_join_decides_sequential_supersession`,
+`poll_fan_out_join_keeps_independent_fan_out_summaries`,
+`poll_fan_out_join_same_agent_later_completion_replaces_earlier`,
+`facade_poll_join_applies_live_handoff_and_drops_superseded_summaries`).
 
 ## Pros and Cons
 
@@ -212,10 +430,13 @@ is the internal read of both sidecars.
 
 - The record stays a local, `serde_json`-readable file with a schema
   checked in CI, so resuming a task never depends on one vendor's store.
-- Budget checks measure what the context window actually measures.
+- Budget checks measure what the context window actually measures,
+  removing a class of bugs where a notes file or instruction file is
+  skipped (or wrongly kept) purely because a byte estimate was off.
 - A skipped instruction file no longer takes the rest of the instruction
   layer with it, and the manifest makes the skip visible.
-- Peer joins get an explicit conflict rule instead of implicit concatenation.
+- Peer joins get an explicit conflict rule instead of an implicit one
+  ("last full summary wins because we waited for everyone").
 
 **Cons**
 
@@ -223,25 +444,68 @@ is the internal read of both sidecars.
   `ApiMessage` history for the current pulse and the `WorkingSetRecord`
   for continuity — and keeping them from drifting apart is an ongoing
   cost, not a one-time one.
-- The accepted/pending split on memory candidates adds a manual step.
+- The accepted/pending split on memory candidates adds a manual step
+  compared to the previous silent whole-file copy into the prompt.
 - Join is not multi-writer. Concurrent external writers would need a
   later ADR; `JoinIndex` is one in-process document keyed by message id.
-- Two additional dependencies (`tiktoken`, `schemars`).
+  ADR-046 JSONL append/read is unchanged.
+- Two additional dependencies (`tiktoken`, `schemars`) each bring their
+  own version and vocabulary-data footprint; the tokenizer's
+  per-encoding feature flags keep this bounded but do not remove it.
 
 ## Alternatives Considered
 
-- **Keep the byte-count budget heuristic.** Rejected.
-- **Hand-roll a token estimator instead of adopting `tiktoken`.** Rejected.
-- **Hand-write the JSON Schema for `WorkingSetRecord`.** Rejected.
-- **Keep free-text summary concatenation on peer join.** Rejected.
-- **Adopt `loro` / `PeerMergeDoc` / `{id}.channel.crdt` as the join document.** Rejected: no second writer, typed JSON is inspectable, `loro` failed `cargo deny` (MPL-2.0).
-- **Wrap `ExportMode::updates` / `import` / `oplog_vv` as the join surface.** Rejected.
-- **Drive join supersession from `PeerMessageKind`.** Rejected.
-- **Leave `JoinSummary.supersedes` empty on `poll_fan_out_join`.** Rejected.
-- **Adopt opaque provider-side compaction as the primary continuity unit.** Rejected.
-- **Load a single project-instructions file, as previously.** Rejected.
-- **Treat the on-screen TUI projection as the resume source.** Rejected.
-- **Notes-file fingerprint refresh as the continuity protocol.** Rejected.
+- **Keep the byte-count budget heuristic.** Rejected: it is cheap but
+  wrong in a way that compounds — the same estimate gates both the notes
+  file and every instruction candidate, so one bad estimate can both
+  over-admit and under-admit content in the same pulse.
+- **Hand-roll a token estimator instead of adopting `tiktoken`.** Rejected:
+  matching a real BPE vocabulary by hand duplicates work an existing,
+  benchmarked crate already does, for a worse and unmaintained result.
+- **Hand-write the JSON Schema for `WorkingSetRecord` instead of deriving
+  it.** Rejected: a hand-written schema drifts from the Rust type
+  silently; `schemars` ties the two together and a CI diff check catches
+  drift immediately.
+- **Keep free-text summary concatenation on peer join.** Rejected: it has
+  no conflict rule, so two children editing related state produce a
+  summary that is only as good as whichever text happened to be
+  concatenated last.
+- **Adopt `loro` / `PeerMergeDoc` / `{id}.channel.crdt` as the join
+  document.** Rejected: production join is one in-process orchestrator
+  with no second writer, typed JSON is inspectable, and the `loro`
+  graph failed `cargo deny` (MPL-2.0).
+- **Wrap `ExportMode::updates` / `import` / `oplog_vv` on a CRDT wrapper
+  as the join surface.** Rejected: those APIs serve independent writers
+  exchanging missing ops. Production join posts every child into one
+  in-process `JoinIndex` and persists JSON. Documenting the incremental
+  APIs as current made unused methods look load-bearing.
+- **Drive join supersession from `PeerMessageKind`.** Rejected: ADR-046
+  JSONL kinds are a live inter-agent log per `session_task_id`. Join
+  reads `SessionTask.handoff_summary`. A `Correction` row is not a child
+  handoff.
+- **Leave `JoinSummary.supersedes` empty on `poll_fan_out_join` and
+  apply only from unit tests.** Rejected: production then concatenates
+  every child summary the way `join("\n")` did. Poll is the production
+  writer; `facade_poll_join` is the production caller of
+  `apply_join_outcome`.
+- **Adopt opaque provider-side compaction as the primary continuity
+  unit.** Rejected for the reasons in Crate and API Evidence above: it
+  trades away local inspection and portability for a convenience this
+  project does not need, having already chosen a local-first design in
+  ADR-023 and ADR-038.
+- **Load a single project-instructions file, as previously.** Rejected: an
+  over-budget file silently disables the whole layer, and a single file
+  cannot express directory-scoped conventions in a larger repository.
+- **Treat the on-screen TUI projection as the resume source.** Rejected:
+  ratatui's immediate-mode rendering means that view is reconstructed
+  from application state every frame and is not itself a second copy of
+  that state — ADR-045 reaches the same conclusion for snapshot replay.
+- **Notes-file fingerprint refresh as the continuity protocol.** Rejected:
+  re-reading a flat notes file before each pulse keeps that file current
+  in the system prompt; it does not restore model working state on
+  `/resume` or `/compact`. Phase 4 typed candidates cover the notes
+  problem. Do not grow a second continuity protocol beside
+  `WorkingSetRecord`.
 
 ## Validation
 
@@ -271,12 +535,22 @@ Phases 1–5 are on `main` (PR #444, PR #445, PR #446, PR #447).
 Alongside those, a schema-diff step regenerates
 `schema_for!(WorkingSetRecord)`, `schema_for!(MemoryCandidateStore)`,
 and `schema_for!(JoinIndex)` and fails if the checked-in schema files
-do not match.
+do not match, so the persisted contract cannot change without a
+reviewed diff.
 
 ## References
 
-- `tiktoken` 4.1.2 — <https://docs.rs/tiktoken/4.1.2>
-- `schemars` 1.2.2 — <https://docs.rs/schemars/1.2.2>
-- `JoinIndex` / `StateEnvelope` — typed JSON join sidecar at `{id}.join.json`; schema at `schemas/join_index.schema.json`
-- `ratatui` — <https://docs.rs/ratatui>
-- Internal: `TASKS/PN-01-working-set-record.md`, ADR-045, ADR-046, ADR-049
+- `tiktoken` 4.1.2 — `get_encoding` / `encoding_for_model` return
+  `Option<&'static CoreBpe>`; `CoreBpe::count` is the zero-allocation
+  path: <https://docs.rs/tiktoken/4.1.2>
+- `schemars` 1.2.2 — JSON Schema 2020-12 generation from Rust types via
+  `#[derive(JsonSchema)]` and `schema_for!`:
+  <https://docs.rs/schemars/1.2.2>
+- `JoinIndex` / `StateEnvelope` — typed JSON join sidecar at
+  `{id}.join.json` and the internal read API; schema at
+  `schemas/join_index.schema.json`
+- `ratatui` — immediate-mode rendering with intermediate buffers
+  (existing project dependency, cited here for the resume-source
+  rationale): <https://docs.rs/ratatui>
+- Internal: `TASKS/PN-01-working-set-record.md`, ADR-045, ADR-046,
+  ADR-049
