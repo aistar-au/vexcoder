@@ -44,3 +44,70 @@ restore on `/resume` and `/compact`), 3 (hierarchical instructions), 4
 (`MemoryCandidate`), and 5 (`JoinIndex` + `StateEnvelope` at `{id}.join.json`)
 are on `main` (PRs #444–#447). Do not reintroduce `loro`, `PeerMergeDoc`, or
 `{id}.channel.crdt`.
+
+## Crate and API Evidence
+
+Three upstream crates close the gaps above with primitives this codebase
+did not previously have, and one class of managed provider API is
+evaluated and rejected on the same grounds ADR-023/024 already used to
+prefer local, inspectable state.
+
+- **Token counting — `tiktoken` 4.1.2.** A pure-Rust byte-pair-encoding
+  tokenizer. Published signatures (`docs.rs/tiktoken/4.1.2`):
+  `tiktoken::get_encoding(name: &str) -> Option<&'static CoreBpe>` and
+  `tiktoken::encoding_for_model(model: &str) -> Option<&'static CoreBpe>`.
+  An encoding whose vocabulary is not compiled in is absent:
+  `get_encoding` returns `None`. `CoreBpe::count(&self, text: &str) -> usize`
+  returns a token count on a path that does not allocate the token-id
+  vector `encode` would produce; `count_with_special_tokens` extends that
+  to text containing special tokens. This crate's default encoding is
+  `o200k_base`, compiled in via `default-features = false` plus
+  `features = ["vocab-o200k_base"]`. Source: docs.rs/tiktoken.
+
+- **Schema validation — `schemars` 1.2.2.** `#[derive(JsonSchema)]` plus
+  the `schema_for!($type:ty)` macro generate a `Schema` document from a
+  Rust type (JSON Schema 2020-12). schemars reads a type's `#[serde(...)]`
+  attributes so the schema matches what `serde_json` actually produces.
+  This gives `WorkingSetRecord`, `MemoryCandidateStore`, and `JoinIndex`
+  a checked contract instead of a hand-maintained one, without changing
+  how the record is written to disk. Source: docs.rs/schemars/1.2.2.
+
+- **Peer-join merge — `JoinIndex` / `StateEnvelope`.** Production join
+  is a single-process orchestrator: `poll_fan_out_join` decides each
+  child's replace set, `apply_join_outcome` posts those entries into one
+  typed JSON `JoinIndex`, and `JoinIndex::save` persists
+  `.vex/state/{task_id}.join.json` through `write_json_safe` /
+  `assert_durable_access`. Message-id `supersedes` is the replace rule;
+  `live_entries` drops any id that appears in another entry's
+  `supersedes` list. `StateEnvelope` is the internal read API so
+  consumers do not open `{id}.json`, `{id}.working-set.json`, or
+  `{id}.join.json` directly. GET `/v1/tasks/{task_id}/working-set`
+  returns the envelope (the only HTTP read of live join ids /
+  `supersedes`); GET `/v1/tasks/{task_id}/join-status` returns agent
+  summaries from `facade_poll_join`, not the raw index. A CRDT
+  (`loro` / `PeerMergeDoc` / `{id}.channel.crdt`) is out of the join
+  surface: there is no second writer, and the `loro` graph failed
+  `cargo deny` (MPL-2.0). ADR-046 JSONL `PeerMessage` remains the
+  inter-agent log.
+
+- **Rejected: opaque provider-side compaction.** Some managed chat/response
+  APIs pair a create call with a server-side compaction operation and a
+  continuation identifier for the previous turn; the compacted result
+  comes back as an encrypted item that is explicitly not meant to be read
+  outside that vendor's own runtime. That is a reasonable design for a
+  vendor-hosted conversation store, but it is the wrong fit here: this
+  project keeps its working context in a local, `serde_json`-readable
+  file precisely so a task can be resumed, exported, or replayed without
+  depending on one vendor's store staying reachable. A local
+  `WorkingSetRecord` is the fallback that makes resume independent of any
+  such item, per ADR-049's existing local-first framing for the
+  shared-prefix cache contract.
+
+- **Existing dependency, reframed — `ratatui`.** Ratatui renders in
+  immediate mode with an intermediate buffer: on every frame the
+  application supplies the full view from its own state, and the library
+  does not retain that view between frames. That is exactly why the
+  on-screen transcript cannot be the resume source (ADR-045 already
+  reaches the same conclusion for snapshot-based replay) — the view is a
+  projection of state the application already owns, not a second copy of
+  that state.
