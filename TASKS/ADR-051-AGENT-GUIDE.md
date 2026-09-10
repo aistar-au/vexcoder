@@ -4,7 +4,7 @@ This document details the active work for **ADR-051: Durable Working-Set Record 
 
 ## 1. Active Work Overview
 
-The repository is executing a 5-phase implementation plan for fragmented context construction. Each phase is an isolated, testable batch. Do not fold later phases into an earlier batch.
+ADR-051 is a 5-phase implementation for fragmented context construction. All five batches are merged on `main` (PRs #444–#447). Do not fold a later phase's surface back into an earlier batch, and do not restore rejected join-surface items.
 
 **Primary Checklist:** `TASKS/PN-01-working-set-record.md`
 **Architectural Decision:** `adr/ADR-051-durable-working-set-record-and-context-continuity.md`
@@ -58,12 +58,12 @@ The decisions in ADR-051 are directly informed by researching managed provider A
 
 ## 5. Batching Strategy
 
-To keep CI green and changes reviewable, ADR-051 is divided into 5 PR batches. **Do not combine these phases into a single PR.**
+ADR-051 landed as 5 isolated PR batches. The merged surfaces stay separate; do not recombine them into a follow-up that restores rejected APIs.
 
 1.  **Batch 1 (PR #444, merged):** Schema (`schemars`), Persistence, and Token Accuracy (`tiktoken`).
 2.  **Batch 2 (PR #445, merged):** Hierarchical Instructions & Memory Candidates.
 3.  **Batch 3 (PR #446, merged):** Restore the next request from `WorkingSetRecord` on `/resume` and `/compact` (`reset_conversation_window` is no longer called on those paths).
-4.  **Batch 4 (this PR):** Agent-join merge via `JoinIndex`. JSONL ADR-046 routes stay. `poll_fan_out_join` writes `JoinSummary.supersedes`. `facade_poll_join` calls `apply_join_outcome`. `StateEnvelope` is the internal read API. Do not restore `loro` / `PeerMergeDoc`. Do not drive join replace from `PeerMessageKind`.
+4.  **Batch 4 (PR #447, merged):** Agent-join merge via `JoinIndex`. JSONL ADR-046 routes stay. `poll_fan_out_join` writes `JoinSummary.supersedes`. `facade_poll_join` calls `apply_join_outcome`. `StateEnvelope` is the internal read API. Do not restore `loro` / `PeerMergeDoc`. Do not drive join replace from `PeerMessageKind`.
 
 ## 6. Phase 5 production call graph (do not reintroduce unused join surface)
 
