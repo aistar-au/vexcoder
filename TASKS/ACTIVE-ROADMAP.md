@@ -6,7 +6,7 @@ and `TASKS/TASKS-WORK-MAP.md` reference this file -- they do not duplicate it.
 Updated by the merge workflow after each ADR-scoped PR is merged on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-09-09 (ADR-051 Phase 5: JoinIndex, StateEnvelope, GET working-set HTTP contract)
+Last updated: 2026-09-10 (ADR-051 Phase 5 merged in PR #447; design-doc drift cleanup)
 
 ---
 
@@ -34,7 +34,7 @@ Last updated: 2026-09-09 (ADR-051 Phase 5: JoinIndex, StateEnvelope, GET working
 | ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeSignal stub reserved for ADR-045 follow-up |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
 | ADR-048 | Proposed | Pre-implementation invariants only | Permissions-overlay mode precedence, protected-path rules, untrusted-workspace demotion, and fail-closed non-interactive behavior recorded before enforcement code lands |
-| ADR-051 | Active | Phase 5 in this batch | Durable working-set record, `WorkingSetRecord` restore on `/resume` and `/compact`, hierarchical instruction loading, reviewable memory candidates, and agent-join merge via `JoinIndex`. Phases 1–4 merged in PRs #444–#446. |
+| ADR-051 | Accepted | 0 items remaining | Durable working-set record, `WorkingSetRecord` restore on `/resume` and `/compact`, hierarchical instruction loading, reviewable memory candidates, and agent-join merge via `JoinIndex` / `StateEnvelope`. Phases 1–5 merged in PRs #444–#447. |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -94,7 +94,7 @@ Five isolated batches for context continuity: schema and persist, restore on `/r
 - JSON sidecar `memory.candidates.json` is the source of truth; markdown is a projection.
 - Only accepted candidates inject. `/memory accept` promotes pending feedback.
 
-**Phase 5 -- Agent-join merge (`JoinIndex`)** -- this batch
+**Phase 5 -- Agent-join merge (`JoinIndex`)** -- merged in PR #447
 - JSONL `PeerMessage` append/read (ADR-046) stays.
 - `JoinIndex` is one typed JSON document per parent task at `.vex/state/{task_id}.join.json` (`schemars`, message-id `supersedes`, `live_entries`).
 - `poll_fan_out_join` writes `JoinSummary.supersedes` (spawn-declared `SessionTask.supersedes` plus same-agent earlier completions). Independent fan-out members of different agents list none.
