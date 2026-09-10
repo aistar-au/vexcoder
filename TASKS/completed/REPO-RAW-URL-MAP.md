@@ -6,3 +6,6 @@ Canonical GitHub raw-content URL for every path from `git ls-files`.
 - Template: `https://raw.githubusercontent.com/aistar-au/vexcoder/main/<path>`
 - Source: `git ls-files`
 - Total tracked files: 438
+
+| # | Path | Lines | Raw URL |
+| ---: | :--- | ---: | :--- |
